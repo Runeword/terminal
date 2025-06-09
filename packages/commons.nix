@@ -18,6 +18,7 @@ with pkgs; [
   xdg-ninja
 
   # Coreutils
+  coreutils-full
   bat
   zoxide
   gomi
@@ -55,7 +56,7 @@ with pkgs; [
   # Containers
   lazydocker
   docker-compose
-  terraform
+  #terraform
 
   # Files
   miller # cvs toolbox
