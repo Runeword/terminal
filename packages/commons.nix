@@ -19,6 +19,7 @@ with pkgs; [
 
   # Coreutils
   coreutils-full
+  unixtools.column
   bat
   zoxide
   gomi
