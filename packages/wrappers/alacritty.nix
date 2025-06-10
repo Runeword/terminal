@@ -27,3 +27,4 @@ pkgs.runCommand "alacritty"
     --add-flags "--config-file $out/.config/alacritty/alacritty.toml" \
   ''
   # --prefix PATH : ${extraWrapper}/bin \
+  # --set TERMINFO_DIRS "${pkgs.alacritty}/share/terminfo" \
