@@ -27,9 +27,9 @@
         };
 
         extraFonts = [
-          # pkgs.nerd-fonts.sauce-code-pro
-          # pkgs.nerd-fonts.monaspace
-          # pkgs.nerd-fonts.caskaydia-mono
+          pkgs.nerd-fonts.sauce-code-pro
+          pkgs.nerd-fonts.monaspace
+          pkgs.nerd-fonts.caskaydia-mono
         ];
 
         extraPackages =
