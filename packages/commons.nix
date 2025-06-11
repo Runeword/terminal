@@ -19,7 +19,7 @@ with pkgs; [
 
   # Coreutils
   coreutils-full
-  unixtools.column
+  util-linux # provides the linux version of the column command
   bat
   zoxide
   gomi
