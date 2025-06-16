@@ -1,8 +1,14 @@
 {
   pkgs,
   extraPackages,
-  extraFonts,
 }:
+let
+  fonts = pkgs.lib.optionals (!pkgs.stdenv.isDarwin) [
+    pkgs.nerd-fonts.sauce-code-pro
+    pkgs.nerd-fonts.monaspace
+    pkgs.nerd-fonts.caskaydia-mono
+  ];
+in
 # let
   # extraWrapper = pkgs.callPackage ./extra.nix {
   #   inherit pkgs extraPackages;
@@ -22,9 +28,7 @@ pkgs.runCommand "alacritty"
     # wrapProgram would have named it alacritty-wrapped instead
     mkdir -p $out/bin
     makeWrapper ${pkgs.alacritty}/bin/alacritty $out/bin/alacritty \
-    --prefix PATH : ${pkgs.lib.makeBinPath extraPackages} \
-    --set FONTCONFIG_FILE ${pkgs.makeFontsConf { fontDirectories = extraFonts; }} \
-    --add-flags "--config-file $out/.config/alacritty/alacritty.toml" \
+      --prefix PATH : ${pkgs.lib.makeBinPath extraPackages} \
+      ${pkgs.lib.optionalString (fonts != []) "--set FONTCONFIG_FILE ${pkgs.makeFontsConf { fontDirectories = fonts; }}"} \
+      --add-flags "--config-file $out/.config/alacritty/alacritty.toml"
   ''
-  # --prefix PATH : ${extraWrapper}/bin \
-  # --set TERMINFO_DIRS "${pkgs.alacritty}/share/terminfo" \
