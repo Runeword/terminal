@@ -26,12 +26,6 @@
           ];
         };
 
-        extraFonts = [
-          pkgs.nerd-fonts.sauce-code-pro
-          pkgs.nerd-fonts.monaspace
-          pkgs.nerd-fonts.caskaydia-mono
-        ];
-
         extraPackages =
           (import ./packages/commons.nix { inherit pkgs; })
           ++ (
@@ -47,7 +41,7 @@
           ];
 
         alacritty = import ./packages/wrappers/alacritty.nix {
-          inherit pkgs extraPackages extraFonts;
+          inherit pkgs extraPackages;
         };
 
         # zsh = pkgs.symlinkJoin {
