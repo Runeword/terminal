@@ -36,7 +36,7 @@
           )
           ++ [
             (import ./packages/wrappers/zsh.nix { inherit pkgs; })
-            # (import ./packages/wrappers/tmux.nix { inherit pkgs; })
+            (import ./packages/wrappers/tmux.nix { inherit pkgs; })
             # (import ./packages/wrappers/bash.nix { inherit pkgs; })
           ];
 
