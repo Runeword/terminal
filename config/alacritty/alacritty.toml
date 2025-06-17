@@ -70,13 +70,14 @@ live_config_reload = true
 
 [keyboard]
    bindings = [
+      { key = "T", mods = "Command", chars = "\u001bt" },          # Command+T as Alt+T
+      { key = "W", mods = "Command", chars = "\u001bw" },          # Command+W as Alt+W
       { action = "ResetFontSize", key = "Equals", mods = "Control" },
       { action = "IncreaseFontSize", key = "Plus", mods = "Control|Shift" },
       { action = "DecreaseFontSize", key = "Minus", mods = "Control" },
       { action = "ResetFontSize", key = "NumpadEquals", mods = "Control" },
       { action = "IncreaseFontSize", key = "NumpadAdd", mods = "Control" },
       { action = "DecreaseFontSize", key = "NumpadSubtract", mods = "Control" },
-
       { action = "ScrollLineUp", key = "PageUp", mods = "Shift" },
       { action = "ScrollLineUp", key = "PageUp", mods = "Shift" },
       { action = "ScrollLineUp", key = "PageUp", mods = "Shift" },
