@@ -30,10 +30,11 @@ fu	__update_flake_inputs .                                                      
 fm	nix flake metadata                                                           	flake           metadata	x
 ft	__use_flake_template $HOME/templates                                         	flake           templates         use	x
 g   	lazygit                                         	git
+g   	onefetch                                        	git                 repo                info
 gi  	git init                                        	git                 repo                init	x
-gf  	onefetch                                        	git                 repo                info	x
 gl  	git-forgit log                                  	git                 commit              list	x
 ga  	git-forgit add                                  	git                 file                stage	x
+gu  	git config user.name ; git config user.email    	git                 user                info	x
 xga  	git add --intent-to-add File                    	git                 file                track
 gt  	git status                                      	git                 file                list	x
 gkb 	git-forgit checkout_branch                      	git                 branch              switch	x
@@ -56,7 +57,7 @@ gkc 	git-forgit checkout_commit                      	git
 gko 	git checkout --ours FileName                    	git                 merge conflict                keep our	x
 gnu 	__git_open_unstaged                             	git                 open                          unstaged	x
 gns 	__git_open_staged                               	git                 open                            staged	x
-gnu 	__git_open_all                                  	git                 open         staged/unstaged/untracked	x
+gna 	__git_open_all                                  	git                 open         staged/unstaged/untracked	x
 gss 	git stash push --staged                         	git                 stash                           staged	x
 gsp 	git stash push                                  	git                 stash                  staged/unstaged	x
 gsa 	git stash push --include-untracked              	git                 stash        untracked/staged/unstaged	x
@@ -65,8 +66,8 @@ gsy 	git stash apply                                 	git                 stash 
 gsl 	git-forgit stash_show                           	git                 stash                             list	x
 gsc 	git stash clear                                 	git                 stash                       delete all
 gsf 	git-forgit stash_push                           	git                 stash                             push	x
-gps 	git push                                        	git	x
-gpl 	git pull                                        	git	x
+gp  	git pull                                        	git	x
+gf  	git fetch                                        	git	x
 gr  	git-forgit checkout_file                        	git                 Discard (git checkout --, git restore)	x
 gr  	git restore --staged                            	git                 Unstage
 grm 	git rm -rf                                      	git                 Remove untracked
@@ -77,8 +78,7 @@ gru 	git-forgit reset_head                           	git                 Unstag
 grts	git reset --soft HEAD~<n>                       	git                 Revert last n commit and unstage their changes
 grth	git reset --hard HEAD~<n>                       	git                 Revert last n commit and delete their changes
 gcln	git-forgit clean --force -d                     	git                 Delete untracked files and directories
-gd  	git-forgit diff                                 	git                 Show unstaged changes
-gda 	git-forgit diff --cached                        	git                 Show staged changes
+gd  	git-forgit diff                                 	git                 Show unstaged changes	x
 gwa 	git worktree add                                	git
 gwl 	git worktree list                               	git
 gwr 	git worktree remove                             	git
