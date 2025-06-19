@@ -8,6 +8,27 @@ __git_clone() {
   cd "$base_dir/$(basename "$repo_url" .git)" || return # Change into the cloned directory
 }
 
+__git_open_url() {
+  # Step 1: Get the remote URL
+  local REMOTE_URL
+  REMOTE_URL=$(git remote get-url origin)
+
+  # Step 2: Convert SSH URL to HTTPS URL
+  local REPO_URL
+  REPO_URL=$(echo "$REMOTE_URL" | sed -E 's#git@[^:]+:([^/]+)/([^.]+)\.git#https://github.com/\1/\2#')
+
+  # Step 3: Get the current branch name
+  local BRANCH
+  BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+  # Step 4: Construct the final URL to the branch page
+  local FINAL_URL
+  FINAL_URL="${REPO_URL}/${1:-tree}/${BRANCH}"
+
+  # Step 5: Open the URL in Google Chrome
+  open -a "Google Chrome" "$FINAL_URL"
+}
+
 __git_open_all() {
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
