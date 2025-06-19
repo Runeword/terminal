@@ -31,11 +31,12 @@ fm	nix flake metadata                                                           
 ft	__use_flake_template $HOME/templates                                         	flake           templates         use	x
 g   	lazygit                                         	git
 g   	onefetch                                        	git                 repo                info
-gi  	git init                                        	git                 repo                init	x
+gi  	git config user.name ; git config user.email ; git remote -v    	git                 repo                info	x
 gl  	git-forgit log                                  	git                 commit              list	x
 ga  	git-forgit add                                  	git                 file                stage	x
-gu  	git config user.name ; git config user.email    	git                 user                info	x
-xga  	git add --intent-to-add File                    	git                 file                track
+gu  	__git_open_url                                  	git                 url                 open	x
+guc 	__git_open_url commits                          	git                 url                 open	x
+xga 	git add --intent-to-add File                    	git                 file                track
 gt  	git status                                      	git                 file                list	x
 gkb 	git-forgit checkout_branch                      	git                 branch              switch	x
 gb  	git branch --list                               	git                 branch              list	x
@@ -58,6 +59,8 @@ gko 	git checkout --ours FileName                    	git                 merge 
 gnu 	__git_open_unstaged                             	git                 open                          unstaged	x
 gns 	__git_open_staged                               	git                 open                            staged	x
 gna 	__git_open_all                                  	git                 open         staged/unstaged/untracked	x
+gnb 	nvim $(git diff --name-only master...)          	git                 open                            current branch	x
+gnc 	nvim $(git diff-tree --no-commit-id --name-only -r HEAD)	git         open                            last commit	x
 gss 	git stash push --staged                         	git                 stash                           staged	x
 gsp 	git stash push                                  	git                 stash                  staged/unstaged	x
 gsa 	git stash push --include-untracked              	git                 stash        untracked/staged/unstaged	x
@@ -67,11 +70,12 @@ gsl 	git-forgit stash_show                           	git                 stash 
 gsc 	git stash clear                                 	git                 stash                       delete all
 gsf 	git-forgit stash_push                           	git                 stash                             push	x
 gp  	git pull                                        	git	x
-gf  	git fetch                                        	git	x
+gf  	git fetch                                       	git	x
+gx  	git commit --fixup SHA                          	git                 [1] fix commit with staged changes
+gxr 	git rebase --interactive --autosquash SHA^      	git                 [2] fix commit with staged changes
 gr  	git-forgit checkout_file                        	git                 Discard (git checkout --, git restore)	x
 gr  	git restore --staged                            	git                 Unstage
 grm 	git rm -rf                                      	git                 Remove untracked
-grb 	git-forgit rebase                               	git
 grb 	git-forgit rebase --interactive                 	git                 Interactive rebase
 grh 	git reset --hard                                	git                 Delete staged + unstaged
 gru 	git-forgit reset_head                           	git                 Unstage changes (git restore --staged)
