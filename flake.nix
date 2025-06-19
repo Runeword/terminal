@@ -1,10 +1,8 @@
 {
   description = "Alacritty with configuration";
 
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
-  };
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.flake-utils.url = "github:numtide/flake-utils";
 
   outputs =
     {
@@ -51,21 +49,19 @@
 
       in
       {
-        packages = {
-          default = alacritty;
-          # zsh = zsh;
-        };
+        apps.default.type = "app";
+        apps.default.program = "${alacritty}/bin/alacritty";
+        packages.default = alacritty;
 
-        apps = {
-          default = {
-            type = "app";
-            program = "${alacritty}/bin/alacritty";
-          };
-          # zsh = {
-          #   type = "app";
-          #   program = "${zsh}/bin/zsh";
-          # };
-        };
+        # # Dev mode
+        # apps.dev.type = "app";
+        # apps.dev.program = "${alacritty-dev { }}/bin/nvim";
+        # packages.dev.default = alacritty-dev { };
+        # packages.dev.options = alacritty-dev;
+
+        # apps.zsh.type = "app";
+        # apps.zsh.program = "${zsh}/bin/zsh";
+        # packages.zsh = zsh;
       }
     );
 }
