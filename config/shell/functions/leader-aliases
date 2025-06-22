@@ -4,13 +4,15 @@ hgr	__home_manager_generation_remove                                            
 hgs	__home_manager_generation_switch                                             	home-manager    generation        switch	x
 hp	__home_manager_packages_list                                                 	home-manager    packages          list	x
 hu	__update_flake_inputs $HOME/home-manager                                     	home-manager    inputs            update	x
-hs	home-manager switch --flake $HOME/home-manager                               	home-manager    config            build/activate	x
+# hs	home-manager switch --flake $HOME/home-manager                             	home-manager    config            build/activate	x
+hs	home-manager switch                                                          	home-manager    config            build/activate	x
 hd	home-manager expire-generations '-7 days'                                    	home-manager    generation        remove old	x
 hv	home-manager --version                                                       	home-manager    version	x
 ngs	__nixos_generation_switch                                                    	nixos           generation        switch	x
 ngr	__nixos_generation_remove                                                    	nixos           generation        remove	x
 nu	__update_flake_inputs $HOME/nixos                                            	nixos           inputs            update	x
-ns	sudo nixos-rebuild switch --flake $HOME/nixos#$USER                          	nixos           config            build/boot/activate	x
+# ns	sudo nixos-rebuild switch --flake $HOME/nixos#$USER                        	nixos           config            build/boot/activate	x
+ns  sudo darwin-rebuild switch --flake $HOME/.config/nix-darwin                  	darwin          config            build/boot/activate	x
 ns	sudo nixos-rebuild boot --flake $HOME/nixos#$USER                            	nixos           config            build/boot	x
 nv	nixos-version                                                                	nixos           version	x
 ni	nix-info -m                                                                  	nixos           info	x
