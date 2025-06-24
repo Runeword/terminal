@@ -3,7 +3,8 @@
 export EDITOR="nvim"
 export VISUAL="nvim"
 export MANPAGER="nvim +Man!"
-export BROWSER="google-chrome-stable"
+export BROWSER="Firefox"
+# export BROWSER="google-chrome-stable"
 
 # DIRENV_LOG_FORMAT = "$(tput setaf 0)direnv: %s$(tput sgr0)";
 # DIRENV_LOG_FORMAT = ''echo -e "\e[90mdirenv: %s\e[0m"'';
