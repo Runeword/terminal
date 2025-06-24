@@ -70,8 +70,58 @@ live_config_reload = true
 
 [keyboard]
    bindings = [
-      { key = "T", mods = "Command", chars = "\u001bt" },          # Command+T as Alt+T
-      { key = "W", mods = "Command", chars = "\u001bw" },          # Command+W as Alt+W
+      { key = "A", mods = "Command", chars = "\u001ba" }, # Command+A as Alt+A
+      { key = "B", mods = "Command", chars = "\u001bb" }, # Command+B as Alt+B
+      { key = "C", mods = "Command", chars = "\u001bc" }, # Command+C as Alt+C
+      { key = "D", mods = "Command", chars = "\u001bd" }, # Command+D as Alt+D
+      { key = "E", mods = "Command", chars = "\u001be" }, # Command+E as Alt+E
+      { key = "F", mods = "Command", chars = "\u001bf" }, # Command+F as Alt+F
+      { key = "G", mods = "Command", chars = "\u001bg" }, # Command+G as Alt+G
+      { key = "H", mods = "Command", chars = "\u001bh" }, # Command+H as Alt+H
+      { key = "I", mods = "Command", chars = "\u001bi" }, # Command+I as Alt+I
+      { key = "J", mods = "Command", chars = "\u001bj" }, # Command+J as Alt+J
+      { key = "K", mods = "Command", chars = "\u001bk" }, # Command+K as Alt+K
+      { key = "L", mods = "Command", chars = "\u001bl" }, # Command+L as Alt+L
+      { key = "M", mods = "Command", chars = "\u001bm" }, # Command+M as Alt+M
+      { key = "N", mods = "Command", chars = "\u001bn" }, # Command+N as Alt+N
+      { key = "O", mods = "Command", chars = "\u001bo" }, # Command+O as Alt+O
+      { key = "P", mods = "Command", chars = "\u001bp" }, # Command+P as Alt+P
+      { key = "Q", mods = "Command", chars = "\u001bq" }, # Command+Q as Alt+Q
+      { key = "R", mods = "Command", chars = "\u001br" }, # Command+R as Alt+R
+      { key = "S", mods = "Command", chars = "\u001bs" }, # Command+S as Alt+S
+      { key = "T", mods = "Command", chars = "\u001bt" }, # Command+T as Alt+T
+      { key = "U", mods = "Command", chars = "\u001bu" }, # Command+U as Alt+U
+      { key = "V", mods = "Command", chars = "\u001bv" }, # Command+V as Alt+V
+      { key = "W", mods = "Command", chars = "\u001bw" }, # Command+W as Alt+W
+      { key = "X", mods = "Command", chars = "\u001bx" }, # Command+X as Alt+X
+      { key = "Y", mods = "Command", chars = "\u001by" }, # Command+Y as Alt+Y
+      { key = "Z", mods = "Command", chars = "\u001bz" }, # Command+Z as Alt+Z
+      { key = "A", mods = "Command|Shift", chars = "\u001bA" }, # Command+Shift+A as Alt+A
+      { key = "B", mods = "Command|Shift", chars = "\u001bB" }, # Command+Shift+B as Alt+B
+      { key = "C", mods = "Command|Shift", chars = "\u001bC" }, # Command+Shift+C as Alt+C
+      { key = "D", mods = "Command|Shift", chars = "\u001bD" }, # Command+Shift+D as Alt+D
+      { key = "E", mods = "Command|Shift", chars = "\u001bE" }, # Command+Shift+E as Alt+E
+      { key = "F", mods = "Command|Shift", chars = "\u001bF" }, # Command+Shift+F as Alt+F
+      { key = "G", mods = "Command|Shift", chars = "\u001bG" }, # Command+Shift+G as Alt+G
+      { key = "H", mods = "Command|Shift", chars = "\u001bH" }, # Command+Shift+H as Alt+H
+      { key = "I", mods = "Command|Shift", chars = "\u001bI" }, # Command+Shift+I as Alt+I
+      { key = "J", mods = "Command|Shift", chars = "\u001bJ" }, # Command+Shift+J as Alt+J
+      { key = "K", mods = "Command|Shift", chars = "\u001bK" }, # Command+Shift+K as Alt+K
+      { key = "L", mods = "Command|Shift", chars = "\u001bL" }, # Command+Shift+L as Alt+L
+      { key = "M", mods = "Command|Shift", chars = "\u001bM" }, # Command+Shift+M as Alt+M
+      { key = "N", mods = "Command|Shift", chars = "\u001bN" }, # Command+Shift+N as Alt+N
+      { key = "O", mods = "Command|Shift", chars = "\u001bO" }, # Command+Shift+O as Alt+O
+      { key = "P", mods = "Command|Shift", chars = "\u001bP" }, # Command+Shift+P as Alt+P
+      { key = "Q", mods = "Command|Shift", chars = "\u001bQ" }, # Command+Shift+Q as Alt+Q
+      { key = "R", mods = "Command|Shift", chars = "\u001bR" }, # Command+Shift+R as Alt+R
+      { key = "S", mods = "Command|Shift", chars = "\u001bS" }, # Command+Shift+S as Alt+S
+      { key = "T", mods = "Command|Shift", chars = "\u001bT" }, # Command+Shift+T as Alt+T
+      { key = "U", mods = "Command|Shift", chars = "\u001bU" }, # Command+Shift+U as Alt+U
+      { key = "V", mods = "Command|Shift", chars = "\u001bV" }, # Command+Shift+V as Alt+V
+      { key = "W", mods = "Command|Shift", chars = "\u001bW" }, # Command+Shift+W as Alt+W
+      { key = "X", mods = "Command|Shift", chars = "\u001bX" }, # Command+Shift+X as Alt+X
+      { key = "Y", mods = "Command|Shift", chars = "\u001bY" }, # Command+Shift+Y as Alt+Y
+      { key = "Z", mods = "Command|Shift", chars = "\u001bZ" }, # Command+Shift+Z as Alt+Z
       { action = "ResetFontSize", key = "Equals", mods = "Control" },
       { action = "IncreaseFontSize", key = "Plus", mods = "Control|Shift" },
       { action = "DecreaseFontSize", key = "Minus", mods = "Control" },
