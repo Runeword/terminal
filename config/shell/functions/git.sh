@@ -26,7 +26,7 @@ __git_open_url() {
   FINAL_URL="${REPO_URL}/${1:-tree}/${BRANCH}"
 
   # Step 5: Open the URL in Google Chrome
-  open -a "Google Chrome" "$FINAL_URL"
+  open -a "$BROWSER" "$FINAL_URL"
 }
 
 __git_open_all() {
