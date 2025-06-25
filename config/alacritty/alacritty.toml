@@ -72,7 +72,7 @@ live_config_reload = true
    bindings = [
       { key = "A", mods = "Command", chars = "\u001ba" }, # Command+A as Alt+A
       { key = "B", mods = "Command", chars = "\u001bb" }, # Command+B as Alt+B
-      { key = "C", mods = "Command", chars = "\u001bc" }, # Command+C as Alt+C
+      # { key = "C", mods = "Command", chars = "\u001bc" }, # Command+C as Alt+C
       { key = "D", mods = "Command", chars = "\u001bd" }, # Command+D as Alt+D
       { key = "E", mods = "Command", chars = "\u001be" }, # Command+E as Alt+E
       { key = "F", mods = "Command", chars = "\u001bf" }, # Command+F as Alt+F
@@ -91,7 +91,7 @@ live_config_reload = true
       { key = "S", mods = "Command", chars = "\u001bs" }, # Command+S as Alt+S
       { key = "T", mods = "Command", chars = "\u001bt" }, # Command+T as Alt+T
       { key = "U", mods = "Command", chars = "\u001bu" }, # Command+U as Alt+U
-      { key = "V", mods = "Command", chars = "\u001bv" }, # Command+V as Alt+V
+      # { key = "V", mods = "Command", chars = "\u001bv" }, # Command+V as Alt+V
       { key = "W", mods = "Command", chars = "\u001bw" }, # Command+W as Alt+W
       { key = "X", mods = "Command", chars = "\u001bx" }, # Command+X as Alt+X
       { key = "Y", mods = "Command", chars = "\u001by" }, # Command+Y as Alt+Y
