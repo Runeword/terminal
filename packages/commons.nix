@@ -43,6 +43,7 @@ with pkgs; [
   atac
   ngrok
   awscli2
+  lefthook
 
   # Archivers
   ouch
