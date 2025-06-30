@@ -16,6 +16,7 @@ with pkgs; [
   chezmoi
   gh
   xdg-ninja
+  direnv
 
   # Coreutils
   coreutils-full
