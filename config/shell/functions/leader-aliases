@@ -1,5 +1,8 @@
-oa	nvim ~/terminal/config/shell/functions/leader-aliases                        	open            aliases	x
-oh	nvim ~/home-manager/charles/packages.nix                                     	open            packages	x
+oa	nvim ~/Documents/terminal/config/shell/functions/leader-aliases              	open            aliases	x
+ob	nvim ~/.config/home-manager/firefox_bookmarks.nix                            	open            bookmarks	x
+os	nvim ~/.config/home-manager/firefox_engines.nix                              	open            search engines	x
+oh	nvim ~/.config/home-manager/home.nix                                         	open            config	x
+od	nvim ~/.config/nix-darwin/flake.nix                                          	open            config	x
 hgr	__home_manager_generation_remove                                             	home-manager    generation        remove	x
 hgs	__home_manager_generation_switch                                             	home-manager    generation        switch	x
 hp	__home_manager_packages_list                                                 	home-manager    packages          list	x
@@ -12,15 +15,15 @@ ngs	__nixos_generation_switch                                                   
 ngr	__nixos_generation_remove                                                    	nixos           generation        remove	x
 nu	__update_flake_inputs $HOME/nixos                                            	nixos           inputs            update	x
 # ns	sudo nixos-rebuild switch --flake $HOME/nixos#$USER                        	nixos           config            build/boot/activate	x
-ns  sudo darwin-rebuild switch --flake $HOME/.config/nix-darwin                  	darwin          config            build/boot/activate	x
-ns	sudo nixos-rebuild boot --flake $HOME/nixos#$USER                            	nixos           config            build/boot	x
+# ns	sudo nixos-rebuild boot --flake $HOME/nixos#$USER                            	nixos           config            build/boot	x
+ns	sudo darwin-rebuild switch --flake $HOME/.config/nix-darwin                  	darwin          config            build/boot/activate	x
 nv	nixos-version                                                                	nixos           version	x
 ni	nix-info -m                                                                  	nixos           info	x
-ns	nix shell nixpkgs#Package                                                    	nix             package           install/temporary
+np	nix shell nixpkgs#Package                                                    	nix             package           install/temporary
 nd	sudo nix-collect-garbage --verbose --delete-old                              	nix             garbage           clean	x
 nl	sudo nix-collect-garbage --dry-run --delete-old                              	nix             garbage           list	x
 nc	cd /nix/store && __open_file                                                 	nix             store             list	x
-np	readlink -f result                                                           	flake           path              show	x
+# np	readlink -f result                                                         	flake           path              show	x
 nb	nix build --print-out-paths                                                  	flake           package           build	x
 nr	nix run                                                                      	flake           application       run	x
 fl	nix flake update                                                             	flake           lock              recreate	x
@@ -30,7 +33,8 @@ fd	nix store delete $(nix path-info . --json | jq -r '.[].path')                
 fr	nix-store --query --referrers $(nix path-info . --json | jq -r '.[].path')   	flake           referrers         show	x
 fu	__update_flake_inputs .                                                      	flake           inputs            update	x
 fm	nix flake metadata                                                           	flake           metadata	x
-ft	__use_flake_template $HOME/templates                                         	flake           templates         use	x
+ft	__use_flake_template "github:Runeword/dotfiles?dir=templates"                	flake           templates         use	x
+fa  	direnv allow                                                               	flake           direnv            allow	x
 g   	lazygit                                         	git
 g   	onefetch                                        	git                 repo                info
 gi  	git config user.name ; git config user.email ; git remote -v    	git                 repo                info	x
@@ -75,9 +79,9 @@ gp  	git pull                                        	git	x
 gf  	git fetch                                       	git	x
 gx  	git commit --fixup SHA                          	git                 [1] fix commit with staged changes
 gxr 	git rebase --interactive --autosquash SHA^      	git                 [2] fix commit with staged changes
-gr  	git-forgit checkout_file                        	git                 Discard (git checkout --, git restore)	x
+gr  	git-forgit checkout_file                        	git                 Discard (checkout --/ restore)	x
 gr  	git restore --staged                            	git                 Unstage
-grm 	git rm -rf                                      	git                 Remove untracked
+grm 	git rm -rf --cached                             	git                 Untrack
 grb 	git-forgit rebase --interactive                 	git                 Interactive rebase
 grh 	git reset --hard                                	git                 Delete staged + unstaged
 gru 	git-forgit reset_head                           	git                 Unstage changes (git restore --staged)
