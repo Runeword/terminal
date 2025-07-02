@@ -32,11 +32,11 @@ __git_open_url() {
 __git_open_all() {
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
-  {
+  (cd "$repo_root" && {
     git diff --name-only                     # unstaged
     git diff --name-only --cached            # staged
     git ls-files --others --exclude-standard # untracked
-  } | sort -u |
+  }) | sort -u |
     fzf \
       --multi --reverse --no-separator --border none --cycle --height 70% \
       --info=inline:'' \
@@ -51,7 +51,7 @@ __git_open_all() {
 __git_open_unstaged() {
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
-  git ls-files --others --exclude-standard --modified |
+  (cd "$repo_root" && git ls-files --others --exclude-standard --modified) |
     fzf \
       --multi --reverse --no-separator --border none --cycle --height 70% \
       --info=inline:'' \
@@ -66,7 +66,7 @@ __git_open_unstaged() {
 __git_open_staged() {
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
-  git diff --name-only --cached |
+  (cd "$repo_root" && git diff --name-only --cached) |
     fzf \
       --multi --reverse --no-separator --border none --cycle --height 70% \
       --info=inline:'' \
