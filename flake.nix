@@ -52,13 +52,9 @@
           {
             configPath ? builtins.getEnv "TERM_CONFIG_DIR",
           }:
-          let
-            devPkgs = mkPkgs configPath;
-            devExtraPackages = mkExtraPackages devPkgs;
-          in
           import ./packages/wrappers/alacritty.nix {
-            pkgs = devPkgs;
-            extraPackages = devExtraPackages;
+            pkgs = mkPkgs configPath;
+            extraPackages = mkExtraPackages (mkPkgs configPath);
           };
 
         # zsh = pkgs.symlinkJoin {
