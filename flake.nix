@@ -13,20 +13,21 @@
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        mkPkgs = configPath: import nixpkgs {
-          inherit system;
-          config.allowUnfree = true;
-          overlays = [
-            (import ./overlays/lib.nix {
-              rootStr = if configPath != null then configPath else toString ./.;
-              inherit self;
-            })
-          ];
-        };
+        mkPkgs =
+          configPath:
+          import nixpkgs {
+            inherit system;
+            config.allowUnfree = true;
+            overlays = [
+              (import ./overlays/lib.nix {
+                rootStr = if configPath != null then configPath else toString ./.;
+                inherit self;
+              })
+            ];
+          };
 
-        pkgs = mkPkgs null;
-
-        extraPackages =
+        mkExtraPackages =
+          pkgs:
           (import ./packages/commons.nix { inherit pkgs; })
           ++ (
             if pkgs.stdenv.isDarwin then
@@ -40,6 +41,9 @@
             # (import ./packages/wrappers/bash.nix { inherit pkgs; })
           ];
 
+        pkgs = mkPkgs null;
+        extraPackages = mkExtraPackages pkgs;
+
         alacritty = import ./packages/wrappers/alacritty.nix {
           inherit pkgs extraPackages;
         };
@@ -50,18 +54,7 @@
           }:
           let
             devPkgs = mkPkgs configPath;
-            devExtraPackages =
-              (import ./packages/commons.nix { pkgs = devPkgs; })
-              ++ (
-                if devPkgs.stdenv.isDarwin then
-                  (import ./packages/darwin.nix { pkgs = devPkgs; inherit system; })
-                else
-                  (import ./packages/linux.nix { pkgs = devPkgs; inherit system; })
-              )
-              ++ [
-                (import ./packages/wrappers/zsh.nix { pkgs = devPkgs; })
-                (import ./packages/wrappers/tmux.nix { pkgs = devPkgs; })
-              ];
+            devExtraPackages = mkExtraPackages devPkgs;
           in
           import ./packages/wrappers/alacritty.nix {
             pkgs = devPkgs;
