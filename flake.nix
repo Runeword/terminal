@@ -13,16 +13,18 @@
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = import nixpkgs {
+        mkPkgs = configPath: import nixpkgs {
           inherit system;
           config.allowUnfree = true;
           overlays = [
             (import ./overlays/lib.nix {
-              rootStr = builtins.getEnv "TERM_CONFIG_DIR";
+              rootStr = if configPath != null then configPath else toString ./.;
               inherit self;
             })
           ];
         };
+
+        pkgs = mkPkgs null;
 
         extraPackages =
           (import ./packages/commons.nix { inherit pkgs; })
@@ -42,6 +44,30 @@
           inherit pkgs extraPackages;
         };
 
+        alacritty-dev =
+          {
+            configPath ? builtins.getEnv "TERM_CONFIG_DIR",
+          }:
+          let
+            devPkgs = mkPkgs configPath;
+            devExtraPackages =
+              (import ./packages/commons.nix { pkgs = devPkgs; })
+              ++ (
+                if devPkgs.stdenv.isDarwin then
+                  (import ./packages/darwin.nix { pkgs = devPkgs; inherit system; })
+                else
+                  (import ./packages/linux.nix { pkgs = devPkgs; inherit system; })
+              )
+              ++ [
+                (import ./packages/wrappers/zsh.nix { pkgs = devPkgs; })
+                (import ./packages/wrappers/tmux.nix { pkgs = devPkgs; })
+              ];
+          in
+          import ./packages/wrappers/alacritty.nix {
+            pkgs = devPkgs;
+            extraPackages = devExtraPackages;
+          };
+
         # zsh = pkgs.symlinkJoin {
         #   name = "zsh";
         #   paths = extraPackages;
@@ -52,6 +78,12 @@
         apps.default.type = "app";
         apps.default.program = "${alacritty}/bin/alacritty";
         packages.default = alacritty;
+
+        # Dev mode
+        apps.dev.type = "app";
+        apps.dev.program = "${alacritty-dev { }}/bin/alacritty";
+        packages.dev.default = alacritty-dev { };
+        packages.dev.options = alacritty-dev;
 
         # # Dev mode
         # apps.dev.type = "app";
