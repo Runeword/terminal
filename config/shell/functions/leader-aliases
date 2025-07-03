@@ -53,6 +53,7 @@ gbd 	git branch --delete --force BranchLocal         	git                 branch
 gbd 	git-forgit branch_delete                        	git                 branch              delete local	x
 gbdr	git push origin --delete BranchRemote           	git                 branch              delete remote
 gbl 	git-forgit blame                                	git
+gco 	git commit                                      	git                 commit              new
 gcm 	git commit --message Message                    	git                 commit              new
 gca 	git commit --message --amend NewMessage         	git                 commit              edit message
 gcl 	__git_clone Documents/dev                       	git                 clone               repo	x
@@ -88,7 +89,8 @@ gru 	git-forgit reset_head                           	git                 Unstag
 grts	git reset --soft HEAD~<n>                       	git                 Revert last n commit and unstage their changes
 grth	git reset --hard HEAD~<n>                       	git                 Revert last n commit and delete their changes
 gcln	git-forgit clean --force -d                     	git                 Delete untracked files and directories
-gd  	git-forgit diff                                 	git                 Show unstaged changes	x
+gdf  	git-forgit diff                                 	git                 Show unstaged changes	x
+gdc  	git-forgit diff --cached                        	git                 Show staged changes	x
 gwa 	git worktree add                                	git
 gwl 	git worktree list                               	git
 gwr 	git worktree remove                             	git
