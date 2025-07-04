@@ -85,8 +85,8 @@ __open_file() {
 #   tail -n +2 |
 
 __ripgrep() {
-  # local selected_files=$(
-  rg \
+  local selections
+  selections=$(rg \
     --color always \
     --colors 'path:none' \
     --colors 'line:none' \
@@ -107,27 +107,15 @@ __ripgrep() {
       --height 70% \
       --no-separator \
       --header-first \
-      --header=''\''exact !not [!]^prefix [!]suffix$' \
+      --header='exact !not [!]^prefix [!]suffix$' \
       --preview 'bat --style=plain --color=always {1} --highlight-line {2}' \
-      --preview-window 'right,55%,border-none,+{2}+3/3,~3' \
-      --bind 'enter:become(nvim {1} +{2})'
-  # )
-  # --bind 'enter:execute(echo {1} +{2})+abort'
-  # echo $selected_files
+      --preview-window 'right,55%,border-none,+{2}+3/3,~3'
+  )
 
-  # # If no selection do nothing
-  # [ -z "$selected_files" ] && return 0
-  #
-  # # Check the number of selected files
-  # local num_lines=$(echo "$selected_files" | wc -l)
-  #
-  # # Open files in editor
-  # if $EDITOR $selected_files; then
-  # 	history -s "$EDITOR $selected_files"
-  # else
-  # 	echo "Error: could not open $selected_files with $EDITOR"
-  # 	return 1
-  # fi
+  [ -z "$selections" ] && return 0
+
+  # Extract just the file paths and open with nvim
+  echo "$selections" | cut -d: -f1 | xargs nvim
 }
 
 __mkdir_cd() {
