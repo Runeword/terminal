@@ -17,6 +17,8 @@ with pkgs; [
   gh
   xdg-ninja
   direnv
+  pass
+  gemini-cli
 
   # Coreutils
   coreutils-full
@@ -54,6 +56,7 @@ with pkgs; [
   lazygit
   gitleaks
   git # versioning
+  git-absorb
   zsh-forgit # fuzzy git
 
   # Containers
