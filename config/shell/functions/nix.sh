@@ -23,7 +23,7 @@ __update_flake_inputs() {
 
 	for i in $(echo "$selected_inputs" | xargs); do
 		# nix flake update "$i" "$flake_path"
-    nix flake lock --update-input "$i" "$flake_path"
+    nix flake update --flake "$flake_path" "$i"
 	done
 }
 
