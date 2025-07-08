@@ -4,7 +4,7 @@
 
 # ______________________________________ CORE
 
-alias shn='shutdown now'
+alias shn='shutdown now || sudo shutdown -h now'
 alias s='setsid'
 alias mv='mv --verbose'
 alias rmdir='rmdir --verbose'
