@@ -13,7 +13,8 @@ hd	home-manager expire-generations '-7 days'                                    
 hv	home-manager --version                                                       	home-manager    version	x
 ngs	__nixos_generation_switch                                                    	nixos           generation        switch	x
 ngr	__nixos_generation_remove                                                    	nixos           generation        remove	x
-nu	__update_flake_inputs $HOME/nixos                                            	nixos           inputs            update	x
+du	__update_flake_inputs $HOME/.config/nix-darwin                               	nixos           inputs            update	x
+# nu	__update_flake_inputs $HOME/nixos                                            	nixos           inputs            update	x
 # ns	sudo nixos-rebuild switch --flake $HOME/nixos#$USER                        	nixos           config            build/boot/activate	x
 # ns	sudo nixos-rebuild boot --flake $HOME/nixos#$USER                            	nixos           config            build/boot	x
 ns	sudo darwin-rebuild switch --flake $HOME/.config/nix-darwin                  	darwin          config            build/boot/activate	x
