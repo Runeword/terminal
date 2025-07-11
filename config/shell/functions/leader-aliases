@@ -86,6 +86,7 @@ gr  	git restore --staged                            	git                 Unstag
 grm 	git rm -rf --cached                             	git                 Untrack
 grb 	git-forgit rebase --interactive                 	git                 Interactive rebase
 grh 	git reset --hard                                	git                 Delete staged + unstaged
+gro 	git reset --hard origin/BRANCH                  	git                 Make the local branch identical to the remote branch
 gru 	git-forgit reset_head                           	git                 Unstage changes (git restore --staged)
 grts	git reset --soft HEAD~<n>                       	git                 Revert last n commit and unstage their changes
 grth	git reset --hard HEAD~<n>                       	git                 Revert last n commit and delete their changes
