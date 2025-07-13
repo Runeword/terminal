@@ -22,7 +22,7 @@ pkgs.runCommand "alacritty"
     nativeBuildInputs = [ pkgs.makeWrapper ];
   }
   ''
-    ${pkgs.lib.mkLink "config/alacritty" ".config/alacritty"}
+    ${pkgs.lib.mkLink "alacritty" ".config/alacritty"}
 
     # use makeWrapper instead of wrapProgram to preserve the original process name 'alacritty'
     # wrapProgram would have named it alacritty-wrapped instead
