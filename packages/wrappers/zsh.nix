@@ -8,8 +8,8 @@ pkgs.symlinkJoin {
   ];
   nativeBuildInputs = [ pkgs.makeWrapper ];
   postBuild = ''
-    ${pkgs.lib.mkLink "config/zsh/zshrc" ".config/zsh/.zshrc"}
-    ${pkgs.lib.mkLink "config/shell" ".config/shell"}
+    ${pkgs.lib.mkLink "zsh/zshrc" ".config/zsh/.zshrc"}
+    ${pkgs.lib.mkLink "shell" ".config/shell"}
 
     wrapProgram $out/bin/zsh \
       --set ZDOTDIR "$out/.config/zsh" \
