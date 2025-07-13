@@ -9,8 +9,8 @@ pkgs.symlinkJoin {
   paths = [ pkgs.tmux ];
   nativeBuildInputs = [ pkgs.makeWrapper ];
   postBuild = ''
-    ${pkgs.lib.mkLink "config/tmux/tmux.conf" ".config/tmux/tmux.conf"}
-    ${pkgs.lib.mkLink "config/shell/functions/tmux.sh" ".config/shell/functions/tmux.sh"}
+    ${pkgs.lib.mkLink "tmux/tmux.conf" ".config/tmux/tmux.conf"}
+    ${pkgs.lib.mkLink "shell/functions/tmux.sh" ".config/shell/functions/tmux.sh"}
     ${pkgs.lib.mkLink "${pkgs.tmuxPlugins.resurrect}/share/tmux-plugins/resurrect" ".config/tmux/plugins/resurrect"}
 
     wrapProgram $out/bin/tmux \
