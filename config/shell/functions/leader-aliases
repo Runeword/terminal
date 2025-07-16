@@ -21,7 +21,8 @@ du	__update_flake_inputs $HOME/.config/nix-darwin                               
 ns	sudo darwin-rebuild switch --flake $HOME/.config/nix-darwin                  	darwin          config            build/boot/activate	x
 nv	nixos-version                                                                	nixos           version	x
 ni	nix-info -m                                                                  	nixos           info	x
-np	nix shell nixpkgs#Package                                                    	nix             package           install/temporary
+# ns	nix shell nixpkgs#PACKAGE                                                  	nix             package           start new shell
+np	run nixpkgs#PACKAGE                                                          	nix             package           single execution
 nd	sudo nix-collect-garbage --verbose --delete-old                              	nix             garbage           clean	x
 nl	sudo nix-collect-garbage --dry-run --delete-old                              	nix             garbage           list	x
 nc	cd /nix/store && __open_file                                                 	nix             store             list	x
