@@ -142,5 +142,7 @@ dcp	docker container prune --force                                              
 dil	docker image ls --all                                                        	docker       image             list	x
 dip	docker image prune --force --all                                             	docker       image             remove unused	x
 xtw	task --watch build > /dev/null 2>&1 &                                        	task         watch
-tw	tmux split-window -v -l 5 -d 'task --watch build'                            	task         watch	x
-tk	pkill -f "task --watch build"                                                	task         kill	x
+tx	npx tsx FILE                                                                 	typescript   execute
+tc	npx tsc                                                                      	typescript   compile
+# tw	tmux split-window -v -l 5 -d 'task --watch build'                            	task         watch	x
+# tk	pkill -f "task --watch build"                                                	task         kill	x
