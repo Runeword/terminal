@@ -91,3 +91,17 @@ __git_unstage() {
       --bind='ctrl-a:select-all' |
     xargs -r git restore --staged --
 }
+
+__git_untrack() {
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel)"
+  (cd "$repo_root" && git diff --name-only --cached) |
+    fzf \
+      --multi --reverse --no-separator --border none --cycle --height 70% \
+      --info=inline:'' \
+      --header-first \
+      --prompt='  ' \
+      --scheme=path \
+      --bind='ctrl-a:select-all' |
+    xargs -r git rm --cached --
+}
