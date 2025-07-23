@@ -83,13 +83,12 @@ gp  	git pull                                        	git	x
 gf  	git fetch                                       	git	x
 gx  	git commit --fixup SHA                          	git                 [1] fix commit with staged changes
 gxr 	git rebase --interactive --autosquash SHA^      	git                 [2] fix commit with staged changes
-gr  	git-forgit checkout_file                        	git                 Discard (checkout --/ restore)	x
-gr  	git restore --staged                            	git                 Unstage
-grm 	git rm -rf --cached                             	git                 Untrack
+gru  	git restore __git_discard                       	git                 Discard	x
+grs  	git restore __git_unstage                       	git                 Unstage	x
+grt  	git restore __git_untrack                       	git                 Untrack	x
 grb 	git-forgit rebase --interactive                 	git                 Interactive rebase
 grh 	git reset --hard                                	git                 Delete staged + unstaged
 gro 	git reset --hard origin/BRANCH                  	git                 Make the local branch identical to the remote branch
-gru 	git-forgit reset_head                           	git                 Unstage changes (git restore --staged)
 grts	git reset --soft HEAD~<n>                       	git                 Revert last n commit and unstage their changes
 grth	git reset --hard HEAD~<n>                       	git                 Revert last n commit and delete their changes
 gcln	git-forgit clean --force -d                     	git                 Delete untracked files and directories
