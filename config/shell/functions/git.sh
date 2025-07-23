@@ -29,14 +29,13 @@ __git_open_url() {
   open -a "$BROWSER" "$FINAL_URL"
 }
 
-__git_open_all() {
+# Generic fzf git action: $1 = list command, $2... = action command
+__git_fzf_action() {
+  local list_cmd="$1"
+  shift
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
-  (cd "$repo_root" && {
-    git diff --name-only                     # unstaged
-    git diff --name-only --cached            # staged
-    git ls-files --others --exclude-standard # untracked
-  }) | sort -u |
+  (cd "$repo_root" && eval "$list_cmd") |
     fzf \
       --multi --reverse --no-separator --border none --cycle --height 70% \
       --info=inline:'' \
@@ -44,64 +43,30 @@ __git_open_all() {
       --prompt='  ' \
       --scheme=path \
       --bind='ctrl-a:select-all' |
-    sed "s|^|$repo_root/|" |
-    xargs -r nvim
+    xargs -r "$@"
+}
+
+# Wrappers for specific use cases
+__git_open_all() {
+  __git_fzf_action "git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard" nvim
 }
 
 __git_open_unstaged() {
-  local repo_root
-  repo_root="$(git rev-parse --show-toplevel)"
-  (cd "$repo_root" && git ls-files --others --exclude-standard --modified) |
-    fzf \
-      --multi --reverse --no-separator --border none --cycle --height 70% \
-      --info=inline:'' \
-      --header-first \
-      --prompt='  ' \
-      --scheme=path \
-      --bind='ctrl-a:select-all' |
-    sed "s|^|$repo_root/|" |
-    xargs -r nvim
+  __git_fzf_action "git ls-files --others --exclude-standard --modified" nvim
 }
 
 __git_open_staged() {
-  local repo_root
-  repo_root="$(git rev-parse --show-toplevel)"
-  (cd "$repo_root" && git diff --name-only --cached) |
-    fzf \
-      --multi --reverse --no-separator --border none --cycle --height 70% \
-      --info=inline:'' \
-      --header-first \
-      --prompt='  ' \
-      --scheme=path \
-      --bind='ctrl-a:select-all' |
-    sed "s|^|$repo_root/|" |
-    xargs -r nvim
+  __git_fzf_action "git diff --name-only --cached" nvim
 }
 
 __git_unstage() {
-  local repo_root
-  repo_root="$(git rev-parse --show-toplevel)"
-  (cd "$repo_root" && git diff --name-only --cached) |
-    fzf \
-      --multi --reverse --no-separator --border none --cycle --height 70% \
-      --info=inline:'' \
-      --header-first \
-      --prompt='  ' \
-      --scheme=path \
-      --bind='ctrl-a:select-all' |
-    xargs -r git restore --staged --
+  __git_fzf_action "git diff --name-only --cached" git restore --staged --
+}
+
+__git_discard() {
+  __git_fzf_action "git diff --name-only --cached" git checkout --
 }
 
 __git_untrack() {
-  local repo_root
-  repo_root="$(git rev-parse --show-toplevel)"
-  (cd "$repo_root" && git diff --name-only --cached) |
-    fzf \
-      --multi --reverse --no-separator --border none --cycle --height 70% \
-      --info=inline:'' \
-      --header-first \
-      --prompt='  ' \
-      --scheme=path \
-      --bind='ctrl-a:select-all' |
-    xargs -r git rm --cached --
+  __git_fzf_action "git diff --name-only --cached" git rm --cached --
 }
