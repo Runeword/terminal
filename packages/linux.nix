@@ -7,7 +7,7 @@ pkgs.lib.optionals (system == "x86_64-linux" || system == "aarch64-linux") (with
   hwinfo # hardware info
   evtest # input device testing
   libinput # input device handling
-  ventoy-full # USB boot utility
+  # ventoy-full # USB boot utility
   dmidecode
   cloneit
   xarchiver
