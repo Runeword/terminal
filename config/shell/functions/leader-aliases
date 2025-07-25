@@ -83,9 +83,9 @@ gp  	git pull                                        	git	x
 gf  	git fetch                                       	git	x
 gx  	git commit --fixup SHA                          	git                 [1] fix commit with staged changes
 gxr 	git rebase --interactive --autosquash SHA^      	git                 [2] fix commit with staged changes
-gru  	git restore __git_discard                       	git                 Discard	x
-grs  	git restore __git_unstage                       	git                 Unstage	x
-grt  	git restore __git_untrack                       	git                 Untrack	x
+gru 	__git_discard                                   	git                 Discard	x
+grs 	__git_unstage                                   	git                 Unstage	x
+grt 	__git_untrack                                   	git                 Untrack	x
 grb 	git-forgit rebase --interactive                 	git                 Interactive rebase
 grh 	git reset --hard                                	git                 Delete staged + unstaged
 gro 	git reset --hard origin/BRANCH                  	git                 Make the local branch identical to the remote branch
