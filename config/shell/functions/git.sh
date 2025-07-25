@@ -64,7 +64,7 @@ __git_unstage() {
 }
 
 __git_discard() {
-  __git_fzf_action "git diff --name-only --cached" git checkout --
+  __git_fzf_action "git diff --name-only" git checkout --
 }
 
 __git_untrack() {
