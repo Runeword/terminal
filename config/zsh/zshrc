@@ -231,10 +231,6 @@ __ls_or_space() { __on_empty_buffer 'echo ls; ls' "LBUFFER+=' '; zle autosuggest
 zle -N __ls_or_space
 bindkey '\x1b[32;2u' __ls_or_space
 
-__open_file_or_complete() { __on_empty_buffer __open_file 'zle expand-or-complete'; }
-zle -N __open_file_or_complete
-bindkey '^I' __open_file_or_complete
-
 # __yazi() { __on_empty_buffer "yazi < $TTY"; }
 # zle -N __yazi
 # bindkey '^[' __yazi
@@ -332,6 +328,10 @@ if [[ ${options[zle]} = on ]]; then
   . "$(fzf-share)/completion.zsh"
   . "$(fzf-share)/key-bindings.zsh"
 fi
+
+__open_file_or_accept() { __on_empty_buffer __open_file 'zle autosuggest-accept'; }
+zle -N __open_file_or_accept
+bindkey '^I' __open_file_or_accept
 
 # handle_interrupt() {
 #     echo ''
