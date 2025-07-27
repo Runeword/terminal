@@ -209,9 +209,9 @@ bindkey '^[[3;2~' __last_command_or_delete
 # bindkey '/' __tmux_search
 bindkey '^[' _navi_widget
 
-__ripgrep_or_complete() { __on_empty_buffer __ripgrep 'zle undo'; }
-zle -N __ripgrep_or_complete
-bindkey '^[[Z' __ripgrep_or_complete
+__ripgrep_or_execute() { __on_empty_buffer __ripgrep 'zle autosuggest-execute'; }
+zle -N __ripgrep_or_execute
+bindkey '^[[Z' __ripgrep_or_execute
 
 ## __navi_or_esc() { __on_empty_buffer _navi_widget; }
 ## zle -N __navi_or_esc
