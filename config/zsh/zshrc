@@ -329,12 +329,18 @@ if [[ ${options[zle]} = on ]]; then
   . "$(fzf-share)/key-bindings.zsh"
 fi
 
-# FZF completion trigger
-export FZF_COMPLETION_TRIGGER='**'
+__fzf_completion_or_autosuggest() {
+  if [[ -z "$BUFFER" ]]; then
+    __open_file
+  elif [[ "${BUFFER[1,CURSOR]}" == *"**" ]]; then
+    zle fzf-completion
+  else
+    zle autosuggest-accept
+  fi
+}
+zle -N __fzf_completion_or_autosuggest
+bindkey '^I' __fzf_completion_or_autosuggest
 
-__open_file_or_accept() { __on_empty_buffer __open_file 'zle autosuggest-accept'; }
-zle -N __open_file_or_accept
-bindkey '^I' __open_file_or_accept
 # __ripgrep_or_complete() { __on_empty_buffer __ripgrep 'zle fzf-completion'; }
 # zle -N __ripgrep_or_complete
 # bindkey '^[[Z' __ripgrep_or_complete
