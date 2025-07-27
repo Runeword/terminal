@@ -92,7 +92,7 @@ gro 	git reset --hard origin/BRANCH                  	git                 Make t
 grts	git reset --soft HEAD~<n>                       	git                 Revert last n commit and unstage their changes
 grth	git reset --hard HEAD~<n>                       	git                 Revert last n commit and delete their changes
 gcln	git-forgit clean --force -d                     	git                 Delete untracked files and directories
-gdf  	git-forgit diff                                 	git                 Show unstaged changes	x
+gdd  	git-forgit diff                                 	git                 Show unstaged changes	x
 gdc  	git-forgit diff --cached                        	git                 Show staged changes	x
 gwa 	git worktree add                                	git
 gwl 	git worktree list                               	git
