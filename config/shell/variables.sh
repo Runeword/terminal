@@ -35,6 +35,14 @@ export FORGIT_FZF_DEFAULT_OPTS="
 # --exclude node_modules \
 # ";
 
+export FZF_COMPLETION_OPTS="
+--multi \
+--reverse \
+--prompt='  ' \
+--no-separator \
+--info=inline:'' \
+"
+
 # --color=marker:#57b58f,spinner:#ffffff,header:#535e73 \
 export FZF_DEFAULT_OPTS="
 --color=fg:#d0d0d0,bg:-1,hl:#ffffff,gutter:-1 \
