@@ -337,7 +337,9 @@ __fzf_completion_or_autosuggest() {
   else
     zle autosuggest-accept
   fi
+  zle reset-prompt
 }
+
 zle -N __fzf_completion_or_autosuggest
 bindkey '^I' __fzf_completion_or_autosuggest
 
