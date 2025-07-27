@@ -79,7 +79,8 @@ gsy 	git stash apply                                 	git                 stash 
 gsl 	git-forgit stash_show                           	git                 stash                             list	x
 gsc 	git stash clear                                 	git                 stash                       delete all
 gsf 	git-forgit stash_push                           	git                 stash                             push	x
-gp  	git pull                                        	git	x
+gpp 	git push                                        	git	x
+gpl 	git pull                                        	git	x
 gf  	git fetch                                       	git	x
 gx  	git commit --fixup SHA                          	git                 [1] fix commit with staged changes
 gxr 	git rebase --interactive --autosquash SHA^      	git                 [2] fix commit with staged changes
