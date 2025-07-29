@@ -29,18 +29,19 @@ __git_open_url() {
   open -a "$BROWSER" "$FINAL_URL"
 }
 
-# Generic fzf git action: $1 = list command, $2 = action command, $3 = preview command
-__git_fzf_action() {
+__git_fzf_cmd() {
   local list_cmd="$1"
   local action_cmd="$2"
-  local preview_cmd="$3"
+  local fzf_args="$3"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
   
-  local fzf_args="--multi --reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --scheme=path --bind='ctrl-a:select-all'"
+  local default_args="--multi --reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --scheme=path --bind='ctrl-a:select-all'"
   
-  if [[ -n "$preview_cmd" ]]; then
-    fzf_args="$fzf_args --preview '$preview_cmd'"
+  if [[ -n "$fzf_args" ]]; then
+    fzf_args="$default_args $fzf_args"
+  else
+    fzf_args="$default_args"
   fi
   
   (cd "$repo_root" && eval "$list_cmd") |
@@ -49,25 +50,25 @@ __git_fzf_action() {
 }
 
 __git_open_all() {
-  __git_fzf_action "git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard" nvim
+  __git_fzf_cmd "git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard" nvim
 }
 
 __git_open_unstaged() {
-  __git_fzf_action "git ls-files --others --exclude-standard --modified" nvim
+  __git_fzf_cmd "git ls-files --others --exclude-standard --modified" nvim
 }
 
 __git_open_staged() {
-  __git_fzf_action "git diff --name-only --cached" nvim
+  __git_fzf_cmd "git diff --name-only --cached" nvim
 }
 
 __git_unstage() {
-  __git_fzf_action "git diff --name-only --cached" "git restore --staged --" "git diff --cached --color=always -- {} --preview-window right,75%,border-none"
+  __git_fzf_cmd "git diff --name-only --cached" "git restore --staged --" "--preview 'git diff --cached --color=always -- {}' --preview-window 'right,75%,border-none'"
 }
 
 __git_discard() {
-  __git_fzf_action "git diff --name-only" "git checkout --" "git diff --color=always -- {} --preview-window right,75%,border-none"
+  __git_fzf_cmd "git diff --name-only" "git checkout --" "--preview 'git diff --color=always -- {}' --preview-window 'right,75%,border-none'"
 }
 
 __git_untrack() {
-  __git_fzf_action "git diff --name-only --cached" "git rm --cached --" "git diff --cached --color=always -- {} --preview-window right,75%,border-none"
+  __git_fzf_cmd "git diff --name-only --cached" "git rm --cached --" "--preview 'git diff --cached --color=always -- {}' --preview-window 'right,75%,border-none'"
 }
