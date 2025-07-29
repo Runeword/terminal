@@ -50,15 +50,15 @@ __git_fzf_cmd() {
 }
 
 __git_open_all() {
-  __git_fzf_cmd "git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard" nvim
+  __git_fzf_cmd "git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard" nvim "--preview 'git diff --color=always -- {}' --preview-window 'right,75%,border-none'"
 }
 
 __git_open_unstaged() {
-  __git_fzf_cmd "git ls-files --others --exclude-standard --modified" nvim
+  __git_fzf_cmd "git ls-files --others --exclude-standard --modified" nvim "--preview 'git diff --color=always -- {}' --preview-window 'right,75%,border-none'"
 }
 
 __git_open_staged() {
-  __git_fzf_cmd "git diff --name-only --cached" nvim
+  __git_fzf_cmd "git diff --name-only --cached" nvim "--preview 'git diff --cached --color=always -- {}' --preview-window 'right,75%,border-none'"
 }
 
 __git_unstage() {
