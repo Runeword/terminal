@@ -29,24 +29,25 @@ __git_open_url() {
   open -a "$BROWSER" "$FINAL_URL"
 }
 
-# Generic fzf git action: $1 = list command, $2... = action command
+# Generic fzf git action: $1 = list command, $2 = action command, $3 = preview command
 __git_fzf_action() {
   local list_cmd="$1"
-  shift
+  local action_cmd="$2"
+  local preview_cmd="$3"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
+  
+  local fzf_args="--multi --reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --scheme=path --bind='ctrl-a:select-all'"
+  
+  if [[ -n "$preview_cmd" ]]; then
+    fzf_args="$fzf_args --preview '$preview_cmd'"
+  fi
+  
   (cd "$repo_root" && eval "$list_cmd") |
-    fzf \
-      --multi --reverse --no-separator --border none --cycle --height 70% \
-      --info=inline:'' \
-      --header-first \
-      --prompt='  ' \
-      --scheme=path \
-      --bind='ctrl-a:select-all' |
-    xargs -r "$@"
+    eval "fzf $fzf_args" |
+    xargs -r "$action_cmd"
 }
 
-# Wrappers for specific use cases
 __git_open_all() {
   __git_fzf_action "git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard" nvim
 }
@@ -60,16 +61,13 @@ __git_open_staged() {
 }
 
 __git_unstage() {
-  __git_fzf_action "git diff --name-only --cached" git restore --staged -- \
-    --preview 'git diff --cached --color=always -- {}'
+  __git_fzf_action "git diff --name-only --cached" "git restore --staged --" "git diff --cached --color=always -- {} --preview-window right,75%,border-none"
 }
 
 __git_discard() {
-  __git_fzf_action "git diff --name-only" git checkout -- \
-    --preview 'git diff --color=always -- {}'
+  __git_fzf_action "git diff --name-only" "git checkout --" "git diff --color=always -- {} --preview-window right,75%,border-none"
 }
 
 __git_untrack() {
-  __git_fzf_action "git diff --name-only --cached" git rm --cached -- \
-    --preview 'git diff --cached --color=always -- {}'
+  __git_fzf_action "git diff --name-only --cached" "git rm --cached --" "git diff --cached --color=always -- {} --preview-window right,75%,border-none"
 }
