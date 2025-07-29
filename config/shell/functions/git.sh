@@ -60,13 +60,16 @@ __git_open_staged() {
 }
 
 __git_unstage() {
-  __git_fzf_action "git diff --name-only --cached" git restore --staged --
+  __git_fzf_action "git diff --name-only --cached" git restore --staged -- \
+    --preview 'git diff --cached --color=always -- {}'
 }
 
 __git_discard() {
-  __git_fzf_action "git diff --name-only" git checkout --
+  __git_fzf_action "git diff --name-only" git checkout -- \
+    --preview 'git diff --color=always -- {}'
 }
 
 __git_untrack() {
-  __git_fzf_action "git diff --name-only --cached" git rm --cached --
+  __git_fzf_action "git diff --name-only --cached" git rm --cached -- \
+    --preview 'git diff --cached --color=always -- {}'
 }
