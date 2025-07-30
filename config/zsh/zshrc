@@ -208,10 +208,6 @@ bindkey '^[[3;2~' __last_command_or_delete
 # zle -N __tmux_search
 # bindkey '/' __tmux_search
 
-__ripgrep_or_execute() { __on_empty_buffer __ripgrep 'zle autosuggest-execute'; }
-zle -N __ripgrep_or_execute
-bindkey '^[[Z' __ripgrep_or_execute
-
 __navi_or_esc() { __on_empty_buffer _navi_widget; }
 zle -N __navi_or_esc
 bindkey '^[' __navi_or_esc
@@ -330,8 +326,6 @@ fi
 __fzf_completion_or_autosuggest() {
   if [[ -z "$BUFFER" ]]; then
     __open_file
-  elif [[ "${BUFFER[1,CURSOR]}" == *"**" ]]; then
-    zle fzf-completion
   else
     zle autosuggest-accept
   fi
@@ -341,9 +335,9 @@ __fzf_completion_or_autosuggest() {
 zle -N __fzf_completion_or_autosuggest
 bindkey '^I' __fzf_completion_or_autosuggest
 
-# __ripgrep_or_complete() { __on_empty_buffer __ripgrep 'zle fzf-completion'; }
-# zle -N __ripgrep_or_complete
-# bindkey '^[[Z' __ripgrep_or_complete
+__ripgrep_or_complete() { __on_empty_buffer __ripgrep 'zle fzf-completion'; }
+zle -N __ripgrep_or_complete
+bindkey '^[[Z' __ripgrep_or_complete
 
 # handle_interrupt() {
 #     echo ''
