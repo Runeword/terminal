@@ -284,8 +284,8 @@ __aliases_or_space() {
     else
         LBUFFER+=' '
         zle autosuggest-fetch
-        zle reset-prompt
     fi
+    zle reset-prompt
 }
 
 # __aliases_or_space() { __on_empty_buffer "__aliases --prefix ' ' --file $OUT/.config/shell/functions/leader-aliases" "LBUFFER+=' '; zle reset-prompt; zle autosuggest-fetch"; }
