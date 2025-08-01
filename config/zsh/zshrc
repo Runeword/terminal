@@ -101,9 +101,9 @@ zstyle ':completion:*:default' list-colors "${(s.:.)LS_COLORS}"
 zstyle ':completion:*' group-name ''
 zstyle ':completion:*' menu select interactive
 
-bindkey -M menuselect '^I' vi-down-line-or-history
-bindkey -M menuselect '^[[Z' vi-up-line-or-history
-bindkey -M menuselect '^[' send-break
+bindkey -M menuselect '^I' vi-down-line-or-history      # Tab
+bindkey -M menuselect '^[[Z' vi-up-line-or-history      # Shift+Tab
+bindkey -M menuselect '^[' send-break                   # Escape
 
 setopt MENU_COMPLETE
 # bindkey -v '^?' backward-delete-char
@@ -121,8 +121,8 @@ setopt MENU_COMPLETE
 
 # ------------------------------------ zsh-autosuggestions
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#7f7f7f"
-bindkey 'CSI 13 ; 5 u' autosuggest-execute
-bindkey '\x1b[13;5u' autosuggest-execute
+bindkey 'CSI 13 ; 5 u' autosuggest-execute    # Ctrl+Enter
+bindkey '\x1b[13;5u' autosuggest-execute      # Ctrl+Enter
 
 # ------------------------------------ zsh-autocomplete
 # zstyle ':completion:*:*:*:*:descriptions' format '%F{245}%d%f'
@@ -186,7 +186,7 @@ __on_empty_buffer() {
 
 __last_command_or_delete() { __on_empty_buffer "BUFFER=${history[$((HISTCMD-1))]}; zle accept-line" 'zle backward-delete-char'; }
 zle -N __last_command_or_delete
-bindkey '^[[3;2~' __last_command_or_delete
+bindkey '^[[3;2~' __last_command_or_delete    # Shift+Delete
 
 # __ls_or_space() { __on_empty_buffer 'command ls --almost-all --color --width 90;' "LBUFFER+=' '; zle autosuggest-fetch"; }
 # zle -N __ls_or_space
@@ -210,7 +210,7 @@ bindkey '^[[3;2~' __last_command_or_delete
 
 __navi_or_esc() { __on_empty_buffer _navi_widget; }
 zle -N __navi_or_esc
-bindkey '^[' __navi_or_esc
+bindkey '^[' __navi_or_esc    # Escape
 
 # __clear_or_esc() { __on_empty_buffer 'clear -x'; }
 # zle -N __clear_or_esc
@@ -227,7 +227,7 @@ bindkey '^[' __navi_or_esc
 __ls_or_space() { __on_empty_buffer 'echo ls; ls' "LBUFFER+=' '; zle autosuggest-fetch"; }
 # __ls_or_space() { __on_empty_buffer 'echo; command ls --almost-all --color --width 90;' "LBUFFER+=' '; zle autosuggest-fetch"; }
 zle -N __ls_or_space
-bindkey '\x1b[32;2u' __ls_or_space
+bindkey '\x1b[32;2u' __ls_or_space    # Shift+Space
 
 # __yazi() { __on_empty_buffer "yazi < $TTY"; }
 # zle -N __yazi
@@ -291,11 +291,11 @@ __aliases_or_space() {
 # __aliases_or_space() { __on_empty_buffer "__aliases --prefix ' ' --file $OUT/.config/shell/functions/leader-aliases" "LBUFFER+=' '; zle reset-prompt; zle autosuggest-fetch"; }
 
 zle -N __aliases_or_space
-bindkey ' ' __aliases_or_space
+bindkey ' ' __aliases_or_space    # Space
 
 __aliases_or_accept() { __on_empty_buffer "__aliases --prefix '^M' --file $OUT/.config/shell/functions/leader-aliases" 'zle accept-line'; }
 zle -N __aliases_or_accept
-bindkey '^M' __aliases_or_accept
+bindkey '^M' __aliases_or_accept    # Enter
 
 ZSH_AUTOSUGGEST_STRATEGY=(history custom completion)
 
@@ -305,11 +305,11 @@ compdef _files __chezmoi add
 
 __prevd_widget() { __prevd; zle reset-prompt; }
 zle -N __prevd_widget
-bindkey '^[[5~' __prevd_widget
+bindkey '^[[5~' __prevd_widget    # Page Up
 
 __nextd_widget() { __nextd; zle reset-prompt; }
 zle -N __nextd_widget
-bindkey '^[[6~' __nextd_widget
+bindkey '^[[6~' __nextd_widget    # Page Down
 
 # ------------------------------------ Plugins
 
@@ -333,11 +333,11 @@ __fzf_completion_or_autosuggest() {
 }
 
 zle -N __fzf_completion_or_autosuggest
-bindkey '^I' __fzf_completion_or_autosuggest
+bindkey '^I' __fzf_completion_or_autosuggest    # Tab
 
 __ripgrep_or_complete() { __on_empty_buffer __ripgrep 'zle fzf-completion'; }
 zle -N __ripgrep_or_complete
-bindkey '^[[Z' __ripgrep_or_complete
+bindkey '^[[Z' __ripgrep_or_complete    # Shift+Tab
 
 # handle_interrupt() {
 #     echo ''
