@@ -323,24 +323,13 @@ __aliases_() {
     fi
 }
 
-__aliases_or_space() {
-    if [[ -z "$BUFFER" ]]; then
-        __aliases_
-    else
-        LBUFFER+=' '
-        zle autosuggest-fetch
-    fi
-    zle reset-prompt
-}
-
-# __aliases_or_space() { __on_empty_buffer "__aliases --prefix ' ' --file $OUT/.config/shell/functions/leader-aliases" "LBUFFER+=' '; zle reset-prompt; zle autosuggest-fetch"; }
-
+__aliases_or_space() { __on_empty_buffer "__aliases --prefix ' ' --file $OUT/.config/shell/functions/leader-aliases" "LBUFFER+=' '; zle autosuggest-fetch"; }
 zle -N __aliases_or_space
 bindkey "${KEYS[SPACE]}" __aliases_or_space
 
-__aliases_or_accept() { __on_empty_buffer "__aliases --prefix '^M' --file $OUT/.config/shell/functions/leader-aliases" 'zle accept-line'; }
-zle -N __aliases_or_accept
-bindkey "${KEYS[ENTER]}" __aliases_or_accept
+__aliases_or_enter() { __on_empty_buffer "__aliases --prefix '^M' --file $OUT/.config/shell/functions/leader-aliases" 'zle accept-line'; }
+zle -N __aliases_or_enter
+bindkey "${KEYS[ENTER]}" __aliases_or_enter
 
 ZSH_AUTOSUGGEST_STRATEGY=(history custom completion)
 
