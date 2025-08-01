@@ -7,6 +7,51 @@ compinit
 autoload -Uz bracketed-paste-magic
 zle -N bracketed-paste bracketed-paste-magic
 
+# ------------------------------------ Key mappings
+# Associative array to store all key bindings for easy reference
+typeset -A KEYS
+KEYS=(
+  # Movement
+  SHIFT_ENTER    '^[[13;2u'
+  LEFT_ARROW     '^[OD'
+  RIGHT_ARROW    '^[OC'
+  CTRL_LEFT      '^[[1;5D'
+  CTRL_RIGHT     '^[[1;5C'
+  CTRL_TAB       '\e[9;5u'
+  CTRL_SHIFT_TAB '\e[9;6u'
+  CTRL_E         '^E'
+  CTRL_A         '^A'
+  
+  # Kill/Delete
+  CTRL_U         '^U'
+  CTRL_J         '^J'
+  CTRL_K         '^K'
+  CTRL_BACKSPACE '^[[27;5;127~'
+  CTRL_DELETE    '^[[3;5~'
+  
+  # History search
+  UP_ARROW       '^[[A'
+  UP_ARROW_ALT   '^[OA'
+  DOWN_ARROW     '^[[B'
+  DOWN_ARROW_ALT '^[OB'
+  
+  # Menu selection
+  TAB            '^I'
+  SHIFT_TAB      '^[[Z'
+  ESCAPE         '^['
+  
+  # Autosuggestions
+  CTRL_ENTER     '\x1b[13;5u'
+  CTRL_ENTER_ALT 'CSI 13 ; 5 u'
+  
+  # Custom widgets
+  SHIFT_DELETE   '^[[3;2~'
+  SHIFT_SPACE    '\x1b[32;2u'
+  SPACE          ' '
+  ENTER          '^M'
+  PAGE_UP        '^[[5~'
+  PAGE_DOWN      '^[[6~'
+)
 
 # ------------------------------------ ZSH hooks
 autoload -Uz add-zsh-hook
@@ -64,30 +109,30 @@ bindkey -r '^W'
 bindkey -r '^Q'
 
 # ------------------------------------ Move
-bindkey '^[[13;2u' accept-line  # Shift+Enter
-bindkey '^[OD' backward-char    # Left Arrow
-bindkey '^[OC' forward-char     # Right Arrow
-bindkey '^[[1;5D' backward-word # Ctrl+Left Arrow
-bindkey '^[[1;5C' forward-word  # Ctrl+Right Arrow
-bindkey "\e[9;5u" forward-word  # Ctrl+Tab
-bindkey "\e[9;6u" backward-kill-word # Ctrl+Shift+Tab
-bindkey '^E' end-of-line        # Ctrl+E
-bindkey '^A' beginning-of-line  # Ctrl+A
+bindkey "${KEYS[SHIFT_ENTER]}" accept-line
+bindkey "${KEYS[LEFT_ARROW]}" backward-char
+bindkey "${KEYS[RIGHT_ARROW]}" forward-char
+bindkey "${KEYS[CTRL_LEFT]}" backward-word
+bindkey "${KEYS[CTRL_RIGHT]}" forward-word
+bindkey "${KEYS[CTRL_TAB]}" forward-word
+bindkey "${KEYS[CTRL_SHIFT_TAB]}" backward-kill-word
+bindkey "${KEYS[CTRL_E]}" end-of-line
+bindkey "${KEYS[CTRL_A]}" beginning-of-line
 
 # ------------------------------------ Kill
-bindkey '^U' kill-buffer                   # Ctrl+U
-bindkey '^J' backward-kill-line            # Ctrl+J
-bindkey '^K' kill-line                     # Ctrl+K
+bindkey "${KEYS[CTRL_U]}" kill-buffer
+bindkey "${KEYS[CTRL_J]}" backward-kill-line
+bindkey "${KEYS[CTRL_K]}" kill-line
 # bindkey '^H' backward-kill-word          # Ctrl+H
-bindkey '^[[27;5;127~' backward-kill-word # Ctrl+Backspace
+bindkey "${KEYS[CTRL_BACKSPACE]}" backward-kill-word
 # bindkey '^[[127;5u' backward-kill-word     # Ctrl+Backspace
-bindkey '^[[3;5~' kill-word                # Ctrl+Delete
+bindkey "${KEYS[CTRL_DELETE]}" kill-word
 
 # ------------------------------------ Search history
-bindkey '^[OA' history-beginning-search-backward # Up Arrow
-bindkey '^[[A' history-beginning-search-backward # Up Arrow
-bindkey '^[[B' history-beginning-search-forward  # Down Arrow
-bindkey '^[OB' history-beginning-search-forward  # Down Arrow
+bindkey "${KEYS[UP_ARROW_ALT]}" history-beginning-search-backward
+bindkey "${KEYS[UP_ARROW]}" history-beginning-search-backward
+bindkey "${KEYS[DOWN_ARROW]}" history-beginning-search-forward
+bindkey "${KEYS[DOWN_ARROW_ALT]}" history-beginning-search-forward
 # bindkey -- "${terminfo[kcuu1]}" history-beginning-search-backward
 # bindkey -- "${terminfo[kcud1]}" history-beginning-search-backward
 
@@ -101,9 +146,9 @@ zstyle ':completion:*:default' list-colors "${(s.:.)LS_COLORS}"
 zstyle ':completion:*' group-name ''
 zstyle ':completion:*' menu select interactive
 
-bindkey -M menuselect '^I' vi-down-line-or-history      # Tab
-bindkey -M menuselect '^[[Z' vi-up-line-or-history      # Shift+Tab
-bindkey -M menuselect '^[' send-break                   # Escape
+bindkey -M menuselect "${KEYS[TAB]}" vi-down-line-or-history
+bindkey -M menuselect "${KEYS[SHIFT_TAB]}" vi-up-line-or-history
+bindkey -M menuselect "${KEYS[ESCAPE]}" send-break
 
 setopt MENU_COMPLETE
 # bindkey -v '^?' backward-delete-char
@@ -121,8 +166,8 @@ setopt MENU_COMPLETE
 
 # ------------------------------------ zsh-autosuggestions
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#7f7f7f"
-bindkey 'CSI 13 ; 5 u' autosuggest-execute    # Ctrl+Enter
-bindkey '\x1b[13;5u' autosuggest-execute      # Ctrl+Enter
+bindkey "${KEYS[CTRL_ENTER_ALT]}" autosuggest-execute
+bindkey "${KEYS[CTRL_ENTER]}" autosuggest-execute
 
 # ------------------------------------ zsh-autocomplete
 # zstyle ':completion:*:*:*:*:descriptions' format '%F{245}%d%f'
@@ -186,7 +231,7 @@ __on_empty_buffer() {
 
 __last_command_or_delete() { __on_empty_buffer "BUFFER=${history[$((HISTCMD-1))]}; zle accept-line" 'zle backward-delete-char'; }
 zle -N __last_command_or_delete
-bindkey '^[[3;2~' __last_command_or_delete    # Shift+Delete
+bindkey "${KEYS[SHIFT_DELETE]}" __last_command_or_delete
 
 # __ls_or_space() { __on_empty_buffer 'command ls --almost-all --color --width 90;' "LBUFFER+=' '; zle autosuggest-fetch"; }
 # zle -N __ls_or_space
@@ -210,7 +255,7 @@ bindkey '^[[3;2~' __last_command_or_delete    # Shift+Delete
 
 __navi_or_esc() { __on_empty_buffer _navi_widget; }
 zle -N __navi_or_esc
-bindkey '^[' __navi_or_esc    # Escape
+bindkey "${KEYS[ESCAPE]}" __navi_or_esc
 
 # __clear_or_esc() { __on_empty_buffer 'clear -x'; }
 # zle -N __clear_or_esc
@@ -227,7 +272,7 @@ bindkey '^[' __navi_or_esc    # Escape
 __ls_or_space() { __on_empty_buffer 'echo ls; ls' "LBUFFER+=' '; zle autosuggest-fetch"; }
 # __ls_or_space() { __on_empty_buffer 'echo; command ls --almost-all --color --width 90;' "LBUFFER+=' '; zle autosuggest-fetch"; }
 zle -N __ls_or_space
-bindkey '\x1b[32;2u' __ls_or_space    # Shift+Space
+bindkey "${KEYS[SHIFT_SPACE]}" __ls_or_space
 
 # __yazi() { __on_empty_buffer "yazi < $TTY"; }
 # zle -N __yazi
@@ -291,11 +336,11 @@ __aliases_or_space() {
 # __aliases_or_space() { __on_empty_buffer "__aliases --prefix ' ' --file $OUT/.config/shell/functions/leader-aliases" "LBUFFER+=' '; zle reset-prompt; zle autosuggest-fetch"; }
 
 zle -N __aliases_or_space
-bindkey ' ' __aliases_or_space    # Space
+bindkey "${KEYS[SPACE]}" __aliases_or_space
 
 __aliases_or_accept() { __on_empty_buffer "__aliases --prefix '^M' --file $OUT/.config/shell/functions/leader-aliases" 'zle accept-line'; }
 zle -N __aliases_or_accept
-bindkey '^M' __aliases_or_accept    # Enter
+bindkey "${KEYS[ENTER]}" __aliases_or_accept
 
 ZSH_AUTOSUGGEST_STRATEGY=(history custom completion)
 
@@ -305,11 +350,11 @@ compdef _files __chezmoi add
 
 __prevd_widget() { __prevd; zle reset-prompt; }
 zle -N __prevd_widget
-bindkey '^[[5~' __prevd_widget    # Page Up
+bindkey "${KEYS[PAGE_UP]}" __prevd_widget
 
 __nextd_widget() { __nextd; zle reset-prompt; }
 zle -N __nextd_widget
-bindkey '^[[6~' __nextd_widget    # Page Down
+bindkey "${KEYS[PAGE_DOWN]}" __nextd_widget
 
 # ------------------------------------ Plugins
 
@@ -333,11 +378,11 @@ __fzf_completion_or_autosuggest() {
 }
 
 zle -N __fzf_completion_or_autosuggest
-bindkey '^I' __fzf_completion_or_autosuggest    # Tab
+bindkey "${KEYS[TAB]}" __fzf_completion_or_autosuggest
 
 __ripgrep_or_complete() { __on_empty_buffer __ripgrep 'zle fzf-completion'; }
 zle -N __ripgrep_or_complete
-bindkey '^[[Z' __ripgrep_or_complete    # Shift+Tab
+bindkey "${KEYS[SHIFT_TAB]}" __ripgrep_or_complete
 
 # handle_interrupt() {
 #     echo ''
