@@ -247,17 +247,18 @@ if [[ ${options[zle]} = on ]]; then
   . "$(fzf-share)/key-bindings.zsh"
 fi
 
-__fzf_completion_or_autosuggest() {
+__open_file_or_autosuggest() {
   if [[ -z "$BUFFER" ]]; then
     __open_file
   else
-    zle autosuggest-accept
+    # zle autosuggest-accept
+    zle fzf-completion
   fi
   zle reset-prompt
 }
 
-zle -N __fzf_completion_or_autosuggest
-bindkey "${KEYS[TAB]}" __fzf_completion_or_autosuggest
+zle -N __open_file_or_autosuggest
+bindkey "${KEYS[TAB]}" __open_file_or_autosuggest
 
 __ripgrep_or_complete() { __on_empty_buffer __ripgrep 'zle fzf-completion'; }
 zle -N __ripgrep_or_complete
