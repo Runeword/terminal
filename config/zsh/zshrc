@@ -8,7 +8,6 @@ autoload -Uz bracketed-paste-magic
 zle -N bracketed-paste bracketed-paste-magic
 
 # ------------------------------------ Key mappings
-# Associative array to store all key bindings for easy reference
 typeset -A KEYS
 KEYS=(
   SHIFT_ENTER    '^[[13;2u'
@@ -45,8 +44,8 @@ KEYS=(
 # ------------------------------------ ZSH hooks
 autoload -Uz add-zsh-hook
 
-# starship option 'add_newline = true' has weird behavior
-# use the following code instead to add a newline before the prompt
+# Starship option 'add_newline = true' has weird behavior
+# Use the following code instead to add a newline before the prompt
 
 __add_newline() {
   echo ""
@@ -112,9 +111,7 @@ bindkey "${KEYS[CTRL_A]}" beginning-of-line
 bindkey "${KEYS[CTRL_U]}" kill-buffer
 bindkey "${KEYS[CTRL_J]}" backward-kill-line
 bindkey "${KEYS[CTRL_K]}" kill-line
-# bindkey '^H' backward-kill-word          # Ctrl+H
 bindkey "${KEYS[CTRL_BACKSPACE]}" backward-kill-word
-# bindkey '^[[127;5u' backward-kill-word     # Ctrl+Backspace
 bindkey "${KEYS[CTRL_DELETE]}" kill-word
 
 # ------------------------------------ Search history
@@ -122,8 +119,6 @@ bindkey "${KEYS[UP_ARROW_ALT]}" history-beginning-search-backward
 bindkey "${KEYS[UP_ARROW]}" history-beginning-search-backward
 bindkey "${KEYS[DOWN_ARROW]}" history-beginning-search-forward
 bindkey "${KEYS[DOWN_ARROW_ALT]}" history-beginning-search-forward
-# bindkey -- "${terminfo[kcuu1]}" history-beginning-search-backward
-# bindkey -- "${terminfo[kcud1]}" history-beginning-search-backward
 
 # ------------------------------------ Complete
 zmodload zsh/complist
@@ -145,13 +140,6 @@ setopt MENU_COMPLETE
 # zstyle ':completion:*' menu select
 # bindkey '^I' complete-word
 # bindkey '^[[Z' reverse-menu-complete
-
-# # ------------------------------------ zsh-abbr
-# abbr import-aliases
-# ABBR_DEFAULT_BINDINGS=0
-# bindkey ' ' abbr-expand-and-space
-# bindkey '^M' accept-line
-# # bindkey '^M' abbr-expand-and-accept
 
 # ------------------------------------ zsh-autosuggestions
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#7f7f7f"
@@ -207,19 +195,6 @@ _zsh_autosuggest_strategy_custom() {
   # suggestion=$(grep -h -m1 -E "^[^#%]*$(printf '%s' "$1" | sed 's/[]\[\^\$\.\*\{\}\(\)\\]/\\&/g')" ~/.config/navi/* | head -n 1)
   # suggestion=$(navi --query "$1" --best-match --print) # navi does not support non-interactive mode https://github.com/denisidoro/navi/issues/808
 }
-
-# __aliases_() {
-#     local output
-#     output=$(aliases-fzf -f ~/dev/scripts/aliases-fzf/aliases)
-#     if [[ -n $output ]]; then
-#         LBUFFER+=$output
-#         if [[ $output == *$'\n' ]]; then
-#             zle accept-line
-#         else
-#             zle autosuggest-fetch
-#         fi
-#     fi
-# }
 
 __aliases_() {
     local output
