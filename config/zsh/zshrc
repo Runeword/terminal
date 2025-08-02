@@ -11,7 +11,6 @@ zle -N bracketed-paste bracketed-paste-magic
 # Associative array to store all key bindings for easy reference
 typeset -A KEYS
 KEYS=(
-  # Movement
   SHIFT_ENTER    '^[[13;2u'
   LEFT_ARROW     '^[OD'
   RIGHT_ARROW    '^[OC'
@@ -21,30 +20,20 @@ KEYS=(
   CTRL_SHIFT_TAB '\e[9;6u'
   CTRL_E         '^E'
   CTRL_A         '^A'
-  
-  # Kill/Delete
   CTRL_U         '^U'
   CTRL_J         '^J'
   CTRL_K         '^K'
   CTRL_BACKSPACE '^[[27;5;127~'
   CTRL_DELETE    '^[[3;5~'
-  
-  # History search
   UP_ARROW       '^[[A'
   UP_ARROW_ALT   '^[OA'
   DOWN_ARROW     '^[[B'
   DOWN_ARROW_ALT '^[OB'
-  
-  # Menu selection
   TAB            '^I'
   SHIFT_TAB      '^[[Z'
   ESCAPE         '^['
-  
-  # Autosuggestions
   CTRL_ENTER     '\x1b[13;5u'
   CTRL_ENTER_ALT 'CSI 13 ; 5 u'
-  
-  # Custom widgets
   SHIFT_DELETE   '^[[3;2~'
   SHIFT_SPACE    '\x1b[32;2u'
   SPACE          ' '
