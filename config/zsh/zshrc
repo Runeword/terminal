@@ -194,14 +194,14 @@ __last_command_or_delete() { __on_empty_buffer "BUFFER=${history[$((HISTCMD-1))]
 zle -N __last_command_or_delete
 bindkey "${KEYS[SHIFT_DELETE]}" __last_command_or_delete
 
-__navi_or_esc() { __on_empty_buffer _navi_widget; }
-zle -N __navi_or_esc
-bindkey "${KEYS[ESCAPE]}" __navi_or_esc
+__navi_or_space() { __on_empty_buffer _navi_widget; }
+zle -N __navi_or_space
+bindkey "${KEYS[SHIFT_SPACE]}" __navi_or_space
 
-__ls_or_space() { __on_empty_buffer 'echo ls; ls' "LBUFFER+=' '; zle autosuggest-fetch"; }
-# __ls_or_space() { __on_empty_buffer 'echo; command ls --almost-all --color --width 90;' "LBUFFER+=' '; zle autosuggest-fetch"; }
-zle -N __ls_or_space
-bindkey "${KEYS[SHIFT_SPACE]}" __ls_or_space
+__ls_or_escape() { __on_empty_buffer 'echo ls; ls' "LBUFFER+=' '; zle autosuggest-fetch"; }
+# __ls_or_escape() { __on_empty_buffer 'echo; command ls --almost-all --color --width 90;' "LBUFFER+=' '; zle autosuggest-fetch"; }
+zle -N __ls_or_escape
+bindkey "${KEYS[ESCAPE]}" __ls_or_escape
 
 _zsh_autosuggest_strategy_custom() {
   # suggestion=$(grep -h -m1 -E "^[^#%]*$(printf '%s' "$1" | sed 's/[]\[\^\$\.\*\{\}\(\)\\]/\\&/g')" ~/.config/navi/* | head -n 1)
