@@ -10,6 +10,7 @@ __cd() {
     # with repeat entries.
     if [[ "$target" != "$PWD" ]]; then
         \builtin pushd "$target" 1>/dev/null
+        echo "$PWD"
     fi
 }
 
