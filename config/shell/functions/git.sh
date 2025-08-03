@@ -72,3 +72,7 @@ __git_discard() {
 __git_untrack() {
   __git_fzf_cmd "git diff --name-only --cached" "git rm --cached --" "--preview 'git diff --cached --color=always -- {}' --preview-window 'right,75%,border-none'"
 }
+
+__git_rm_untracked() {
+  __git_fzf_cmd "git ls-files --others --exclude-standard" "rm --" "--preview 'ls -la -- {}' --preview-window 'right,75%,border-none'"
+}
