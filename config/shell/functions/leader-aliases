@@ -87,6 +87,7 @@ gxr 	git rebase --interactive --autosquash SHA^      	git                 [2] fi
 gru 	__git_discard                                   	git                 Discard	x
 grs 	__git_unstage                                   	git                 Unstage	x
 grt 	__git_untrack                                   	git                 Untrack	x
+grm 	__git_rm_untracked                              	git                 Remove untracked files	x
 grb 	git-forgit rebase --interactive                 	git                 Interactive rebase
 grh 	git reset --hard                                	git                 Delete staged + unstaged
 gro 	git reset --hard origin/BRANCH                  	git                 Make the local branch identical to the remote branch
