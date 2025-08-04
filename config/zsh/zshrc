@@ -35,6 +35,7 @@ KEYS=(
   CTRL_ENTER_ALT 'CSI 13 ; 5 u'
   SHIFT_DELETE   '^[[3;2~'
   SHIFT_SPACE    '\x1b[32;2u'
+  SHIFT_ESCAPE   '\u001b[27;2u'
   SPACE          ' '
   ENTER          '^M'
   PAGE_UP        '^[[5~'
@@ -263,6 +264,10 @@ bindkey "${KEYS[TAB]}" __open_file_or_autosuggest
 __ripgrep_or_complete() { __on_empty_buffer __ripgrep 'zle fzf-completion'; }
 zle -N __ripgrep_or_complete
 bindkey "${KEYS[SHIFT_TAB]}" __ripgrep_or_complete
+
+__ls_or_shift_escape() { __on_empty_buffer 'echo ls; command ls --format=long --all --human-readable --classify --color=auto --sort=time --time-style=long-iso'; }
+zle -N __ls_or_shift_escape
+bindkey "${KEYS[SHIFT_ESCAPE]}" __ls_or_shift_escape
 
 # handle_interrupt() {
 #     echo ''
