@@ -35,15 +35,15 @@ __git_fzf_cmd() {
   local fzf_args="$3"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
-  
+
   local default_args="--multi --reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --scheme=path --bind='ctrl-a:select-all'"
-  
-  if [[ -n "$fzf_args" ]]; then
+
+  if [ "$fzf_args" != "" ]; then
     fzf_args="$default_args $fzf_args"
   else
     fzf_args="$default_args"
   fi
-  
+
   (cd "$repo_root" && eval "$list_cmd") |
     eval "fzf $fzf_args" |
     sed "s|^|$repo_root/|" |
