@@ -46,6 +46,7 @@ __git_fzf_cmd() {
   
   (cd "$repo_root" && eval "$list_cmd") |
     eval "fzf $fzf_args" |
+    sed "s|^|$repo_root/|" |
     xargs -r "$action_cmd"
 }
 
