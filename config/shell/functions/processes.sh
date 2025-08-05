@@ -17,7 +17,7 @@ __kill_processes() {
       awk '{print $2}'
   )
 
-  if [ -z "$pid" ]; then
+  if [ "$pid" = "" ]; then
     return 1
   fi
 
