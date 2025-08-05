@@ -46,7 +46,7 @@ __git_fzf_cmd() {
   
   (cd "$repo_root" && eval "$list_cmd") |
     eval "fzf $fzf_args" |
-    xargs -r -I {} sh -c "cd '$repo_root' && $action_cmd {}"
+    xargs -r "$action_cmd"
 }
 
 __git_open_all() {
