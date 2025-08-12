@@ -77,3 +77,15 @@ __git_untrack() {
 __git_rm_untracked() {
   __git_fzf_cmd "git ls-files --others --exclude-standard" "rm --" "--preview 'ls -la -- {}' --preview-window 'right,75%,border-none'"
 }
+
+__git_diff() {
+  local files
+  files=$( (git diff --name-only; git ls-files --others --exclude-standard) | sort | uniq ) 
+  printf '%s\n' "$files" | fzf --preview '
+  if git ls-files --error-unmatch {} > /dev/null 2>&1; then
+    git diff --color=always {}
+  else
+    git diff --no-index --color=always /dev/null {}
+  fi
+  ' --multi --reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --scheme=path --bind='ctrl-a:select-all' --preview-window 'right,75%,border-none'
+}
