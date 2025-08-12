@@ -16,6 +16,7 @@ export NIXOS_PATH="$HOME/nixos"
 export FZF_DEFAULT_OPTS_FILE=""
 export FORGIT_FZF_DEFAULT_OPTS="
 --exact \
+--cycle \
 --reverse \
 --prompt='  ' \
 --no-separator \
