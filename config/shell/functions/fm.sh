@@ -165,6 +165,18 @@ __open_recent() {
   }
 }
 
+__rsync() {
+  rsync \
+    --archive \
+    --verbose \
+    --stats \
+    --human-readable \
+    --compress \
+    --info=progress2 \
+    --exclude 'node_modules' \
+    "$@"
+  }
+
 # --color "hl:-1:underline,hl+:-1:underline:reverse" \
 # --bind 'enter:become(vim {1} +{2})'
 # "cd $(fd --type directory --hidden --follow --no-ignore --exclude .git --exclude node_modules | fzf --inline-info --cycle --preview 'ls -AxF {} | head -$FZF_PREVIEW_LINES' --preview-window right,50%,noborder --no-scrollbar)";
