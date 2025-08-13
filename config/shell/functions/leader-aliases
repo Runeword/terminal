@@ -125,7 +125,7 @@ cpy	__chezmoi_private apply                                                     
 ap	aws configure list-profiles                                                  	aws          profiles          list
 al	aws lambda list-functions --profile Profile                                  	aws          lambda            list
 ab	sam build                                                                    	aws          lambda            build
-as	sam local start-api --profile <profile>                                      	aws          lambda            start/local
+as	sam local start-api --profile PROFILE                                        	aws          lambda            start/local
 ai	sam init --runtime go --package-type Image                                   	aws          lambda            init/go
 dsl	docker system df                                                             	docker       system            list	x
 dsp	docker system prune --force --all --volumes                                  	docker       system            remove unused containers, networks, images, volumes, build cache	x
@@ -141,5 +141,6 @@ dip	docker image prune --force --all                                            
 xtw	task --watch build > /dev/null 2>&1 &                                        	task         watch
 tx	npx tsx FILE                                                                 	typescript   execute
 tc	npx tsc                                                                      	typescript   compile
-# tw	tmux split-window -v -l 5 -d 'task --watch build'                            	task         watch	x
-# tk	pkill -f "task --watch build"                                                	task         kill	x
+# tw	tmux split-window -v -l 5 -d 'task --watch build'                            	task       watch	x
+# tk	pkill -f "task --watch build"                                                	task       kill	x
+rs	__rsync SOURCE TARGET                                                        	file/dir   copy
