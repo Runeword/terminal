@@ -19,6 +19,7 @@ with pkgs; [
   direnv
   pass
   gemini-cli
+  claude-code
 
   # Coreutils
   coreutils-full
@@ -58,6 +59,7 @@ with pkgs; [
   git # versioning
   git-absorb
   zsh-forgit # fuzzy git
+  delta
 
   # Containers
   lazydocker
