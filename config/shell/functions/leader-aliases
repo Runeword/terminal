@@ -102,6 +102,9 @@ gor	go run                                                                      
 gom	go mod tidy                                                                  	go	x
 goc	go clean -modcache                                                           	go
 got	go test                                                                      	go
+# xtw	task --watch build > /dev/null 2>&1 &                                        	task       watch
+xtb	tmux split-window -v -l 5 -d 'task --watch build'                            	task       watch	x
+xtk	pkill -f "task --watch build"                                                	task       kill	x
 pp	pass git push                                                                	pass
 pi	pass insert                                                                  	pass
 pg	pass generate                                                                	pass
@@ -139,9 +142,6 @@ dcl	docker container ls --all                                                   
 dcp	docker container prune --force                                               	docker       container         remove unused	x
 dil	docker image ls --all                                                        	docker       image             list	x
 dip	docker image prune --force --all                                             	docker       image             remove unused	x
-xtw	task --watch build > /dev/null 2>&1 &                                        	task         watch
 tx	npx tsx FILE                                                                 	typescript   execute
 tc	npx tsc                                                                      	typescript   compile
-# tw	tmux split-window -v -l 5 -d 'task --watch build'                            	task       watch	x
-# tk	pkill -f "task --watch build"                                                	task       kill	x
 rs	__rsync SOURCE TARGET                                                        	file/dir   copy
