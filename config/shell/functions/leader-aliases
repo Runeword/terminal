@@ -105,13 +105,18 @@ got	go test                                                                     
 # xtw	task --watch build > /dev/null 2>&1 &                                        	task       watch
 xtb	tmux split-window -v -l 5 -d 'task --watch build'                            	task       watch	x
 xtk	pkill -f "task --watch build"                                                	task       kill	x
-pp	pass git push                                                                	pass
-pi	pass insert                                                                  	pass
-pg	pass generate                                                                	pass
-pc	__pass_clip                                                                  	pass
-pr	__pass_rm                                                                    	pass
-pk	gpgconf --reload gpg-agent                                                   	pass
-pu	pass show GEMINI_API_KEY > /dev/null                                         	pass
+pap	pass git push                                                                	pass
+pai	pass insert                                                                  	pass
+pag	pass generate                                                                	pass
+pac	__pass_clip                                                                  	pass
+par	__pass_rm                                                                    	pass
+pak	gpgconf --reload gpg-agent                                                   	pass
+pau	pass show GEMINI_API_KEY > /dev/null                                         	pass
+pec	python -m venv .venv                                                         	python            venv         create	x
+pea	source .venv/bin/activate                                                    	python            venv         activate	x
+ped	deactivate                                                                   	python            venv         deactivate	x
+per	rm -r .venv                                                                  	python            venv         remove
+pi	pip install Package                                                          	python            package      install
 cd	chezmoi diff --reverse                                                       	chezmoi	x
 ci	chezmoi ignored                                                              	chezmoi	x
 cc	__chezmoi_cd                                                                 	chezmoi	x
