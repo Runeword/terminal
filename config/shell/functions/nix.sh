@@ -47,9 +47,10 @@ __use_flake_template() {
   )
   [ -z "$selected_template" ] && return 1
 
-  nix flake init --template "$flake_path"/#"$selected_template"
+  command mkdir -p nix
+  (builtin cd nix && nix flake init --template "$flake_path"/#"$selected_template")
 
-  printf "use flake ." >> .envrc
+  printf "use flake ./nix" >> .envrc
   # echo "use flake \"$flake_path/$selected_template\"" >>.envrc
   if ! grep "^\.direnv/$" .gitignore > /dev/null 2>&1; then
     echo ".direnv/" >> .gitignore
