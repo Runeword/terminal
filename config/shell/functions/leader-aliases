@@ -35,6 +35,7 @@ fm	nix flake metadata                                                           
 ft	__use_flake_template "github:Runeword/dotfiles?dir=templates"                	flake           templates         use	x
 fr	rm -rf .direnv .envrc .gitignore nix                                         	flake           files             remove
 fa  	direnv allow                                                               	flake           direnv            allow	x
+js  	cat JSONFILE | jq '@json'                                                   json            json2string       format
 g   	lazygit                                         	git
 g   	onefetch                                        	git                 repo                info
 gi  	git config user.name ; git config user.email ; git remote -v    	git                 repo                info	x
