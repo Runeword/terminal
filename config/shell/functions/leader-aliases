@@ -1,5 +1,7 @@
 on	fc -s nvim                                                                   	open            previous file	x
 oh	nvim $HISTFILE                                                               	open            history	x
+ols	ollama serve                                                                 	ollama          serve	x
+olr	ollama run codellama                                                         	ollama          run	x
 hgr	__home_manager_generation_remove                                             	home-manager    generation        remove	x
 hgs	__home_manager_generation_switch                                             	home-manager    generation        switch	x
 hp	__home_manager_packages_list                                                 	home-manager    packages          list	x
