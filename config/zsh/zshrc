@@ -199,7 +199,7 @@ _zsh_autosuggest_strategy_custom() {
 
 __aliases_() {
     local output
-    output=$(aliases-fzf -f ~/dev/scripts/aliases-fzf/aliases 2>/dev/null)
+    output=$(aliases-fzf -f '~/terminal/config/shell/functions/leader-aliases' 2>/dev/null)
     if [[ -n $output ]]; then
         if [[ $output == *$'\n' ]]; then
             BUFFER=$output
