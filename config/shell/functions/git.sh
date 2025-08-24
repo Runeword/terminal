@@ -29,19 +29,21 @@ __git_open_url() {
   open -a "$BROWSER" "$FINAL_URL"
 }
 
+_GIT_FZF_DEFAULT="--multi --reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --scheme=path --bind='ctrl-a:select-all'"
+_GIT_FZF_PREVIEW="--preview-window 'right,75%,border-none'"
+
 __git_fzf_cmd() {
   local list_cmd="$1"
   local action_cmd="$2"
   local fzf_args="$3"
   local repo_root
+  
   repo_root="$(git rev-parse --show-toplevel)"
-
-  local default_args="--multi --reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --scheme=path --bind='ctrl-a:select-all'"
-
-  if [ "$fzf_args" != "" ]; then
-    fzf_args="$default_args $fzf_args"
+  
+  if [ -n "$fzf_args" ]; then
+    fzf_args="$_GIT_FZF_DEFAULT $fzf_args"
   else
-    fzf_args="$default_args"
+    fzf_args="$_GIT_FZF_DEFAULT"
   fi
 
   (builtin cd "$repo_root" && eval "$list_cmd") |
@@ -51,34 +53,50 @@ __git_fzf_cmd() {
 }
 
 __git_open_all() {
-  __git_fzf_cmd "git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard" nvim "--preview 'git diff --color=always -- {}' --preview-window 'right,75%,border-none'"
+  local list_files="git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard"
+  local preview="--preview 'git diff --color=always -- {}' $_GIT_FZF_PREVIEW"
+  __git_fzf_cmd "$list_files" nvim "$preview"
 }
 
 __git_open_unstaged() {
-  __git_fzf_cmd "git ls-files --others --exclude-standard --modified" nvim "--preview 'git diff --color=always -- {}' --preview-window 'right,75%,border-none'"
+  local list_files="git ls-files --others --exclude-standard --modified"
+  local preview="--preview 'git diff --color=always -- {}' $_GIT_FZF_PREVIEW"
+  __git_fzf_cmd "$list_files" nvim "$preview"
 }
 
 __git_open_staged() {
-  __git_fzf_cmd "git diff --name-only --cached" nvim "--preview 'git diff --cached --color=always -- {}' --preview-window 'right,75%,border-none'"
+  local list_files="git diff --name-only --cached"
+  local preview="--preview 'git diff --cached --color=always -- {}' $_GIT_FZF_PREVIEW"
+  __git_fzf_cmd "$list_files" nvim "$preview"
 }
 
 __git_unstage() {
-  __git_fzf_cmd "git diff --name-only --cached" "git restore --staged --" "--preview 'git diff --cached --color=always -- {}' --preview-window 'right,75%,border-none'"
+  local list_files="git diff --name-only --cached"
+  local preview="--preview 'git diff --cached --color=always -- {}' $_GIT_FZF_PREVIEW"
+  __git_fzf_cmd "$list_files" "git restore --staged --" "$preview"
 }
 
 __git_discard() {
-  __git_fzf_cmd "git diff --name-only" "git checkout --" "--preview 'git diff --color=always -- {}' --preview-window 'right,75%,border-none'"
+  local list_files="git diff --name-only"
+  local preview="--preview 'git diff --color=always -- {}' $_GIT_FZF_PREVIEW"
+  __git_fzf_cmd "$list_files" "git checkout --" "$preview"
 }
 
 __git_untrack() {
-  __git_fzf_cmd "git diff --name-only --cached" "git rm --cached --" "--preview 'git diff --cached --color=always -- {}' --preview-window 'right,75%,border-none'"
+  local list_files="git diff --name-only --cached"
+  local preview="--preview 'git diff --cached --color=always -- {}' $_GIT_FZF_PREVIEW"
+  __git_fzf_cmd "$list_files" "git rm --cached --" "$preview"
 }
 
 __git_rm_untracked() {
-  __git_fzf_cmd "git ls-files --others --exclude-standard" "rm --" "--preview 'ls -la -- {}' --preview-window 'right,75%,border-none'"
+  local list_files="git ls-files --others --exclude-standard"
+  local preview="--preview 'ls -la -- {}' $_GIT_FZF_PREVIEW"
+  __git_fzf_cmd "$list_files" "rm --" "$preview"
 }
 
 __git_diff() {
+  local list_files="(git diff --name-only; git ls-files --others --exclude-standard) | sort | uniq"
   local preview_cmd="if git ls-files --error-unmatch {} > /dev/null 2>&1; then git diff --color=always {}; else git diff --no-index --color=always /dev/null {}; fi"
-  __git_fzf_cmd "(git diff --name-only; git ls-files --others --exclude-standard) | sort | uniq" "echo" "--preview '$preview_cmd' --preview-window 'right,75%,border-none'"
+  local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
+  __git_fzf_cmd "$list_files" "echo" "$preview"
 }
