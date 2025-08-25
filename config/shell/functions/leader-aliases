@@ -48,14 +48,14 @@ guc 	__git_open_url commits                          	git                 url   
 xga 	git add --intent-to-add File                    	git                 file                track
 gt  	git status                                      	git                 file                list	x
 gkb 	git-forgit checkout_branch                      	git                 branch              switch	x
-gb  	git branch --list                               	git                 branch              list	x
+gbl 	git branch --list                               	git                 branch              list	x
 gbn 	git switch --create NewBranch                   	git                 branch              new
 gbr 	git branch --move --force OldName NewName       	git                 branch              rename
 gm  	git merge Branch                                	git                 branch              merge
 gbd 	git branch --delete --force BranchLocal         	git                 branch              delete local
 gbd 	git-forgit branch_delete                        	git                 branch              delete local	x
 gbdr	git push origin --delete BranchRemote           	git                 branch              delete remote
-gbl 	git-forgit blame                                	git
+gbm 	git-forgit blame                                	git
 gco 	git commit                                      	git                 commit              new	x
 gcm 	git commit --message Message                    	git                 commit              new
 gca 	git commit --message --amend NewMessage         	git                 commit              edit message
@@ -116,6 +116,7 @@ pac	__pass_clip                                                                 
 par	__pass_rm                                                                    	pass
 pak	gpgconf --reload gpg-agent                                                   	pass
 pau	pass show GEMINI_API_KEY > /dev/null                                         	pass
+pee	python -m venv .venv && source .venv/bin/activate && rm -r .venv             	python            venv         recreate	x
 pec	python -m venv .venv                                                         	python            venv         create	x
 pea	source .venv/bin/activate                                                    	python            venv         activate	x
 ped	deactivate                                                                   	python            venv         deactivate	x
