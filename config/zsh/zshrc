@@ -202,7 +202,7 @@ _zsh_autosuggest_strategy_custom() {
 
 __aliases_() {
     local output
-    output=$(aliases-fzf -f '~/terminal/config/shell/functions/leader-aliases' 2>/dev/null)
+    output=$(aliases-fzf -f ~/terminal/config/shell/functions/leader-aliases 2>/dev/null)
     if [[ -n $output ]]; then
         if [[ $output == *$'\n' ]]; then
             BUFFER=$output
@@ -217,7 +217,8 @@ __aliases_() {
     fi
 }
 
-__aliases_or_space() { __on_empty_buffer "__aliases --prefix ' ' --file $OUT/.config/shell/functions/leader-aliases" "LBUFFER+=' '; zle autosuggest-fetch"; }
+# __aliases_or_space() { __on_empty_buffer "__aliases --prefix ' ' --file $OUT/.config/shell/functions/leader-aliases" "LBUFFER+=' '; zle autosuggest-fetch"; }
+__aliases_or_space() { __aliases_; }
 zle -N __aliases_or_space
 bindkey "${KEYS[SPACE]}" __aliases_or_space
 
