@@ -40,6 +40,9 @@ KEYS=(
   ENTER          '^M'
   PAGE_UP        '^[[5~'
   PAGE_DOWN      '^[[6~'
+  CTRL_V         '^V'
+  CTRL_W         '^W'
+  CTRL_Q         '^Q'
 )
 
 # ------------------------------------ ZSH hooks
@@ -92,10 +95,10 @@ unalias ll 2>/dev/null
 unalias ls 2>/dev/null
 
 # ------------------------------------ Remove default bindings
-bindkey -r '^['
-bindkey -r '^V'
-bindkey -r '^W'
-bindkey -r '^Q'
+bindkey -r "${KEYS[ESCAPE]}"
+bindkey -r "${KEYS[CTRL_V]}"
+bindkey -r "${KEYS[CTRL_W]}"
+bindkey -r "${KEYS[CTRL_Q]}"
 
 # ------------------------------------ Move
 bindkey "${KEYS[SHIFT_ENTER]}" accept-line
