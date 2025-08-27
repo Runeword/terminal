@@ -80,6 +80,7 @@ gsl 	git-forgit stash_show                           	git                 stash 
 gsc 	git stash clear                                 	git                 stash                       delete all
 gsf 	git-forgit stash_push                           	git                 stash                             push	x
 gpp 	git push                                        	git	x
+gpf 	git push --force                                	git
 gpu 	git push --set-upstream origin HEAD             	git                 set upstream branch	x
 gpl 	git pull                                        	git	x
 gf  	git fetch                                       	git	x
