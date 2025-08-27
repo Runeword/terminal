@@ -217,8 +217,8 @@ __aliases_() {
     fi
 }
 
-# __aliases_or_space() { __on_empty_buffer "__aliases --prefix ' ' --file $OUT/.config/shell/functions/leader-aliases" "LBUFFER+=' '; zle autosuggest-fetch"; }
-__aliases_or_space() { __aliases_; }
+__aliases_or_space() { __on_empty_buffer "__aliases --prefix ' ' --file $OUT/.config/shell/functions/leader-aliases" "LBUFFER+=' '; zle autosuggest-fetch"; }
+# __aliases_or_space() { __aliases_; }
 zle -N __aliases_or_space
 bindkey "${KEYS[SPACE]}" __aliases_or_space
 
