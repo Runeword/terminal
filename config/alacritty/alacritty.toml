@@ -5,171 +5,175 @@
 live_config_reload = true
 
 [terminal.shell]
-   program = "zsh"
-   args = ["-l"]
+program = "zsh"
+args = ["-l"]
 
 [cursor]
-   blink_interval = 500
-   blink_timeout = 0
-   thickness      = 0.01
-   style          = { blinking = "Always", shape = "Beam" }
+blink_interval = 500
+blink_timeout = 0
+thickness = 0.01
+style = { blinking = "Always", shape = "Beam" }
 
 [env]
-   # TERM = "alacritty"
-   TERM = "xterm-256color"
+# TERM = "alacritty"
+TERM = "xterm-256color"
 
 [font]
-   size        = 16
-   offset      = { x = 1, y = 5 }
-   bold        = { family = "SauceCodePro Nerd Font", style = "Bold" }
-   bold_italic = { family = "MonaspiceRn Nerd Font", style = "Italic" }
-   normal      = { family = "SauceCodePro Nerd Font", style = "Regular" }
-   italic      = { family = "CaskaydiaMono Nerd Font", style = "Light Italic" }
+size = 16
+offset = { x = 1, y = 5 }
+bold = { family = "SauceCodePro Nerd Font", style = "Bold" }
+bold_italic = { family = "MonaspiceRn Nerd Font", style = "Italic" }
+normal = { family = "SauceCodePro Nerd Font", style = "Regular" }
+italic = { family = "CaskaydiaMono Nerd Font", style = "Light Italic" }
 
 [selection]
-   save_to_clipboard = true
+save_to_clipboard = true
 
 [window]
-   decorations     = "none"
-   dynamic_padding = true
-   opacity         = 0.8
-   startup_mode    = "Maximized"
-   padding         = { x = 16 }
+decorations = "none"
+dynamic_padding = true
+opacity = 0.8
+startup_mode = "Maximized"
+padding = { x = 16 }
 
 [colors]
-   cursor  = { cursor = "#ffffff", text = "#000000" }
-   primary = { background = "#000000", foreground = "#d0d0d0" }
+cursor = { cursor = "#ffffff", text = "#000000" }
+primary = { background = "#000000", foreground = "#d0d0d0" }
 
 [colors.bright]
-   # black   = "#d0d0d0"
-   black   = "#7a7c9e"
-   blue    = "#5c5cff"
-   cyan    = "#0DCDCD"
-   green   = "#65b588"
-   magenta = "#FF00FF"
-   red     = "#ff0000"
-   white   = "#ffffff"
-   yellow  = "#ffe330"
+# black   = "#d0d0d0"
+black = "#7a7c9e"
+blue = "#5c5cff"
+cyan = "#0DCDCD"
+green = "#65b588"
+magenta = "#FF00FF"
+red = "#ff0000"
+white = "#ffffff"
+yellow = "#ffe330"
 
 [colors.normal]
-   black = "#000000"
-   blue  = "#9bb7c4"
-   cyan  = "#6097bf"
-   green = "#5f9e6f"
-   magenta = "#8856c4"
-   red    = "#ff75a9"
-   white  = "#e4e8f2"
-   yellow = "#d9b26f"
+black = "#000000"
+blue = "#9bb7c4"
+cyan = "#6097bf"
+green = "#5f9e6f"
+magenta = "#8856c4"
+red = "#ff75a9"
+white = "#e4e8f2"
+yellow = "#d9b26f"
 
 [[hints.enabled]]
-   regex = "(http:|https:)[^\u0000-\u001F\u007F-\u009F<>\"\\s{-}\\^⟨⟩`]+"
-   command = "xdg-open"
+regex = "(http:|https:)[^\u0000-\u001F\u007F-\u009F<>\"\\s{-}\\^⟨⟩`]+"
+command = "xdg-open"
 
 [hints.enabled.binding]
-   key = "L"
-   mods = "Alt"
+key = "L"
+mods = "Alt"
 
 [keyboard]
-   bindings = [
-      { key = "A", mods = "Command", chars = "\u001ba" }, # Command+A as Alt+A
-      { key = "B", mods = "Command", chars = "\u001bb" }, # Command+B as Alt+B
-      # { key = "C", mods = "Command", chars = "\u001bc" }, # Command+C as Alt+C
-      { key = "D", mods = "Command", chars = "\u001bd" }, # Command+D as Alt+D
-      { key = "E", mods = "Command", chars = "\u001be" }, # Command+E as Alt+E
-      { key = "F", mods = "Command", chars = "\u001bf" }, # Command+F as Alt+F
-      { key = "G", mods = "Command", chars = "\u001bg" }, # Command+G as Alt+G
-      { key = "H", mods = "Command", chars = "\u001bh" }, # Command+H as Alt+H
-      { key = "I", mods = "Command", chars = "\u001bi" }, # Command+I as Alt+I
-      { key = "J", mods = "Command", chars = "\u001bj" }, # Command+J as Alt+J
-      { key = "K", mods = "Command", chars = "\u001bk" }, # Command+K as Alt+K
-      { key = "L", mods = "Command", chars = "\u001bl" }, # Command+L as Alt+L
-      { key = "M", mods = "Command", chars = "\u001bm" }, # Command+M as Alt+M
-      { key = "N", mods = "Command", chars = "\u001bn" }, # Command+N as Alt+N
-      { key = "O", mods = "Command", chars = "\u001bo" }, # Command+O as Alt+O
-      { key = "P", mods = "Command", chars = "\u001bp" }, # Command+P as Alt+P
-      { key = "Q", mods = "Command", chars = "\u001bq" }, # Command+Q as Alt+Q
-      { key = "R", mods = "Command", chars = "\u001br" }, # Command+R as Alt+R
-      { key = "S", mods = "Command", chars = "\u001bs" }, # Command+S as Alt+S
-      { key = "T", mods = "Command", chars = "\u001bt" }, # Command+T as Alt+T
-      { key = "U", mods = "Command", chars = "\u001bu" }, # Command+U as Alt+U
-      # { key = "V", mods = "Command", chars = "\u001bv" }, # Command+V as Alt+V
-      { key = "W", mods = "Command", chars = "\u001bw" }, # Command+W as Alt+W
-      { key = "X", mods = "Command", chars = "\u001bx" }, # Command+X as Alt+X
-      { key = "Y", mods = "Command", chars = "\u001by" }, # Command+Y as Alt+Y
-      { key = "Z", mods = "Command", chars = "\u001bz" }, # Command+Z as Alt+Z
-      { key = "A", mods = "Command|Shift", chars = "\u001bA" }, # Command+Shift+A as Alt+A
-      { key = "B", mods = "Command|Shift", chars = "\u001bB" }, # Command+Shift+B as Alt+B
-      { key = "C", mods = "Command|Shift", chars = "\u001bC" }, # Command+Shift+C as Alt+C
-      { key = "D", mods = "Command|Shift", chars = "\u001bD" }, # Command+Shift+D as Alt+D
-      { key = "E", mods = "Command|Shift", chars = "\u001bE" }, # Command+Shift+E as Alt+E
-      { key = "F", mods = "Command|Shift", chars = "\u001bF" }, # Command+Shift+F as Alt+F
-      { key = "G", mods = "Command|Shift", chars = "\u001bG" }, # Command+Shift+G as Alt+G
-      { key = "H", mods = "Command|Shift", chars = "\u001bH" }, # Command+Shift+H as Alt+H
-      { key = "I", mods = "Command|Shift", chars = "\u001bI" }, # Command+Shift+I as Alt+I
-      { key = "J", mods = "Command|Shift", chars = "\u001bJ" }, # Command+Shift+J as Alt+J
-      { key = "K", mods = "Command|Shift", chars = "\u001bK" }, # Command+Shift+K as Alt+K
-      { key = "L", mods = "Command|Shift", chars = "\u001bL" }, # Command+Shift+L as Alt+L
-      { key = "M", mods = "Command|Shift", chars = "\u001bM" }, # Command+Shift+M as Alt+M
-      { key = "N", mods = "Command|Shift", chars = "\u001bN" }, # Command+Shift+N as Alt+N
-      { key = "O", mods = "Command|Shift", chars = "\u001bO" }, # Command+Shift+O as Alt+O
-      { key = "P", mods = "Command|Shift", chars = "\u001bP" }, # Command+Shift+P as Alt+P
-      { key = "Q", mods = "Command|Shift", chars = "\u001bQ" }, # Command+Shift+Q as Alt+Q
-      { key = "R", mods = "Command|Shift", chars = "\u001bR" }, # Command+Shift+R as Alt+R
-      { key = "S", mods = "Command|Shift", chars = "\u001bS" }, # Command+Shift+S as Alt+S
-      { key = "T", mods = "Command|Shift", chars = "\u001bT" }, # Command+Shift+T as Alt+T
-      { key = "U", mods = "Command|Shift", chars = "\u001bU" }, # Command+Shift+U as Alt+U
-      { key = "V", mods = "Command|Shift", chars = "\u001bV" }, # Command+Shift+V as Alt+V
-      { key = "W", mods = "Command|Shift", chars = "\u001bW" }, # Command+Shift+W as Alt+W
-      { key = "X", mods = "Command|Shift", chars = "\u001bX" }, # Command+Shift+X as Alt+X
-      { key = "Y", mods = "Command|Shift", chars = "\u001bY" }, # Command+Shift+Y as Alt+Y
-      { key = "Z", mods = "Command|Shift", chars = "\u001bZ" }, # Command+Shift+Z as Alt+Z
-      { key = "Equals",         action = "ResetFontSize",    mods = "Control" },
-      { key = "Plus",           action = "IncreaseFontSize", mods = "Control|Shift" },
-      { key = "Minus",          action = "DecreaseFontSize", mods = "Control" },
-      { key = "NumpadEquals",   action = "ResetFontSize",    mods = "Control" },
-      { key = "NumpadAdd",      action = "IncreaseFontSize", mods = "Control" },
-      { key = "NumpadSubtract", action = "DecreaseFontSize", mods = "Control" },
-      # { key = "PageUp", mods = "Control|Shift", action = "ScrollLineUp" },
-      # { key = "PageUp", mods = "Control|Shift", action = "ScrollLineUp" },
-      # { key = "PageUp", mods = "Control|Shift", action = "ScrollLineUp" },
-      # { key = "PageUp", mods = "Control|Shift", action = "ScrollLineUp" },
-      # { key = "PageDown", mods = "Control|Shift", action = "ScrollLineDown" },
-      # { key = "PageDown", mods = "Control|Shift", action = "ScrollLineDown" },
-      # { key = "PageDown", mods = "Control|Shift", action = "ScrollLineDown" },
-      # { key = "PageDown", mods = "Control|Shift", action = "ScrollLineDown" },
-      { key= "PageUp", mods= "Shift", action= "ReceiveChar"  },
-      { key= "PageDown", mods= "Shift", action= "ReceiveChar" },
-      { key = "Home", mods = "Shift", action = "ReceiveChar" },
-      { key = "End", mods = "Shift", action = "ReceiveChar" },
-      # { key = "Home", mods = "Shift", action = "ScrollToTop" },
-      # { key = "End", mods = "Shift", action = "ScrollToBottom" },
+bindings = [
+  # { key = "C", mods = "Command", chars = "\u001bc" }, # Command+C as Alt+C
+  # { key = "V", mods = "Command", chars = "\u001bv" }, # Command+V as Alt+V
 
-      { chars = "\u001B[105;5u", key = "I", mods = "Control" },
-      { chars = "\u001B[13;2u", key = "Return", mods = "Shift" },
-      { chars = "\u001B[13;5u", key = "Return", mods = "Control" },
-      { chars = "\u001B[13;6u", key = "Return", mods = "Control|Shift" },
-      { chars = "\u001B[13;4u", key = "Return", mods = "Alt|Shift" },
-      { chars = "\u001B[3;2~", key = "Backspace", mods = "Shift" },
-      { chars = "\u001B[27;5;127~", key = "Backspace", mods = "Control" },
-      # { chars = "\u001B[127;5u", key = "Backspace", mods = "Control" },
-      { chars = "\u001B[32;2u", key = "Space", mods = "Shift" },
-      { chars = "\u001B\u001B[Z", key = "Tab", mods = "Alt|Shift" },
-      { chars = "\u001B[Z", key = "Tab", mods = "Shift" },
-      { chars = "\u001B[9;5u", key = "Tab", mods = "Control" },
-      { chars = "\u001B[9;6u", key = "Tab", mods = "Control|Shift" },
-      { chars = "\u001B[9;7u", key = "Tab", mods = "Control|Alt" },
-      { chars = "\u001B[9;8u", key = "Tab", mods = "Control|Alt|Shift" },
-      { chars = "\u0002[", key = "Escape", mods = "Control" },
-      { chars = "\u001b[27;2u", key = "Escape", mods = "Shift" },
+  { key = "A", mods = "Command", chars = "\u001ba" },       # Command+A as Alt+A
+  { key = "B", mods = "Command", chars = "\u001bb" },       # Command+B as Alt+B
+  { key = "D", mods = "Command", chars = "\u001bd" },       # Command+D as Alt+D
+  { key = "E", mods = "Command", chars = "\u001be" },       # Command+E as Alt+E
+  { key = "F", mods = "Command", chars = "\u001bf" },       # Command+F as Alt+F
+  { key = "G", mods = "Command", chars = "\u001bg" },       # Command+G as Alt+G
+  { key = "H", mods = "Command", chars = "\u001bh" },       # Command+H as Alt+H
+  { key = "I", mods = "Command", chars = "\u001bi" },       # Command+I as Alt+I
+  { key = "J", mods = "Command", chars = "\u001bj" },       # Command+J as Alt+J
+  { key = "K", mods = "Command", chars = "\u001bk" },       # Command+K as Alt+K
+  { key = "L", mods = "Command", chars = "\u001bl" },       # Command+L as Alt+L
+  { key = "M", mods = "Command", chars = "\u001bm" },       # Command+M as Alt+M
+  { key = "N", mods = "Command", chars = "\u001bn" },       # Command+N as Alt+N
+  { key = "O", mods = "Command", chars = "\u001bo" },       # Command+O as Alt+O
+  { key = "P", mods = "Command", chars = "\u001bp" },       # Command+P as Alt+P
+  { key = "Q", mods = "Command", chars = "\u001bq" },       # Command+Q as Alt+Q
+  { key = "R", mods = "Command", chars = "\u001br" },       # Command+R as Alt+R
+  { key = "S", mods = "Command", chars = "\u001bs" },       # Command+S as Alt+S
+  { key = "T", mods = "Command", chars = "\u001bt" },       # Command+T as Alt+T
+  { key = "U", mods = "Command", chars = "\u001bu" },       # Command+U as Alt+U
+  { key = "W", mods = "Command", chars = "\u001bw" },       # Command+W as Alt+W
+  { key = "X", mods = "Command", chars = "\u001bx" },       # Command+X as Alt+X
+  { key = "Y", mods = "Command", chars = "\u001by" },       # Command+Y as Alt+Y
+  { key = "Z", mods = "Command", chars = "\u001bz" },       # Command+Z as Alt+Z
+  { key = "A", mods = "Command|Shift", chars = "\u001bA" }, # Command+Shift+A as Alt+A
+  { key = "B", mods = "Command|Shift", chars = "\u001bB" }, # Command+Shift+B as Alt+B
+  { key = "C", mods = "Command|Shift", chars = "\u001bC" }, # Command+Shift+C as Alt+C
+  { key = "D", mods = "Command|Shift", chars = "\u001bD" }, # Command+Shift+D as Alt+D
+  { key = "E", mods = "Command|Shift", chars = "\u001bE" }, # Command+Shift+E as Alt+E
+  { key = "F", mods = "Command|Shift", chars = "\u001bF" }, # Command+Shift+F as Alt+F
+  { key = "G", mods = "Command|Shift", chars = "\u001bG" }, # Command+Shift+G as Alt+G
+  { key = "H", mods = "Command|Shift", chars = "\u001bH" }, # Command+Shift+H as Alt+H
+  { key = "I", mods = "Command|Shift", chars = "\u001bI" }, # Command+Shift+I as Alt+I
+  { key = "J", mods = "Command|Shift", chars = "\u001bJ" }, # Command+Shift+J as Alt+J
+  { key = "K", mods = "Command|Shift", chars = "\u001bK" }, # Command+Shift+K as Alt+K
+  { key = "L", mods = "Command|Shift", chars = "\u001bL" }, # Command+Shift+L as Alt+L
+  { key = "M", mods = "Command|Shift", chars = "\u001bM" }, # Command+Shift+M as Alt+M
+  { key = "N", mods = "Command|Shift", chars = "\u001bN" }, # Command+Shift+N as Alt+N
+  { key = "O", mods = "Command|Shift", chars = "\u001bO" }, # Command+Shift+O as Alt+O
+  { key = "P", mods = "Command|Shift", chars = "\u001bP" }, # Command+Shift+P as Alt+P
+  { key = "Q", mods = "Command|Shift", chars = "\u001bQ" }, # Command+Shift+Q as Alt+Q
+  { key = "R", mods = "Command|Shift", chars = "\u001bR" }, # Command+Shift+R as Alt+R
+  { key = "S", mods = "Command|Shift", chars = "\u001bS" }, # Command+Shift+S as Alt+S
+  { key = "T", mods = "Command|Shift", chars = "\u001bT" }, # Command+Shift+T as Alt+T
+  { key = "U", mods = "Command|Shift", chars = "\u001bU" }, # Command+Shift+U as Alt+U
+  { key = "V", mods = "Command|Shift", chars = "\u001bV" }, # Command+Shift+V as Alt+V
+  { key = "W", mods = "Command|Shift", chars = "\u001bW" }, # Command+Shift+W as Alt+W
+  { key = "X", mods = "Command|Shift", chars = "\u001bX" }, # Command+Shift+X as Alt+X
+  { key = "Y", mods = "Command|Shift", chars = "\u001bY" }, # Command+Shift+Y as Alt+Y
+  { key = "Z", mods = "Command|Shift", chars = "\u001bZ" }, # Command+Shift+Z as Alt+Z
 
-      { chars = "\u001B[48;5u", key = "Key0", mods = "Control" },
-      { chars = "\u001B[49;5u", key = "Key1", mods = "Control" },
-      { chars = "\u001B[50;5u", key = "Key2", mods = "Control" },
-      { chars = "\u001B[51;5u", key = "Key3", mods = "Control" },
-      { chars = "\u001B[52;5u", key = "Key4", mods = "Control" },
-      { chars = "\u001B[53;5u", key = "Key5", mods = "Control" },
-      { chars = "\u001B[54;5u", key = "Key6", mods = "Control" },
-      { chars = "\u001B[55;5u", key = "Key7", mods = "Control" },
-      { chars = "\u001B[56;5u", key = "Key8", mods = "Control" },
-      { chars = "\u001B[57;5u", key = "Key9", mods = "Control" },
-   ]
+  { key = "Equals", mods = "Control", action = "ResetFontSize" },
+  { key = "Plus", mods = "Control|Shift", action = "IncreaseFontSize" },
+  { key = "Minus", mods = "Control", action = "DecreaseFontSize" },
+  { key = "NumpadEquals", mods = "Control", action = "ResetFontSize" },
+  { key = "NumpadAdd", mods = "Control", action = "IncreaseFontSize" },
+  { key = "NumpadSubtract", mods = "Control", action = "DecreaseFontSize" },
+
+  { key = "PageUp", mods = "Shift", action = "ReceiveChar" },
+  { key = "PageDown", mods = "Shift", action = "ReceiveChar" },
+  { key = "Home", mods = "Shift", action = "ReceiveChar" },
+  { key = "End", mods = "Shift", action = "ReceiveChar" },
+  # { key = "Home", mods = "Shift", action = "ScrollToTop" },
+  # { key = "End", mods = "Shift", action = "ScrollToBottom" },
+
+  # { key = "PageUp", mods = "Control|Shift", action = "ScrollLineUp" },
+  # { key = "PageUp", mods = "Control|Shift", action = "ScrollLineUp" },
+  # { key = "PageUp", mods = "Control|Shift", action = "ScrollLineUp" },
+  # { key = "PageUp", mods = "Control|Shift", action = "ScrollLineUp" },
+  # { key = "PageDown", mods = "Control|Shift", action = "ScrollLineDown" },
+  # { key = "PageDown", mods = "Control|Shift", action = "ScrollLineDown" },
+  # { key = "PageDown", mods = "Control|Shift", action = "ScrollLineDown" },
+  # { key = "PageDown", mods = "Control|Shift", action = "ScrollLineDown" },
+
+  { key = "I", mods = "Control", chars = "\u001B[105;5u" },
+  { key = "Return", mods = "Shift", chars = "\u001B[13;2u" },
+  { key = "Return", mods = "Control", chars = "\u001B[13;5u" },
+  { key = "Return", mods = "Control|Shift", chars = "\u001B[13;6u" },
+  { key = "Return", mods = "Alt|Shift", chars = "\u001B[13;4u" },
+  { key = "Backspace", mods = "Shift", chars = "\u001B[3;2~" },
+  { key = "Backspace", mods = "Control", chars = "\u001B[27;5;127~" },
+  # { chars = "\u001B[127;5u", key = "Backspace", mods = "Control" },
+  { key = "Space", mods = "Shift", chars = "\u001B[32;2u" },
+  { key = "Tab", mods = "Alt|Shift", chars = "\u001B\u001B[Z" },
+  { key = "Tab", mods = "Shift", chars = "\u001B[Z" },
+  { key = "Tab", mods = "Control", chars = "\u001B[9;5u" },
+  { key = "Tab", mods = "Control|Shift", chars = "\u001B[9;6u" },
+  { key = "Tab", mods = "Control|Alt", chars = "\u001B[9;7u" },
+  { key = "Tab", mods = "Control|Alt|Shift", chars = "\u001B[9;8u" },
+  { key = "Escape", mods = "Control", chars = "\u0002[" },
+  { key = "Escape", mods = "Shift", chars = "\u001b[27;2u" },
+
+  { key = "Key0", mods = "Control", chars = "\u001B[48;5u" },
+  { key = "Key1", mods = "Control", chars = "\u001B[49;5u" },
+  { key = "Key2", mods = "Control", chars = "\u001B[50;5u" },
+  { key = "Key3", mods = "Control", chars = "\u001B[51;5u" },
+  { key = "Key4", mods = "Control", chars = "\u001B[52;5u" },
+  { key = "Key5", mods = "Control", chars = "\u001B[53;5u" },
+  { key = "Key6", mods = "Control", chars = "\u001B[54;5u" },
+  { key = "Key7", mods = "Control", chars = "\u001B[55;5u" },
+  { key = "Key8", mods = "Control", chars = "\u001B[56;5u" },
+  { key = "Key9", mods = "Control", chars = "\u001B[57;5u" },
+]
