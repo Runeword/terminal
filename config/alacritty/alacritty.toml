@@ -6,67 +6,67 @@ live_config_reload = true
 
 [terminal.shell]
 program = "zsh"
-args = ["-l"]
+args    = ["-l"]
 
 [cursor]
 blink_interval = 500
-blink_timeout = 0
-thickness = 0.01
-style = { blinking = "Always", shape = "Beam" }
+blink_timeout  = 0
+thickness      = 0.01
+style          = { blinking = "Always", shape = "Beam" }
 
 [env]
 # TERM = "alacritty"
 TERM = "xterm-256color"
 
 [font]
-size = 16
-offset = { x = 1, y = 5 }
-bold = { family = "SauceCodePro Nerd Font", style = "Bold" }
+size        = 16
+offset      = { x = 1, y = 5 }
+bold        = { family = "SauceCodePro Nerd Font", style = "Bold" }
 bold_italic = { family = "MonaspiceRn Nerd Font", style = "Italic" }
-normal = { family = "SauceCodePro Nerd Font", style = "Regular" }
-italic = { family = "CaskaydiaMono Nerd Font", style = "Light Italic" }
+normal      = { family = "SauceCodePro Nerd Font", style = "Regular" }
+italic      = { family = "CaskaydiaMono Nerd Font", style = "Light Italic" }
 
 [selection]
 save_to_clipboard = true
 
 [window]
-decorations = "none"
+decorations     = "none"
 dynamic_padding = true
-opacity = 0.8
-startup_mode = "Maximized"
-padding = { x = 16 }
+opacity         = 0.8
+startup_mode    = "Maximized"
+padding         = { x = 16 }
 
 [colors]
-cursor = { cursor = "#ffffff", text = "#000000" }
+cursor  = { cursor = "#ffffff", text = "#000000" }
 primary = { background = "#000000", foreground = "#d0d0d0" }
 
 [colors.bright]
 # black   = "#d0d0d0"
-black = "#7a7c9e"
-blue = "#5c5cff"
-cyan = "#0DCDCD"
-green = "#65b588"
+black   = "#7a7c9e"
+blue    = "#5c5cff"
+cyan    = "#0DCDCD"
+green   = "#65b588"
 magenta = "#FF00FF"
-red = "#ff0000"
-white = "#ffffff"
-yellow = "#ffe330"
+red     = "#ff0000"
+white   = "#ffffff"
+yellow  = "#ffe330"
 
 [colors.normal]
-black = "#000000"
-blue = "#9bb7c4"
-cyan = "#6097bf"
-green = "#5f9e6f"
+black   = "#000000"
+blue    = "#9bb7c4"
+cyan    = "#6097bf"
+green   = "#5f9e6f"
 magenta = "#8856c4"
-red = "#ff75a9"
-white = "#e4e8f2"
-yellow = "#d9b26f"
+red     = "#ff75a9"
+white   = "#e4e8f2"
+yellow  = "#d9b26f"
 
 [[hints.enabled]]
-regex = "(http:|https:)[^\u0000-\u001F\u007F-\u009F<>\"\\s{-}\\^⟨⟩`]+"
+regex   = "(http:|https:)[^\u0000-\u001F\u007F-\u009F<>\"\\s{-}\\^⟨⟩`]+"
 command = "xdg-open"
 
 [hints.enabled.binding]
-key = "L"
+key  = "L"
 mods = "Alt"
 
 [keyboard]
