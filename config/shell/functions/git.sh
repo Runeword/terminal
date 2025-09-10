@@ -33,14 +33,16 @@ _GIT_FZF_DEFAULT="--multi --reverse --no-separator --border none --cycle --heigh
 _GIT_FZF_PREVIEW="--preview-window 'right,75%,border-none'"
 
 __git_fzf_cmd() {
+  git rev-parse --is-inside-work-tree >/dev/null || return 1
+
   local list_cmd="$1"
   local action_cmd="$2"
   local fzf_args="$3"
   local repo_root
-  
+
   repo_root="$(git rev-parse --show-toplevel)"
-  
-  if [ -n "$fzf_args" ]; then
+
+  if [ "$fzf_args" != "" ]; then
     fzf_args="$_GIT_FZF_DEFAULT $fzf_args"
   else
     fzf_args="$_GIT_FZF_DEFAULT"
