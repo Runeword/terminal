@@ -62,7 +62,7 @@ gca 	git commit --message --amend NewMessage         	git                 commit
 gcl 	__git_clone Documents/dev                       	git                 clone               repo	x
 gcf 	cloneit                                         	git                 clone           dir/file	x
 gcp 	git-forgit cherry_pick                          	git
-gkf 	git-forgit checkout_file                          git
+gkf 	git-forgit checkout_file                        	git
 gkt 	git-forgit checkout_tag                         	git
 gkc 	git-forgit checkout_commit                      	git
 gko 	git checkout --ours FileName                    	git                 merge conflict                keep our	x
