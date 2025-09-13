@@ -97,8 +97,8 @@ __git_rm_untracked() {
 }
 
 __git_diff() {
-  local list_files="(git diff --name-only; git ls-files --others --exclude-standard) | sort | uniq"
-  local preview_cmd="if git ls-files --error-unmatch {} > /dev/null 2>&1; then git diff --color=always {}; else git diff --no-index --color=always /dev/null {}; fi"
+  local list_files="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
+  local preview_cmd="if git ls-files --error-unmatch {} > /dev/null 2>&1; then git diff --color=always {} | \$(git config core.pager || echo cat); else git diff --no-index --color=always /dev/null {} | \$(git config core.pager || echo cat); fi"
   local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" "echo" "$preview"
 }
