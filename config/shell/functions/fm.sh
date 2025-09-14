@@ -16,6 +16,7 @@ __open_file() {
         --border none \
         --prompt='  ' \
         --multi \
+        --keep-right \
         --reverse \
         --info=hidden \
         --no-separator \
@@ -98,6 +99,7 @@ __ripgrep() {
     fzf \
       --ansi \
       --multi \
+      --keep-right \
       --delimiter : \
       --reverse \
       --border none \
