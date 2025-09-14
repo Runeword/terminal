@@ -31,8 +31,8 @@ __git_open_url() {
   open -a "$BROWSER" "$FINAL_URL"
 }
 
-_GIT_FZF_DEFAULT="--multi --reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --scheme=path --bind='ctrl-a:select-all'"
-_GIT_FZF_PREVIEW="--preview-window 'right,75%,border-none'"
+_GIT_FZF_DEFAULT="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
+_GIT_FZF_PREVIEW="--preview-window 'right,75%,border-none,wrap'"
 
 __git_fzf_cmd() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
