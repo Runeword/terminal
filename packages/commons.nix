@@ -57,7 +57,7 @@ with pkgs; [
   lazygit
   gitleaks
   git # versioning
-  git-absorb
+  git-absorb # auto git commit --fixup
   zsh-forgit # fuzzy git
   delta
 
