@@ -84,8 +84,10 @@ gpf 	git push --force                                	git
 gpu 	git push --set-upstream origin HEAD             	git                 set upstream branch	x
 gpl 	git pull                                        	git	x
 gf  	git fetch                                       	git	x
-gx  	git commit --fixup SHA                          	git                 [1] fix commit with staged changes
-gxr 	git rebase --interactive --autosquash SHA^      	git                 [2] fix commit with staged changes
+gx  	git absorb                                      	git                 [1] auto create fixup commits for those changes
+gxr 	git absorb --and-rebase                         	git                 [2] auto rebase interactively and squash the fixups
+# gx  	git commit --fixup SHA                          	git                 [1] fix commit with staged changes
+# gxr 	git rebase --interactive --autosquash SHA^      	git                 [2] fix commit with staged changes
 gru 	__git_discard                                   	git                 Discard	x
 grs 	__git_unstage                                   	git                 Unstage	x
 grt 	__git_untrack                                   	git                 Untrack	x
