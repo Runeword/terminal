@@ -31,7 +31,7 @@ KEYS=(
   TAB            '^I'
   SHIFT_TAB      '^[[Z'
   ESCAPE         '^['
-  CTRL_ENTER     '\x1b[13;5u'
+  # CTRL_ENTER     '\x1b[13;5u'
   CTRL_ENTER_ALT 'CSI 13 ; 5 u'
   SHIFT_DELETE   '^[[3;2~'
   SHIFT_SPACE    '\x1b[32;2u'
@@ -101,7 +101,7 @@ bindkey -r "${KEYS[CTRL_W]}"
 bindkey -r "${KEYS[CTRL_Q]}"
 
 # ------------------------------------ Move
-bindkey "${KEYS[SHIFT_ENTER]}" accept-line
+# bindkey "${KEYS[SHIFT_ENTER]}" accept-line
 bindkey "${KEYS[LEFT_ARROW]}" backward-char
 bindkey "${KEYS[RIGHT_ARROW]}" forward-char
 bindkey "${KEYS[CTRL_LEFT]}" backward-word
@@ -147,8 +147,8 @@ setopt MENU_COMPLETE
 
 # ------------------------------------ zsh-autosuggestions
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#7f7f7f"
-bindkey "${KEYS[CTRL_ENTER_ALT]}" autosuggest-execute
-bindkey "${KEYS[CTRL_ENTER]}" autosuggest-execute
+# bindkey "${KEYS[CTRL_ENTER_ALT]}" autosuggest-execute
+bindkey "${KEYS[SHIFT_ENTER]}" autosuggest-execute
 
 # ------------------------------------ zsh-autocomplete
 # zstyle ':completion:*:*:*:*:descriptions' format '%F{245}%d%f'
