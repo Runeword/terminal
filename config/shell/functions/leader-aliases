@@ -140,8 +140,9 @@ cs	__chezmoi_status                                                             
 cm	__chezmoi_managed                                                            	chezmoi	x
 cpa	__chezmoi_private add                                                        	chezmoi	x
 cpy	__chezmoi_private apply                                                      	chezmoi	x
+al	aws sso login                                                                	aws          sso               login	x
 ap	aws configure list-profiles                                                  	aws          profiles          list
-al	aws lambda list-functions --profile Profile                                  	aws          lambda            list
+af	aws lambda list-functions --profile Profile                                  	aws          lambda            list
 ab	sam build                                                                    	aws          lambda            build
 as	sam local start-api --profile PROFILE                                        	aws          lambda            start/local
 ai	sam init --runtime go --package-type Image                                   	aws          lambda            init/go
@@ -158,4 +159,5 @@ dil	docker image ls --all                                                       
 dip	docker image prune --force --all                                             	docker       image             remove unused	x
 tx	npx tsx FILE                                                                 	typescript   execute
 tc	npx tsc                                                                      	typescript   compile
-rs	__rsync SOURCE TARGET                                                        	file/dir   copy
+rs	__rsync SOURCE TARGET                                                        	file/dir     copy
+yi	yarn install --frozen-lockfile                                               	node         install
