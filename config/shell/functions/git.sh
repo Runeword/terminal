@@ -58,51 +58,59 @@ __git_fzf_cmd() {
 
 __git_open_all() {
   local list_files="git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard"
-  local preview="--preview 'git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local repo_root="$(git rev-parse --show-toplevel)"
+  local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" nvim "$preview"
 }
 
 __git_open_unstaged() {
   local list_files="git ls-files --others --exclude-standard --modified"
-  local preview="--preview 'git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local repo_root="$(git rev-parse --show-toplevel)"
+  local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" nvim "$preview"
 }
 
 __git_open_staged() {
   local list_files="git diff --name-only --cached"
-  local preview="--preview 'git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local repo_root="$(git rev-parse --show-toplevel)"
+  local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" nvim "$preview"
 }
 
 __git_unstage() {
   local list_files="git diff --name-only --cached"
-  local preview="--preview 'git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local repo_root="$(git rev-parse --show-toplevel)"
+  local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" "git restore --staged --" "$preview"
 }
 
 __git_discard() {
   local list_files="git diff --name-only"
-  local preview="--preview 'git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local repo_root="$(git rev-parse --show-toplevel)"
+  local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" "git checkout --" "$preview"
 }
 
 __git_untrack() {
   local list_files="git diff --name-only --cached"
-  local preview="--preview 'git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local repo_root="$(git rev-parse --show-toplevel)"
+  local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" "git rm --cached --" "$preview"
 }
 
 __git_rm_untracked() {
   local list_files="git ls-files --others --exclude-standard"
-  local preview="--preview 'ls -la -- {}' $_GIT_FZF_PREVIEW"
+  local repo_root="$(git rev-parse --show-toplevel)"
+  local preview="--preview 'cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" "rm --" "$preview"
 }
 
 __git_diff() {
   local list_files="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
-  local is_tracked="git ls-files --error-unmatch {} > /dev/null 2>&1"
-  local tracked_diff="git diff --color=always {} | $_GIT_PAGER"
-  local untracked_diff="git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
+  local repo_root="$(git rev-parse --show-toplevel)"
+  local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
+  local tracked_diff="cd \"$repo_root\" && git diff --color=always {} | $_GIT_PAGER"
+  local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
   local preview_cmd="if $is_tracked; then $tracked_diff; else $untracked_diff; fi"
   local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" "echo" "$preview"
