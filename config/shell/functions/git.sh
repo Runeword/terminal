@@ -115,3 +115,13 @@ __git_diff() {
   local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" "echo" "$preview"
 }
+
+__git_install_lefthook() {
+  cat > lefthook.yml << 'EOF'
+remotes:
+  - git_url: https://github.com/Runeword/lefthook
+    configs:
+      - precommit-auto-msg.yml
+EOF
+  lefthook install
+}
