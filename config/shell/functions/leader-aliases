@@ -40,6 +40,7 @@ fa  	direnv allow                                                               
 js  	cat JSONFILE | jq '@json'                                                   json            json2string       format
 g   	lazygit                                         	git
 g   	onefetch                                        	git                 repo                info
+gh  	__git_install_lefthook                          	lefthook            install	x
 gi  	git config user.name ; git config user.email ; git remote -v    	git                 repo                info	x
 gl  	git-forgit log                                  	git                 commit              list	x
 ga  	git-forgit add                                  	git                 file                stage	x
