@@ -125,3 +125,15 @@ remotes:
 EOF
   lefthook install
 }
+
+__git_info() {
+  echo "User Name: $(git config user.name)"
+  echo "User Email: $(git config user.email)"
+  echo "Remotes:"
+  git remote -v
+}
+
+__git_set_user() {
+  git config user.name "Runeword"
+  git config user.email "60324746+Runeword@users.noreply.github.com"
+}
