@@ -37,11 +37,12 @@ fm	nix flake metadata                                                           
 ft	__use_flake_template "github:Runeword/dotfiles?dir=templates"                	flake           templates         use	x
 fr	rm -rf .direnv .envrc .gitignore nix                                         	flake           files             remove
 fa  	direnv allow                                                               	flake           direnv            allow	x
-js  	cat JSONFILE | jq '@json'                                                   json            json2string       format
-g   	lazygit                                         	git
+js  	cat JSONFILE | jq '@json'                                                  	json            json2string       format
+g   	lazygit                                         	git                 tui
 g   	onefetch                                        	git                 repo                info
-gh  	__git_install_lefthook                          	lefthook            install	x
-gi  	git config user.name ; git config user.email ; git remote -v    	git                 repo                info	x
+g   	__git_set_user                                  	git                 config              set user	x
+gi  	__git_info                                      	git                 repo                info	x
+gh  	__git_install_lefthook                          	git                 lefthook            install	x
 gl  	git-forgit log                                  	git                 commit              list	x
 ga  	git-forgit add                                  	git                 file                stage	x
 gu  	__git_open_url                                  	git                 url                 open	x
@@ -161,4 +162,4 @@ dip	docker image prune --force --all                                            
 tx	npx tsx FILE                                                                 	typescript   execute
 tc	npx tsc                                                                      	typescript   compile
 rs	__rsync SOURCE TARGET                                                        	file/dir     copy
-yi	yarn install --frozen-lockfile                                               	node         install
+yi	yarn install --frozen-lockfile                                               	node         install	x
