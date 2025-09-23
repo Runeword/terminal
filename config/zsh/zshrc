@@ -62,6 +62,8 @@ add-zsh-hook precmd __add_newline
 [ -f "$OUT/.config/shell/xdg.sh" ] && source "$OUT/.config/shell/xdg.sh"
 [ -f "$OUT/.config/shell/variables.sh" ] && source "$OUT/.config/shell/variables.sh"
 
+command -v dircolors >/dev/null 2>&1 && eval "$(dircolors -b)"
+
 mkdir -p "$XDG_STATE_HOME/zsh"
 HISTFILE="$XDG_STATE_HOME/zsh/history"
 HISTSIZE=10000
@@ -131,11 +133,14 @@ zstyle ':completion:*' matcher-list 'm:{[:lower:]}={[:upper:]}' 'r:|[._-]=* r:|=
 zstyle ':completion:*:*:*:*:descriptions' format '%F{245}%d%f'
 # shellcheck disable=SC2296
 zstyle ':completion:*:default' list-colors "${(s.:.)LS_COLORS}"
+zstyle ':completion:*' list-dirs-first true
 zstyle ':completion:*' group-name ''
 zstyle ':completion:*' menu select interactive
 
-bindkey -M menuselect "${KEYS[TAB]}" vi-down-line-or-history
-bindkey -M menuselect "${KEYS[SHIFT_TAB]}" vi-up-line-or-history
+# bindkey -M menuselect "${KEYS[TAB]}" vi-down-line-or-history
+# bindkey -M menuselect "${KEYS[SHIFT_TAB]}" vi-up-line-or-history
+bindkey -M menuselect "${KEYS[TAB]}" forward-char
+bindkey -M menuselect "${KEYS[SHIFT_TAB]}" backward-char
 bindkey -M menuselect "${KEYS[ESCAPE]}" send-break
 
 setopt MENU_COMPLETE
@@ -190,7 +195,7 @@ __navi_or_space() { __on_empty_buffer _navi_widget; }
 zle -N __navi_or_space
 bindkey "${KEYS[SHIFT_SPACE]}" __navi_or_space
 
-__ls_or_escape() { __on_empty_buffer 'echo ls; ls'; }
+__ls_or_escape() { __on_empty_buffer 'echo ls; __ls'; }
 # __ls_or_escape() { __on_empty_buffer 'echo; command ls --almost-all --color --width 90;' "LBUFFER+=' '; zle autosuggest-fetch"; }
 zle -N __ls_or_escape
 bindkey "${KEYS[ESCAPE]}" __ls_or_escape
