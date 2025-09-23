@@ -179,6 +179,12 @@ __rsync() {
     "$@"
   }
 
+__ls() {
+  ls --group-directories-first --format=horizontal
+  echo
+  echo "$(find . -maxdepth 1 -type f | wc -l) files, $(find . -mindepth 1 -maxdepth 1 -type d | wc -l) dirs"
+}
+
 # --color "hl:-1:underline,hl+:-1:underline:reverse" \
 # --bind 'enter:become(vim {1} +{2})'
 # "cd $(fd --type directory --hidden --follow --no-ignore --exclude .git --exclude node_modules | fzf --inline-info --cycle --preview 'ls -AxF {} | head -$FZF_PREVIEW_LINES' --preview-window right,50%,noborder --no-scrollbar)";
