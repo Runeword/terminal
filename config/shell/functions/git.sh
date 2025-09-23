@@ -127,8 +127,12 @@ EOF
 }
 
 __git_info() {
-  echo "User Name: $(git config user.name)"
-  echo "User Email: $(git config user.email)"
+  echo "Name:"
+  git config user.name
+  echo
+  echo "Email:"
+  git config user.email
+  echo
   echo "Remotes:"
   git remote -v
 }
