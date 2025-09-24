@@ -182,7 +182,7 @@ __rsync() {
 __ls() {
   ls --group-directories-first --format=horizontal
   printf "\n"
-  printf '\033[3m\033[90m%s files, %s dirs\033[0m\n' "$(find . -maxdepth 1 -type f | wc -l)" "$(find . -mindepth 1 -maxdepth 1 -type d | wc -l)"
+  printf '\033[3m\033[38;2;83;94;115m%s files, %s dirs\033[0m\n' "$(find . -maxdepth 1 -type f | wc -l)" "$(find . -mindepth 1 -maxdepth 1 -type d | wc -l)"
 }
 
 # --color "hl:-1:underline,hl+:-1:underline:reverse" \
