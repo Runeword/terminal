@@ -10,7 +10,7 @@ __cd() {
   # with repeat entries.
   if [[ "$target" != "$PWD" ]]; then
     \builtin pushd "$target" 1>/dev/null
-    echo "$PWD"
+    printf '\033[3m\033[90m%s\033[0m\n' "$PWD"
   fi
 }
 
