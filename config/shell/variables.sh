@@ -48,10 +48,16 @@ export FZF_COMPLETION_OPTS="
 # --color=marker:#57b58f,spinner:#ffffff,header:#535e73 \
 export FZF_DEFAULT_OPTS="
 --color=fg:#d0d0d0,bg:-1,hl:#ffffff,gutter:-1 \
---color=fg+:#ffffff,fg+:regular,bg+:#142920,hl+:#67d6a9,hl+:regular,query:italic \
---color=info:#d0d0d0,prompt:#ffffff,pointer:#67d6a9,border:#2f394a \
---color=marker:#458f71,spinner:#ffffff,header:#535e73 \
+--color=fg+:#ffffff,fg+:regular,bg+:#142920,hl+:#67c9d6,hl+:regular,query:italic \
+--color=info:#d0d0d0,prompt:#ffffff,pointer:#7272ed,border:#2f394a \
+--color=marker:#4534bf,spinner:#ffffff,header:#535e73 \
 "
+# --color=marker:#458f71,spinner:#ffffff,header:#535e73 \
+# --color=info:#d0d0d0,prompt:#ffffff,pointer:#7272ed,border:#2f394a \
+# --color=info:#d0d0d0,prompt:#ffffff,pointer:#67d6bc,border:#2f394a \
+# --color=info:#d0d0d0,prompt:#ffffff,pointer:#67d6a9,border:#2f394a \
+# --color=fg+:#ffffff,fg+:regular,bg+:#142920,hl+:#67c9d6,hl+:regular,query:italic \
+# --color=fg+:#ffffff,fg+:regular,bg+:#142920,hl+:#67d6a9,hl+:regular,query:italic \
 
 export FZF_CTRL_R_OPTS="
 --reverse \
