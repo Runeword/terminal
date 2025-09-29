@@ -23,8 +23,8 @@ size        = 16
 offset      = { x = 1, y = 5 }
 bold        = { family = "SauceCodePro Nerd Font", style = "Bold" }
 bold_italic = { family = "MonaspiceRn Nerd Font", style = "Italic" }
-italic      = { family = "MonaspiceRn Nerd Font", style = "Light Italic" }
-# italic      = { family = "CaskaydiaMono Nerd Font", style = "Light Italic" }
+# italic      = { family = "MonaspiceRn Nerd Font", style = "Light Italic" }
+italic      = { family = "CaskaydiaMono Nerd Font", style = "Light Italic" }
 normal      = { family = "SauceCodePro Nerd Font", style = "Regular" }
 
 [selection]
