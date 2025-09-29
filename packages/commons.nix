@@ -20,6 +20,7 @@ with pkgs; [
   pass
   gemini-cli
   claude-code
+  bitwarden-cli
 
   # Coreutils
   coreutils-full
