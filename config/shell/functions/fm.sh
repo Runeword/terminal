@@ -95,7 +95,8 @@ __ripgrep() {
     --colors 'line:fg:red' \
     --line-number \
     --no-heading \
-    --smart-case "${*:-}" |
+    --smart-case \
+    "${*:-}" |
     fzf \
       --ansi \
       --multi \
