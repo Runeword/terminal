@@ -6,6 +6,7 @@
 
 alias shn='shutdown now || sudo shutdown -h now'
 alias s='setsid'
+alias tree='tree --gitfile $HOME/.config/ignore'
 alias mv='mv --verbose'
 alias rmdir='rmdir --verbose'
 alias mkdir='mkdir --parents --verbose'
