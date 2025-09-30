@@ -9,6 +9,7 @@ __open_file() {
         -0 \
         --hidden \
         --strip-cwd-prefix \
+        --no-ignore-vcs \
         | \
       fzf \
         --read0 \
@@ -96,6 +97,7 @@ __ripgrep() {
     --line-number \
     --no-heading \
     --smart-case \
+    --no-ignore-vcs \
     "${*:-}" |
     fzf \
       --ansi \
