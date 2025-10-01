@@ -133,6 +133,7 @@ cd	chezmoi diff --reverse                                                       
 ci	chezmoi ignored                                                              	chezmoi	x
 cc	__chezmoi_cd                                                                 	chezmoi	x
 ce	chezmoi --refresh-externals apply                                            	chezmoi	x
+cr	chezmoi state reset                                                          	chezmoi           reset chezmoi local state
 ca	__chezmoi add                                                                	chezmoi	x
 xca	__chezmoi add                                                                	chezmoi
 cy	__chezmoi apply                                                              	chezmoi	x
