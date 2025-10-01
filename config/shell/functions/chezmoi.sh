@@ -35,11 +35,11 @@ __chezmoi() {
 }
 
 __chezmoi_private() {
-  __chezmoi --source ~/.local/share/chezmoi-private --config ~/.config/chezmoi-private/chezmoi.toml "$@"
+  chezmoi --source ~/.local/share/chezmoi-private --config ~/.config/chezmoi-private/chezmoi.toml "$@"
 }
 
 __chezmoi_shared() {
-  __chezmoi --source ~/.local/share/chezmoi-shared --config ~/.config/chezmoi-shared/chezmoi.toml "$@"
+  chezmoi --source ~/.local/share/chezmoi-shared --config ~/.config/chezmoi-shared/chezmoi.toml "$@"
 }
 
 __chezmoi_status() {
