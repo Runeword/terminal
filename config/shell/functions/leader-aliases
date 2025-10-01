@@ -142,11 +142,11 @@ xcf	__chezmoi_forget                                                            
 ct	__chezmoi_status                                                             	chezmoi	x
 cm	__chezmoi_managed                                                            	chezmoi	x
 cp	__chezmoi_private                                                            	chezmoi
-cpa	__chezmoi_private add                                                        	chezmoi	x
-cpy	__chezmoi_private apply                                                      	chezmoi	x
+cpa	__chezmoi_private add                                                        	chezmoi
+cpy	__chezmoi_private apply                                                      	chezmoi
 cs	__chezmoi_shared                                                             	chezmoi
-csa	__chezmoi_shared add                                                         	chezmoi x
-csy	__chezmoi_shared apply                                                       	chezmoi x
+csa	__chezmoi_shared add                                                         	chezmoi
+csy	__chezmoi_shared apply                                                       	chezmoi
 al	aws sso login                                                                	aws          sso               login	x
 ap	aws configure list-profiles                                                  	aws          profiles          list
 af	aws lambda list-functions --profile Profile                                  	aws          lambda            list
