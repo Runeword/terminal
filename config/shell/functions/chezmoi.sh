@@ -1,15 +1,19 @@
 #!/bin/sh
 
 __select_files() {
-  echo "$1" | fzf \
+  local files="$1"
+  local header="$2"
+  local chezmoi_cmd="${3:-chezmoi}"
+
+  echo "$files" | fzf \
     --multi --reverse --no-separator --border none --cycle --height 100% \
     --info=inline:'' \
     --header-first \
     --prompt='  ' \
     --scheme=path \
-    --header="$2" \
+    --header="$header" \
     --bind='ctrl-a:select-all' \
-    --preview 'chezmoi diff --reverse --color=true ~/{}' \
+    --preview "$chezmoi_cmd diff --reverse --color=true ~/{}" \
     --preview-window bottom,80%,noborder
 }
 
@@ -35,11 +39,45 @@ __chezmoi() {
 }
 
 __chezmoi_private() {
-  chezmoi --source ~/.local/share/chezmoi-private --config ~/.config/chezmoi-private/chezmoi.toml "$@"
+  local operation="$1"
+  shift
+
+  if [ $# -gt 0 ]; then
+    local selected_files
+    selected_files=$*
+  else
+    local files
+    files=$(chezmoi --source ~/.local/share/chezmoi-private --config ~/.config/chezmoi-private/chezmoi.toml status | awk '{print $2}')
+    [ "$files" = "" ] && return 1
+
+    selected_files=$(__select_files "$files" "chezmoi-private $operation" "chezmoi --source ~/.local/share/chezmoi-private --config ~/.config/chezmoi-private/chezmoi.toml")
+    [ "$selected_files" = "" ] && return 1
+  fi
+
+  for i in $(echo "$selected_files" | xargs); do
+    chezmoi --source ~/.local/share/chezmoi-private --config ~/.config/chezmoi-private/chezmoi.toml "$operation" "$HOME/$i"
+  done
 }
 
 __chezmoi_shared() {
-  chezmoi --source ~/.local/share/chezmoi-shared --config ~/.config/chezmoi-shared/chezmoi.toml "$@"
+  local operation="$1"
+  shift
+
+  if [ $# -gt 0 ]; then
+    local selected_files
+    selected_files=$*
+  else
+    local files
+    files=$(chezmoi --source ~/.local/share/chezmoi-shared --config ~/.config/chezmoi-shared/chezmoi.toml status | awk '{print $2}')
+    [ "$files" = "" ] && return 1
+
+    selected_files=$(__select_files "$files" "chezmoi-shared $operation" "chezmoi --source ~/.local/share/chezmoi-shared --config ~/.config/chezmoi-shared/chezmoi.toml")
+    [ "$selected_files" = "" ] && return 1
+  fi
+
+  for i in $(echo "$selected_files" | xargs); do
+    chezmoi --source ~/.local/share/chezmoi-shared --config ~/.config/chezmoi-shared/chezmoi.toml "$operation" "$HOME/$i"
+  done
 }
 
 __chezmoi_status() {
