@@ -19,6 +19,7 @@ with pkgs; [
   direnv
   pass
   gemini-cli
+  cursor-cli
   claude-code
   bitwarden-cli
 
