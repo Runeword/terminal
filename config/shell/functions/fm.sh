@@ -188,6 +188,10 @@ __ls() {
   printf '\033[3m\033[38;2;83;94;115m%s files, %s dirs\033[0m\n' "$(find . -maxdepth 1 -type f | wc -l)" "$(find . -mindepth 1 -maxdepth 1 -type d | wc -l)"
 }
 
+__cp() {
+  cp --recursive --verbose "$@" 2>&1 | sed 's/ -> /\t->\t/' | column -t -s $'\t'
+}
+
 # --color "hl:-1:underline,hl+:-1:underline:reverse" \
 # --bind 'enter:become(vim {1} +{2})'
 # "cd $(fd --type directory --hidden --follow --no-ignore --exclude .git --exclude node_modules | fzf --inline-info --cycle --preview 'ls -AxF {} | head -$FZF_PREVIEW_LINES' --preview-window right,50%,noborder --no-scrollbar)";
