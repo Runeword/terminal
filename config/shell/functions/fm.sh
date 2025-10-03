@@ -189,7 +189,7 @@ __ls() {
 }
 
 __cp() {
-  cp --recursive --verbose "$@" 2>&1 | sed 's/ -> /\t->\t/' | column -t -s $'\t'
+  command cp --recursive --verbose "$@" 2>&1 | sed 's/ -> /\t->\t/' | column -t -s "$(printf '\t')"
 }
 
 # --color "hl:-1:underline,hl+:-1:underline:reverse" \
