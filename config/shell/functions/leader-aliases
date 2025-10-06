@@ -14,9 +14,7 @@ ngs	__nixos_generation_switch                                                   
 ngr	__nixos_generation_remove                                                    	nixos           generation        remove	x
 du	__update_flake_inputs $HOME/.config/nix-darwin                               	nixos           inputs            update	x
 nu	__update_flake_inputs $NIXOS_PATH                                            	nixos           inputs            update	x
-# ns	sudo nixos-rebuild switch --flake $HOME/nixos#$USER                        	nixos           config            build/boot/activate	x
-# ns	sudo nixos-rebuild boot --flake $HOME/nixos#$USER                            	nixos           config            build/boot	x
-ns	sudo darwin-rebuild switch --flake $HOME/.config/nix-darwin                  	darwin          config            build/boot/activate	x
+ns	__nix_system_rebuild                                                         	nix             config            build/boot/activate	x
 nv	nixos-version                                                                	nixos           version	x
 ni	nix-info -m                                                                  	nixos           info	x
 # ns	nix shell nixpkgs#PACKAGE                                                  	nix             package           start new shell
