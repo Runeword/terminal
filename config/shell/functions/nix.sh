@@ -142,6 +142,15 @@ __nixos_generation_remove() {
   sudo /run/current-system/bin/switch-to-configuration boot
 }
 
+# Rebuilds the current system
+__nix_system_rebuild() {
+  if [ "$(uname)" = "Linux" ]; then
+    sudo nixos-rebuild switch --flake "$HOME/nixos#$USER"
+  elif [ "$(uname)" = "Darwin" ]; then
+    sudo darwin-rebuild switch --flake "$HOME/.config/nix-darwin"
+  fi
+}
+
 # "dir": "contrib", "owner": "sourcegraph", "repo": "src-cli", "type": "github" type:owner/repo?dir=dir
 # templates=$(nix flake metadata "$flake_path" --json | jq -r .path)
 # --preview '[ -f {} ] && bat --style=plain --color=always {}' \
