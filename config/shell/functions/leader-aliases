@@ -32,10 +32,11 @@ fd	nix store delete $(nix path-info . --json | jq -r '.[].path')                
 fr	nix-store --query --referrers $(nix path-info . --json | jq -r '.[].path')   	flake           referrers         show	x
 fu	__update_flake_inputs .                                                      	flake           inputs            update	x
 fm	nix flake metadata                                                           	flake           metadata	x
-ft	__use_flake_template "github:Runeword/dotfiles?dir=templates"                	flake           templates         use	x
+ft	__use_flake_template "github:Runeword/templates"                             	flake           templates         use	x
 fr	rm -rf .direnv .envrc .gitignore nix                                         	flake           files             remove
 fa  	direnv allow                                                               	flake           direnv            allow	x
-js  	cat JSONFILE | jq '@json'                                                  	json            json2string       format
+js  	cat JSONFILE | jq '@json'                                                  	json            to string
+jf	echo '{"key":"value","foo":"bar"}' | jq '.'                                  	json            format
 g   	lazygit                                         	git                 tui
 g   	onefetch                                        	git                 repo                info
 g   	__git_set_user                                  	git                 config              set user	x
@@ -125,8 +126,9 @@ pea	source .venv/bin/activate                                                   
 ped	deactivate                                                                   	python            venv         deactivate	x
 per	rm -r .venv                                                                  	python            venv         remove
 pi	pip install -r Package                                                       	python            package      install
+pl	pip list                                                                     	python            package      list	x
 pv	python --version                                                             	python            version	x
-pl	brew list | grep python                                                      	python            version      list	x
+pb	brew list | grep python                                                      	python            version      list	x
 cd	chezmoi diff --reverse                                                       	chezmoi	x
 ci	chezmoi ignored                                                              	chezmoi	x
 cc	__chezmoi_cd                                                                 	chezmoi	x
