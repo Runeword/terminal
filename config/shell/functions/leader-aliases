@@ -89,14 +89,14 @@ gx  	git absorb                                      	git                 [1] au
 gxr 	git absorb --and-rebase                         	git                 [2] auto rebase interactively and squash the fixups
 # gx  	git commit --fixup SHA                          	git                 [1] fix commit with staged changes
 # gxr 	git rebase --interactive --autosquash SHA^      	git                 [2] fix commit with staged changes
-gru 	__git_discard                                   	git                 Discard	x
-grs 	__git_unstage                                   	git                 Unstage	x
+grd 	__git_discard                                   	git                 Discard	x
+gru 	__git_unstage                                   	git                 Unstage	x
 grt 	__git_untrack                                   	git                 Untrack	x
 grm 	__git_rm_untracked                              	git                 Remove untracked files	x
 grb 	git-forgit rebase --interactive                 	git                 Interactive rebase
 grh 	git reset --hard                                	git                 Delete staged + unstaged
 gro 	git reset --hard origin/BRANCH                  	git                 Make the local branch identical to the remote branch
-grts	git reset --soft HEAD~<n>                       	git                 Revert last n commit and unstage their changes
+grs 	__git_reset_soft                                	git                 Revert commits and unstage their changes starting from the selected commit
 grth	git reset --hard HEAD~<n>                       	git                 Revert last n commit and delete their changes
 gcln	git-forgit clean --force -d                     	git                 Delete untracked files and directories
 gdd  	__git_diff                                      	git                 Show unstaged changes	x
