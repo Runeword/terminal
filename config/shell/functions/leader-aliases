@@ -70,8 +70,9 @@ gko 	git checkout --ours FileName                    	git                 merge 
 gnu 	__git_open_unstaged                             	git                 open                          unstaged	x
 gns 	__git_open_staged                               	git                 open                            staged	x
 gna 	__git_open_all                                  	git                 open         staged/unstaged/untracked	x
+gnc 	__git_open_commit                               	git                 open                            commit	x
+# gnc 	nvim $(git diff-tree --no-commit-id --name-only -r HEAD)	git         open                            last commit	x
 gnb 	nvim $(git diff --name-only master...)          	git                 open                            current branch	x
-gnc 	nvim $(git diff-tree --no-commit-id --name-only -r HEAD)	git         open                            last commit	x
 gss 	git stash push --staged                         	git                 stash                           staged	x
 gsp 	git stash push                                  	git                 stash                  staged/unstaged	x
 gsa 	git stash push --include-untracked              	git                 stash        untracked/staged/unstaged	x
