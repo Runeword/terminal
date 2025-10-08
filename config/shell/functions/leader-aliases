@@ -96,7 +96,7 @@ grm 	__git_rm_untracked                              	git                 Remove
 grb 	git-forgit rebase --interactive                 	git                 Interactive rebase
 grh 	git reset --hard                                	git                 Delete staged + unstaged
 gro 	git reset --hard origin/BRANCH                  	git                 Make the local branch identical to the remote branch
-grs 	__git_reset_soft                                	git                 Revert commits and unstage their changes starting from the selected commit
+grs 	__git_reset_soft                                	git                 Revert commits and unstage their changes starting from the selected commit	x
 grth	git reset --hard HEAD~<n>                       	git                 Revert last n commit and delete their changes
 gcln	git-forgit clean --force -d                     	git                 Delete untracked files and directories
 gdd  	__git_diff                                      	git                 Show unstaged changes	x
