@@ -48,9 +48,9 @@ gu  	__git_open_url                                  	git                 url   
 guc 	__git_open_url commits                          	git                 url                 open	x
 xga 	git add --intent-to-add File                    	git                 file                track
 gt  	git status                                      	git                 file                list	x
-gkb 	git-forgit checkout_branch                      	git                 branch              switch	x
 gbl 	git branch --list                               	git                 branch              list	x
-gbn 	git switch --create NewBranch                   	git                 branch              new
+gbs 	git-forgit checkout_branch                      	git                 branch              switch	x
+gbc 	git switch --create NewBranch                   	git                 branch              new
 gbr 	git branch --move --force OldName NewName       	git                 branch              rename
 gm  	git merge Branch                                	git                 branch              merge
 gbd 	git branch --delete --force BranchLocal         	git                 branch              delete local
