@@ -11,7 +11,7 @@ with pkgs; [
   gmailctl
   sqlite
   progress
-  qmk
+  # qmk # Temporarily disabled due to wb32-dfu-updater CMake version compatibility issue
   httrack
   chezmoi
   gh
