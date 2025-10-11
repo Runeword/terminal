@@ -2,17 +2,24 @@
   description = "Alacritty with configuration";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.nixpkgs-24-05.url = "github:NixOS/nixpkgs/nixos-24.05";
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
   outputs =
     {
       self,
       nixpkgs,
+      nixpkgs-24-05,
       flake-utils,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
+        pkgs-24-05 = import nixpkgs-24-05 {
+          inherit system;
+          config.allowUnfree = true;
+        };
+
         mkPkgs =
           configPath:
           import nixpkgs {
@@ -22,6 +29,9 @@
               (import ./overlays/lib.nix {
                 rootStr = if configPath != null then configPath else toString ./.;
                 inherit self;
+              })
+              (final: prev: {
+                awscli2 = pkgs-24-05.awscli2;
               })
             ];
           };
