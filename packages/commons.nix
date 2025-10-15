@@ -7,7 +7,6 @@ with pkgs; [
   navi # cheat sheet
   starship # prompt
   ueberzugpp # images support for terminal
-  nix-prefetch-docker
   gmailctl
   sqlite
   progress
@@ -77,8 +76,10 @@ with pkgs; [
   neofetch # System info
 
   # Nix
+  nix-prefetch-docker
   nix-init
   cachix
+  devenv
 
   # Multimedia
   asciinema # Terminal recorder
