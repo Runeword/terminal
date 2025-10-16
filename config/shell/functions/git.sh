@@ -164,3 +164,38 @@ __git_set_user() {
   git config user.name "Runeword"
   git config user.email "60324746+Runeword@users.noreply.github.com"
 }
+
+__git_diff_branches() {
+  local list_branches="git branch --all --format='%(refname:short)'"
+  local fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path"
+  local preview="--preview 'git log --oneline --color=always {}' $_GIT_FZF_PREVIEW"
+
+  local selected_branches
+  selected_branches=$(eval "$list_branches" | eval "fzf $fzf_args $preview")
+
+  if [ -z "$selected_branches" ]; then
+    echo "Select 2 branches"
+    return 1
+  fi
+
+  local branch_count
+  branch_count=$(echo "$selected_branches" | wc -l | tr -d ' ')
+
+  if [ "$branch_count" -ne 2 ]; then
+    echo "Select 2 branches"
+    return 1
+  fi
+
+  local branch1
+  local branch2
+  branch1=$(echo "$selected_branches" | sed -n '1p')
+  branch2=$(echo "$selected_branches" | sed -n '2p')
+
+  local list_files
+  local repo_root
+  list_files="git diff --name-only $branch1 $branch2"
+  repo_root="$(git rev-parse --show-toplevel)"
+
+  local files_preview="--preview 'cd \"$repo_root\" && git diff --color=always $branch1 $branch2 -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  __git_fzf_cmd "$list_files" "echo" "$files_preview"
+}
