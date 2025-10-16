@@ -102,6 +102,7 @@ grth	git reset --hard HEAD~<n>                       	git                 Revert
 gcln	git-forgit clean --force -d                     	git                 Delete untracked files and directories
 gdd  	__git_diff                                      	git                 Show unstaged changes	x
 gdc  	git-forgit diff --cached                        	git                 Show staged changes	x
+gdb  	__git_diff_branches                             	git                 Show diff between 2 branches	x
 gwa 	git worktree add                                	git
 gwl 	git worktree list                               	git
 gwr 	git worktree remove                             	git
