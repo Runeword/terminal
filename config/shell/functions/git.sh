@@ -199,3 +199,78 @@ __git_diff_branches() {
   local files_preview="--preview 'cd \"$repo_root\" && git diff --color=always $branch1 $branch2 -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" "nvim" "$files_preview"
 }
+
+__git_worktree_add() {
+  local checked_out_branches
+  checked_out_branches=$(git worktree list | awk '{print $3}' | sed 's/\[//;s/\]//')
+
+  local list_branches="git branch --all --format='%(refname:short)' | grep -v '^HEAD'"
+
+  if [ -n "$checked_out_branches" ]; then
+    while IFS= read -r branch; do
+      list_branches="$list_branches | grep -v '^$branch\$'"
+    done <<EOF
+$checked_out_branches
+EOF
+  fi
+
+  local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path"
+  local preview="--preview 'git log --oneline --color=always {}' $_GIT_FZF_PREVIEW"
+
+  local branch
+  branch=$(eval "$list_branches" | eval "fzf $fzf_args $preview")
+
+  if [ -n "$branch" ]; then
+    local repo_name
+    repo_name=$(basename "$(git worktree list | head -n 1 | awk '{print $1}')")
+
+    local next_num=1
+    while [ -d "../${repo_name}_${next_num}" ]; do
+      next_num=$((next_num + 1))
+    done
+
+    local worktree_path="../${repo_name}_${next_num}"
+    if git worktree add "$worktree_path" "$branch"; then
+      builtin cd "$worktree_path"
+    fi
+  fi
+}
+
+__git_worktree_switch() {
+  local current_dir
+  current_dir=$(pwd)
+
+  local list_worktrees="git worktree list | grep -v '^$current_dir '"
+  local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  '"
+  local preview="--preview 'git -C \$(echo {} | awk \"{print \\\$1}\") log --oneline --color=always -10' $_GIT_FZF_PREVIEW"
+
+  local worktree
+  worktree=$(eval "$list_worktrees" | eval "fzf $fzf_args $preview" | awk '{print $1}')
+
+  if [ -n "$worktree" ]; then
+    builtin cd "$worktree"
+  fi
+}
+
+__git_worktree_remove() {
+  local list_worktrees="git worktree list | tail -n +2"
+  local fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --bind='ctrl-a:select-all'"
+  local preview="--preview 'git -C \$(echo {} | awk \"{print \\\$1}\") status' $_GIT_FZF_PREVIEW"
+
+  local worktrees
+  worktrees=$(eval "$list_worktrees" | eval "fzf $fzf_args $preview" | awk '{print $1}')
+
+  if [ -n "$worktrees" ]; then
+    local current_dir
+    current_dir=$(pwd)
+
+    local main_worktree
+    main_worktree=$(git worktree list | head -n 1 | awk '{print $1}')
+
+    if echo "$worktrees" | grep -q "^$current_dir$"; then
+      builtin cd "$main_worktree"
+    fi
+
+    echo "$worktrees" | xargs -I {} git worktree remove {}
+  fi
+}
