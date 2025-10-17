@@ -103,9 +103,9 @@ gcln	git-forgit clean --force -d                     	git                 Delete
 gdd  	__git_diff                                      	git                 Show unstaged changes	x
 gdc  	git-forgit diff --cached                        	git                 Show staged changes	x
 gdb  	__git_diff_branches                             	git                 Show diff between 2 branches	x
-gwa 	git worktree add                                	git
-gwl 	git worktree list                               	git
-gwr 	git worktree remove                             	git
+gwa 	__git_worktree_add                              	git                 worktree                  add	x
+gwl 	__git_worktree_list                             	git                 worktree                  list	x
+gwr 	__git_worktree_remove                           	git                 worktree                  remove	x
 gob	go build                                                                     	go
 gog	go get                                                                       	go
 gor	go run                                                                       	go
