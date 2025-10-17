@@ -236,7 +236,7 @@ EOF
   fi
 }
 
-__git_worktree_switch() {
+__git_worktree_list() {
   local current_dir
   current_dir=$(pwd)
 
