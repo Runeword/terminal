@@ -197,5 +197,5 @@ __git_diff_branches() {
   repo_root="$(git rev-parse --show-toplevel)"
 
   local files_preview="--preview 'cd \"$repo_root\" && git diff --color=always $branch1 $branch2 -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" "echo" "$files_preview"
+  __git_fzf_cmd "$list_files" "nvim" "$files_preview"
 }
