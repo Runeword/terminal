@@ -113,7 +113,7 @@ __git_diff() {
   local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
   local preview_cmd="if $is_tracked; then $tracked_diff; else $untracked_diff; fi"
   local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" "echo" "$preview"
+  __git_fzf_cmd "$list_files" nvim "$preview"
 }
 
 __git_reset_soft() {
