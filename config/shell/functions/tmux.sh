@@ -95,3 +95,18 @@ __tmux_attach_unattached_session() {
     tmux
   fi
 }
+
+__tmux_nvim_copy_mode() {
+  local tmpfile
+  tmpfile=$(mktemp /tmp/tmux-buffer-XXXXXX)
+
+  tmux capture-pane -epJS - > "$tmpfile"
+
+  nvim -c 'set clipboard=unnamedplus' \
+       -c 'set number' \
+       -c 'lua vim.g.baleia.once(0)' \
+       -c 'normal! G' \
+       "$tmpfile"
+
+  rm -f "$tmpfile"
+}
