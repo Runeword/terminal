@@ -100,12 +100,22 @@ __tmux_nvim_copy_mode() {
   local tmpfile
   tmpfile=$(mktemp /tmp/tmux-buffer-XXXXXX)
 
-  tmux capture-pane -epJS - > "$tmpfile"
+  local cursor_x cursor_y scroll_position history_size
+  cursor_x=$(tmux display-message -p '#{cursor_x}')
+  cursor_y=$(tmux display-message -p '#{cursor_y}')
+  scroll_position=$(tmux display-message -p '#{scroll_position}')
+  history_size=$(tmux display-message -p '#{history_size}')
+
+  tmux capture-pane -epJS - | sed 's/ \{10,\}.*$//' > "$tmpfile"
+
+  local target_line target_col
+  target_line=$((history_size - scroll_position + cursor_y + 1))
+  target_col=$((cursor_x + 1))
 
   nvim -c 'set clipboard=unnamedplus' \
-       -c 'set number' \
+       -c 'set nonumber' \
        -c 'lua vim.g.baleia.once(0)' \
-       -c 'normal! G' \
+       -c "normal! ${target_line}G${target_col}|" \
        "$tmpfile"
 
   rm -f "$tmpfile"
