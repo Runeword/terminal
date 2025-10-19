@@ -112,9 +112,8 @@ __tmux_nvim_copy_mode() {
   target_line=$((history_size - scroll_position + cursor_y + 1))
   target_col=$((cursor_x + 1))
 
-  nvim -c 'set clipboard=unnamedplus' \
-       -c 'set nonumber' \
-       -c 'lua vim.g.baleia.once(0)' \
+  nvim -c 'set clipboard=unnamedplus nonumber norelativenumber laststatus=0 cmdheight=0 noshowmode noruler signcolumn=no foldcolumn=0 nolist' \
+       -c 'lua vim.o.winbar = "" vim.g.baleia.once(0)' \
        -c "normal! ${target_line}G${target_col}|" \
        "$tmpfile"
 
