@@ -174,22 +174,26 @@ __git_diff_branches() {
   selected_branches=$(eval "$list_branches" | eval "fzf $fzf_args $preview")
 
   if [ -z "$selected_branches" ]; then
-    echo "Select 2 branches"
+    echo "Select 1 or 2 branches"
     return 1
   fi
 
   local branch_count
   branch_count=$(echo "$selected_branches" | wc -l | tr -d ' ')
 
-  if [ "$branch_count" -ne 2 ]; then
-    echo "Select 2 branches"
-    return 1
-  fi
-
   local branch1
   local branch2
-  branch1=$(echo "$selected_branches" | sed -n '1p')
-  branch2=$(echo "$selected_branches" | sed -n '2p')
+
+  if [ "$branch_count" -eq 1 ]; then
+    branch1=$(echo "$selected_branches" | sed -n '1p')
+    branch2=$(git rev-parse --abbrev-ref HEAD)
+  elif [ "$branch_count" -eq 2 ]; then
+    branch1=$(echo "$selected_branches" | sed -n '1p')
+    branch2=$(echo "$selected_branches" | sed -n '2p')
+  else
+    echo "Select 1 or 2 branches"
+    return 1
+  fi
 
   local list_files
   local repo_root
