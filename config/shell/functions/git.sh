@@ -106,6 +106,8 @@ __git_rm_untracked() {
 }
 
 __git_diff() {
+  git rev-parse --is-inside-work-tree >/dev/null || return 1
+
   local list_files="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
   local repo_root="$(git rev-parse --show-toplevel)"
   local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
