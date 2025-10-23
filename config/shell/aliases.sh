@@ -126,12 +126,6 @@ alias ru='gomi --restore'
 alias rd='rm -rfv $HOME/.gomi'
 alias rt='rm -rfv $HOME/.local/share/Trash/files'
 
-# ______________________________________ ARCHIVE
-
-alias od='ouch decompress'
-alias oc='ouch compress'
-alias ol='ouch list'
-
 # ______________________________________ PROGRAMS
 
 alias gparted='sudo -E gparted'
