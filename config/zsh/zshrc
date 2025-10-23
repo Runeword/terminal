@@ -200,9 +200,31 @@ __ls_or_escape() { __on_empty_buffer 'echo ls; __ls'; }
 zle -N __ls_or_escape
 bindkey "${KEYS[ESCAPE]}" __ls_or_escape
 
+# _zsh_autosuggest_strategy_custom() {
+#   # suggestion=$(grep -h -m1 -E "^[^#%]*$(printf '%s' "$1" | sed 's/[]\[\^\$\.\*\{\}\(\)\\]/\\&/g')" ~/.config/navi/* | head -n 1)
+#   # suggestion=$(navi --query "$1" --best-match --print) # navi does not support non-interactive mode https://github.com/denisidoro/navi/issues/808
+# }
+
 _zsh_autosuggest_strategy_custom() {
-  # suggestion=$(grep -h -m1 -E "^[^#%]*$(printf '%s' "$1" | sed 's/[]\[\^\$\.\*\{\}\(\)\\]/\\&/g')" ~/.config/navi/* | head -n 1)
-  # suggestion=$(navi --query "$1" --best-match --print) # navi does not support non-interactive mode https://github.com/denisidoro/navi/issues/808
+  emulate -L zsh
+
+  local prefix="$1"
+
+  [[ -n "$prefix" ]] || return
+
+  local -A suggestions
+  suggestions=(
+    "zd"	"ouch decompress SOURCES.EXTENSION"
+    "zc"	"ouch compress SOURCES TARGET.EXTENSION"
+    "zl"	"ouch list TARGET --tree"
+  )
+
+  for key in "${(@k)suggestions[@]}"; do
+    if [[ "$key" == "$prefix"* ]]; then
+      typeset -g suggestion="$key ${suggestions[$key]}"
+      return
+    fi
+  done
 }
 
 __aliases_() {
@@ -231,7 +253,7 @@ __aliases_or_enter() { __on_empty_buffer "__aliases --prefix '^M' --file $OUT/.c
 zle -N __aliases_or_enter
 bindkey "${KEYS[ENTER]}" __aliases_or_enter
 
-ZSH_AUTOSUGGEST_STRATEGY=(history custom completion)
+ZSH_AUTOSUGGEST_STRATEGY=(custom history completion)
 
 compdef _cd __cd # Use the built-in cd completion for the custom cd function
 compdef _cd __mkdir_cd
