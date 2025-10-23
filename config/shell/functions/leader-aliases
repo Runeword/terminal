@@ -171,3 +171,6 @@ tx	npx tsx FILE                                                                 
 tc	npx tsc                                                                      	typescript   compile
 rs	__rsync SOURCE TARGET                                                        	file/dir     copy
 yi	yarn install --frozen-lockfile                                               	node         install	x
+zd	ouch decompress SOURCES.EXTENSION                                            	compress     decompress
+zc	ouch compress SOURCES TARGET.EXTENSION                                       	compress     compress
+zl	ouch list TARGET                                                             	compress     list
