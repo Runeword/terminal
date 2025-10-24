@@ -152,8 +152,43 @@ setopt MENU_COMPLETE
 
 # ------------------------------------ zsh-autosuggestions
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#7f7f7f"
-# bindkey "${KEYS[CTRL_ENTER_ALT]}" autosuggest-execute
-bindkey "${KEYS[SHIFT_ENTER]}" autosuggest-execute
+
+__autosuggest_accept_and_execute() {
+  local -A custom_suggestions
+  custom_suggestions=(
+    "zd"	"ouch decompress SOURCES.EXTENSION"
+    "zc"	"ouch compress SOURCES TARGET.EXTENSION"
+    "zl"	"ouch list TARGET --tree"
+  )
+
+  if [[ -n "${custom_suggestions[$BUFFER]}" ]]; then
+    BUFFER="${custom_suggestions[$BUFFER]}"
+  elif [[ -n "$POSTDISPLAY" ]]; then
+    zle autosuggest-accept
+  fi
+  zle accept-line
+}
+
+zle -N __autosuggest_accept_and_execute
+
+__autosuggest_accept_only() {
+  local -A custom_suggestions
+  custom_suggestions=(
+    "zd"	"ouch decompress SOURCES.EXTENSION"
+    "zc"	"ouch compress SOURCES TARGET.EXTENSION"
+    "zl"	"ouch list TARGET --tree"
+  )
+
+  if [[ -n "${custom_suggestions[$BUFFER]}" ]]; then
+    BUFFER="${custom_suggestions[$BUFFER]}"
+  elif [[ -n "$POSTDISPLAY" ]]; then
+    zle autosuggest-accept
+  fi
+}
+zle -N __autosuggest_accept_only
+
+bindkey "${KEYS[SHIFT_ENTER]}" __autosuggest_accept_and_execute
+# bindkey "${KEYS[RIGHT_ARROW]}" __autosuggest_accept_only
 
 # ------------------------------------ zsh-autocomplete
 # zstyle ':completion:*:*:*:*:descriptions' format '%F{245}%d%f'
