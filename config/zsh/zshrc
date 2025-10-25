@@ -172,23 +172,6 @@ __autosuggest_execute() {
 zle -N __autosuggest_execute
 bindkey "${KEYS[SHIFT_ENTER]}" __autosuggest_execute
 
-__autosuggest_accept() {
-  local -A custom_suggestions
-  custom_suggestions=(
-    "zd"	"ouch decompress SOURCES.EXTENSION"
-    "zc"	"ouch compress SOURCES TARGET.EXTENSION"
-    "zl"	"ouch list TARGET --tree"
-  )
-
-  if [[ -n "${custom_suggestions[$BUFFER]}" ]]; then
-    BUFFER="${custom_suggestions[$BUFFER]}"
-  elif [[ -n "$POSTDISPLAY" ]]; then
-    zle autosuggest-accept
-  fi
-}
-zle -N __autosuggest_accept
-# bindkey "${KEYS[RIGHT_ARROW]}" __autosuggest_accept
-
 # ------------------------------------ zsh-autocomplete
 # zstyle ':completion:*:*:*:*:descriptions' format '%F{245}%d%f'
 # zstyle ':completion:*:default' list-colors ${(s.:.)LS_COLORS}
