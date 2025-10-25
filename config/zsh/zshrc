@@ -153,16 +153,16 @@ setopt MENU_COMPLETE
 # ------------------------------------ zsh-autosuggestions
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#7f7f7f"
 
-__autosuggest_execute() {
-  local -A custom_suggestions
-  custom_suggestions=(
-    "zd"	"ouch decompress SOURCES.EXTENSION"
-    "zc"	"ouch compress SOURCES TARGET.EXTENSION"
-    "zl"	"ouch list TARGET --tree"
-  )
+typeset -gA CUSTOM_SUGGESTIONS
+CUSTOM_SUGGESTIONS=(
+  "zd"	"ouch decompress SOURCES.EXTENSION"
+  "zc"	"ouch compress SOURCES TARGET.EXTENSION"
+  "zl"	"ouch list TARGET --tree"
+)
 
-  if [[ -n "${custom_suggestions[$BUFFER]}" ]]; then
-    BUFFER="${custom_suggestions[$BUFFER]}"
+__autosuggest_execute() {
+  if [[ -n "${CUSTOM_SUGGESTIONS[$BUFFER]}" ]]; then
+    BUFFER="${CUSTOM_SUGGESTIONS[$BUFFER]}"
   elif [[ -n "$POSTDISPLAY" ]]; then
     zle autosuggest-accept
   fi
@@ -229,16 +229,9 @@ _zsh_autosuggest_strategy_custom() {
 
   [[ -n "$prefix" ]] || return
 
-  local -A suggestions
-  suggestions=(
-    "zd"	"ouch decompress SOURCES.EXTENSION"
-    "zc"	"ouch compress SOURCES TARGET.EXTENSION"
-    "zl"	"ouch list TARGET --tree"
-  )
-
-  for key in "${(@k)suggestions[@]}"; do
+  for key in "${(@k)CUSTOM_SUGGESTIONS[@]}"; do
     if [[ "$key" == "$prefix"* ]]; then
-      typeset -g suggestion="$key ${suggestions[$key]}"
+      suggestion="$key ${CUSTOM_SUGGESTIONS[$key]}"
       return
     fi
   done
