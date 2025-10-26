@@ -31,7 +31,7 @@ KEYS=(
   TAB            '^I'
   SHIFT_TAB      '^[[Z'
   ESCAPE         '^['
-  # CTRL_ENTER     '\x1b[13;5u'
+  CTRL_ENTER     '\x1b[13;5u'
   CTRL_ENTER_ALT 'CSI 13 ; 5 u'
   SHIFT_DELETE   '^[[3;2~'
   SHIFT_SPACE    '\x1b[32;2u'
@@ -171,6 +171,21 @@ __autosuggest_execute() {
 
 zle -N __autosuggest_execute
 bindkey "${KEYS[SHIFT_ENTER]}" __autosuggest_execute
+
+__autosuggest_accept() {
+  if [[ -n "${CUSTOM_SUGGESTIONS[$BUFFER]}" ]]; then
+    BUFFER="${CUSTOM_SUGGESTIONS[$BUFFER]}"
+    zle autosuggest-clear
+  elif [[ -n "$POSTDISPLAY" ]]; then
+    zle autosuggest-accept
+  fi
+  BUFFER="$BUFFER "
+  CURSOR=${#BUFFER}
+  zle redisplay
+}
+
+zle -N __autosuggest_accept
+bindkey "${KEYS[CTRL_ENTER]}" __autosuggest_accept
 
 # ------------------------------------ zsh-autocomplete
 # zstyle ':completion:*:*:*:*:descriptions' format '%F{245}%d%f'
