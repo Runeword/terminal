@@ -184,8 +184,8 @@ __autosuggest_accept() {
   zle redisplay
 }
 
-zle -N __autosuggest_accept
-bindkey "${KEYS[CTRL_ENTER]}" __autosuggest_accept
+# zle -N __autosuggest_accept
+# bindkey "${KEYS[CTRL_ENTER]}" __autosuggest_accept
 
 # ------------------------------------ zsh-autocomplete
 # zstyle ':completion:*:*:*:*:descriptions' format '%F{245}%d%f'
@@ -334,7 +334,8 @@ __shift_tab_handler() {
 
   # If buffer has text, accept autosuggestion
   if [[ -n "$POSTDISPLAY" ]]; then
-    zle autosuggest-accept
+    # zle autosuggest-accept
+    __autosuggest_accept
   fi
 }
 zle -N __shift_tab_handler
