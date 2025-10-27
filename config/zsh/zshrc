@@ -318,9 +318,27 @@ __open_file_or_autosuggest() {
 zle -N __open_file_or_autosuggest
 bindkey "${KEYS[TAB]}" __open_file_or_autosuggest
 
-__ripgrep_or_complete() { __on_empty_buffer __ripgrep 'zle fzf-completion'; }
-zle -N __ripgrep_or_complete
-bindkey "${KEYS[SHIFT_TAB]}" __ripgrep_or_complete
+__shift_tab_handler() {
+  # If in menu selection, move backward
+  if [[ -n "$MENUSELECT" ]]; then
+    zle backward-char
+    return
+  fi
+
+  # If not in menu and buffer is empty, run ripgrep
+  if [[ -z "$BUFFER" ]]; then
+    __ripgrep
+    zle reset-prompt
+    return
+  fi
+
+  # If buffer has text, accept autosuggestion
+  if [[ -n "$POSTDISPLAY" ]]; then
+    zle autosuggest-accept
+  fi
+}
+zle -N __shift_tab_handler
+bindkey "${KEYS[SHIFT_TAB]}" __shift_tab_handler
 
 __ls_or_shift_escape() { __on_empty_buffer 'echo ls; command ls --format=long --all --human-readable --classify --color=auto --sort=time --time-style=long-iso'; }
 zle -N __ls_or_shift_escape
