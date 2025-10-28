@@ -169,8 +169,8 @@ __autosuggest_execute() {
   zle accept-line
 }
 
-zle -N __autosuggest_execute
-bindkey "${KEYS[SHIFT_ENTER]}" __autosuggest_execute
+# zle -N __autosuggest_execute
+bindkey "${KEYS[SHIFT_ENTER]}" accept-line
 
 __autosuggest_accept() {
   if [[ -n "${CUSTOM_SUGGESTIONS[$BUFFER]}" ]]; then
@@ -316,30 +316,29 @@ __open_file_or_autosuggest() {
 }
 
 zle -N __open_file_or_autosuggest
-bindkey "${KEYS[TAB]}" __open_file_or_autosuggest
+bindkey "${KEYS[SHIFT_TAB]}" __open_file_or_autosuggest
 
 __shift_tab_handler() {
   # If in menu selection, move backward
-  if [[ -n "$MENUSELECT" ]]; then
-    zle backward-char
-    return
-  fi
-
+  # if [[ -n "$MENUSELECT" ]]; then
+  #   zle backward-char
+  #   return
   # If not in menu and buffer is empty, run ripgrep
   if [[ -z "$BUFFER" ]]; then
     __ripgrep
     zle reset-prompt
     return
-  fi
-
   # If buffer has text, accept autosuggestion
-  if [[ -n "$POSTDISPLAY" ]]; then
+  elif [[ -n "$POSTDISPLAY" ]]; then
     # zle autosuggest-accept
     __autosuggest_accept
+  else
+    __autosuggest_execute
   fi
 }
+
 zle -N __shift_tab_handler
-bindkey "${KEYS[SHIFT_TAB]}" __shift_tab_handler
+bindkey "${KEYS[TAB]}" __shift_tab_handler
 
 __ls_or_shift_escape() { __on_empty_buffer 'echo ls; command ls --format=long --all --human-readable --classify --color=auto --sort=time --time-style=long-iso'; }
 zle -N __ls_or_shift_escape
