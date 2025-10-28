@@ -137,6 +137,7 @@ zstyle ':completion:*' list-dirs-first true
 zstyle ':completion:*' group-name ''
 zstyle ':completion:*' menu select interactive
 
+bindkey "${KEYS[SHIFT_TAB]}" menu-complete
 # bindkey -M menuselect "${KEYS[TAB]}" vi-down-line-or-history
 # bindkey -M menuselect "${KEYS[SHIFT_TAB]}" vi-up-line-or-history
 bindkey -M menuselect "${KEYS[TAB]}" forward-char
@@ -305,29 +306,30 @@ if [[ ${options[zle]} = on ]]; then
   . "$(fzf-share)/key-bindings.zsh"
 fi
 
-__open_file_or_autosuggest() {
-  if [[ -z "$BUFFER" ]]; then
-    __open_file
-  else
-    # zle autosuggest-accept
-    zle fzf-completion
-  fi
-  zle reset-prompt
-}
+# __open_file_or_autosuggest() {
+#   if [[ -z "$BUFFER" ]]; then
+#     __open_file
+#   else
+#     # zle autosuggest-accept
+#     zle fzf-completion
+#   fi
+#   zle reset-prompt
+# }
 
-zle -N __open_file_or_autosuggest
-bindkey "${KEYS[SHIFT_TAB]}" __open_file_or_autosuggest
+# zle -N __open_file_or_autosuggest
+# bindkey "${KEYS[TAB]}" __open_file_or_autosuggest
 
-__shift_tab_handler() {
+__tab_handler() {
   # If in menu selection, move backward
   # if [[ -n "$MENUSELECT" ]]; then
   #   zle backward-char
   #   return
   # If not in menu and buffer is empty, run ripgrep
   if [[ -z "$BUFFER" ]]; then
-    __ripgrep
-    zle reset-prompt
-    return
+    # __ripgrep
+    # zle reset-prompt
+    __open_file
+    # return
   # If buffer has text, accept autosuggestion
   elif [[ -n "$POSTDISPLAY" ]]; then
     # zle autosuggest-accept
@@ -335,10 +337,11 @@ __shift_tab_handler() {
   else
     __autosuggest_execute
   fi
+  zle reset-prompt
 }
 
-zle -N __shift_tab_handler
-bindkey "${KEYS[TAB]}" __shift_tab_handler
+zle -N __tab_handler
+bindkey "${KEYS[TAB]}" __tab_handler
 
 __ls_or_shift_escape() { __on_empty_buffer 'echo ls; command ls --format=long --all --human-readable --classify --color=auto --sort=time --time-style=long-iso'; }
 zle -N __ls_or_shift_escape
