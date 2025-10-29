@@ -137,7 +137,6 @@ zstyle ':completion:*' list-dirs-first true
 zstyle ':completion:*' group-name ''
 zstyle ':completion:*' menu select interactive
 
-bindkey "${KEYS[SHIFT_TAB]}" menu-complete
 # bindkey -M menuselect "${KEYS[TAB]}" vi-down-line-or-history
 # bindkey -M menuselect "${KEYS[SHIFT_TAB]}" vi-up-line-or-history
 bindkey -M menuselect "${KEYS[TAB]}" forward-char
@@ -318,6 +317,10 @@ fi
 
 # zle -N __open_file_or_autosuggest
 # bindkey "${KEYS[TAB]}" __open_file_or_autosuggest
+
+__ripgrep_or_menu_complete() { __on_empty_buffer __ripgrep 'zle menu-complete'; }
+zle -N __ripgrep_or_menu_complete
+bindkey "${KEYS[SHIFT_TAB]}" __ripgrep_or_menu_complete
 
 __tab_handler() {
   # If in menu selection, move backward
