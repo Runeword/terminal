@@ -105,6 +105,31 @@ __git_rm_untracked() {
   __git_fzf_cmd "$list_files" "rm --" "$preview"
 }
 
+__git_ignore() {
+  git rev-parse --is-inside-work-tree >/dev/null || return 1
+  
+  local action="${1:-open}"
+  local cmd
+  
+  case "$action" in
+    open)
+      cmd="nvim"
+      ;;
+    remove|rm)
+      cmd="rm --"
+      ;;
+    *)
+      echo "Usage: __git_ignored [open|remove]"
+      return 1
+      ;;
+  esac
+  
+  local list_files="git status --ignored --porcelain | grep '^!!' | cut -c4-"
+  local repo_root="$(git rev-parse --show-toplevel)"
+  local preview="--preview 'cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
+  __git_fzf_cmd "$list_files" "$cmd" "$preview"
+}
+
 __git_diff() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
