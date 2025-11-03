@@ -60,21 +60,21 @@ __git_open_all() {
   local list_files="git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard"
   local repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" nvim "$preview"
+  __git_fzf_cmd "$list_files" \"$EDITOR\" "$preview"
 }
 
 __git_open_unstaged() {
   local list_files="git ls-files --others --exclude-standard --modified"
   local repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" nvim "$preview"
+  __git_fzf_cmd "$list_files" \"$EDITOR\" "$preview"
 }
 
 __git_open_staged() {
   local list_files="git diff --name-only --cached"
   local repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" nvim "$preview"
+  __git_fzf_cmd "$list_files" \"$EDITOR\" "$preview"
 }
 
 __git_unstage() {
@@ -113,7 +113,7 @@ __git_ignore() {
   
   case "$action" in
     open)
-      cmd="nvim"
+      cmd="$EDITOR"
       ;;
     remove|rm)
       cmd="rm --"
@@ -140,7 +140,7 @@ __git_diff() {
   local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
   local preview_cmd="if $is_tracked; then $tracked_diff; else $untracked_diff; fi"
   local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" nvim "$preview"
+  __git_fzf_cmd "$list_files" \"$EDITOR\" "$preview"
 }
 
 __git_reset_soft() {
@@ -162,7 +162,7 @@ __git_open_commits() {
   commits=$(eval "$list_commits" | eval "fzf $fzf_args $preview" | awk '{print $1}')
 
   if [ -n "$commits" ]; then
-    echo "$commits" | xargs git show --name-only --pretty=format: | sort -u | grep -v '^$' | xargs nvim
+    echo "$commits" | xargs git show --name-only --pretty=format: | sort -u | grep -v '^$' | xargs \"$EDITOR\"
   fi
 }
 
@@ -228,7 +228,7 @@ __git_diff_branches() {
   repo_root="$(git rev-parse --show-toplevel)"
 
   local files_preview="--preview 'cd \"$repo_root\" && git diff --color=always $branch1 $branch2 -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" "nvim" "$files_preview"
+  __git_fzf_cmd "$list_files" "\"$EDITOR\"" "$files_preview"
 }
 
 __git_worktree_add() {
