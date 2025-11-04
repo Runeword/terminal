@@ -119,7 +119,7 @@ __git_ignore() {
       cmd="rm --"
       ;;
     *)
-      echo "Usage: __git_ignored [open|remove]"
+      echo "Usage: __git_ignore [open|remove]"
       return 1
       ;;
   esac
