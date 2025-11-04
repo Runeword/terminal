@@ -1,42 +1,42 @@
-on	fc -s nvim                                                                   	open            previous file	x
-oh	nvim $HISTFILE                                                               	open            history	x
-ols	ollama serve                                                                 	ollama          serve	x
-olr	ollama run codellama                                                         	ollama          run	x
-hgr	__home_manager_generation_remove                                             	home-manager    generation        remove	x
-hgs	__home_manager_generation_switch                                             	home-manager    generation        switch	x
-hp	__home_manager_packages_list                                                 	home-manager    packages          list	x
-hu	__update_flake_inputs $HOME_MANAGER_PATH                                     	home-manager    inputs            update	x
-# hs	home-manager switch --flake $HOME_MANAGER_PATH                             	home-manager    config            build/activate	x
-hs	home-manager switch                                                          	home-manager    config            build/activate	x
-hd	home-manager expire-generations '-7 days'                                    	home-manager    generation        remove old	x
-hv	home-manager --version                                                       	home-manager    version	x
-ngs	__nixos_generation_switch                                                    	nixos           generation        switch	x
-ngr	__nixos_generation_remove                                                    	nixos           generation        remove	x
-du	__update_flake_inputs $HOME/.config/nix-darwin                               	nixos           inputs            update	x
-nu	__update_flake_inputs $NIXOS_PATH                                            	nixos           inputs            update	x
-ns	__nix_system_rebuild                                                         	nix             config            build/boot/activate	x
-nv	nixos-version                                                                	nixos           version	x
-ni	nix-info -m                                                                  	nixos           info	x
-# ns	nix shell nixpkgs#PACKAGE                                                  	nix             package           start new shell
-np	run nixpkgs#PACKAGE                                                          	nix             package           single execution
-nd	sudo nix-collect-garbage --verbose --delete-old                              	nix             garbage           clean	x
-nl	sudo nix-collect-garbage --dry-run --delete-old                              	nix             garbage           list	x
-nc	cd /nix/store && __open_file                                                 	nix             store             list	x
-# np	readlink -f result                                                         	flake           path              show	x
-nb	nix build --print-out-paths                                                  	flake           package           build	x
-nr	nix run                                                                      	flake           application       run	x
-fl	nix flake update                                                             	flake           lock              recreate	x
-fs	nix flake show                                                               	flake           outputs           show	x
-fp	nix path-info . --json | jq                                                  	flake           references        show	x
+on	fc -s nvim                                       	open            previous file	x
+oh	nvim $HISTFILE                                   	open            history	x
+ols	ollama serve                                     	ollama          serve	x
+olr	ollama run codellama                             	ollama          run	x
+hgr	__home_manager_generation_remove                 	home-manager    generation        remove	x
+hgs	__home_manager_generation_switch                 	home-manager    generation        switch	x
+hp	__home_manager_packages_list                     	home-manager    packages          list	x
+hu	__update_flake_inputs $HOME_MANAGER_PATH         	home-manager    inputs            update	x
+# hs	home-manager switch --flake $HOME_MANAGER_PATH 	home-manager    config            build/activate	x
+hs	home-manager switch                              	home-manager    config            build/activate	x
+hd	home-manager expire-generations '-7 days'        	home-manager    generation        remove old	x
+hv	home-manager --version                           	home-manager    version	x
+ngs	__nixos_generation_switch                        	nixos           generation        switch	x
+ngr	__nixos_generation_remove                        	nixos           generation        remove	x
+du	__update_flake_inputs $HOME/.config/nix-darwin   	nixos           inputs            update	x
+nu	__update_flake_inputs $NIXOS_PATH                	nixos           inputs            update	x
+ns	__nix_system_rebuild                             	nix             config            build/boot/activate	x
+nv	nixos-version                                    	nixos           version	x
+ni	nix-info -m                                      	nixos           info	x
+# ns	nix shell nixpkgs#PACKAGE                      	nix             package           start new shell
+np	run nixpkgs#PACKAGE                              	nix             package           single execution
+nd	sudo nix-collect-garbage --verbose --delete-old  	nix             garbage           clean	x
+nl	sudo nix-collect-garbage --dry-run --delete-old  	nix             garbage           list	x
+nc	cd /nix/store && __open_file                     	nix             store             list	x
+# np	readlink -f result                             	flake           path              show	x
+nb	nix build --print-out-paths                      	flake           package           build	x
+nr	nix run                                          	flake           application       run	x
+fl	nix flake update                                 	flake           lock              recreate	x
+fs	nix flake show                                   	flake           outputs           show	x
+fp	nix path-info . --json | jq                      	flake           references        show	x
 fd	nix store delete $(nix path-info . --json | jq -r '.[].path')                	flake           references        delete	x
 fr	nix-store --query --referrers $(nix path-info . --json | jq -r '.[].path')   	flake           referrers         show	x
-fu	__update_flake_inputs .                                                      	flake           inputs            update	x
-fm	nix flake metadata                                                           	flake           metadata	x
-ft	__use_flake_template "github:Runeword/templates"                             	flake           templates         use	x
-fr	rm -rf .direnv .envrc .gitignore nix                                         	flake           files             remove
-fa  	direnv allow                                                               	flake           direnv            allow	x
-js  	cat JSONFILE | jq '@json'                                                  	json            to string
-jf	echo '{"key":"value","foo":"bar"}' | jq '.'                                  	json            format
+fu	__update_flake_inputs .                          	flake           inputs            update	x
+fm	nix flake metadata                               	flake           metadata	x
+ft	__use_flake_template "github:Runeword/templates" 	flake           templates         use	x
+fr	rm -rf .direnv .envrc .gitignore nix             	flake           files             remove
+fa  	direnv allow                                   	flake           direnv            allow	x
+js  	cat JSONFILE | jq '@json'                      	json            to string
+jf	echo '{"key":"value","foo":"bar"}' | jq '.'      	json            format
 g   	lazygit                                    	git                 tui
 g   	onefetch                                   	git                 repo                info
 g   	__git_set_user                             	git                 config              set user	x
@@ -114,67 +114,67 @@ gor	go run                                       	go
 gom	go mod tidy                                  	go	x
 goc	go clean -modcache                           	go
 got	go test                                      	go
-gc gcloud auth login                                                            	gcloud              auth                    login	x
-gc gcloud config set project PROJECT                                            	gcloud              project                 set
-gc gcloud secrets list                                                          	gcloud              secret                  list
-gc gcloud secrets versions access latest --secret=MYSECRET                      	gcloud              secret                  get
-gc echo SECRETVALUE | gcloud secrets versions add SECRETNAME --data-file=-      	gcloud              secret                  set
-# xtw	task --watch build > /dev/null 2>&1 &                                        	task       watch
-xtb	tmux split-window -v -l 5 -d 'task --watch build'                            	task       watch	x
-xtk	pkill -f "task --watch build"                                                	task       kill	x
-pap	pass git push                                                                	pass
-pai	pass insert                                                                  	pass
-pag	pass generate                                                                	pass
-pac	__pass_clip                                                                  	pass
-par	__pass_rm                                                                    	pass
-pak	gpgconf --reload gpg-agent                                                   	pass
-pau	pass show GEMINI_API_KEY > /dev/null                                         	pass
+gc	gcloud auth login                                              	gcloud              auth                    login	x
+gc	gcloud config set project PROJECT                              	gcloud              project                 set
+gc	gcloud secrets list                                            	gcloud              secret                  list
+gc	gcloud secrets versions access latest --secret=MYSECRET        	gcloud              secret                  get
+gc	echo SECRETVALUE | gcloud secrets versions add SECRETNAME --data-file=-	gcloud              secret                  set
+# xtw	task --watch build > /dev/null 2>&1 &                          	task       watch
+xtb	tmux split-window -v -l 5 -d 'task --watch build'              	task       watch	x
+xtk	pkill -f "task --watch build"                                  	task       kill	x
+pap	pass git push                                                  	pass
+pai	pass insert                                                    	pass
+pag	pass generate                                                  	pass
+pac	__pass_clip                                                    	pass
+par	__pass_rm                                                      	pass
+pak	gpgconf --reload gpg-agent                                     	pass
+pau	pass show GEMINI_API_KEY > /dev/null                           	pass
 pee	rm -r .venv 2>/dev/null ; python3.12 -m venv .venv && source .venv/bin/activate         	python            venv         recreate	x
-pec	python3.12 -m venv .venv                                                     	python            venv         create	x
-pea	source .venv/bin/activate                                                    	python            venv         activate	x
-ped	deactivate                                                                   	python            venv         deactivate	x
-per	rm -r .venv                                                                  	python            venv         remove
-pi	pip install -r Package                                                       	python            package      install
-pl	pip list                                                                     	python            package      list	x
-pv	python --version                                                             	python            version	x
-pb	brew list | grep python                                                      	python            version      list	x
-cd	chezmoi diff --reverse                                                       	chezmoi	x
-ci	chezmoi ignored                                                              	chezmoi	x
-cc	__chezmoi_cd                                                                 	chezmoi	x
-ce	chezmoi --refresh-externals apply                                            	chezmoi	x
-cr	chezmoi state reset                                                          	chezmoi           reset chezmoi local state
-ca	__chezmoi add                                                                	chezmoi	x
-xca	__chezmoi add                                                                	chezmoi
-cy	__chezmoi apply                                                              	chezmoi	x
-xcy	__chezmoi apply                                                              	chezmoi
-cf	__chezmoi_forget                                                             	chezmoi	x
-xcf	__chezmoi_forget                                                             	chezmoi
-ct	__chezmoi_status                                                             	chezmoi	x
-cm	__chezmoi_managed                                                            	chezmoi	x
-cp	__chezmoi_private                                                            	chezmoi
-cpa	__chezmoi_private add                                                        	chezmoi
-cpy	__chezmoi_private apply                                                      	chezmoi
-cs	__chezmoi_shared                                                             	chezmoi
-csa	__chezmoi_shared add                                                         	chezmoi
-csy	__chezmoi_shared apply                                                       	chezmoi
-al	aws sso login                                                                	aws          sso               login	x
-ap	aws configure list-profiles                                                  	aws          profiles          list
-af	aws lambda list-functions --profile Profile                                  	aws          lambda            list
-ab	sam build                                                                    	aws          lambda            build
-as	sam local start-api --profile PROFILE                                        	aws          lambda            start/local
-ai	sam init --runtime go --package-type Image                                   	aws          lambda            init/go
-dsl	docker system df                                                             	docker       system            list	x
-dsp	docker system prune --force --all --volumes                                  	docker       system            remove unused containers, networks, images, volumes, build cache	x
-dnl	docker network ls                                                            	docker       network           list	x
-dnp	docker network prune --force                                                 	docker       network           remove unused	x
-dvl	docker volume ls                                                             	docker       volume            list	x
-dvp	docker volume prune --force --all                                            	docker       volume            remove unused	x
-dcs	docker compose stop                                                          	docker       compose           stop	x
-dcl	docker container ls --all                                                    	docker       container         list	x
-dcp	docker container prune --force                                               	docker       container         remove unused	x
-dil	docker image ls --all                                                        	docker       image             list	x
-dip	docker image prune --force --all                                             	docker       image             remove unused	x
-tx	npx tsx FILE                                                                 	typescript   execute
-tc	npx tsc                                                                      	typescript   compile
-rs	__rsync SOURCE TARGET                                                        	file/dir     copy
-yi	yarn install --frozen-lockfile                                               	node         install	x
+pec	python3.12 -m venv .venv                                       	python            venv         create	x
+pea	source .venv/bin/activate                                      	python            venv         activate	x
+ped	deactivate                                                     	python            venv         deactivate	x
+per	rm -r .venv                                                    	python            venv         remove
+pi	pip install -r Package                                         	python            package      install
+pl	pip list                                                       	python            package      list	x
+pv	python --version                                               	python            version	x
+pb	brew list | grep python                                        	python            version      list	x
+cd	chezmoi diff --reverse                                         	chezmoi	x
+ci	chezmoi ignored                                                	chezmoi	x
+cc	__chezmoi_cd                                                   	chezmoi	x
+ce	chezmoi --refresh-externals apply                              	chezmoi	x
+cr	chezmoi state reset                                            	chezmoi           reset chezmoi local state
+ca	__chezmoi add                                                  	chezmoi	x
+xca	__chezmoi add                                                  	chezmoi
+cy	__chezmoi apply                                                	chezmoi	x
+xcy	__chezmoi apply                                                	chezmoi
+cf	__chezmoi_forget                                               	chezmoi	x
+xcf	__chezmoi_forget                                               	chezmoi
+ct	__chezmoi_status                                               	chezmoi	x
+cm	__chezmoi_managed                                              	chezmoi	x
+cp	__chezmoi_private                                              	chezmoi
+cpa	__chezmoi_private add                                          	chezmoi
+cpy	__chezmoi_private apply                                        	chezmoi
+cs	__chezmoi_shared                                               	chezmoi
+csa	__chezmoi_shared add                                           	chezmoi
+csy	__chezmoi_shared apply                                         	chezmoi
+al	aws sso login                                                  	aws          sso               login	x
+ap	aws configure list-profiles                                    	aws          profiles          list
+af	aws lambda list-functions --profile Profile                    	aws          lambda            list
+ab	sam build                                                      	aws          lambda            build
+as	sam local start-api --profile PROFILE                          	aws          lambda            start/local
+ai	sam init --runtime go --package-type Image                     	aws          lambda            init/go
+dsl	docker system df                                               	docker       system            list	x
+dsp	docker system prune --force --all --volumes                    	docker       system            remove unused containers, networks, images, volumes, build cache	x
+dnl	docker network ls                                              	docker       network           list	x
+dnp	docker network prune --force                                   	docker       network           remove unused	x
+dvl	docker volume ls                                               	docker       volume            list	x
+dvp	docker volume prune --force --all                              	docker       volume            remove unused	x
+dcs	docker compose stop                                            	docker       compose           stop	x
+dcl	docker container ls --all                                      	docker       container         list	x
+dcp	docker container prune --force                                 	docker       container         remove unused	x
+dil	docker image ls --all                                          	docker       image             list	x
+dip	docker image prune --force --all                               	docker       image             remove unused	x
+tx	npx tsx FILE                                                   	typescript   execute
+tc	npx tsc                                                        	typescript   compile
+rs	__rsync SOURCE TARGET                                          	file/dir     copy
+yi	yarn install --frozen-lockfile                                 	node         install	x
