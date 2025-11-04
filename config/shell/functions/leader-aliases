@@ -37,81 +37,88 @@ fr	rm -rf .direnv .envrc .gitignore nix                                         
 fa  	direnv allow                                                               	flake           direnv            allow	x
 js  	cat JSONFILE | jq '@json'                                                  	json            to string
 jf	echo '{"key":"value","foo":"bar"}' | jq '.'                                  	json            format
-g   	lazygit                                         	git                 tui
-g   	onefetch                                        	git                 repo                info
-g   	__git_set_user                                  	git                 config              set user	x
-gi  	__git_info                                      	git                 repo                info	x
-gh  	__git_install_lefthook                          	git                 lefthook            install	x
-gl  	git-forgit log                                  	git                 commit              list	x
-ga  	git-forgit add                                  	git                 file                stage	x
-gu  	__git_open_url                                  	git                 url                 open	x
-guc 	__git_open_url commits                          	git                 url                 open	x
-xga 	git add --intent-to-add File                    	git                 file                track
-gt  	git status                                      	git                 file                list	x
-gbl 	git branch --list                               	git                 branch              list	x
-gbs 	git-forgit checkout_branch                      	git                 branch              switch	x
-gbc 	git switch --create NewBranch                   	git                 branch              new
-gbr 	git branch --move --force OldName NewName       	git                 branch              rename
-gm  	git merge Branch                                	git                 branch              merge
-gbd 	git branch --delete --force BranchLocal         	git                 branch              delete local
-gbd 	git-forgit branch_delete                        	git                 branch              delete local	x
-gbdr	git push origin --delete BranchRemote           	git                 branch              delete remote
-gbm 	git-forgit blame                                	git
-gco 	git commit                                      	git                 commit              new	x
-gcm 	git commit --message Message                    	git                 commit              new
-gca 	git commit --message --amend NewMessage         	git                 commit              edit message
-gcl 	__git_clone Documents/dev                       	git                 clone               repo	x
-gcf 	cloneit                                         	git                 clone           dir/file	x
-gcp 	git-forgit cherry_pick                          	git
-gkf 	git-forgit checkout_file                        	git
-gkt 	git-forgit checkout_tag                         	git
-gkc 	git-forgit checkout_commit                      	git
-gko 	git checkout --ours FileName                    	git                 merge conflict                keep our	x
-gnu 	__git_open_unstaged                             	git                 open                          unstaged	x
-gns 	__git_open_staged                               	git                 open                            staged	x
-gna 	__git_open_all                                  	git                 open         staged/unstaged/untracked	x
-gnc 	__git_open_commits                              	git                 open                            commit	x
+g   	lazygit                                    	git                 tui
+g   	onefetch                                   	git                 repo                info
+g   	__git_set_user                             	git                 config              set user	x
+gi  	__git_info                                 	git                 repo                info	x
+gh  	__git_install_lefthook                     	git                 lefthook            install	x
+gl  	git-forgit log                             	git                 commit              list	x
+ga  	git-forgit add                             	git                 file                stage	x
+gu  	__git_open_url                             	git                 url                 open	x
+guc 	__git_open_url commits                     	git                 url                 open	x
+xga 	git add --intent-to-add File               	git                 file                track
+gt  	git status                                 	git                 file                list	x
+gbl 	git branch --list                          	git                 branch              list	x
+gbs 	git-forgit checkout_branch                 	git                 branch              switch	x
+gbc 	git switch --create NewBranch              	git                 branch              new
+gbr 	git branch --move --force OldName NewName  	git                 branch              rename
+gm  	git merge Branch                           	git                 branch              merge
+gbd 	git branch --delete --force BranchLocal    	git                 branch              delete local
+gbd 	git-forgit branch_delete                   	git                 branch              delete local	x
+gbdr	git push origin --delete BranchRemote      	git                 branch              delete remote
+gbm 	git-forgit blame                           	git
+gco 	git commit                                 	git                 commit              new	x
+gcm 	git commit --message Message               	git                 commit              new
+gca 	git commit --message --amend NewMessage    	git                 commit              edit message
+gcl 	__git_clone Documents/dev                  	git                 clone               repo	x
+gcf 	cloneit                                    	git                 clone           dir/file	x
+gcp 	git-forgit cherry_pick                     	git
+gkf 	git-forgit checkout_file                   	git
+gkt 	git-forgit checkout_tag                    	git
+gkc 	git-forgit checkout_commit                 	git
+gko 	git checkout --ours FileName               	git                 merge conflict                keep our	x
+gnu 	__git_open_unstaged                        	git                 open                          unstaged	x
+gns 	__git_open_staged                          	git                 open                            staged	x
+gna 	__git_open_all                             	git                 open         staged/unstaged/untracked	x
+gnc 	__git_open_commits                         	git                 open                            commit	x
+gni 	__git_ignore open                          	git                 Open ignored files	x
 # gnc 	nvim $(git diff-tree --no-commit-id --name-only -r HEAD)	git         open                            last commit	x
-gnb 	nvim $(git diff --name-only master...)          	git                 open                            current branch	x
-gss 	git stash push --staged                         	git                 stash                           staged	x
-gsp 	git stash push                                  	git                 stash                  staged/unstaged	x
-gsa 	git stash push --include-untracked              	git                 stash        untracked/staged/unstaged	x
+gnb 	nvim $(git diff --name-only master...)     	git                 open                            current branch	x
+gss 	git stash push --staged                    	git                 stash                           staged	x
+gsp 	git stash push                             	git                 stash                  staged/unstaged	x
+gsa 	git stash push --include-untracked         	git                 stash        untracked/staged/unstaged	x
 gsu 	git stash push --include-untracked --keep-index 	git                 stash               untracked/unstaged	x
-gsy 	git stash apply                                 	git                 stash                       apply last	x
-gsl 	git-forgit stash_show                           	git                 stash                             list	x
-gsc 	git stash clear                                 	git                 stash                       delete all
-gsf 	git-forgit stash_push                           	git                 stash                             push	x
-gpp 	git push                                        	git	x
-gpf 	git push --force                                	git
-gpu 	git push --set-upstream origin HEAD             	git                 set upstream branch	x
-gpl 	git pull                                        	git	x
-gf  	git fetch                                       	git	x
-gx  	git absorb                                      	git                 [1] auto create fixup commits for those changes
-gxr 	git absorb --and-rebase                         	git                 [2] auto rebase interactively and squash the fixups
-# gx  	git commit --fixup SHA                          	git                 [1] fix commit with staged changes
+gsy 	git stash apply                            	git                 stash                       apply last	x
+gsl 	git-forgit stash_show                      	git                 stash                             list	x
+gsc 	git stash clear                            	git                 stash                       delete all
+gsf 	git-forgit stash_push                      	git                 stash                             push	x
+gpp 	git push                                   	git	x
+gpf 	git push --force                           	git
+gpu 	git push --set-upstream origin HEAD        	git                 set upstream branch	x
+gpl 	git pull                                   	git	x
+gf  	git fetch                                  	git	x
+gx  	git absorb                                 	git                 [1] auto create fixup commits for those changes
+gxr 	git absorb --and-rebase                    	git                 [2] auto rebase interactively and squash the fixups
+# gx  	git commit --fixup SHA                   	git                 [1] fix commit with staged changes
 # gxr 	git rebase --interactive --autosquash SHA^      	git                 [2] fix commit with staged changes
-grd 	__git_discard                                   	git                 Discard	x
-gru 	__git_unstage                                   	git                 Unstage	x
-grt 	__git_untrack                                   	git                 Untrack	x
-grm 	__git_rm_untracked                              	git                 Remove untracked files	x
-grb 	git-forgit rebase --interactive                 	git                 Interactive rebase
-grh 	git reset --hard                                	git                 Delete staged + unstaged
-gro 	git reset --hard origin/BRANCH                  	git                 Make the local branch identical to the remote branch
-grs 	__git_reset_soft                                	git                 Revert commits and unstage their changes starting from the selected commit	x
-grth	git reset --hard HEAD~<n>                       	git                 Revert last n commit and delete their changes
-gcln	git-forgit clean --force -d                     	git                 Delete untracked files and directories
-gdd  	__git_diff                                      	git                 Show unstaged changes	x
-gdc  	git-forgit diff --cached                        	git                 Show staged changes	x
-gdb  	__git_diff_branches                             	git                 Show diff between 2 branches	x
-gwa 	__git_worktree_add                              	git                 worktree                  add	x
-gwl 	__git_worktree_list                             	git                 worktree                  list	x
-gwr 	__git_worktree_remove                           	git                 worktree                  remove	x
-gob	go build                                                                     	go
-gog	go get                                                                       	go
-gor	go run                                                                       	go
-gom	go mod tidy                                                                  	go	x
-goc	go clean -modcache                                                           	go
-got	go test                                                                      	go
+grd 	__git_discard                              	git                 Discard	x
+gru 	__git_unstage                              	git                 Unstage	x
+grt 	__git_untrack                              	git                 Untrack	x
+grm 	__git_rm_untracked                         	git                 Remove untracked files	x
+gri 	__git_ignore remove                        	git                 Remove ignored files	x
+grb 	git-forgit rebase --interactive            	git                 Interactive rebase
+grh 	git reset --hard                           	git                 Delete staged + unstaged
+gro 	git reset --hard origin/BRANCH             	git                 Make the local branch identical to the remote branch
+grs 	__git_reset_soft                           	git                 Revert commits and unstage their changes starting from the selected commit	x
+grth	git reset --hard HEAD~<n>                  	git                 Revert last n commit and delete their changes
+# gcln	git-forgit clean --force -d              	git                 Delete untracked files and directories
+gdd  	__git_diff                                 	git                 Show unstaged changes	x
+gdc  	git-forgit diff --cached                   	git                 Show staged changes	x
+gdb  	__git_diff_branches                        	git                 Show diff between 2 branches	x
+gwa 	__git_worktree_add                         	git                 worktree                  add	x
+gwl 	__git_worktree_list                        	git                 worktree                  list	x
+gwr 	__git_worktree_remove                      	git                 worktree                  remove	x
+gob	go build                                     	go
+gog	go get                                       	go
+gor	go run                                       	go
+gom	go mod tidy                                  	go	x
+goc	go clean -modcache                           	go
+got	go test                                      	go
+gc gcloud auth login                                                            	gcloud              auth                    login	x
+gc gcloud config set project PROJECT                                            	gcloud              project                 set
+gc gcloud secrets list                                                          	gcloud              secret                  list
+gc gcloud secrets versions access latest --secret=MYSECRET                      	gcloud              secret                  get
+gc echo SECRETVALUE | gcloud secrets versions add SECRETNAME --data-file=-      	gcloud              secret                  set
 # xtw	task --watch build > /dev/null 2>&1 &                                        	task       watch
 xtb	tmux split-window -v -l 5 -d 'task --watch build'                            	task       watch	x
 xtk	pkill -f "task --watch build"                                                	task       kill	x
