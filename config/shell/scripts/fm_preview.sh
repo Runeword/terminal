@@ -18,9 +18,11 @@ else
   #   ls -l "$1"
   # fi
 
+  echo "$1"
+  echo ""
   if command -v bat >/dev/null; then
     bat --style=plain --color=always "$1" |
-      sed 's/^/  /; 1s/^/\n/'
+      sed 's/^/  /'
   else
     cat "$1"
   fi
