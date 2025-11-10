@@ -84,6 +84,17 @@
         packages.dev.default = alacritty-dev { };
         packages.dev.options = alacritty-dev;
 
+        devShells.default = pkgs.mkShell {
+          buildInputs = [
+            (pkgs.writeShellScriptBin "dev" ''
+              TERM_CONFIG_DIR="$PWD/config" nix run .#dev --impure "$@"
+            '')
+          ];
+          shellHook = ''
+            echo "dev: run alacritty in development mode"
+          '';
+        };
+
         # # Dev mode
         # apps.dev.type = "app";
         # apps.dev.program = "${alacritty-dev { }}/bin/nvim";
