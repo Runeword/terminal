@@ -305,3 +305,24 @@ __git_worktree_remove() {
     echo "$worktrees" | xargs -I {} git worktree remove {}
   fi
 }
+
+__git_stash() {
+  git rev-parse --is-inside-work-tree >/dev/null || return 1
+  
+  local list_files="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
+  local repo_root="$(git rev-parse --show-toplevel)"
+  local is_staged="cd \"$repo_root\" && git diff --cached --name-only -- {} | grep -q ."
+  local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
+  local staged_diff="cd \"$repo_root\" && git diff --cached --color=always {} | $_GIT_PAGER"
+  local tracked_diff="cd \"$repo_root\" && git diff --color=always {} | $_GIT_PAGER"
+  local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
+  local preview_cmd="if $is_staged; then $staged_diff; elif $is_tracked; then $tracked_diff; else $untracked_diff; fi"
+  local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
+  
+  local selected_files
+  selected_files=$(builtin cd "$repo_root" && eval "$list_files" | eval "fzf $_GIT_FZF_DEFAULT $preview")
+  
+  if [ -n "$selected_files" ]; then
+    builtin cd "$repo_root" && echo "$selected_files" | xargs git stash push --
+  fi
+}
