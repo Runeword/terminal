@@ -75,7 +75,8 @@ gni 	__git_ignore open                          	git                 Open ignore
 # gnc 	nvim $(git diff-tree --no-commit-id --name-only -r HEAD)	git         open                            last commit	x
 gnb 	nvim $(git diff --name-only master...)     	git                 open                            current branch	x
 gss 	git stash push --staged                    	git                 stash                           staged	x
-gsp 	git stash push                             	git                 stash                  staged/unstaged	x
+# gsp 	git stash push                             	git                 stash                  staged/unstaged	x
+gsp 	__git_stash                                	git                 stash        untracked/staged/unstaged	x
 gsa 	git stash push --include-untracked         	git                 stash        untracked/staged/unstaged	x
 gsu 	git stash push --include-untracked --keep-index 	git                 stash               untracked/unstaged	x
 gsy 	git stash apply                            	git                 stash                       apply last	x
