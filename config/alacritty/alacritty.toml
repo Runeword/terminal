@@ -125,6 +125,7 @@ bindings = [
   { key = "X", mods = "Command|Shift", chars = "\u001bX" }, # Command+Shift+X as Alt+X
   { key = "Y", mods = "Command|Shift", chars = "\u001bY" }, # Command+Shift+Y as Alt+Y
   { key = "Z", mods = "Command|Shift", chars = "\u001bZ" }, # Command+Shift+Z as Alt+Z
+  { key = "G", mods = "Control|Shift", chars = "\u001B[71;6u" },
 
   { key = "Equals", mods = "Control", action = "ResetFontSize" },
   { key = "Plus", mods = "Control|Shift", action = "IncreaseFontSize" },
