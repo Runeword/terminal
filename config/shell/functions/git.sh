@@ -271,16 +271,16 @@ __git_worktree_list() {
   local current_dir
   current_dir=$(pwd)
 
-  local list_worktrees="git worktree list | grep -v '^$current_dir ' | awk '{dir=\$1; sub(/.*\//, \"\", dir); print dir \" \" \$2 \" \" \$3 \"\t\" \$1}'"
+  local list_worktrees="git worktree list | grep -v '^$current_dir ' | awk '{dir=\$1; sub(/.*\//, \"\", dir); print dir \"\t\" \$2 \"\t\" \$3 \"\t\" \$1}'"
   local dir_name=$(basename "$current_dir")
   local branch=$(git rev-parse --abbrev-ref HEAD)
   local commit=$(git rev-parse --short HEAD)
   local header="$dir_name $commit [$branch]"
-  local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"$header\" --with-nth=1 --delimiter='\t' --prompt='  '"
-  local preview="--preview 'git -C \$(echo {} | awk -F\"\t\" \"{print \\\$2}\") log --oneline --color=always -10' $_GIT_FZF_PREVIEW"
+  local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"$header\" --with-nth=1,2,3 --delimiter='\t' --prompt='  ' --bind='tab:down,shift-tab:up'"
+  local preview="--preview 'git diff --color=always $branch..\$(echo {} | awk \"{print \\\$3}\" | sed \"s/\\[//;s/\\]//\") | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local worktree
-  worktree=$(eval "$list_worktrees" | eval "fzf $fzf_args $preview" | awk -F'\t' '{print $2}')
+  worktree=$(eval "$list_worktrees" | eval "fzf $fzf_args $preview" | awk -F'\t' '{print $4}')
 
   if [ -n "$worktree" ]; then
     builtin cd "$worktree"
