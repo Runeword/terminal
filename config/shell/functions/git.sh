@@ -275,7 +275,7 @@ __git_worktree_list() {
   local dir_name=$(basename "$current_dir")
   local branch=$(git rev-parse --abbrev-ref HEAD)
   local commit=$(git rev-parse --short HEAD)
-  local header="$dir_name $commit [$branch]"
+  local header=$(printf "%s\t%s\t[%s]" "$dir_name" "$commit" "$branch")
   local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"$header\" --with-nth=1,2,3 --delimiter='\t' --prompt='  ' --bind='tab:down,shift-tab:up'"
   local preview="--preview 'git diff --color=always $branch..\$(echo {} | awk \"{print \\\$3}\" | sed \"s/\\[//;s/\\]//\") | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
@@ -283,13 +283,21 @@ __git_worktree_list() {
   worktree=$(eval "$list_worktrees" | eval "fzf $fzf_args $preview" | awk -F'\t' '{print $4}')
 
   if [ -n "$worktree" ]; then
-    builtin cd "$worktree"
+    builtin cd "$worktree" && ls
   fi
 }
 
 __git_worktree_remove() {
+  local current_dir
+  current_dir=$(pwd)
+
+  local dir_name=$(basename "$current_dir")
+  local branch=$(git rev-parse --abbrev-ref HEAD)
+  local commit=$(git rev-parse --short HEAD)
+  local header=$(printf "%s\t%s\t[%s]" "$dir_name" "$commit" "$branch")
+
   local list_worktrees="git worktree list | tail -n +2"
-  local fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --bind='ctrl-a:select-all'"
+  local fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"$header\" --prompt='  ' --bind='ctrl-a:select-all'"
   local preview="--preview 'git -C \$(echo {} | awk \"{print \\\$1}\") status' $_GIT_FZF_PREVIEW"
 
   local worktrees
