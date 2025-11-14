@@ -232,6 +232,14 @@ __git_diff_branches() {
 }
 
 __git_worktree_add() {
+  local current_dir
+  current_dir=$(pwd)
+
+  local dir_name=$(basename "$current_dir")
+  local current_branch=$(git rev-parse --abbrev-ref HEAD)
+  local commit=$(git rev-parse --short HEAD)
+  local header=$(printf "%s\t%s\t[%s]" "$dir_name" "$commit" "$current_branch")
+
   local checked_out_branches
   checked_out_branches=$(git worktree list | awk '{print $3}' | sed 's/\[//;s/\]//')
 
@@ -245,8 +253,8 @@ $checked_out_branches
 EOF
   fi
 
-  local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path"
-  local preview="--preview 'git log --oneline --color=always {}' $_GIT_FZF_PREVIEW"
+  local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"$header\" --prompt='  ' --wrap-sign='' --scheme=path"
+  local preview="--preview 'git diff --color=always $current_branch..{} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local branch
   branch=$(eval "$list_branches" | eval "fzf $fzf_args $preview")
@@ -296,12 +304,12 @@ __git_worktree_remove() {
   local commit=$(git rev-parse --short HEAD)
   local header=$(printf "%s\t%s\t[%s]" "$dir_name" "$commit" "$branch")
 
-  local list_worktrees="git worktree list | tail -n +2"
-  local fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"$header\" --prompt='  ' --bind='ctrl-a:select-all'"
-  local preview="--preview 'git -C \$(echo {} | awk \"{print \\\$1}\") status' $_GIT_FZF_PREVIEW"
+  local list_worktrees="git worktree list | tail -n +2 | awk '{dir=\$1; sub(/.*\//, \"\", dir); print dir \"\t\" \$2 \"\t\" \$3 \"\t\" \$1}'"
+  local fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"$header\" --with-nth=1,2,3 --delimiter='\t' --prompt='  ' --bind='ctrl-a:select-all'"
+  local preview="--preview 'git diff --color=always $branch..\$(echo {} | awk -F\"\t\" \"{print \\\$3}\" | sed \"s/\\[//;s/\\]//\") | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local worktrees
-  worktrees=$(eval "$list_worktrees" | eval "fzf $fzf_args $preview" | awk '{print $1}')
+  worktrees=$(eval "$list_worktrees" | eval "fzf $fzf_args $preview" | awk -F'\t' '{print $4}')
 
   if [ -n "$worktrees" ]; then
     local current_dir
