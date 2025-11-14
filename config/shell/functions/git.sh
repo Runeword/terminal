@@ -269,9 +269,7 @@ EOF
     done
 
     local worktree_path="../${repo_name}_${next_num}"
-    if git worktree add "$worktree_path" "$branch"; then
-      builtin cd "$worktree_path"
-    fi
+    git worktree add "$worktree_path" "$branch" && builtin cd "$worktree_path" && ls
   fi
 }
 
@@ -312,9 +310,6 @@ __git_worktree_remove() {
   worktrees=$(eval "$list_worktrees" | eval "fzf $fzf_args $preview" | awk -F'\t' '{print $4}')
 
   if [ -n "$worktrees" ]; then
-    local current_dir
-    current_dir=$(pwd)
-
     local main_worktree
     main_worktree=$(git worktree list | head -n 1 | awk '{print $1}')
 
@@ -322,7 +317,7 @@ __git_worktree_remove() {
       builtin cd "$main_worktree"
     fi
 
-    echo "$worktrees" | xargs -I {} git worktree remove {}
+    echo "$worktrees" | xargs -I {} git worktree remove {} && ls
   fi
 }
 
