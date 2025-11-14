@@ -232,6 +232,8 @@ __git_diff_branches() {
 }
 
 __git_worktree_add() {
+  git rev-parse --is-inside-work-tree >/dev/null || return 1
+
   local current_dir
   current_dir=$(pwd)
 
@@ -274,6 +276,8 @@ EOF
 }
 
 __git_worktree_list() {
+  git rev-parse --is-inside-work-tree >/dev/null || return 1
+
   local current_dir
   current_dir=$(pwd)
 
@@ -294,6 +298,8 @@ __git_worktree_list() {
 }
 
 __git_worktree_remove() {
+  git rev-parse --is-inside-work-tree >/dev/null || return 1
+
   local current_dir
   current_dir=$(pwd)
 
