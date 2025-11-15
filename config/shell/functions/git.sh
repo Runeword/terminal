@@ -329,7 +329,7 @@ __git_worktree_remove() {
 
 __git_stash() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
-  
+
   local list_files="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
   local repo_root="$(git rev-parse --show-toplevel)"
   local is_staged="cd \"$repo_root\" && git diff --cached --name-only -- {} | grep -q ."
@@ -339,11 +339,29 @@ __git_stash() {
   local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
   local preview_cmd="if $is_staged; then $staged_diff; elif $is_tracked; then $tracked_diff; else $untracked_diff; fi"
   local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
-  
+
   local selected_files
   selected_files=$(builtin cd "$repo_root" && eval "$list_files" | eval "fzf $_GIT_FZF_DEFAULT $preview")
-  
+
   if [ -n "$selected_files" ]; then
     builtin cd "$repo_root" && echo "$selected_files" | xargs git stash push --
+  fi
+}
+
+__git_merge() {
+  git rev-parse --is-inside-work-tree >/dev/null || return 1
+
+  local current_branch
+  current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+  local list_branches="git branch --all --format='%(refname:short)' | grep -v '^HEAD' | grep -v '^$current_branch\$'"
+  local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"merge into $current_branch\" --prompt='  ' --wrap-sign='' --scheme=path --bind='tab:down,shift-tab:up'"
+  local preview="--preview 'git diff --color=always $current_branch...{} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+
+  local branch
+  branch=$(eval "$list_branches" | eval "fzf $fzf_args $preview")
+
+  if [ -n "$branch" ]; then
+    git merge "$branch"
   fi
 }
