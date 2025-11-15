@@ -52,7 +52,7 @@ gbl 	git branch --list                          	git                 branch     
 gbs 	git-forgit checkout_branch                 	git                 branch              switch	x
 gbc 	git switch --create NewBranch              	git                 branch              new
 gbr 	git branch --move --force OldName NewName  	git                 branch              rename
-gm  	git merge Branch                           	git                 branch              merge
+gm  	__git_merge                                	git                 branch              merge	x
 gbd 	git branch --delete --force BranchLocal    	git                 branch              delete local
 gbd 	git-forgit branch_delete                   	git                 branch              delete local	x
 gbdr	git push origin --delete BranchRemote      	git                 branch              delete remote
