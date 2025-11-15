@@ -167,13 +167,32 @@ __git_open_commits() {
 }
 
 __git_install_lefthook() {
-  cat > lefthook.yml << 'EOF'
-remotes:
-  - git_url: https://github.com/Runeword/lefthook
-    configs:
-      - precommit-auto-msg.yml
-EOF
-  lefthook install
+  local repo_url="https://github.com/Runeword/lefthook"
+  local api_url="https://api.github.com/repos/Runeword/lefthook/contents"
+
+  local available_configs
+  available_configs=$(curl -s "$api_url" | grep -o '"name": "[^"]*\.yml"' | grep -v '"name": "lefthook.yml"' | cut -d'"' -f4)
+
+  if [ -z "$available_configs" ]; then
+    echo "Failed to fetch available configs from repository"
+    return 1
+  fi
+
+  local fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header='select git hooks to install' --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
+  local preview="--preview 'curl -s https://raw.githubusercontent.com/Runeword/lefthook/main/{}' $_GIT_FZF_PREVIEW"
+
+  local selected_configs
+  selected_configs=$(echo "$available_configs" | eval "fzf $fzf_args $preview")
+
+  if [ -n "$selected_configs" ]; then
+    {
+      echo "remotes:"
+      echo "  - git_url: $repo_url"
+      echo "    configs:"
+      echo "$selected_configs" | sed 's/^/      - /'
+    } > lefthook.yml
+    lefthook install
+  fi
 }
 
 __git_info() {
