@@ -294,28 +294,6 @@ EOF
   fi
 }
 
-__git_worktree_list() {
-  git rev-parse --is-inside-work-tree >/dev/null || return 1
-
-  local current_dir
-  current_dir=$(pwd)
-
-  local list_worktrees="git worktree list | grep -v '^$current_dir ' | awk '{dir=\$1; sub(/.*\//, \"\", dir); print dir \"\t\" \$2 \"\t\" \$3 \"\t\" \$1}'"
-  local dir_name=$(basename "$current_dir")
-  local branch=$(git rev-parse --abbrev-ref HEAD)
-  local commit=$(git rev-parse --short HEAD)
-  local header=$(printf "%s\t%s\t[%s]" "$dir_name" "$commit" "$branch")
-  local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"$header\" --with-nth=1,2,3 --delimiter='\t' --prompt='  ' --bind='tab:down,shift-tab:up'"
-  local preview="--preview 'git diff --color=always $branch..\$(echo {} | awk \"{print \\\$3}\" | sed \"s/\\[//;s/\\]//\") | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-
-  local worktree
-  worktree=$(eval "$list_worktrees" | eval "fzf $fzf_args $preview" | awk -F'\t' '{print $4}')
-
-  if [ -n "$worktree" ]; then
-    builtin cd "$worktree" && ls
-  fi
-}
-
 __git_worktree_remove() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
@@ -383,4 +361,49 @@ __git_merge() {
   if [ -n "$branch" ]; then
     git merge "$branch"
   fi
+}
+
+__git_branch_switch() {
+  git rev-parse --is-inside-work-tree >/dev/null || return 1
+
+  local current_branch
+  current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+  local worktree_list
+  worktree_list=$(git --no-pager worktree list)
+
+  local list_branches
+  list_branches=$(git branch --all --format='%(refname:short)' | grep -v '^HEAD' | while read -r branch; do
+    branch_to_check=$(echo "$branch" | sed 's|^remotes/[^/]*/||')
+    worktree_path=$(echo "$worktree_list" | awk -v branch="$branch_to_check" 'match($3, /\[(.*)\]/, m) && m[1] == branch {print $1; exit}')
+    if [ -n "$worktree_path" ]; then
+      worktree_name=$(basename "$worktree_path")
+      echo "$branch	→ $worktree_name"
+    else
+      echo "$branch	"
+    fi
+  done)
+
+  local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"switch to branch\" --with-nth=1,2 --delimiter='\t' --prompt='  ' --wrap-sign='' --scheme=path"
+  local preview="--preview 'branch=\$(echo {} | cut -f1); git diff --color=always $current_branch..\$branch | $_GIT_PAGER' --preview-window 'right,65%,border-none,wrap'"
+
+  local selected
+  selected=$(echo "$list_branches" | eval "fzf $fzf_args $preview")
+  [ -z "$selected" ] && return 1
+
+  local branch
+  branch=$(echo "$selected" | cut -f1)
+  local worktree_display
+  worktree_display=$(echo "$selected" | cut -f2 | sed 's/^→ //')
+  if [ -z "$worktree_display" ]; then
+    git checkout "$branch" && ls
+    return $?
+  fi
+
+  local branch_to_check
+  branch_to_check=$(echo "$branch" | sed 's|^remotes/[^/]*/||')
+  local worktree_path
+  worktree_path=$(echo "$worktree_list" | awk -v branch="$branch_to_check" 'match($3, /\[(.*)\]/, m) && m[1] == branch {print $1; exit}')
+  builtin cd "$worktree_path" && ls
+  return $?
 }
