@@ -49,7 +49,7 @@ guc 	__git_open_url commits                     	git                 url        
 xga 	git add --intent-to-add File               	git                 file                track
 gt  	git status                                 	git                 file                list	x
 gbl 	git branch --list                          	git                 branch              list	x
-gbs 	git-forgit checkout_branch                 	git                 branch              switch	x
+gbs 	__git_branch_switch                        	git                 branch              switch	x
 gbc 	git switch --create NewBranch              	git                 branch              new
 gbr 	git branch --move --force OldName NewName  	git                 branch              rename
 gm  	__git_merge                                	git                 branch              merge	x
@@ -107,7 +107,6 @@ gdd  	__git_diff                                 	git                 Show unsta
 gdc  	git-forgit diff --cached                   	git                 Show staged changes	x
 gdb  	__git_diff_branches                        	git                 Show diff between 2 branches	x
 gwa 	__git_worktree_add                         	git                 worktree                  add	x
-gwl 	__git_worktree_list                        	git                 worktree                  list	x
 gwr 	__git_worktree_remove                      	git                 worktree                  remove	x
 gob	go build                                     	go
 gog	go get                                       	go
