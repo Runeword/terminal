@@ -196,13 +196,13 @@ __git_install_lefthook() {
 }
 
 __git_info() {
-  echo "Name:"
+  echo "git config user.name"
   git config user.name
   echo
-  echo "Email:"
+  echo "git config user.email"
   git config user.email
   echo
-  echo "Remotes:"
+  echo "git remote -v"
   git remote -v
 }
 
