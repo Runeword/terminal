@@ -47,7 +47,8 @@ export FZF_COMPLETION_OPTS="
 
 # --color=marker:#57b58f,spinner:#ffffff,header:#535e73 \
 export FZF_DEFAULT_OPTS="
---color=fg:#d0d0d0,bg:-1,hl:#ffffff,gutter:-1 \
+--gutter=' ' \
+--color=fg:#d0d0d0,bg:-1,hl:#ffffff \
 --color=fg+:#ffffff,fg+:regular,bg+:#142926,hl+:#67c9d6,hl+:regular,query:italic \
 --color=info:#d0d0d0,prompt:#ffffff,pointer:#7272ed,border:#2f394a \
 --color=marker:#4534bf,spinner:#ffffff,header:#535e73 \
