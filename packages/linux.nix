@@ -2,7 +2,7 @@
 
 pkgs.lib.optionals (system == "x86_64-linux" || system == "aarch64-linux") (with pkgs; [
   wl-clipboard # copy/paste
-  xdragon # drag and drop
+  dragon-drop # drag and drop
   nvme-cli # NVMe storage devices manager
   hwinfo # hardware info
   evtest # input device testing
