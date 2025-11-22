@@ -352,7 +352,7 @@ __git_merge() {
   current_branch=$(git rev-parse --abbrev-ref HEAD)
 
   local list_branches="git branch --all --format='%(refname:short)' | grep -v '^HEAD' | grep -v '^$current_branch\$'"
-  local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"merge into $current_branch\" --prompt='  ' --wrap-sign='' --scheme=path --bind='tab:down,shift-tab:up'"
+  local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"merge into $current_branch\" --prompt='  ' --wrap-sign='' --scheme=path --bind='tab:down,btab:up'"
   local preview="--preview 'git diff --color=always $current_branch...{} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local branch
