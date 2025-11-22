@@ -134,6 +134,7 @@ alias rt='rm -rfv $HOME/.local/share/Trash/files'
 
 # ______________________________________ PROGRAMS
 
+alias claude='claude --resume'
 alias gparted='sudo -E gparted'
 alias ventoy='sudo ventoy-web'
 alias chrome='google-chrome-stable'
