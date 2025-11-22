@@ -10,6 +10,7 @@ __open_file() {
         --hidden \
         --strip-cwd-prefix \
         --no-ignore-vcs \
+        --color never \
         | \
       fzf \
         --read0 \
