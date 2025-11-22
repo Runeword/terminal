@@ -53,6 +53,7 @@ export FZF_DEFAULT_OPTS="
 --color=info:#d0d0d0,prompt:#ffffff,pointer:#7272ed,border:#2f394a \
 --color=marker:#4534bf,spinner:#ffffff,header:#535e73 \
 --bind='home:first,end:last,pgup:half-page-up,pgdn:half-page-down' \
+--bind='tab:select+down,btab:deselect+up' \
 "
 # --color=fg+:#ffffff,fg+:regular,bg+:#142920,hl+:#67c9d6,hl+:regular,query:italic \
 # --color=marker:#458f71,spinner:#ffffff,header:#535e73 \
