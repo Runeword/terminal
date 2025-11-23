@@ -35,7 +35,6 @@ alias p='wl-paste'
 alias me='__open_device'
 alias bu='__bitwarden_unlock'
 alias env='env | f'
-alias t='__tmux_attach_unattached_session'
 alias k='__kill_processes'
 alias y='__yazi_cd < $TTY'
 
@@ -135,6 +134,7 @@ alias rt='rm -rfv $HOME/.local/share/Trash/files'
 # ______________________________________ PROGRAMS
 
 alias claude='claude --resume'
+alias cursor='cursor-agent --resume'
 alias gparted='sudo -E gparted'
 alias ventoy='sudo ventoy-web'
 alias chrome='google-chrome-stable'
