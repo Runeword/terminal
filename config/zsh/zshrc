@@ -13,6 +13,7 @@ KEYS=(
   SHIFT_ENTER    '^[[13;2u'
   LEFT_ARROW     '^[OD'
   RIGHT_ARROW    '^[OC'
+  ALT_T          '\et'
   CTRL_LEFT      '^[[1;5D'
   CTRL_RIGHT     '^[[1;5C'
   CTRL_TAB       '\e[9;5u'
@@ -231,6 +232,13 @@ __ls_or_escape() { __on_empty_buffer 'echo ls; __ls'; }
 # __ls_or_escape() { __on_empty_buffer 'echo; command ls --almost-all --color --width 90;' "LBUFFER+=' '; zle autosuggest-fetch"; }
 zle -N __ls_or_escape
 bindkey "${KEYS[ESCAPE]}" __ls_or_escape
+
+__tmux_attach_session_() {
+  BUFFER="__tmux_attach_session"
+  zle accept-line
+}
+zle -N __tmux_attach_session_
+bindkey "${KEYS[ALT_T]}" __tmux_attach_session_
 
 # _zsh_autosuggest_strategy_custom() {
 #   # suggestion=$(grep -h -m1 -E "^[^#%]*$(printf '%s' "$1" | sed 's/[]\[\^\$\.\*\{\}\(\)\\]/\\&/g')" ~/.config/navi/* | head -n 1)
