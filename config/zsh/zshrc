@@ -198,6 +198,11 @@ __autosuggest_accept() {
 
 [ -f "$OUT/.config/shell/aliases.sh" ] && source "$OUT/.config/shell/aliases.sh"
 
+# ------------------------------------ NVM
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+
 # ------------------------------------ Functions
 if [ -d "$OUT/.config/shell/functions" ]; then
   for file in "$OUT/.config/shell/functions"/*.sh; do
