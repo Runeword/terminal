@@ -27,8 +27,13 @@ __git_open_url() {
   local FINAL_URL
   FINAL_URL="${REPO_URL}/${1:-tree}/${BRANCH}"
 
-  # Step 5: Open the URL in Google Chrome
-  open -a "$BROWSER" "$FINAL_URL"
+  if command -v xdg-open > /dev/null 2>&1; then
+    (nohup xdg-open "$FINAL_URL" > /dev/null 2>&1 &)
+  elif command -v open > /dev/null 2>&1; then
+    open -a "$BROWSER" "$FINAL_URL"
+  else
+    return 1
+  fi
 }
 
 _GIT_FZF_DEFAULT="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
