@@ -2,7 +2,6 @@
 
 __open_file() {
   # Select file(s) with fzf, if no selection do nothing
-
   local selected_files
   selected_files=$(
       fd \
@@ -32,39 +31,26 @@ __open_file() {
         --bind='ctrl-a:select-all' \
         --bind='ctrl-o:execute(nohup setsid cursor {} > /dev/null 2>&1 &)' \
   ) || return 1
-  # --scheme=path \
-  # fzf-tmux \
-  #   -p \
-  #   -h 90% \
-  #   -w 95% \
 
-  # Check number of selected files
-  local num_lines
-  num_lines="$(echo "$selected_files" | wc -l)"
-
-  # cd into selected directory
-  if [ "$num_lines" -eq 1 ] && [ -d "$selected_files" ]; then
-    if ! cd "$selected_files"; then
-      echo "Fail: could not change directory to $selected_files"
-      return 1
-    fi
-
-    # Then write command in history
-    [ "$BASH_VERSION" != "" ] && history -s "cd $selected_files"
-    [ "$ZSH_VERSION" != "" ] && print -s "cd $selected_files"
-  else
-    # else open selected files in editor
-    if ! echo "$selected_files" | xargs "$EDITOR"; then
-      echo "Fail: could not open $selected_files with $EDITOR"
-      return 1
-    fi
-
-    # Then write command in history
-    [ "$BASH_VERSION" != "" ] && history -s "$EDITOR $(echo "$selected_files" | xargs)"
-    [ "$ZSH_VERSION" != "" ] && print -s "$EDITOR $(echo "$selected_files" | xargs)"
+  # If single directory selected, cd into it
+  if [ "$(echo "$selected_files" | wc -l)" -eq 1 ] && [ -d "$selected_files" ]; then
+    cd "$selected_files" || return 1
+    [ "$BASH_VERSION" ] && history -s "cd $selected_files"
+    [ "$ZSH_VERSION" ] && print -s "cd $selected_files"
+    return 0
   fi
 
-  return 0
+  # Else open files in editor
+  local files_only
+  files_only=$(echo "$selected_files" | while IFS= read -r item; do
+    [ -f "$item" ] && echo "$item"
+  done)
+
+  [ -z "$files_only" ] && return 1
+
+  echo "$files_only" | xargs "$EDITOR" || return 1
+  [ "$BASH_VERSION" ] && history -s "$EDITOR $(echo "$files_only" | xargs)"
+  [ "$ZSH_VERSION" ] && print -s "$EDITOR $(echo "$files_only" | xargs)"
 }
 
 # find -L . \
