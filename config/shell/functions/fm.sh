@@ -176,6 +176,12 @@ __ls() {
 }
 
 __cp() {
+  # Get the last argument (destination)
+  for dest in "$@"; do :; done
+
+  # Create parent directory if it doesn't exist
+  mkdir -p "$(dirname "$dest")"
+
   command cp --recursive --verbose "$@" 2>&1 | sed 's/ -> /\t->\t/' | column -t -s "$(printf '\t')"
 }
 
