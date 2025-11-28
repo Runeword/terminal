@@ -51,6 +51,7 @@
             (import ./packages/wrappers/bat.nix { inherit pkgs; })
             (import ./packages/wrappers/fd.nix { inherit pkgs; })
             (import ./packages/wrappers/bash.nix { inherit pkgs; })
+            (import ./packages/wrappers/starship.nix { inherit pkgs; })
           ];
 
         pkgs = mkPkgs null;
