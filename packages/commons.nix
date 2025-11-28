@@ -17,7 +17,7 @@ with pkgs; [
   xdg-ninja
   direnv
   pass
-  gemini-cli
+  gemini-cli-bin
   cursor-cli
   claude-code
   bitwarden-cli
@@ -28,7 +28,6 @@ with pkgs; [
   zoxide
   gomi
   ripgrep
-  fd
   fzf
   tree
   wget
