@@ -25,7 +25,6 @@ with pkgs; [
   # Coreutils
   coreutils-full
   util-linux # provides the linux version of the column command
-  bat
   zoxide
   gomi
   ripgrep
