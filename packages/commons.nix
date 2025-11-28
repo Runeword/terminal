@@ -5,7 +5,6 @@ with pkgs; [
   cowsay
   yazi # file manager
   navi # cheat sheet
-  starship # prompt
   ueberzugpp # images support for terminal
   gmailctl
   sqlite
