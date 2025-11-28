@@ -43,9 +43,6 @@ export GNUPGHOME="${XDG_CONFIG_HOME}/gnupg"
 mkdir -p "${XDG_DATA_HOME}/pyenv"
 export PYENV_ROOT="${XDG_DATA_HOME}/pyenv"
 
-mkdir -p "${XDG_CONFIG_HOME}/readline"
-export INPUTRC="${XDG_CONFIG_HOME}/readline/inputrc"
-
 mkdir -p "${XDG_CONFIG_HOME}/atac"
 export ATAC_KEY_BINDINGS="${XDG_CONFIG_HOME}/atac/vim_key_bindings.toml"
 export ATAC_THEME="${XDG_CONFIG_HOME}/atac/theme.toml"
