@@ -19,7 +19,7 @@ Install the `dev` package with home-manager :
   `home.nix`
   ```nix
   home.packages = [
-    (inputs.runeword-terminal.packages.${pkgs.system}.dev.options { configPath = "${config.home.homeDirectory}/terminal/config"; })
+    (inputs.runeword-terminal.packages.${pkgs.stdenv.hostPlatform.system}.dev.options { configPath = "${config.home.homeDirectory}/terminal/config"; })
   ];
   ```
 
