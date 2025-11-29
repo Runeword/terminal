@@ -46,13 +46,13 @@
               (import ./packages/linux.nix { inherit pkgs system; })
           )
           ++ [
-            (import ./packages/wrappers/zsh.nix { inherit pkgs; })
-            (import ./packages/wrappers/tmux.nix { inherit pkgs; })
-            (import ./packages/wrappers/bat.nix { inherit pkgs; })
-            (import ./packages/wrappers/fd.nix { inherit pkgs; })
-            (import ./packages/wrappers/ripgrep.nix { inherit pkgs; })
-            (import ./packages/wrappers/bash.nix { inherit pkgs; })
-            (import ./packages/wrappers/starship.nix { inherit pkgs; })
+            (import ./wrappers/zsh.nix { inherit pkgs; })
+            (import ./wrappers/tmux.nix { inherit pkgs; })
+            (import ./wrappers/bat.nix { inherit pkgs; })
+            (import ./wrappers/fd.nix { inherit pkgs; })
+            (import ./wrappers/ripgrep.nix { inherit pkgs; })
+            (import ./wrappers/bash.nix { inherit pkgs; })
+            (import ./wrappers/starship.nix { inherit pkgs; })
           ];
 
         pkgs = mkPkgs null;
