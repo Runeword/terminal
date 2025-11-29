@@ -1,0 +1,29 @@
+# Shared ignore patterns for fd and ripgrep
+# Add patterns as you encounter files you want to ignore
+
+# Version control
+.git
+
+# Dependencies
+node_modules
+
+# Nix
+.direnv
+
+# Build outputs
+dist
+build
+target
+
+# Python
+__pycache__
+*.pyc
+.venv
+venv
+
+# Cache
+.cache
+
+# IDE
+.vscode
+.idea
