@@ -5,9 +5,9 @@ pkgs.symlinkJoin {
   paths = [ pkgs.fd ];
   nativeBuildInputs = [ pkgs.makeWrapper ];
   postBuild = ''
-    ${pkgs.lib.mkLink "fd" ".config/fd"}
+    ${pkgs.lib.mkLink "ignore" ".config/ignore"}
 
     wrapProgram $out/bin/fd \
-      --add-flags "--ignore-file $out/.config/fd/ignore"
+      --add-flags "--ignore-file $out/.config/ignore"
   '';
 }
