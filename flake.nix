@@ -52,6 +52,7 @@
             (import ./packages/wrappers/fd.nix { inherit pkgs; })
             (import ./packages/wrappers/bash.nix { inherit pkgs; })
             (import ./packages/wrappers/starship.nix { inherit pkgs; })
+            (import ./packages/wrappers/direnv.nix { inherit pkgs; })
           ];
 
         pkgs = mkPkgs null;
@@ -94,7 +95,7 @@
             '')
           ];
           shellHook = ''
-            echo "dev: run alacritty in development mode"
+            echo "type 'dev' to run alacritty in development mode"
           '';
         };
 
