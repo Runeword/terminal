@@ -1,29 +1,18 @@
 # Shared ignore patterns for fd and ripgrep
-# Add patterns as you encounter files you want to ignore
 
-# Version control
 .git
-
-# Dependencies
-node_modules
-
-# Nix
-.direnv
-
-# Build outputs
-dist
-build
-target
-
-# Python
-__pycache__
-*.pyc
-.venv
-venv
-
-# Cache
+flake-inputs
+.nix-defexpr
+.nix-profile
+./.config/figma-linux/Cache
+./.config/Slack/Cache
+./.config/Slack/Service Worker
+./.config/google-chrome
+./.local/share/navi/cheats
+./.local/share/containers/storage/overlay
+./go/pkg
 .cache
-
-# IDE
-.vscode
-.idea
+.tldrc
+node_modules
+./.local
+.direnv
