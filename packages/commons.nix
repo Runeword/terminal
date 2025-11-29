@@ -14,6 +14,7 @@ with pkgs; [
   chezmoi
   gh
   xdg-ninja
+  direnv
   pass
   gemini-cli-bin
   cursor-cli
