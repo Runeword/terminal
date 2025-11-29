@@ -58,7 +58,7 @@
         pkgs = mkPkgs null;
         extraPackages = mkExtraPackages pkgs;
 
-        alacritty = import ./packages/wrappers/alacritty.nix {
+        alacritty = import ./wrappers/alacritty.nix {
           inherit pkgs extraPackages;
         };
 
@@ -66,7 +66,7 @@
           {
             configPath ? builtins.getEnv "TERM_CONFIG_DIR",
           }:
-          import ./packages/wrappers/alacritty.nix {
+          import ./wrappers/alacritty.nix {
             pkgs = mkPkgs configPath;
             extraPackages = mkExtraPackages (mkPkgs configPath);
           };
