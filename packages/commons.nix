@@ -26,7 +26,6 @@ with pkgs; [
   util-linux # provides the linux version of the column command
   zoxide
   gomi
-  ripgrep
   fzf
   tree
   wget
