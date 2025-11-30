@@ -16,7 +16,6 @@ __tmux_switch_session() {
   local item_pos
   item_pos=$(tmux list-sessions -F '#{session_id}' | awk '{if ($1 == "'"$session_id"'") print NR}')
 
-# --delimiter=' ' \
 	local session
 	session=$(
 		tmux ls -F "#{session_name}" 2>/dev/null | fzf \
@@ -150,4 +149,26 @@ __tmux_nvim_copy_mode() {
        "$tmpfile"
 
   rm -f "$tmpfile"
+}
+
+__tmux_open_url() {
+  if ! command -v tmux >/dev/null 2>&1 || [ -z "$TMUX" ]; then
+    return 1
+  fi
+
+  local input
+  input="$(tmux capture-pane -p -S -3000)"
+
+  local urls
+  urls="$(echo "$input" | \
+    grep -oP 'https?://[^\s<>"{}|\\^`\[\]]+' | \
+    awk '!seen[$0]++' | \
+    fzf --tac --multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'
+  )"
+
+  if [ -n "$urls" ]; then
+    echo "$urls" | while IFS= read -r url; do
+      setsid xdg-open "$url" >/dev/null 2>&1 || setsid open "$url" >/dev/null 2>&1 &
+    done
+  fi
 }
