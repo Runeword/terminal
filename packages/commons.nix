@@ -56,7 +56,6 @@ with pkgs; [
   git # versioning
   git-absorb # auto git commit --fixup
   zsh-forgit # fuzzy git
-  delta
 
   # Containers
   lazydocker
