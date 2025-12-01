@@ -53,6 +53,7 @@
             (import ./wrappers/ripgrep.nix { inherit pkgs; })
             (import ./wrappers/bash.nix { inherit pkgs; })
             (import ./wrappers/starship.nix { inherit pkgs; })
+            (import ./wrappers/delta.nix { inherit pkgs; })
           ];
 
         pkgs = mkPkgs null;
