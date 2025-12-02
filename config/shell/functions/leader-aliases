@@ -1,5 +1,5 @@
 ou	__tmux_open_url                                  	open            url	x
-on	fc -s nvim                                       	open            previous file	x
+on	__open_editor_history                            	open            editor history	x
 oh	nvim $HISTFILE                                   	open            history	x
 # ols	ollama serve                                     	ollama          serve	x
 # olr	ollama run codellama                             	ollama          run	x
