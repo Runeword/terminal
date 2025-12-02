@@ -157,6 +157,22 @@ __open_recent() {
   }
 }
 
+__open_editor_history() {
+  local cmd
+  cmd=$(
+    fc -ln 1 | \
+    grep -E "^\s*$EDITOR .+" | \
+    awk '!seen[$0]++' | \
+    fzf --tac \
+      --reverse \
+      --prompt='  ' \
+      --no-separator \
+      --info=inline:'' \
+      --no-scrollbar \
+      --height 70%
+  ) && eval "$cmd"
+}
+
 __rsync() {
   rsync \
     --archive \
