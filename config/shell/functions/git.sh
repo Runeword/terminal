@@ -163,11 +163,11 @@ __git_reset_soft() {
 __git_open_commits() {
   local list_commits="git log --oneline"
   local preview="--preview 'git show --color=always {1}' $_GIT_FZF_PREVIEW"
-  local fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
+  local fzf_args="--multi --reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
   commits=$(eval "$list_commits" | eval "fzf $fzf_args $preview" | awk '{print $1}')
 
   if [ -n "$commits" ]; then
-    echo "$commits" | xargs git show --name-only --pretty=format: | sort -u | grep -v '^$' | xargs \"$EDITOR\"
+    echo "$commits" | xargs git show --name-only --pretty=format: | sort -u | grep -v '^$' | xargs "$EDITOR"
   fi
 }
 
