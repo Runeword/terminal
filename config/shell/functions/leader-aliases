@@ -1,5 +1,9 @@
-ou	__tmux_open_url                                  	open            url	x
+ol	__tmux_open_url                                  	open            url	x
 on	__open_editor_history                            	open            editor history	x
+oc 	__git_open_commits                               	open            commit	x
+ou 	__git_open_unstaged                              	git             open         unstaged	x
+os 	__git_open_staged                                	git             open         staged	x
+oa 	__git_open_all                                   	git             open         staged/unstaged/untracked	x
 oh	nvim $HISTFILE                                   	open            history	x
 # ols	ollama serve                                     	ollama          serve	x
 # olr	ollama run codellama                             	ollama          run	x
@@ -68,10 +72,6 @@ gkf 	git-forgit checkout_file                   	git
 gkt 	git-forgit checkout_tag                    	git
 gkc 	git-forgit checkout_commit                 	git
 gko 	git checkout --ours FileName               	git                 merge conflict                keep our	x
-gnu 	__git_open_unstaged                        	git                 open                          unstaged	x
-gns 	__git_open_staged                          	git                 open                            staged	x
-gna 	__git_open_all                             	git                 open         staged/unstaged/untracked	x
-gnc 	__git_open_commits                         	git                 open                            commit	x
 gni 	__git_ignore open                          	git                 Open ignored files	x
 # gnc 	nvim $(git diff-tree --no-commit-id --name-only -r HEAD)	git         open                            last commit	x
 gnb 	nvim $(git diff --name-only master...)     	git                 open                            current branch	x
