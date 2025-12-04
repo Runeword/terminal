@@ -1,10 +1,7 @@
 { pkgs, useLink ? false, configRoot ? ../config }:
 
 let
-  mkConfig = path: target:
-    if useLink
-    then pkgs.lib.mkLink "config/${path}" target
-    else pkgs.lib.mkCopy "${configRoot}/${path}" target;
+  mkConfig = pkgs.lib.mkConfig useLink configRoot;
 in
 
 pkgs.symlinkJoin {
