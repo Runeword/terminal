@@ -37,7 +37,10 @@
           };
 
         mkExtraPackages =
-          pkgs: useLink:
+          pkgs: useLink: configRoot:
+          let
+            mkConfig = pkgs.lib.mkConfig useLink configRoot;
+          in
           (import ./packages/commons.nix { inherit pkgs; })
           ++ (
             if pkgs.stdenv.isDarwin then
@@ -46,32 +49,35 @@
               (import ./packages/linux.nix { inherit pkgs system; })
           )
           ++ [
-            (import ./wrappers/zsh.nix { inherit pkgs useLink; })
-            (import ./wrappers/tmux.nix { inherit pkgs useLink; })
-            (import ./wrappers/bat.nix { inherit pkgs useLink; })
-            (import ./wrappers/fd.nix { inherit pkgs useLink; })
-            (import ./wrappers/ripgrep.nix { inherit pkgs useLink; })
-            (import ./wrappers/bash.nix { inherit pkgs useLink; })
-            (import ./wrappers/starship.nix { inherit pkgs useLink; })
-            (import ./wrappers/delta.nix { inherit pkgs useLink; })
+            (import ./wrappers/zsh.nix { inherit pkgs mkConfig; })
+            (import ./wrappers/tmux.nix { inherit pkgs mkConfig; })
+            (import ./wrappers/bat.nix { inherit pkgs mkConfig; })
+            (import ./wrappers/fd.nix { inherit pkgs mkConfig; })
+            (import ./wrappers/ripgrep.nix { inherit pkgs mkConfig; })
+            (import ./wrappers/bash.nix { inherit pkgs mkConfig; })
+            (import ./wrappers/starship.nix { inherit pkgs mkConfig; })
+            (import ./wrappers/delta.nix { inherit pkgs mkConfig; })
           ];
 
         pkgs = mkPkgs null;
-        extraPackages = mkExtraPackages pkgs false; # Bundled mode: copy config into store
+        extraPackages = mkExtraPackages pkgs false ./config; # Bundled mode: copy config into store
 
         alacritty = import ./wrappers/alacritty.nix {
           inherit pkgs extraPackages;
-          useLink = false; # Bundled mode: copy config into store
+          mkConfig = pkgs.lib.mkConfig false ./config;
         };
 
         alacritty-dev =
           {
             configPath ? builtins.getEnv "TERM_CONFIG_DIR",
           }:
+          let
+            devPkgs = mkPkgs configPath;
+          in
           import ./wrappers/alacritty.nix {
-            pkgs = mkPkgs configPath;
-            extraPackages = mkExtraPackages (mkPkgs configPath) true; # Dev mode: symlink to external config
-            useLink = true; # Dev mode: symlink to external config
+            pkgs = devPkgs;
+            extraPackages = mkExtraPackages devPkgs true configPath;
+            mkConfig = devPkgs.lib.mkConfig true configPath;
           };
 
         # zsh = pkgs.symlinkJoin {
