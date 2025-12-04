@@ -1,8 +1,7 @@
-{ pkgs, useLink ? false, configRoot ? ../config }:
+{ pkgs, mkConfig }:
 
 let
-  zsh = import ./zsh.nix { inherit pkgs useLink configRoot; };
-  mkConfig = pkgs.lib.mkConfig useLink configRoot;
+  zsh = import ./zsh.nix { inherit pkgs mkConfig; };
 in
 
 pkgs.symlinkJoin {
