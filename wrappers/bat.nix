@@ -1,8 +1,4 @@
-{ pkgs, useLink ? false, configRoot ? ../config }:
-
-let
-  mkConfig = pkgs.lib.mkConfig useLink configRoot;
-in
+{ pkgs, mkConfig }:
 
 pkgs.symlinkJoin {
   name = "bat-with-config";
