@@ -12,6 +12,11 @@ final: prev: {
       cp -r ${prev.lib.escapeShellArg (prev.lib.cleanSource sourcePath)} $out/${prev.lib.escapeShellArg targetStr}
     '';
 
+    mkConfig = useLink: configRoot: path: target:
+      if useLink
+      then final.lib.mkLink ("config/" + path) target
+      else final.lib.mkCopy "${configRoot}/${path}" target;
+
     # mkFile =
     #   rootPath: source: target:
     #   if builtins.hasAttr "rev" self then
