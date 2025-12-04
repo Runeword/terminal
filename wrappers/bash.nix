@@ -1,14 +1,21 @@
-{ pkgs }:
+{ pkgs, useLink ? false, configRoot ? ../config }:
+
+let
+  mkConfig = path: target:
+    if useLink
+    then pkgs.lib.mkLink "config/${path}" target
+    else pkgs.lib.mkCopy "${configRoot}/${path}" target;
+in
 
 pkgs.symlinkJoin {
   name = "bash-with-config";
   paths = [ pkgs.bash ];
   nativeBuildInputs = [ pkgs.makeWrapper ];
   postBuild = ''
-    ${pkgs.lib.mkLink "bash/bashrc" ".config/bash/.bashrc"}
-    ${pkgs.lib.mkLink "shell" ".config/shell"}
-    ${pkgs.lib.mkLink "readline" ".config/readline"}
-    ${pkgs.lib.mkLink "direnv" ".config/direnv"}
+    ${mkConfig "bash/bashrc" ".config/bash/.bashrc"}
+    ${mkConfig "shell" ".config/shell"}
+    ${mkConfig "readline" ".config/readline"}
+    ${mkConfig "direnv" ".config/direnv"}
 
     wrapProgram $out/bin/bash \
       --add-flags "--rcfile $out/.config/bash/.bashrc" \
