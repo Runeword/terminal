@@ -37,7 +37,7 @@
           };
 
         mkExtraPackages =
-          pkgs:
+          pkgs: useLink:
           (import ./packages/commons.nix { inherit pkgs; })
           ++ (
             if pkgs.stdenv.isDarwin then
@@ -46,21 +46,22 @@
               (import ./packages/linux.nix { inherit pkgs system; })
           )
           ++ [
-            (import ./wrappers/zsh.nix { inherit pkgs; })
-            (import ./wrappers/tmux.nix { inherit pkgs; })
-            (import ./wrappers/bat.nix { inherit pkgs; })
-            (import ./wrappers/fd.nix { inherit pkgs; })
-            (import ./wrappers/ripgrep.nix { inherit pkgs; })
-            (import ./wrappers/bash.nix { inherit pkgs; })
-            (import ./wrappers/starship.nix { inherit pkgs; })
-            (import ./wrappers/delta.nix { inherit pkgs; })
+            (import ./wrappers/zsh.nix { inherit pkgs useLink; })
+            (import ./wrappers/tmux.nix { inherit pkgs useLink; })
+            (import ./wrappers/bat.nix { inherit pkgs useLink; })
+            (import ./wrappers/fd.nix { inherit pkgs useLink; })
+            (import ./wrappers/ripgrep.nix { inherit pkgs useLink; })
+            (import ./wrappers/bash.nix { inherit pkgs useLink; })
+            (import ./wrappers/starship.nix { inherit pkgs useLink; })
+            (import ./wrappers/delta.nix { inherit pkgs useLink; })
           ];
 
         pkgs = mkPkgs null;
-        extraPackages = mkExtraPackages pkgs;
+        extraPackages = mkExtraPackages pkgs false; # Bundled mode: copy config into store
 
         alacritty = import ./wrappers/alacritty.nix {
           inherit pkgs extraPackages;
+          useLink = false; # Bundled mode: copy config into store
         };
 
         alacritty-dev =
@@ -69,7 +70,8 @@
           }:
           import ./wrappers/alacritty.nix {
             pkgs = mkPkgs configPath;
-            extraPackages = mkExtraPackages (mkPkgs configPath);
+            extraPackages = mkExtraPackages (mkPkgs configPath) true; # Dev mode: symlink to external config
+            useLink = true; # Dev mode: symlink to external config
           };
 
         # zsh = pkgs.symlinkJoin {
@@ -94,9 +96,17 @@
             (pkgs.writeShellScriptBin "dev" ''
               TERM_CONFIG_DIR="$PWD/config" nix run .#dev --impure "$@"
             '')
+            (pkgs.writeShellScriptBin "h" ''
+              echo "type 'dev' to run alacritty in development mode"
+              echo "type 'bdl' to run alacritty in bundled mode"
+              echo "type 'h' for help"
+            '')
+            (pkgs.writeShellScriptBin "bdl" ''
+              nix run . "$@"
+            '')
           ];
           shellHook = ''
-            echo "type 'dev' to run alacritty in development mode"
+            h
           '';
         };
 
