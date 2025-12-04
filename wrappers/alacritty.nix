@@ -1,8 +1,7 @@
 {
   pkgs,
   extraPackages,
-  useLink ? false,
-  configRoot ? ../config,
+  mkConfig,
 }:
 let
   fonts = pkgs.lib.optionals (!pkgs.stdenv.isDarwin) [
@@ -10,7 +9,6 @@ let
     pkgs.nerd-fonts.monaspace
     pkgs.nerd-fonts.caskaydia-mono
   ];
-  mkConfig = pkgs.lib.mkConfig useLink configRoot;
 in
 pkgs.runCommand "alacritty"
   {
