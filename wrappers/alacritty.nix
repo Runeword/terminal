@@ -10,11 +10,7 @@ let
     pkgs.nerd-fonts.monaspace
     pkgs.nerd-fonts.caskaydia-mono
   ];
-
-  mkConfig = path: target:
-    if useLink
-    then pkgs.lib.mkLink "config/${path}" target
-    else pkgs.lib.mkCopy "${configRoot}/${path}" target;
+  mkConfig = pkgs.lib.mkConfig useLink configRoot;
 in
 pkgs.runCommand "alacritty"
   {
