@@ -1,6 +1,8 @@
 {
   pkgs,
   extraPackages,
+  useLink ? false,
+  configRoot ? ../config,
 }:
 let
   fonts = pkgs.lib.optionals (!pkgs.stdenv.isDarwin) [
@@ -8,21 +10,18 @@ let
     pkgs.nerd-fonts.monaspace
     pkgs.nerd-fonts.caskaydia-mono
   ];
+
+  mkConfig = path: target:
+    if useLink
+    then pkgs.lib.mkLink "config/${path}" target
+    else pkgs.lib.mkCopy "${configRoot}/${path}" target;
 in
-# let
-  # extraWrapper = pkgs.callPackage ./extra.nix {
-  #   inherit pkgs extraPackages;
-  #   extraConfigs = {
-  #     bat = "extraConfig/bat";
-  #   };
-  # };
-# in
 pkgs.runCommand "alacritty"
   {
     nativeBuildInputs = [ pkgs.makeWrapper ];
   }
   ''
-    ${pkgs.lib.mkLink "alacritty" ".config/alacritty"}
+    ${mkConfig "alacritty" ".config/alacritty"}
 
     # use makeWrapper instead of wrapProgram to preserve the original process name 'alacritty'
     # wrapProgram would have named it alacritty-wrapped instead
