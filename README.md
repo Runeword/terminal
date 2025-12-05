@@ -1,16 +1,20 @@
 # Terminal reproducible setup
 
 ## Development mode
+- When running in development mode, the terminal configuration is symlinked to the Nix store.
+This approach streamlines development, allowing you to apply configuration changes immediately without having to rebuild the flake.
 
 ### Standalone run
 Run the `dev` app :
+
   ```shell
   git clone git@github.com:Runeword/terminal.git && \
-  cd terminal && TERM_CONFIG_DIR="$PWD/config" nix run .#dev --impure
+  cd terminal && nix develop && dev
   ```
 
 ### Home-manager install
 Install the `dev` package with home-manager :
+
   `flake.nix`
   ```nix
   inputs.runeword-terminal.url = "github:Runeword/terminal";
@@ -23,24 +27,29 @@ Install the `dev` package with home-manager :
   ];
   ```
 
-<!-- ## Bundled mode -->
+## Bundled mode
+- In bundled mode, the terminal configuration is copied into the Nix store.
+This ensures that both the flake and its configuration are fully isolated from your local environment.
+However, any changes to the configuration require rebuilding the flake before they take effect.
 
-<!-- ### Standalone run -->
-<!-- Run the `default` app : -->
-<!-- ```shell -->
-<!-- nix run "github:Runeword/terminal" -->
-<!-- ``` -->
+### Standalone run
+Run the `default` app :
 
-<!-- ### Home-manager install -->
-<!-- Install the `default` package with home-manager : -->
-<!-- `flake.nix` -->
-<!-- ```nix -->
-<!-- inputs.runeword-neovim.url = "github:Runeword/terminal"; -->
-<!-- ``` -->
+  ```shell
+  nix run "github:Runeword/terminal"
+  ```
 
-<!-- `home.nix` -->
-<!-- ```nix -->
-<!-- home.packages = [ -->
-<!--   (inputs.runeword-terminal.packages.${pkgs.system}.default -->
-<!-- ]; -->
-<!-- ``` -->
+### Home-manager install
+Install the `default` package with home-manager :
+
+  `flake.nix`
+  ```nix
+  inputs.runeword-terminal.url = "github:Runeword/terminal";
+  ```
+
+  `home.nix`
+  ```nix
+  home.packages = [
+    inputs.runeword-terminal.packages.${pkgs.system}.default
+  ];
+  ```
