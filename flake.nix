@@ -79,12 +79,6 @@
             extraPackages = mkExtraPackages devPkgs true configPath;
             mkConfig = devPkgs.lib.mkConfig true configPath;
           };
-
-        # zsh = pkgs.symlinkJoin {
-        #   name = "zsh";
-        #   paths = extraPackages;
-        # };
-
       in
       {
         apps.default.type = "app";
@@ -115,16 +109,6 @@
             h
           '';
         };
-
-        # # Dev mode
-        # apps.dev.type = "app";
-        # apps.dev.program = "${alacritty-dev { }}/bin/nvim";
-        # packages.dev.default = alacritty-dev { };
-        # packages.dev.options = alacritty-dev;
-
-        # apps.zsh.type = "app";
-        # apps.zsh.program = "${zsh}/bin/zsh";
-        # packages.zsh = zsh;
       }
     );
 }
