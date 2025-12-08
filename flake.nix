@@ -81,6 +81,7 @@
           };
       in
       {
+        # Bundled mode
         apps.default.type = "app";
         apps.default.program = "${alacritty}/bin/alacritty";
         packages.default = alacritty;
