@@ -4,7 +4,9 @@ final: prev: {
   lib = prev.lib // {
     mkLink = sourceStr: targetStr: ''
       mkdir -p $(dirname $out/${prev.lib.escapeShellArg targetStr})
-      ln -sf ${prev.lib.escapeShellArg (rootStr + "/" + sourceStr)} $out/${prev.lib.escapeShellArg targetStr}
+      ln -sf ${
+        prev.lib.escapeShellArg (rootStr + "/" + sourceStr)
+      } $out/${prev.lib.escapeShellArg targetStr}
     '';
 
     mkCopy = sourcePath: targetStr: ''
@@ -12,16 +14,11 @@ final: prev: {
       cp -r ${prev.lib.escapeShellArg (prev.lib.cleanSource sourcePath)} $out/${prev.lib.escapeShellArg targetStr}
     '';
 
-    mkConfig = useLink: configRoot: path: target:
-      if useLink
-      then final.lib.mkLink ("config/" + path) target
-      else final.lib.mkCopy "${configRoot}/${path}" target;
-
-    # mkFile =
-    #   rootPath: source: target:
-    #   if builtins.hasAttr "rev" self then
-    #     final.lib.mkCopy (rootPath + source) target
-    #   else
-    #     final.lib.mkLink source target;
+    mkConfig =
+      useLink: configRoot: path: target:
+      if useLink then
+        final.lib.mkLink ("config/" + path) target
+      else
+        final.lib.mkCopy "${configRoot}/${path}" target;
   };
 }
