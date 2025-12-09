@@ -39,9 +39,9 @@ fu	__update_flake_inputs .                          	flake           inputs     
 fm	nix flake metadata                               	flake           metadata	x
 ft	__use_flake_template "github:Runeword/templates" 	flake           templates         use	x
 fr	rm -rf .direnv .envrc .gitignore nix             	flake           files             remove
-fa  	direnv allow                                   	flake           direnv            allow	x
-js  	cat JSONFILE | jq '@json'                      	json            to string
-jf	echo '{"key":"value","foo":"bar"}' | jq '.'      	json            format
+fa 	direnv allow                                     	flake           direnv            allow	x
+js 	__paste | jq '@json' | tee >(__copy)             	json            to string	x
+jf	__paste | jq '.' | tee >(__copy)                 	json/string     to json	x
 g   	lazygit                                    	git                 tui
 g   	onefetch                                   	git                 repo                info
 g   	__git_set_user                             	git                 config              set user	x
