@@ -79,8 +79,29 @@
             extraPackages = mkExtraPackages devPkgs true configPath;
             mkConfig = devPkgs.lib.mkConfig true configPath;
           };
+
+        tools = pkgs.buildEnv {
+          name = "tools";
+          paths = extraPackages;
+        };
+
+        tools-dev =
+          {
+            configPath ? builtins.getEnv "TERM_CONFIG_DIR",
+          }:
+          let
+            devPkgs = mkPkgs configPath;
+            devExtraPackages = mkExtraPackages devPkgs true configPath;
+          in
+          pkgs.buildEnv {
+            name = "tools-dev";
+            paths = devExtraPackages;
+          };
       in
       {
+        packages.tools = tools;
+        packages.toolsDev = tools-dev { };
+
         # Bundled mode
         apps.default.type = "app";
         apps.default.program = "${alacritty}/bin/alacritty";
