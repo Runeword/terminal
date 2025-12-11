@@ -89,7 +89,7 @@ __home_manager_generation_switch() {
 
   [ "$selected_generation" = "" ] && return 1
 
-  eval "${selected_generation}/activate"
+  "${selected_generation}/activate"
 }
 
 # Interactively selects and remove one or more home manager generations
