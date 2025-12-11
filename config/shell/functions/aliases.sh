@@ -13,7 +13,7 @@ __run_alias() {
       --info=inline:'' \
     | awk -F'=' '{print $2}' | sed "s/^'//;s/'$//") || return 0
 
-    eval "$selected"
+    sh -c "$selected"
 }
 
 __aliases() {
