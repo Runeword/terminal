@@ -10,5 +10,5 @@ __leader_widget() {
     CURSOR=$((CURSOR + $#KEYS))
     return "$leader_exit"
   fi
-  eval "$leader_next"
+  sh -c "$leader_next"
 }
