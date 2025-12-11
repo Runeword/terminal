@@ -170,7 +170,7 @@ __open_editor_history() {
       --info=inline:'' \
       --no-scrollbar \
       --height 70%
-  ) && eval "$cmd"
+  ) && sh -c "$cmd"
 }
 
 __rsync() {
