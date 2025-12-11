@@ -55,8 +55,8 @@ __git_fzf_cmd() {
     fzf_args="$_GIT_FZF_DEFAULT"
   fi
 
-  (builtin cd "$repo_root" && eval "$list_cmd") |
-    eval "fzf $fzf_args" |
+  (builtin cd "$repo_root" && sh -c "$list_cmd") |
+    sh -c "fzf $fzf_args" |
     sed "s|^|$repo_root/|" |
     xargs -r sh -c "$action_cmd \"\$@\"" _
 }
@@ -153,7 +153,7 @@ __git_reset_soft() {
   local preview="--preview 'git show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
   local commit
-  commit=$(eval "$list_commits" | eval "fzf $fzf_args $preview" | awk '{print $1}')
+  commit=$(sh -c "$list_commits" | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
 
   if [ -n "$commit" ]; then
     git reset --soft "$commit"^
@@ -164,7 +164,7 @@ __git_open_commits() {
   local list_commits="git log --oneline"
   local preview="--preview 'git show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local fzf_args="--multi --reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
-  commits=$(eval "$list_commits" | eval "fzf $fzf_args $preview" | awk '{print $1}')
+  commits=$(sh -c "$list_commits" | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
 
   if [ -n "$commits" ]; then
     echo "$commits" | xargs git show --name-only --pretty=format: | sort -u | grep -v '^$' | xargs "$EDITOR"
@@ -187,7 +187,7 @@ __git_install_lefthook() {
   local preview="--preview 'curl -s https://raw.githubusercontent.com/Runeword/lefthook/main/{}' $_GIT_FZF_PREVIEW"
 
   local selected_configs
-  selected_configs=$(echo "$available_configs" | eval "fzf $fzf_args $preview")
+  selected_configs=$(echo "$available_configs" | sh -c "fzf $fzf_args $preview")
 
   if [ -n "$selected_configs" ]; then
     {
@@ -222,7 +222,7 @@ __git_diff_branches() {
   local preview="--preview 'git log --oneline --color=always {}' $_GIT_FZF_PREVIEW"
 
   local selected_branches
-  selected_branches=$(eval "$list_branches" | eval "fzf $fzf_args $preview")
+  selected_branches=$(sh -c "$list_branches" | sh -c "fzf $fzf_args $preview")
 
   if [ -z "$selected_branches" ]; then
     echo "Select 1 or 2 branches"
@@ -283,7 +283,7 @@ EOF
   local preview="--preview 'git diff --color=always $current_branch..{} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local branch
-  branch=$(eval "$list_branches" | eval "fzf $fzf_args $preview")
+  branch=$(sh -c "$list_branches" | sh -c "fzf $fzf_args $preview")
 
   if [ -n "$branch" ]; then
     local repo_name
@@ -315,7 +315,7 @@ __git_worktree_remove() {
   local preview="--preview 'git diff --color=always $branch..\$(echo {} | awk -F\"\t\" \"{print \\\$3}\" | sed \"s/\\[//;s/\\]//\") | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local worktrees
-  worktrees=$(eval "$list_worktrees" | eval "fzf $fzf_args $preview" | awk -F'\t' '{print $4}')
+  worktrees=$(sh -c "$list_worktrees" | sh -c "fzf $fzf_args $preview" | awk -F'\t' '{print $4}')
 
   if [ -n "$worktrees" ]; then
     local main_worktree
@@ -343,7 +343,7 @@ __git_stash() {
   local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
 
   local selected_files
-  selected_files=$(builtin cd "$repo_root" && eval "$list_files" | eval "fzf $_GIT_FZF_DEFAULT $preview")
+  selected_files=$(builtin cd "$repo_root" && sh -c "$list_files" | sh -c "fzf $_GIT_FZF_DEFAULT $preview")
 
   if [ -n "$selected_files" ]; then
     builtin cd "$repo_root" && echo "$selected_files" | xargs git stash push --
@@ -361,7 +361,7 @@ __git_merge() {
   local preview="--preview 'git diff --color=always $current_branch...{} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local branch
-  branch=$(eval "$list_branches" | eval "fzf $fzf_args $preview")
+  branch=$(sh -c "$list_branches" | sh -c "fzf $fzf_args $preview")
 
   if [ -n "$branch" ]; then
     git merge "$branch"
@@ -393,7 +393,7 @@ __git_branch_switch() {
   local preview="--preview 'branch=\$(echo {} | cut -f1); git diff --color=always $current_branch..\$branch | $_GIT_PAGER' --preview-window 'right,65%,border-none,wrap'"
 
   local selected
-  selected=$(echo "$list_branches" | eval "fzf $fzf_args $preview")
+  selected=$(echo "$list_branches" | sh -c "fzf $fzf_args $preview")
   [ -z "$selected" ] && return 1
 
   local branch
