@@ -151,6 +151,49 @@ __tmux_nvim_copy_mode() {
   rm -f "$tmpfile"
 }
 
+__tmux_move_window_to_session() {
+  local direction="${1:-next}"
+  local current_session target_session session_count current_index target_index
+
+  session_count=$(tmux list-sessions | wc -l)
+
+  # Exit if only one session exists
+  if [ "$session_count" -le 1 ]; then
+    return 1
+  fi
+
+  current_session=$(tmux display-message -p '#S')
+  current_index=$(tmux list-sessions -F '#{session_name}' | sort -V | awk -v sess="$current_session" '{if ($1 == sess) print NR}')
+
+  # Calculate target session index
+  if [ "$direction" = "next" ]; then
+    if [ "$current_index" -eq "$session_count" ]; then
+      target_index=1
+    else
+      target_index=$((current_index + 1))
+    fi
+  else
+    if [ "$current_index" -eq 1 ]; then
+      target_index=$session_count
+    else
+      target_index=$((current_index - 1))
+    fi
+  fi
+
+  target_session=$(tmux list-sessions -F '#{session_name}' | sort -V | sed -n "${target_index}p")
+
+  tmux move-window -t "$target_session:"
+  tmux switch-client -t "$target_session"
+}
+
+__tmux_move_window_to_next_session() {
+  __tmux_move_window_to_session next
+}
+
+__tmux_move_window_to_prev_session() {
+  __tmux_move_window_to_session prev
+}
+
 __tmux_open_url() {
   if ! command -v tmux >/dev/null 2>&1 || [ -z "$TMUX" ]; then
     return 1
