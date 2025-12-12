@@ -180,4 +180,7 @@ bindings = [
   { key = "Key7", mods = "Control", chars = "\u001B[55;5u" },
   { key = "Key8", mods = "Control", chars = "\u001B[56;5u" },
   { key = "Key9", mods = "Control", chars = "\u001B[57;5u" },
+
+  { key = "Return", mods = "Control|Alt", chars = "\u001B[13;7u" },
+  { key = "Return", mods = "Control|Alt|Shift", chars = "\u001B[13;8u" },
 ]
