@@ -42,8 +42,8 @@ fr	rm -rf .direnv .envrc .gitignore nix             	flake           files      
 fa 	direnv allow                                     	flake           direnv            allow	x
 js 	__paste | jq '@json' | tee >(__copy)             	json            to string	x
 jf	__paste | jq '.' | tee >(__copy)                 	json/string     to json	x
-g   	lazygit                                    	git                 tui
-g   	onefetch                                   	git                 repo                info
+g   	lazygit                                    	git                 tui	x
+g   	onefetch                                   	git                 repo                info	x
 g   	__git_set_user                             	git                 config              set user	x
 gi  	__git_info                                 	git                 repo                info	x
 gh  	__git_install_lefthook                     	git                 lefthook            install	x
