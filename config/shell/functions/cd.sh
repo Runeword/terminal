@@ -2,7 +2,7 @@
 
 __cd() {
   local target="$*"
-  if [ -z "$target" ]; then
+  if [ "$target" = "" ]; then
     # Handle 'cd' without arguments; change to the $HOME directory.
     target="$HOME"
   fi
