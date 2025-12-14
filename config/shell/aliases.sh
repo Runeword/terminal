@@ -62,25 +62,12 @@ alias disk='duf'
 # alias disk='lsblk'
 # alias diskinfo = 'sudo nvme smart-log /dev/nvme0n1'
 alias audit='lynis audit system'
-# alias fcount='find . -type d -exec sh -c '\''echo -n "$1, "; find "$1" -maxdepth 1 -type f | wc -l'\'' _ {} \; | awk -F, '\''$2 > 500'\'''
 
 # ______________________________________ NIX
 
 alias nr='nix run --verbose'
 alias nb='nix build'
 alias nd='read -p "nix develop $HOME#" devShellName && nix develop $HOME#$devShellName'
-
-# ______________________________________ FLAKE
-
-# alias fl='rm -f flake.lock && nix flake lock'
-# alias fs='nix flake show'
-# alias fp='nix path-info --json | jq'
-# # alias fsd='nix store delete $(nix path-info --json | jq -r '.[].path')'
-# # alias fr='nix-store --query --referrers $(nix path-info --json | jq -r '.[].path')'
-# alias fu='__update_flake_inputs'
-# alias fm='nix flake metadata'
-# # alias fp='nix flake metadata --json | jq .path'
-# alias ft='__use_flake_template $HOME/templates'
 
 # ______________________________________ DIRECTORIES
 
@@ -139,21 +126,3 @@ alias cheat='navi --cheatsh'
 alias tldr='navi --tldr'
 alias n='nvim'
 alias db='setsid appimage-run $HOME/AppImages/Chat2DB-Local-latest.AppImage'
-
-# up = "up(){ realesrgan-ncnn-vulkan -i \"$1\" -o output.png; }; up";
-# xc = "xclip -selection c";
-# xp = "xclip -selection c -o";
-# b = "br"; # :open_preview
-# w = "waypaper";
-# hhp = "hyprctl hyprpaper preload";
-# hhw = "hyprctl hyprpaper wallpaper";
-# color = "colorpicker"; # X11
-# sin = "$HOME/.screenlayout/single.sh && feh --bg-fill $HOME/.config/Skin\ The\ Remixes.png";
-# dua = "$HOME/.screenlayout/dual.sh";
-# l = "exa --all --group-directories-first --sort=time";
-# ll = ''
-# exa --long --all --color=always --octal-permissions --group-directories-first --sort=time | \
-# fzf --ansi --multi --delimiter : --reverse --border none --cycle --info=inline:"" --height 70% --no-separator
-# '';
-# ll = "exa --long --all --octal-permissions --group-directories-first --total-size --sort=time";
-# bb = "br -c ':toggle_hidden;:toggle_perm;:toggle_dates'";
