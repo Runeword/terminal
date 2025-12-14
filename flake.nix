@@ -116,6 +116,9 @@
         devShells.default = pkgs.mkShell {
           buildInputs = [
             pkgs.nixfmt-rfc-style
+            pkgs.shfmt
+            pkgs.shellcheck
+            pkgs.taplo
             (pkgs.writeShellScriptBin "dev" ''
               TERM_CONFIG_DIR="$PWD/config" nix run .#dev --impure "$@"
             '')
