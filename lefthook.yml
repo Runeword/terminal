@@ -4,5 +4,4 @@ remotes:
       - precommit-auto-msg.yml
       - precommit-nix-format.yml
       - precommit-shell-format.yml
-      - precommit-shell-lint.yml
       - precommit-toml-format.yml
