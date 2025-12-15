@@ -4,13 +4,12 @@ __open_file() {
   # Select file(s) with fzf, if no selection do nothing
   local selected_files
   selected_files=$(
-      fd \
-        -0 \
-        --hidden \
-        --strip-cwd-prefix \
-        --no-ignore-vcs \
-        --color never \
-        | \
+    fd \
+      -0 \
+      --hidden \
+      --strip-cwd-prefix \
+      --no-ignore-vcs \
+      --color never |
       fzf \
         --read0 \
         --height 70% \
@@ -29,7 +28,7 @@ __open_file() {
         --preview-window right,55%,border-none,~2 \
         --bind='ctrl-c:execute-silent(wl-copy {})' \
         --bind='ctrl-a:select-all' \
-        --bind='ctrl-o:execute(nohup setsid cursor {} > /dev/null 2>&1 &)' \
+        --bind='ctrl-o:execute(nohup setsid cursor {} > /dev/null 2>&1 &)'
   ) || return 1
 
   # If single directory selected, cd into it
@@ -46,7 +45,7 @@ __open_file() {
     [ -f "$item" ] && echo "$item"
   done)
 
-  [ -z "$files_only" ] && return 1
+  [ "$files_only" = "" ] && return 1
 
   echo "$files_only" | xargs "$EDITOR" || return 1
   [ "$BASH_VERSION" ] && history -s "$EDITOR $(echo "$files_only" | xargs)"
@@ -75,36 +74,37 @@ __open_file() {
 
 __ripgrep() {
   local selections
-  selections=$(rg \
-    --color always \
-    --colors 'path:none' \
-    --colors 'line:none' \
-    --colors 'match:none' \
-    --colors 'line:fg:red' \
-    --line-number \
-    --no-heading \
-    --smart-case \
-    --no-ignore-vcs \
-    "${*:-}" |
-    fzf \
-      --ansi \
-      --multi \
-      --keep-right \
-      --delimiter : \
-      --reverse \
-      --border none \
-      --prompt='  ' \
-      --cycle \
-      --info=hidden \
-      --height 70% \
-      --no-separator \
-      --header-first \
-      --header='exact !not [!]^prefix [!]suffix$' \
-      --preview 'bat --style=plain --color=always {1} --highlight-line {2}' \
-      --preview-window 'right,55%,border-none,+{2}+3/3,~3'
+  selections=$(
+    rg \
+      --color always \
+      --colors 'path:none' \
+      --colors 'line:none' \
+      --colors 'match:none' \
+      --colors 'line:fg:red' \
+      --line-number \
+      --no-heading \
+      --smart-case \
+      --no-ignore-vcs \
+      "${*:-}" |
+      fzf \
+        --ansi \
+        --multi \
+        --keep-right \
+        --delimiter : \
+        --reverse \
+        --border none \
+        --prompt='  ' \
+        --cycle \
+        --info=hidden \
+        --height 70% \
+        --no-separator \
+        --header-first \
+        --header='exact !not [!]^prefix [!]suffix$' \
+        --preview "$OUT/.config/shell/scripts/fm_preview.sh {1}" \
+        --preview-window right,55%,border-none,~2
   )
 
-  [ -z "$selections" ] && return 0
+  [ "$selections" = "" ] && return 0
 
   # Extract just the file paths and open with nvim
   echo "$selections" | cut -d: -f1 | xargs nvim
@@ -135,41 +135,40 @@ __open_recent() {
   nvim -es "+redir! > $tempfile" '+oldfiles' '+redir END' '+qall'
 
   sed -n '/^[[:space:]]*[0-9]*:[[:space:]]*/s/^[[:space:]]*[0-9]*:[[:space:]]*//p' "$tempfile" |
-
-  while IFS= read -r file; do
+    while IFS= read -r file; do
       # Skip man pages and non-existent files
       case "$file" in
-          man:*) continue ;;
+        man:*) continue ;;
       esac
       [ -f "$file" ] && printf '%s\n' "$file"
-  done | sort | uniq |
-  fzf \
-  --reverse \
-  --prompt='  ' \
-  --no-separator \
-  --info=inline:'' \
-  --no-scrollbar \
-  --height 70% \
-  --header-first \
-  --header='open recent' | {
-      IFS= read -r selected_file
-      [ -n "$selected_file" ] && nvim "$selected_file"
+    done | sort | uniq |
+    fzf \
+      --reverse \
+      --prompt='  ' \
+      --no-separator \
+      --info=inline:'' \
+      --no-scrollbar \
+      --height 70% \
+      --header-first \
+      --header='open recent' | {
+    IFS= read -r selected_file
+    [ "$selected_file" != "" ] && nvim "$selected_file"
   }
 }
 
 __open_editor_history() {
   local cmd
   cmd=$(
-    fc -ln 1 | \
-    grep -E "^\s*$EDITOR .+" | \
-    awk '!seen[$0]++' | \
-    fzf --tac \
-      --reverse \
-      --prompt='  ' \
-      --no-separator \
-      --info=inline:'' \
-      --no-scrollbar \
-      --height 70%
+    fc -ln 1 |
+      grep -E "^\s*$EDITOR .+" |
+      awk '!seen[$0]++' |
+      fzf --tac \
+        --reverse \
+        --prompt='  ' \
+        --no-separator \
+        --info=inline:'' \
+        --no-scrollbar \
+        --height 70%
   ) && sh -c "$cmd"
 }
 
@@ -183,7 +182,7 @@ __rsync() {
     --info=progress2 \
     --exclude 'node_modules' \
     "$@"
-  }
+}
 
 __ls() {
   ls --group-directories-first --format=horizontal
