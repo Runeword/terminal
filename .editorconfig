@@ -1,5 +1,9 @@
 root = true
 
-[*.{sh,bash}]
+[*.sh]
+indent_style = space
+indent_size = 2
+
+[*.bash]
 indent_style = space
 indent_size = 2
