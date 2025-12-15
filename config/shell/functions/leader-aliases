@@ -89,6 +89,7 @@ gpp 	git push                                   	git	x
 gpf 	git push --force                           	git
 gpu 	git push --set-upstream origin HEAD        	git                 set upstream branch	x
 gpl 	git pull                                   	git	x
+gpl 	git pull --rebase                          	git	x
 gf  	git fetch                                  	git	x
 gx  	git absorb                                 	git                 [1] auto create fixup commits for those changes
 gxr 	git absorb --and-rebase                    	git                 [2] auto rebase interactively and squash the fixups
