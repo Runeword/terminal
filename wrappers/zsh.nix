@@ -15,7 +15,7 @@ pkgs.symlinkJoin {
 
     wrapProgram $out/bin/zsh \
       --set ZDOTDIR "$out/.config/zsh" \
-      --set OUT "$out" \
+      --set NIX_OUT_SHELL "$out" \
       --set INPUTRC "$out/.config/readline/inputrc" \
       --set DIRENV_CONFIG "$out/.config/direnv"
   '';
