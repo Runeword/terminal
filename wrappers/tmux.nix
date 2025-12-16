@@ -15,7 +15,7 @@ pkgs.symlinkJoin {
 
     wrapProgram $out/bin/tmux \
     --set TMUX_SHELL ${zsh}/bin/zsh \
-    --set TMUX_OUT "$out" \
+    --set NIX_OUT_TMUX "$out" \
     --add-flags "-f $out/.config/tmux/tmux.conf"
   '';
 }
