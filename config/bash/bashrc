@@ -1,5 +1,5 @@
-[ -f "$OUT/.config/shell/xdg.sh" ] && source "$OUT/.config/shell/xdg.sh"
-[ -f "$OUT/.config/shell/variables.sh" ] && source "$OUT/.config/shell/variables.sh"
+[ -f "$NIX_OUT_SHELL/.config/shell/xdg.sh" ] && source "$NIX_OUT_SHELL/.config/shell/xdg.sh"
+[ -f "$NIX_OUT_SHELL/.config/shell/variables.sh" ] && source "$NIX_OUT_SHELL/.config/shell/variables.sh"
 
 # disable bold in the ls command output
 # LS_COLORS=${LS_COLORS//01;/00;}
@@ -8,7 +8,7 @@
 
 export HISTFILE="${XDG_STATE_HOME}"/bash/history
 
-# source "$OUT/.config/shell/scripts/ssh-agent.sh"
+# source "$NIX_OUT_SHELL/.config/shell/scripts/ssh-agent.sh"
 
 # # Show completion options on first Tab, cycle through on second Tab
 # bind 'set show-all-if-ambiguous on'
@@ -27,10 +27,10 @@ for i in "-" {0..9}; do bind -r "\e$i"; done
 # unbind ctrl-s and ctrl-q (terminal scroll lock)
 stty -ixon
 
-[ -f "$OUT/.config/shell/aliases.sh" ] && source "$OUT/.config/shell/aliases.sh"
+[ -f "$NIX_OUT_SHELL/.config/shell/aliases.sh" ] && source "$NIX_OUT_SHELL/.config/shell/aliases.sh"
 
-if [ -d "$OUT/.config/shell/functions" ]; then
-  for file in "$OUT/.config/shell/functions"/*.sh; do
+if [ -d "$NIX_OUT_SHELL/.config/shell/functions" ]; then
+  for file in "$NIX_OUT_SHELL/.config/shell/functions"/*.sh; do
     . "$file"
   done
 fi
