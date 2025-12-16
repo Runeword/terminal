@@ -121,7 +121,7 @@
             pkgs.shellcheck
             pkgs.taplo
             (pkgs.writeShellScriptBin "dev" ''
-              TERM_CONFIG_DIR="$PWD/config" nix run .#dev --impure "$@"
+              TERM_CONFIG_DIR="$PWD" nix run .#dev --impure "$@"
             '')
             (pkgs.writeShellScriptBin "h" ''
               echo "type 'dev' to run alacritty in development mode"
