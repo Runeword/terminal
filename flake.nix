@@ -27,7 +27,7 @@
             config.allowUnfree = true;
             overlays = [
               (import ./overlays/lib.nix {
-                rootStr = if configPath != null then configPath else toString ./.;
+                rootStr = if configPath != null then configPath else toString ./config;
                 inherit self;
               })
               (final: prev: {
@@ -69,7 +69,7 @@
 
         alacritty-dev =
           {
-            configPath ? builtins.getEnv "TERMINAL_ROOT",
+            configPath ? builtins.getEnv "TERMINAL_CONFIG_DIR",
           }:
           let
             devPkgs = mkPkgs configPath;
@@ -87,7 +87,7 @@
 
         tools-dev =
           {
-            configPath ? builtins.getEnv "TERMINAL_ROOT",
+            configPath ? builtins.getEnv "TERMINAL_CONFIG_DIR",
           }:
           let
             devPkgs = mkPkgs configPath;
@@ -121,7 +121,7 @@
             pkgs.shellcheck
             pkgs.taplo
             (pkgs.writeShellScriptBin "dev" ''
-              TERMINAL_ROOT="$PWD" nix run .#dev --impure "$@"
+              TERMINAL_CONFIG_DIR="$PWD/config" nix run .#dev --impure "$@"
             '')
             (pkgs.writeShellScriptBin "h" ''
               echo "type 'dev' to run alacritty in development mode"
