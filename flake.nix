@@ -12,7 +12,99 @@
       nixpkgs-24-05,
       flake-utils,
     }:
-    flake-utils.lib.eachDefaultSystem (
+    {
+      homeManagerModules.default =
+        {
+          config,
+          lib,
+          pkgs,
+          ...
+        }:
+        let
+          cfg = config.programs.terminal;
+          system = pkgs.stdenv.hostPlatform.system;
+
+          # Import build functions
+          pkgs-24-05 = import nixpkgs-24-05 {
+            inherit system;
+            config.allowUnfree = true;
+          };
+
+          mkPkgs =
+            configPath:
+            import nixpkgs {
+              inherit system;
+              config.allowUnfree = true;
+              overlays = [
+                (import ./overlays/lib.nix {
+                  rootStr = if configPath != null then configPath else toString ./config;
+                  inherit self;
+                })
+                (final: prev: {
+                  awscli2 = pkgs-24-05.awscli2;
+                })
+              ];
+            };
+
+          mkExtraPackages =
+            pkgs: useLink: configRoot:
+            let
+              mkConfig = pkgs.lib.mkConfig useLink configRoot;
+            in
+            (import ./packages/commons.nix { inherit pkgs; })
+            ++ (
+              if pkgs.stdenv.isDarwin then
+                (import ./packages/darwin.nix { inherit pkgs system; })
+              else
+                (import ./packages/linux.nix { inherit pkgs system; })
+            )
+            ++ [
+              (import ./wrappers/zsh.nix { inherit pkgs mkConfig; })
+              (import ./wrappers/tmux.nix { inherit pkgs mkConfig; })
+              (import ./wrappers/bat.nix { inherit pkgs mkConfig; })
+              (import ./wrappers/fd.nix { inherit pkgs mkConfig; })
+              (import ./wrappers/ripgrep.nix { inherit pkgs mkConfig; })
+              (import ./wrappers/bash.nix { inherit pkgs mkConfig; })
+              (import ./wrappers/starship.nix { inherit pkgs mkConfig; })
+              (import ./wrappers/delta.nix { inherit pkgs mkConfig; })
+            ];
+
+          buildTerminal =
+            configPath:
+            let
+              termPkgs = mkPkgs configPath;
+              useLink = configPath != null;
+            in
+            import ./wrappers/alacritty.nix {
+              pkgs = termPkgs;
+              extraPackages = mkExtraPackages termPkgs useLink configPath;
+              mkConfig = termPkgs.lib.mkConfig useLink configPath;
+            };
+        in
+        {
+          options.programs.terminal = {
+            enable = lib.mkEnableOption "terminal configuration";
+
+            package = lib.mkOption {
+              type = lib.types.package;
+              description = "The terminal package to use. Automatically set based on configPath.";
+            };
+
+            configPath = lib.mkOption {
+              type = lib.types.nullOr lib.types.path;
+              default = null;
+              description = "Path to terminal config directory. If null, uses bundled config.";
+              example = "\${config.home.homeDirectory}/terminal/config";
+            };
+          };
+
+          config = lib.mkIf cfg.enable {
+            programs.terminal.package = lib.mkDefault (buildTerminal cfg.configPath);
+            home.packages = [ cfg.package ];
+          };
+        };
+    }
+    // flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs-24-05 = import nixpkgs-24-05 {
@@ -112,32 +204,8 @@
         apps.dev.program = "${alacritty-dev { }}/bin/alacritty";
         packages.dev = alacritty-dev { };
 
-        # Home Manager module
-        homeManagerModules.default =
-          { config, lib, ... }:
-          {
-            options.programs.terminal = {
-              enable = lib.mkEnableOption "terminal configuration";
-
-              configPath = lib.mkOption {
-                type = lib.types.nullOr lib.types.path;
-                default = null;
-                description = "Path to terminal config directory. If null, uses bundled config.";
-                example = "\${config.home.homeDirectory}/terminal/config";
-              };
-            };
-
-            config = lib.mkIf config.programs.terminal.enable {
-              home.packages = [
-                (
-                  if config.programs.terminal.configPath != null then
-                    alacritty-dev { configPath = config.programs.terminal.configPath; }
-                  else
-                    alacritty
-                )
-              ];
-            };
-          };
+        # Export alacritty-dev function for home-manager module
+        lib.mkTerminalDev = alacritty-dev;
 
         devShells.default = pkgs.mkShell {
           buildInputs = [
