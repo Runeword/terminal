@@ -69,7 +69,7 @@
 
         alacritty-dev =
           {
-            configPath ? builtins.getEnv "TERM_CONFIG_DIR",
+            configPath ? builtins.getEnv "TERMINAL_ROOT",
           }:
           let
             devPkgs = mkPkgs configPath;
@@ -87,7 +87,7 @@
 
         tools-dev =
           {
-            configPath ? builtins.getEnv "TERM_CONFIG_DIR",
+            configPath ? builtins.getEnv "TERMINAL_ROOT",
           }:
           let
             devPkgs = mkPkgs configPath;
@@ -121,7 +121,7 @@
             pkgs.shellcheck
             pkgs.taplo
             (pkgs.writeShellScriptBin "dev" ''
-              TERM_CONFIG_DIR="$PWD" nix run .#dev --impure "$@"
+              TERMINAL_ROOT="$PWD" nix run .#dev --impure "$@"
             '')
             (pkgs.writeShellScriptBin "h" ''
               echo "type 'dev' to run alacritty in development mode"
