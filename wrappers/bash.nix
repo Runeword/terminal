@@ -12,7 +12,7 @@ pkgs.symlinkJoin {
 
     wrapProgram $out/bin/bash \
       --add-flags "--rcfile $out/.config/bash/.bashrc" \
-      --set OUT "$out" \
+      --set NIX_OUT_SHELL "$out" \
       --set INPUTRC "$out/.config/readline/inputrc" \
       --set DIRENV_CONFIG "$out/.config/direnv"
   '';
