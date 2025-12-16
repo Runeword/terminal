@@ -16,9 +16,6 @@ final: prev: {
 
     mkConfig =
       useLink: configRoot: path: target:
-      if useLink then
-        final.lib.mkLink ("config/" + path) target
-      else
-        final.lib.mkCopy "${configRoot}/${path}" target;
+      if useLink then final.lib.mkLink path target else final.lib.mkCopy "${configRoot}/${path}" target;
   };
 }
