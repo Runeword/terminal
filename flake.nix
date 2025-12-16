@@ -110,8 +110,34 @@
         # Dev mode
         apps.dev.type = "app";
         apps.dev.program = "${alacritty-dev { }}/bin/alacritty";
-        packages.dev.default = alacritty-dev { };
-        packages.dev.options = alacritty-dev;
+        packages.dev = alacritty-dev { };
+
+        # Home Manager module
+        homeManagerModules.default =
+          { config, lib, ... }:
+          {
+            options.programs.terminal = {
+              enable = lib.mkEnableOption "terminal configuration";
+
+              configPath = lib.mkOption {
+                type = lib.types.nullOr lib.types.path;
+                default = null;
+                description = "Path to terminal config directory. If null, uses bundled config.";
+                example = "\${config.home.homeDirectory}/terminal/config";
+              };
+            };
+
+            config = lib.mkIf config.programs.terminal.enable {
+              home.packages = [
+                (
+                  if config.programs.terminal.configPath != null then
+                    alacritty-dev { configPath = config.programs.terminal.configPath; }
+                  else
+                    alacritty
+                )
+              ];
+            };
+          };
 
         devShells.default = pkgs.mkShell {
           buildInputs = [
