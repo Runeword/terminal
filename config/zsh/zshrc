@@ -60,8 +60,8 @@ __add_newline() {
 add-zsh-hook precmd __add_newline
 
 # ------------------------------------ ENV variables
-[ -f "$OUT/.config/shell/xdg.sh" ] && source "$OUT/.config/shell/xdg.sh"
-[ -f "$OUT/.config/shell/variables.sh" ] && source "$OUT/.config/shell/variables.sh"
+[ -f "$NIX_OUT_SHELL/.config/shell/xdg.sh" ] && source "$NIX_OUT_SHELL/.config/shell/xdg.sh"
+[ -f "$NIX_OUT_SHELL/.config/shell/variables.sh" ] && source "$NIX_OUT_SHELL/.config/shell/variables.sh"
 
 command -v dircolors >/dev/null 2>&1 && eval "$(dircolors -b)"
 
@@ -76,10 +76,10 @@ setopt SHARE_HISTORY
 setopt INC_APPEND_HISTORY
 export HISTORY_IGNORE="(! *)"
 
-# source "$OUT/.config/shell/scripts/ssh-agent.sh"
-# source "$OUT"/zsh-autosuggestions/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-source "$OUT"/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-# source "$OUT/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh"
+# source "$NIX_OUT_SHELL/.config/shell/scripts/ssh-agent.sh"
+# source "$NIX_OUT_SHELL"/zsh-autosuggestions/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+source "$NIX_OUT_SHELL"/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+# source "$NIX_OUT_SHELL/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh"
 
 # zstyle ':completion:*' cache-path "$XDG_CACHE_HOME/zsh/zcompcache"
 # compinit -d "$XDG_CACHE_HOME/zsh/zcompdump-$ZSH_VERSION"
@@ -196,7 +196,7 @@ __autosuggest_accept() {
 # bindkey -M menuselect '\r' .accept-line
 # bindkey -M menuselect ' ' undo
 
-[ -f "$OUT/.config/shell/aliases.sh" ] && source "$OUT/.config/shell/aliases.sh"
+[ -f "$NIX_OUT_SHELL/.config/shell/aliases.sh" ] && source "$NIX_OUT_SHELL/.config/shell/aliases.sh"
 
 # ------------------------------------ NVM
 export NVM_DIR="$HOME/.nvm"
@@ -204,8 +204,8 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
 
 # ------------------------------------ Functions
-if [ -d "$OUT/.config/shell/functions" ]; then
-  for file in "$OUT/.config/shell/functions"/*.sh; do
+if [ -d "$NIX_OUT_SHELL/.config/shell/functions" ]; then
+  for file in "$NIX_OUT_SHELL/.config/shell/functions"/*.sh; do
     . "$file"
   done
 fi
@@ -282,12 +282,12 @@ __aliases_() {
     fi
 }
 
-__aliases_or_space() { __on_empty_buffer "__aliases --prefix ' ' --file $OUT/.config/shell/functions/leader-aliases" "LBUFFER+=' '; zle autosuggest-fetch"; }
+__aliases_or_space() { __on_empty_buffer "__aliases --prefix ' ' --file $NIX_OUT_SHELL/.config/shell/functions/leader-aliases" "LBUFFER+=' '; zle autosuggest-fetch"; }
 # __aliases_or_space() { __aliases_; }
 zle -N __aliases_or_space
 bindkey "${KEYS[SPACE]}" __aliases_or_space
 
-__aliases_or_enter() { __on_empty_buffer "__aliases --prefix '^M' --file $OUT/.config/shell/functions/leader-aliases" 'zle accept-line'; }
+__aliases_or_enter() { __on_empty_buffer "__aliases --prefix '^M' --file $NIX_OUT_SHELL/.config/shell/functions/leader-aliases" 'zle accept-line'; }
 zle -N __aliases_or_enter
 bindkey "${KEYS[ENTER]}" __aliases_or_enter
 
@@ -438,7 +438,7 @@ bindkey "${KEYS[SHIFT_ESCAPE]}" __ls_or_shift_escape
 # zle -N __yazi
 # bindkey '^[' __yazi
 
-# __git_widget() { __on_empty_buffer "__aliases --prefix g --file $OUT/.config/shell/functions/git-aliases" 'LBUFFER+=g; zle reset-prompt; zle autosuggest-fetch'; }
+# __git_widget() { __on_empty_buffer "__aliases --prefix g --file $NIX_OUT_SHELL/.config/shell/functions/git-aliases" 'LBUFFER+=g; zle reset-prompt; zle autosuggest-fetch'; }
 
 # zle -N __git_widget
 # bindkey 'g' __git_widget
