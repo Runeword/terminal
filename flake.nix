@@ -120,18 +120,17 @@
           };
       in
       {
-        packages.tools = tools;
-        packages.toolsDev = tools-dev { };
-
         # Bundled mode
         apps.default.type = "app";
         apps.default.program = "${alacritty}/bin/alacritty";
         packages.default = alacritty;
+        packages.tools = tools;
 
         # Dev mode
         apps.dev.type = "app";
         apps.dev.program = "${alacritty-dev { }}/bin/alacritty";
         packages.dev = alacritty-dev { };
+        packages.toolsDev = tools-dev { };
 
         devShells.default = import ./devshell.nix { inherit pkgs; };
       }
