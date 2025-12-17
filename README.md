@@ -14,8 +14,7 @@ git clone git@github.com:Runeword/terminal.git && \
 cd terminal && nix develop && dev
 ```
 
-### 2. Home-manager install
-Install the `dev` package with home-manager :
+### 2. Home-manager module
 
 `flake.nix`
 ```nix
@@ -24,11 +23,12 @@ inputs.runeword-terminal.url = "github:Runeword/terminal";
 
 `home.nix`
 ```nix
-home.packages = [
-    (inputs.runeword-terminal.packages.${pkgs.stdenv.hostPlatform.system}.dev.options {
-        configPath = "${config.home.homeDirectory}/terminal/config";
-    })
+imports = [
+  inputs.runeword-terminal.homeManagerModules.default
 ];
+
+programs.terminal.enable = true;
+programs.terminal.configPath = "${config.home.homeDirectory}/terminal/config";
 ```
 
 ## Bundled mode
@@ -45,8 +45,7 @@ Run the `default` app :
 nix run "github:Runeword/terminal"
 ```
 
-### 2. Home-manager install
-Install the `default` package with home-manager :
+### 2. Home-manager module
 
 `flake.nix`
 ```nix
@@ -55,7 +54,9 @@ inputs.runeword-terminal.url = "github:Runeword/terminal";
 
 `home.nix`
 ```nix
-home.packages = [
-  inputs.runeword-terminal.packages.${pkgs.system}.default
+imports = [
+  inputs.runeword-terminal.homeManagerModules.default
 ];
+
+programs.terminal.enable = true;
 ```
