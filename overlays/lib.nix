@@ -1,4 +1,4 @@
-{ rootStr, self }:
+{ rootStr, self, useLink, configRoot }:
 
 final: prev: {
   lib = prev.lib // {
@@ -15,7 +15,7 @@ final: prev: {
     '';
 
     mkConfig =
-      useLink: configRoot: path: target:
+      path: target:
       if useLink then final.lib.mkLink path target else final.lib.mkCopy "${configRoot}/${path}" target;
   };
 }
