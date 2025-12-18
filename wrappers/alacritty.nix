@@ -1,7 +1,6 @@
 {
   pkgs,
   extraPackages,
-  mkConfig,
 }:
 let
   fonts = pkgs.lib.optionals (!pkgs.stdenv.isDarwin) [
@@ -15,7 +14,7 @@ pkgs.runCommand "alacritty"
     nativeBuildInputs = [ pkgs.makeWrapper ];
   }
   ''
-    ${mkConfig "alacritty" ".config/alacritty"}
+    ${pkgs.lib.mkConfig "alacritty" ".config/alacritty"}
 
     # use makeWrapper instead of wrapProgram to preserve the original process name 'alacritty'
     # wrapProgram would have named it alacritty-wrapped instead
