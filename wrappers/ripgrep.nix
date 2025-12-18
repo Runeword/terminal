@@ -1,12 +1,12 @@
-{ pkgs, mkConfig }:
+{ pkgs }:
 
 pkgs.symlinkJoin {
   name = "ripgrep-with-config";
   paths = [ pkgs.ripgrep ];
   nativeBuildInputs = [ pkgs.makeWrapper ];
   postBuild = ''
-    ${mkConfig "ignore" ".config/ignore"}
-    ${mkConfig "ripgrep/ripgreprc" ".config/ripgrep/ripgreprc"}
+    ${pkgs.lib.mkConfig "ignore" ".config/ignore"}
+    ${pkgs.lib.mkConfig "ripgrep/ripgreprc" ".config/ripgrep/ripgreprc"}
 
     wrapProgram $out/bin/rg \
       --set RIPGREP_CONFIG_PATH "$out/.config/ripgrep/ripgreprc" \
