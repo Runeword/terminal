@@ -19,11 +19,3 @@ pkgs.symlinkJoin {
     --add-flags "-f $out/.config/tmux/tmux.conf"
   '';
 }
-
-# ${pkgs.lib.mkCopy ./../../config/tmux/tmux.conf ".config/tmux/tmux.conf"}
-# ${pkgs.lib.mkCopy ./../../config/shell/functions/tmux.sh ".config/shell/functions/tmux.sh"}
-# ${pkgs.lib.mkCopy "${pkgs.tmuxPlugins.resurrect}/share/tmux-plugins/resurrect" ".config/tmux/plugins/resurrect"}
-
-# ${pkgs.lib.mkCopy (pkgs.lib.cleanSource ./../../config/tmux/tmux.conf) ".config/tmux/tmux.conf"}
-# ${pkgs.lib.mkCopy (pkgs.lib.cleanSource ./../../config/shell/functions/tmux.sh) ".config/shell/functions/tmux.sh"}
-# ${pkgs.lib.mkCopy "${pkgs.tmuxPlugins.resurrect}/share/tmux-plugins/resurrect" ".config/tmux/plugins/resurrect"}
