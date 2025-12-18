@@ -23,13 +23,17 @@
 
           mkPkgs =
             configPath:
+            let
+              useLink = configPath != null;
+              configRoot = if configPath != null then configPath else toString ./config;
+            in
             import nixpkgs {
               inherit system;
               config.allowUnfree = true;
               overlays = [
                 (import ./overlays/lib.nix {
-                  rootStr = if configPath != null then configPath else toString ./config;
-                  inherit self;
+                  rootStr = configRoot;
+                  inherit self useLink configRoot;
                 })
                 (final: prev: {
                   awscli2 = pkgs-24-05.awscli2;
@@ -38,10 +42,7 @@
             };
 
           mkExtraPackages =
-            pkgs: useLink: configRoot:
-            let
-              mkConfig = pkgs.lib.mkConfig useLink configRoot;
-            in
+            pkgs:
             (import ./packages/commons.nix { inherit pkgs; })
             ++ (
               if pkgs.stdenv.isDarwin then
@@ -50,27 +51,24 @@
                 (import ./packages/linux.nix { inherit pkgs system; })
             )
             ++ [
-              (import ./wrappers/zsh.nix { inherit pkgs mkConfig; })
-              (import ./wrappers/tmux.nix { inherit pkgs mkConfig; })
-              (import ./wrappers/bat.nix { inherit pkgs mkConfig; })
-              (import ./wrappers/fd.nix { inherit pkgs mkConfig; })
-              (import ./wrappers/ripgrep.nix { inherit pkgs mkConfig; })
-              (import ./wrappers/bash.nix { inherit pkgs mkConfig; })
-              (import ./wrappers/starship.nix { inherit pkgs mkConfig; })
-              (import ./wrappers/delta.nix { inherit pkgs mkConfig; })
+              (import ./wrappers/zsh.nix { inherit pkgs; })
+              (import ./wrappers/tmux.nix { inherit pkgs; })
+              (import ./wrappers/bat.nix { inherit pkgs; })
+              (import ./wrappers/fd.nix { inherit pkgs; })
+              (import ./wrappers/ripgrep.nix { inherit pkgs; })
+              (import ./wrappers/bash.nix { inherit pkgs; })
+              (import ./wrappers/starship.nix { inherit pkgs; })
+              (import ./wrappers/delta.nix { inherit pkgs; })
             ];
 
           buildTerminal =
             configPath:
             let
               termPkgs = mkPkgs configPath;
-              useLink = configPath != null;
-              configRoot = if configPath != null then configPath else ./config;
             in
             import ./wrappers/alacritty.nix {
               pkgs = termPkgs;
-              extraPackages = mkExtraPackages termPkgs useLink configRoot;
-              mkConfig = termPkgs.lib.mkConfig useLink configRoot;
+              extraPackages = mkExtraPackages termPkgs;
             };
         in
         {
@@ -91,7 +89,7 @@
         inherit (build) mkPkgs mkExtraPackages;
 
         pkgs = mkPkgs null;
-        extraPackages = mkExtraPackages pkgs false ./config; # Bundled mode: copy config into store
+        extraPackages = mkExtraPackages pkgs; # Bundled mode: copy config into store
 
         alacritty = build.buildTerminal null;
 
@@ -112,7 +110,7 @@
           }:
           let
             devPkgs = mkPkgs configPath;
-            devExtraPackages = mkExtraPackages devPkgs true configPath;
+            devExtraPackages = mkExtraPackages devPkgs;
           in
           pkgs.buildEnv {
             name = "tools-dev";
