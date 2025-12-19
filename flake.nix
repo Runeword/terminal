@@ -13,19 +13,6 @@
       flake-utils,
     }:
     let
-      mkWrappers =
-        pkgs:
-        map (path: import path { inherit pkgs; }) [
-          ./wrappers/zsh.nix
-          ./wrappers/tmux.nix
-          ./wrappers/bat.nix
-          ./wrappers/fd.nix
-          ./wrappers/ripgrep.nix
-          ./wrappers/bash.nix
-          ./wrappers/starship.nix
-          ./wrappers/delta.nix
-        ];
-
       mkBuildFunctions =
         system:
         let
@@ -57,7 +44,7 @@
           mkExtraPackages =
             pkgs:
             import ./packages { inherit pkgs system; }
-            ++ mkWrappers pkgs;
+            ++ import ./wrappers { inherit pkgs; };
 
           buildTerminal =
             configPath:
