@@ -13,6 +13,19 @@
       flake-utils,
     }:
     let
+      mkWrappers =
+        pkgs:
+        map (path: import path { inherit pkgs; }) [
+          ./wrappers/zsh.nix
+          ./wrappers/tmux.nix
+          ./wrappers/bat.nix
+          ./wrappers/fd.nix
+          ./wrappers/ripgrep.nix
+          ./wrappers/bash.nix
+          ./wrappers/starship.nix
+          ./wrappers/delta.nix
+        ];
+
       mkBuildFunctions =
         system:
         let
@@ -43,23 +56,8 @@
 
           mkExtraPackages =
             pkgs:
-            (import ./packages/commons.nix { inherit pkgs; })
-            ++ (
-              if pkgs.stdenv.isDarwin then
-                (import ./packages/darwin.nix { inherit pkgs system; })
-              else
-                (import ./packages/linux.nix { inherit pkgs system; })
-            )
-            ++ [
-              (import ./wrappers/zsh.nix { inherit pkgs; })
-              (import ./wrappers/tmux.nix { inherit pkgs; })
-              (import ./wrappers/bat.nix { inherit pkgs; })
-              (import ./wrappers/fd.nix { inherit pkgs; })
-              (import ./wrappers/ripgrep.nix { inherit pkgs; })
-              (import ./wrappers/bash.nix { inherit pkgs; })
-              (import ./wrappers/starship.nix { inherit pkgs; })
-              (import ./wrappers/delta.nix { inherit pkgs; })
-            ];
+            import ./packages { inherit pkgs system; }
+            ++ mkWrappers pkgs;
 
           buildTerminal =
             configPath:
