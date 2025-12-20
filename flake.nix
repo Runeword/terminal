@@ -25,7 +25,10 @@
             import nixpkgs {
               inherit system;
               config.allowUnfree = true;
-              overlays = import ./overlays { inherit configPath pkgs-24-05; };
+              overlays = import ./overlays {
+                inherit configPath pkgs-24-05;
+                defaultConfigRoot = toString ./config;
+              };
             };
 
           mkExtraPackages =
