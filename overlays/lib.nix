@@ -1,11 +1,11 @@
-{ rootStr, self, useLink, configRoot }:
+{ configRoot, useLink }:
 
 final: prev: {
   lib = prev.lib // {
     mkLink = sourceStr: targetStr: ''
       mkdir -p $(dirname $out/${prev.lib.escapeShellArg targetStr})
       ln -sf ${
-        prev.lib.escapeShellArg (rootStr + "/" + sourceStr)
+        prev.lib.escapeShellArg (configRoot + "/" + sourceStr)
       } $out/${prev.lib.escapeShellArg targetStr}
     '';
 
