@@ -21,8 +21,7 @@
             config.allowUnfree = true;
           };
 
-          mkPkgs =
-            configPath:
+          mkPkgs = configPath:
             let
               useLink = configPath != null;
               configRoot = if configPath != null then configPath else toString ./config;
@@ -30,15 +29,7 @@
             import nixpkgs {
               inherit system;
               config.allowUnfree = true;
-              overlays = [
-                (import ./overlays/lib.nix {
-                  rootStr = configRoot;
-                  inherit self useLink configRoot;
-                })
-                (final: prev: {
-                  awscli2 = pkgs-24-05.awscli2;
-                })
-              ];
+              overlays = import ./overlays { inherit configRoot useLink pkgs-24-05; };
             };
 
           mkExtraPackages =
