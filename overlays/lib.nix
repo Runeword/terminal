@@ -1,9 +1,9 @@
-{ configPath }:
+{ configPath, defaultConfigRoot }:
 
 final: prev:
 let
   useLink = configPath != null;
-  configRoot = if configPath != null then configPath else toString ../../config;
+  configRoot = if configPath != null then configPath else defaultConfigRoot;
 in
 {
   lib = prev.lib // {
