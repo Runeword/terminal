@@ -1,6 +1,11 @@
-{ configRoot, useLink }:
+{ configPath }:
 
-final: prev: {
+final: prev:
+let
+  useLink = configPath != null;
+  configRoot = if configPath != null then configPath else toString ../../config;
+in
+{
   lib = prev.lib // {
     mkLink = sourceStr: targetStr: ''
       mkdir -p $(dirname $out/${prev.lib.escapeShellArg targetStr})
