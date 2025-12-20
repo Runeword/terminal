@@ -22,14 +22,10 @@
           };
 
           mkPkgs = configPath:
-            let
-              useLink = configPath != null;
-              configRoot = if configPath != null then configPath else toString ./config;
-            in
             import nixpkgs {
               inherit system;
               config.allowUnfree = true;
-              overlays = import ./overlays { inherit configRoot useLink pkgs-24-05; };
+              overlays = import ./overlays { inherit configPath pkgs-24-05; };
             };
 
           mkExtraPackages =
