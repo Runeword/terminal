@@ -1,14 +1,14 @@
-{ pkgs }:
+{ pkgs, files }:
 
 pkgs.symlinkJoin {
   name = "bash-with-config";
   paths = [ pkgs.bash ];
   nativeBuildInputs = [ pkgs.makeWrapper ];
   postBuild = ''
-    ${pkgs.lib.mkConfig "bash/bashrc" ".config/bash/.bashrc"}
-    ${pkgs.lib.mkConfig "shell" ".config/shell"}
-    ${pkgs.lib.mkConfig "readline" ".config/readline"}
-    ${pkgs.lib.mkConfig "direnv" ".config/direnv"}
+    ${files.sync "bash/bashrc" ".config/bash/.bashrc"}
+    ${files.sync "shell" ".config/shell"}
+    ${files.sync "readline" ".config/readline"}
+    ${files.sync "direnv" ".config/direnv"}
 
     wrapProgram $out/bin/bash \
       --add-flags "--rcfile $out/.config/bash/.bashrc" \
