@@ -1,4 +1,4 @@
-{ mkBuildFunctions }:
+{ mkSystemBuild }:
 {
   config,
   lib,
@@ -7,7 +7,7 @@
 }:
 let
   cfg = config.programs.terminal;
-  build = mkBuildFunctions pkgs.stdenv.hostPlatform.system;
+  build = mkSystemBuild pkgs.stdenv.hostPlatform.system;
 in
 {
   options.programs.terminal = {
