@@ -1,5 +1,8 @@
-{ pkgs }:
-map (path: import path { inherit pkgs; }) [
+{ pkgs, configPath }:
+let
+  files = import ../lib/files.nix { inherit pkgs; rootPath = configPath; };
+in
+map (path: import path { inherit pkgs files; }) [
   ./zsh.nix
   ./tmux.nix
   ./bat.nix
