@@ -1,4 +1,4 @@
-{ pkgs }:
+{ pkgs, files }:
 
 pkgs.symlinkJoin {
   name = "zsh-with-config";
@@ -8,10 +8,10 @@ pkgs.symlinkJoin {
   ];
   nativeBuildInputs = [ pkgs.makeWrapper ];
   postBuild = ''
-    ${pkgs.lib.mkConfig "zsh/zshrc" ".config/zsh/.zshrc"}
-    ${pkgs.lib.mkConfig "shell" ".config/shell"}
-    ${pkgs.lib.mkConfig "readline" ".config/readline"}
-    ${pkgs.lib.mkConfig "direnv" ".config/direnv"}
+    ${files.sync "zsh/zshrc" ".config/zsh/.zshrc"}
+    ${files.sync "shell" ".config/shell"}
+    ${files.sync "readline" ".config/readline"}
+    ${files.sync "direnv" ".config/direnv"}
 
     wrapProgram $out/bin/zsh \
       --set ZDOTDIR "$out/.config/zsh" \
