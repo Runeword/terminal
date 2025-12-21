@@ -13,7 +13,30 @@
       flake-utils,
     }:
     let
-      mkBuildFunctions =
+      mkTerminal =
+        pkgs:
+        {
+          configPath ? toString ./config,
+        }:
+        import ./wrappers/alacritty.nix {
+          inherit pkgs;
+          files = import ./lib/files.nix { inherit pkgs; rootPath = configPath; };
+          tools = import ./packages { inherit pkgs configPath; }
+                  ++ import ./wrappers { inherit pkgs configPath; };
+        };
+
+      mkTools =
+        pkgs:
+        {
+          configPath ? toString ./config,
+        }:
+        pkgs.buildEnv {
+          name = "tools";
+          paths = import ./packages { inherit pkgs configPath; }
+                  ++ import ./wrappers { inherit pkgs configPath; };
+        };
+
+      mkSystemBuild =
         system:
         let
           pkgs-24-05 = import nixpkgs-24-05 {
@@ -26,36 +49,17 @@
             config.allowUnfree = true;
             overlays = import ./overlays { inherit pkgs-24-05; };
           };
-
-          mkTerminal =
-            {
-              configPath ? toString ./config,
-            }:
-            import ./wrappers/alacritty.nix {
-              inherit pkgs;
-              files = import ./lib/files.nix { inherit pkgs; rootPath = configPath; };
-              tools = import ./packages { inherit pkgs configPath; }
-                      ++ import ./wrappers { inherit pkgs configPath; };
-            };
-
-          mkTools =
-            {
-              configPath ? toString ./config,
-            }:
-            pkgs.buildEnv {
-              name = "tools";
-              paths = import ./packages { inherit pkgs configPath; }
-                      ++ import ./wrappers { inherit pkgs configPath; };
-            };
         in
         {
-          inherit pkgs mkTerminal mkTools;
+          inherit pkgs;
+          mkTerminal = mkTerminal pkgs;
+          mkTools = mkTools pkgs;
         };
     in
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        build = mkBuildFunctions system;
+        build = mkSystemBuild system;
       in
       {
         # Bundled mode (config copied to store)
@@ -74,6 +78,6 @@
       }
     )
     // {
-      homeManagerModules.default = import ./modules/terminal.nix { inherit mkBuildFunctions; };
+      homeManagerModules.default = import ./modules/terminal.nix { inherit mkSystemBuild; };
     };
 }
