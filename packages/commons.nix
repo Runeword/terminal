@@ -81,6 +81,7 @@ with pkgs; [
   cachix
   devenv
   direnv
+  nix-direnv
 
   # _______________________________ Multimedia
   asciinema # Terminal recorder
