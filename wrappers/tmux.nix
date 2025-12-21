@@ -1,7 +1,7 @@
-{ pkgs }:
+{ pkgs, files }:
 
 let
-  zsh = import ./zsh.nix { inherit pkgs; };
+  zsh = import ./zsh.nix { inherit pkgs files; };
 in
 
 pkgs.symlinkJoin {
@@ -9,9 +9,9 @@ pkgs.symlinkJoin {
   paths = [ pkgs.tmux ];
   nativeBuildInputs = [ pkgs.makeWrapper ];
   postBuild = ''
-    ${pkgs.lib.mkConfig "tmux/tmux.conf" ".config/tmux/tmux.conf"}
-    ${pkgs.lib.mkConfig "shell/functions/tmux.sh" ".config/shell/functions/tmux.sh"}
-    ${pkgs.lib.mkCopy "${pkgs.tmuxPlugins.resurrect}/share/tmux-plugins/resurrect" ".config/tmux/plugins/resurrect"}
+    ${files.sync "tmux/tmux.conf" ".config/tmux/tmux.conf"}
+    ${files.sync "shell/functions/tmux.sh" ".config/shell/functions/tmux.sh"}
+    ${files.copy "${pkgs.tmuxPlugins.resurrect}/share/tmux-plugins/resurrect" ".config/tmux/plugins/resurrect"}
 
     wrapProgram $out/bin/tmux \
     --set TMUX_SHELL ${zsh}/bin/zsh \
