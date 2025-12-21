@@ -1,4 +1,4 @@
-{ pkgs, system }:
+{ pkgs }:
 
 [
   # Add macOS-specific packages here
