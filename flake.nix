@@ -21,91 +21,59 @@
             config.allowUnfree = true;
           };
 
-          mkPkgs = configPath:
-            import nixpkgs {
-              inherit system;
-              config.allowUnfree = true;
-              overlays = import ./overlays {
-                inherit configPath pkgs-24-05;
-                defaultConfigRoot = toString ./config;
-              };
+          pkgs = import nixpkgs {
+            inherit system;
+            config.allowUnfree = true;
+            overlays = import ./overlays { inherit pkgs-24-05; };
+          };
+
+          mkTerminal =
+            {
+              configPath ? toString ./config,
+            }:
+            import ./wrappers/alacritty.nix {
+              inherit pkgs;
+              files = import ./lib/files.nix { inherit pkgs; rootPath = configPath; };
+              tools = import ./packages { inherit pkgs configPath; }
+                      ++ import ./wrappers { inherit pkgs configPath; };
             };
 
-          mkExtraPackages =
-            pkgs:
-            import ./packages { inherit pkgs system; }
-            ++ import ./wrappers { inherit pkgs; };
-
-          buildTerminal =
-            configPath:
-            let
-              termPkgs = mkPkgs configPath;
-            in
-            import ./wrappers/alacritty.nix {
-              pkgs = termPkgs;
-              extraPackages = mkExtraPackages termPkgs;
+          mkTools =
+            {
+              configPath ? toString ./config,
+            }:
+            pkgs.buildEnv {
+              name = "tools";
+              paths = import ./packages { inherit pkgs configPath; }
+                      ++ import ./wrappers { inherit pkgs configPath; };
             };
         in
         {
-          inherit
-            mkPkgs
-            mkExtraPackages
-            buildTerminal
-            ;
+          inherit pkgs mkTerminal mkTools;
         };
     in
-    {
-      homeManagerModules.default = import ./modules/terminal.nix { inherit mkBuildFunctions; };
-    }
-    // flake-utils.lib.eachDefaultSystem (
+    flake-utils.lib.eachDefaultSystem (
       system:
       let
         build = mkBuildFunctions system;
-        inherit (build) mkPkgs mkExtraPackages;
-
-        pkgs = mkPkgs null;
-        extraPackages = mkExtraPackages pkgs; # Bundled mode: copy config into store
-
-        alacritty = build.buildTerminal null;
-
-        alacritty-dev =
-          {
-            configPath ? builtins.getEnv "TERMINAL_CONFIG_DIR",
-          }:
-          build.buildTerminal configPath;
-
-        tools = pkgs.buildEnv {
-          name = "tools";
-          paths = extraPackages;
-        };
-
-        tools-dev =
-          {
-            configPath ? builtins.getEnv "TERMINAL_CONFIG_DIR",
-          }:
-          let
-            devPkgs = mkPkgs configPath;
-            devExtraPackages = mkExtraPackages devPkgs;
-          in
-          pkgs.buildEnv {
-            name = "tools-dev";
-            paths = devExtraPackages;
-          };
       in
       {
-        # Bundled mode
+        # Bundled mode (config copied to store)
         apps.default.type = "app";
-        apps.default.program = "${alacritty}/bin/alacritty";
-        packages.default = alacritty;
-        packages.tools = tools;
+        apps.default.program = "${build.mkTerminal { }}/bin/alacritty";
+        packages.default = build.mkTerminal { };
+        packages.tools = build.mkTools { };
 
-        # Dev mode
+        # Dev mode (config from environment, falls back to default if empty)
         apps.dev.type = "app";
-        apps.dev.program = "${alacritty-dev { }}/bin/alacritty";
-        packages.dev = alacritty-dev { };
-        packages.toolsDev = tools-dev { };
+        apps.dev.program = "${build.mkTerminal { configPath = builtins.getEnv "TERMINAL_CONFIG_DIR"; }}/bin/alacritty";
+        packages.dev = build.mkTerminal { configPath = builtins.getEnv "TERMINAL_CONFIG_DIR"; };
+        packages.toolsDev = build.mkTools { configPath = builtins.getEnv "TERMINAL_CONFIG_DIR"; };
 
-        devShells.default = import ./devshell.nix { inherit pkgs; };
+        devShells.default = import ./devshell.nix { inherit (build) pkgs; };
       }
-    );
+    )
+    // {
+      homeManagerModules.default = import ./modules/terminal.nix { inherit mkBuildFunctions; };
+    };
 }
