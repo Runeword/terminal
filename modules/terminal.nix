@@ -7,8 +7,7 @@
 }:
 let
   cfg = config.programs.terminal;
-  system = pkgs.stdenv.hostPlatform.system;
-  build = mkBuildFunctions system;
+  build = mkBuildFunctions pkgs.stdenv.hostPlatform.system;
 in
 {
   options.programs.terminal = {
@@ -28,7 +27,11 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    programs.terminal.package = lib.mkDefault (build.buildTerminal cfg.configPath);
+    programs.terminal.package = lib.mkDefault (
+      if cfg.configPath != null
+      then build.mkTerminal { configPath = cfg.configPath; }
+      else build.mkTerminal { }
+    );
     home.packages = [ cfg.package ];
   };
 }
