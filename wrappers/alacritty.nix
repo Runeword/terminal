@@ -1,9 +1,11 @@
 {
   pkgs,
   tools,
-  files,
+  configPath,
 }:
 let
+  files = import ../lib/files.nix { inherit pkgs; rootPath = configPath; };
+
   fonts = pkgs.lib.optionals (!pkgs.stdenv.isDarwin) [
     pkgs.nerd-fonts.sauce-code-pro
     pkgs.nerd-fonts.monaspace
