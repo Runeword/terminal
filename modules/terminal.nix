@@ -28,9 +28,10 @@ in
 
   config = lib.mkIf cfg.enable {
     programs.terminal.package = lib.mkDefault (
-      if cfg.configPath != null
-      then build.mkTerminal { configPath = cfg.configPath; }
-      else build.mkTerminal { }
+      if cfg.configPath != null then
+        build.mkTerminal { configPath = cfg.configPath; }
+      else
+        build.mkTerminal { }
     );
     home.packages = [ cfg.package ];
   };
