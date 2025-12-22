@@ -3,6 +3,7 @@
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.nixpkgs-24-05.url = "github:NixOS/nixpkgs/nixos-24.05";
+
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
   outputs =
@@ -20,8 +21,8 @@
         }:
         import ./wrappers/alacritty.nix {
           inherit pkgs configPath;
-          tools = import ./packages { inherit pkgs configPath; }
-                  ++ import ./wrappers { inherit pkgs configPath; };
+          tools =
+            import ./packages { inherit pkgs configPath; } ++ import ./wrappers { inherit pkgs configPath; };
         };
 
       mkTools =
@@ -31,8 +32,8 @@
         }:
         pkgs.buildEnv {
           name = "tools";
-          paths = import ./packages { inherit pkgs configPath; }
-                  ++ import ./wrappers { inherit pkgs configPath; };
+          paths =
+            import ./packages { inherit pkgs configPath; } ++ import ./wrappers { inherit pkgs configPath; };
         };
 
       mkSystemBuild =
@@ -69,7 +70,9 @@
 
         # Dev mode
         apps.dev.type = "app";
-        apps.dev.program = "${build.mkTerminal { configPath = builtins.getEnv "TERMINAL_CONFIG_DIR"; }}/bin/alacritty";
+        apps.dev.program = "${
+          build.mkTerminal { configPath = builtins.getEnv "TERMINAL_CONFIG_DIR"; }
+        }/bin/alacritty";
         packages.dev = build.mkTerminal { configPath = builtins.getEnv "TERMINAL_CONFIG_DIR"; };
         packages.devTools = build.mkTools { configPath = builtins.getEnv "TERMINAL_CONFIG_DIR"; };
 
