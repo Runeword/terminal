@@ -1,6 +1,6 @@
 #!/bin/sh
 
-_GIT_PAGER="\$(git config core.pager || echo cat)"
+_GIT_PAGER='$(git config core.pager || echo cat)'
 
 __git_clone() {
   local repo_url="${2:-$(wl-paste)}" # Use clipboard content if no URL is provided
@@ -27,9 +27,9 @@ __git_open_url() {
   local FINAL_URL
   FINAL_URL="${REPO_URL}/${1:-tree}/${BRANCH}"
 
-  if command -v xdg-open > /dev/null 2>&1; then
-    (nohup xdg-open "$FINAL_URL" > /dev/null 2>&1 &)
-  elif command -v open > /dev/null 2>&1; then
+  if command -v xdg-open >/dev/null 2>&1; then
+    (nohup xdg-open "$FINAL_URL" >/dev/null 2>&1 &)
+  elif command -v open >/dev/null 2>&1; then
     open -a "$BROWSER" "$FINAL_URL"
   else
     return 1
@@ -65,21 +65,21 @@ __git_open_all() {
   local list_files="git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard"
   local repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" \"$EDITOR\" "$preview"
+  __git_fzf_cmd "$list_files" \""$EDITOR"\" "$preview"
 }
 
 __git_open_unstaged() {
   local list_files="git ls-files --others --exclude-standard --modified"
   local repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" \"$EDITOR\" "$preview"
+  __git_fzf_cmd "$list_files" \""$EDITOR"\" "$preview"
 }
 
 __git_open_staged() {
   local list_files="git diff --name-only --cached"
   local repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" \"$EDITOR\" "$preview"
+  __git_fzf_cmd "$list_files" \""$EDITOR"\" "$preview"
 }
 
 __git_unstage() {
@@ -112,15 +112,15 @@ __git_rm_untracked() {
 
 __git_ignore() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
-  
+
   local action="${1:-open}"
   local cmd
-  
+
   case "$action" in
     open)
       cmd="$EDITOR"
       ;;
-    remove|rm)
+    remove | rm)
       cmd="rm --"
       ;;
     *)
@@ -128,7 +128,7 @@ __git_ignore() {
       return 1
       ;;
   esac
-  
+
   local list_files="git status --ignored --porcelain | grep '^!!' | cut -c4-"
   local repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
@@ -145,7 +145,7 @@ __git_diff() {
   local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
   local preview_cmd="if $is_tracked; then $tracked_diff; else $untracked_diff; fi"
   local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" \"$EDITOR\" "$preview"
+  __git_fzf_cmd "$list_files" \""$EDITOR"\" "$preview"
 }
 
 __git_reset_soft() {
@@ -155,7 +155,7 @@ __git_reset_soft() {
   local commit
   commit=$(sh -c "$list_commits" | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
 
-  if [ -n "$commit" ]; then
+  if [ "$commit" != "" ]; then
     git reset --soft "$commit"^
   fi
 }
@@ -166,7 +166,7 @@ __git_open_commits() {
   local fzf_args="--multi --reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
   commits=$(sh -c "$list_commits" | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
 
-  if [ -n "$commits" ]; then
+  if [ "$commits" != "" ]; then
     echo "$commits" | xargs git show --name-only --pretty=format: | sort -u | grep -v '^$' | xargs "$EDITOR"
   fi
 }
@@ -178,7 +178,7 @@ __git_install_lefthook() {
   local available_configs
   available_configs=$(curl -s "$api_url" | grep -o '"name": "[^"]*\.yml"' | grep -v '"name": "lefthook.yml"' | cut -d'"' -f4)
 
-  if [ -z "$available_configs" ]; then
+  if [ "$available_configs" = "" ]; then
     echo "Failed to fetch available configs from repository"
     return 1
   fi
@@ -189,13 +189,13 @@ __git_install_lefthook() {
   local selected_configs
   selected_configs=$(echo "$available_configs" | sh -c "fzf $fzf_args $preview")
 
-  if [ -n "$selected_configs" ]; then
+  if [ "$selected_configs" != "" ]; then
     {
       echo "remotes:"
       echo "  - git_url: $repo_url"
       echo "    configs:"
       echo "$selected_configs" | sed 's/^/      - /'
-    } > lefthook.yml
+    } >lefthook.yml
     lefthook install
   fi
 }
@@ -224,7 +224,7 @@ __git_diff_branches() {
   local selected_branches
   selected_branches=$(sh -c "$list_branches" | sh -c "fzf $fzf_args $preview")
 
-  if [ -z "$selected_branches" ]; then
+  if [ "$selected_branches" = "" ]; then
     echo "Select 1 or 2 branches"
     return 1
   fi
@@ -259,7 +259,7 @@ __git_worktree_add() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
   local current_dir
-  current_dir=$(pwd)
+  current_dir=$PWD
 
   local dir_name=$(basename "$current_dir")
   local current_branch=$(git rev-parse --abbrev-ref HEAD)
@@ -271,11 +271,11 @@ __git_worktree_add() {
 
   local list_branches="git branch --all --format='%(refname:short)' | grep -v '^HEAD'"
 
-  if [ -n "$checked_out_branches" ]; then
+  if [ "$checked_out_branches" != "" ]; then
     while IFS= read -r branch; do
       list_branches="$list_branches | grep -v '^$branch\$'"
     done <<EOF
-$checked_out_branches
+"$checked_out_branches"
 EOF
   fi
 
@@ -285,7 +285,7 @@ EOF
   local branch
   branch=$(sh -c "$list_branches" | sh -c "fzf $fzf_args $preview")
 
-  if [ -n "$branch" ]; then
+  if [ "$branch" != "" ]; then
     local repo_name
     repo_name=$(basename "$(git worktree list | head -n 1 | awk '{print $1}')")
 
@@ -303,7 +303,7 @@ __git_worktree_remove() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
   local current_dir
-  current_dir=$(pwd)
+  current_dir=$PWD
 
   local dir_name=$(basename "$current_dir")
   local branch=$(git rev-parse --abbrev-ref HEAD)
@@ -317,7 +317,7 @@ __git_worktree_remove() {
   local worktrees
   worktrees=$(sh -c "$list_worktrees" | sh -c "fzf $fzf_args $preview" | awk -F'\t' '{print $4}')
 
-  if [ -n "$worktrees" ]; then
+  if [ "$worktrees" != "" ]; then
     local main_worktree
     main_worktree=$(git worktree list | head -n 1 | awk '{print $1}')
 
@@ -345,7 +345,7 @@ __git_stash() {
   local selected_files
   selected_files=$(builtin cd "$repo_root" && sh -c "$list_files" | sh -c "fzf $_GIT_FZF_DEFAULT $preview")
 
-  if [ -n "$selected_files" ]; then
+  if [ "$selected_files" != "" ]; then
     builtin cd "$repo_root" && echo "$selected_files" | xargs git stash push --
   fi
 }
@@ -363,7 +363,7 @@ __git_merge() {
   local branch
   branch=$(sh -c "$list_branches" | sh -c "fzf $fzf_args $preview")
 
-  if [ -n "$branch" ]; then
+  if [ "$branch" != "" ]; then
     git merge "$branch"
   fi
 }
@@ -381,7 +381,7 @@ __git_branch_switch() {
   list_branches=$(git branch --all --format='%(refname:short)' | grep -v '^HEAD' | while read -r branch; do
     branch_to_check=$(echo "$branch" | sed 's|^remotes/[^/]*/||')
     worktree_path=$(echo "$worktree_list" | awk -v branch="$branch_to_check" 'match($3, /\[(.*)\]/, m) && m[1] == branch {print $1; exit}')
-    if [ -n "$worktree_path" ]; then
+    if [ "$worktree_path" != "" ]; then
       worktree_name=$(basename "$worktree_path")
       echo "$branch	→ $worktree_name"
     else
@@ -394,13 +394,13 @@ __git_branch_switch() {
 
   local selected
   selected=$(echo "$list_branches" | sh -c "fzf $fzf_args $preview")
-  [ -z "$selected" ] && return 1
+  [ "$selected" = "" ] && return 1
 
   local branch
   branch=$(echo "$selected" | cut -f1)
   local worktree_display
   worktree_display=$(echo "$selected" | cut -f2 | sed 's/^→ //')
-  if [ -z "$worktree_display" ]; then
+  if [ "$worktree_display" = "" ]; then
     git checkout "$branch" && ls
     return $?
   fi
@@ -411,4 +411,40 @@ __git_branch_switch() {
   worktree_path=$(echo "$worktree_list" | awk -v branch="$branch_to_check" 'match($3, /\[(.*)\]/, m) && m[1] == branch {print $1; exit}')
   builtin cd "$worktree_path" && ls
   return $?
+}
+
+__git_lefthook_pre_commit() {
+  git rev-parse --is-inside-work-tree >/dev/null || return 1
+
+  local repo_root
+  repo_root=$(git rev-parse --show-toplevel)
+
+  local commands_list
+  commands_list=$(
+    {
+      [ -f "$repo_root/lefthook.yml" ] && grep -A 100 "^pre-commit:" "$repo_root/lefthook.yml" | grep "^  [a-z-]*:" | sed 's/://;s/^  //'
+      [ -d "$repo_root/.git/info/lefthook-remotes" ] && find "$repo_root/.git/info/lefthook-remotes" -name "*.yml" -exec grep -A 100 "^pre-commit:" {} \; | grep "^    [a-z-]*:" | sed 's/://;s/^    //'
+    } | sort -u
+  )
+
+  if [ "$commands_list" = "" ]; then
+    echo "No pre-commit commands found in lefthook config"
+    return 1
+  fi
+
+  local fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 40% --info=inline:'' --header-first --header='select commands' --prompt='  ' --bind='ctrl-a:select-all'"
+
+  local selected
+  selected=$(echo "$commands_list" | sh -c "fzf $fzf_args")
+
+  if [ "$selected" = "" ]; then
+    echo "No commands selected"
+    return 0
+  fi
+
+  local commands
+  commands=$(echo "$selected" | tr '\n' ',' | sed 's/,$//')
+
+  echo "Running: lefthook run --all-files --commands $commands pre-commit"
+  lefthook run --all-files --commands "$commands" pre-commit
 }
