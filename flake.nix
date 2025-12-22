@@ -19,8 +19,7 @@
           configPath ? toString ./config,
         }:
         import ./wrappers/alacritty.nix {
-          inherit pkgs;
-          files = import ./lib/files.nix { inherit pkgs; rootPath = configPath; };
+          inherit pkgs configPath;
           tools = import ./packages { inherit pkgs configPath; }
                   ++ import ./wrappers { inherit pkgs configPath; };
         };
