@@ -15,7 +15,8 @@ rec {
 
   sync =
     sourceStr: targetStr:
-    if !pkgs.lib.hasPrefix "/nix/store" rootPath
-    then link sourceStr targetStr
-    else copy "${rootPath}/${sourceStr}" targetStr;
+    if !pkgs.lib.hasPrefix "/nix/store" rootPath then
+      link sourceStr targetStr
+    else
+      copy "${rootPath}/${sourceStr}" targetStr;
 }
