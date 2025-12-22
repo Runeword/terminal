@@ -1,7 +1,8 @@
 # List of extra packages to include
 { pkgs }:
 
-with pkgs; [
+with pkgs;
+[
   yazi # file manager
   navi # cheat sheet
   ueberzugpp # images support for terminal
@@ -91,4 +92,4 @@ with pkgs; [
   # _______________________________ Disk
   ncdu # Disk usage tui
   erdtree # Disk usage cli
-] 
+]
