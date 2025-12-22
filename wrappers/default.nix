@@ -1,6 +1,9 @@
 { pkgs, configPath }:
 let
-  files = import ../lib/files.nix { inherit pkgs; rootPath = configPath; };
+  files = import ../lib/files.nix {
+    inherit pkgs;
+    rootPath = configPath;
+  };
 in
 map (path: import path { inherit pkgs files; }) [
   ./zsh.nix
