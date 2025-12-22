@@ -4,7 +4,11 @@
   configPath,
 }:
 let
-  files = import ../lib/files.nix { inherit pkgs; rootPath = configPath; };
+
+  files = import ../lib/files.nix {
+    inherit pkgs;
+    rootPath = configPath;
+  };
 
   fonts = pkgs.lib.optionals (!pkgs.stdenv.isDarwin) [
     pkgs.nerd-fonts.sauce-code-pro
@@ -24,6 +28,9 @@ pkgs.runCommand "alacritty"
     mkdir -p $out/bin
     makeWrapper ${pkgs.alacritty}/bin/alacritty $out/bin/alacritty \
       --prefix PATH : ${pkgs.lib.makeBinPath tools} \
-      ${pkgs.lib.optionalString (fonts != []) "--set FONTCONFIG_FILE ${pkgs.makeFontsConf { fontDirectories = fonts; }}"} \
+      ${
+        pkgs.lib.optionalString (fonts != [ ])
+          "--set FONTCONFIG_FILE ${pkgs.makeFontsConf { fontDirectories = fonts; }}"
+      } \
       --add-flags "--config-file $out/.config/alacritty/alacritty.toml"
   ''
