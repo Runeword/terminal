@@ -61,17 +61,17 @@
         build = mkSystemBuild system;
       in
       {
-        # Bundled mode (config copied to store)
+        # Bundled mode
         apps.default.type = "app";
         apps.default.program = "${build.mkTerminal { }}/bin/alacritty";
         packages.default = build.mkTerminal { };
         packages.tools = build.mkTools { };
 
-        # Dev mode (config from environment, falls back to default if empty)
+        # Dev mode
         apps.dev.type = "app";
         apps.dev.program = "${build.mkTerminal { configPath = builtins.getEnv "TERMINAL_CONFIG_DIR"; }}/bin/alacritty";
         packages.dev = build.mkTerminal { configPath = builtins.getEnv "TERMINAL_CONFIG_DIR"; };
-        packages.toolsDev = build.mkTools { configPath = builtins.getEnv "TERMINAL_CONFIG_DIR"; };
+        packages.devTools = build.mkTools { configPath = builtins.getEnv "TERMINAL_CONFIG_DIR"; };
 
         devShells.default = import ./devshell.nix { inherit (build) pkgs; };
       }
