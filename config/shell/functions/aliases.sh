@@ -62,7 +62,8 @@ __aliases() {
   )
 
   if [ $? -eq 0 ]; then
-    local last_column=$(echo "$selected_command" | awk -F $'\u00A0' '{ if (NR==2) print $NF }')
+    local last_column
+    last_column=$(echo "$selected_command" | awk -F $'\u00A0' '{ if (NR==2) print $NF }')
     LBUFFER+=$(echo "$selected_command" | awk -F $'\u00A0' '{ if (NR==2) { sub(/[[:space:]]+$/, "", $2); print $2 " " } }')
 
     if [ "$last_column" = "x" ]; then
