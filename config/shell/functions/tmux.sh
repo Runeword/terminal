@@ -2,13 +2,13 @@
 
 __tmux_switch_session() {
   if [ "$(tmux list-sessions 2>/dev/null)" = "" ]; then
-		trap 'return' INT
-		printf 'new session name : ' && read -r input
+    trap 'return' INT
+    printf 'new session name : ' && read -r input
 
-		tmux new-session ${input:+-s"$input"}
+    tmux new-session "${input:+-s"$input"}"
 
-		return 1
-	fi
+    return 1
+  fi
 
   local session_id
   session_id=$(tmux display-message -p '#{session_id}')
@@ -16,21 +16,21 @@ __tmux_switch_session() {
   local item_pos
   item_pos=$(tmux list-sessions -F '#{session_id}' | awk '{if ($1 == "'"$session_id"'") print NR}')
 
-	local session
-	session=$(
-		tmux ls -F "#{session_name}" 2>/dev/null | fzf \
-			--reverse \
-			--cycle \
-			--height 50% \
+  local session
+  session=$(
+    tmux ls -F "#{session_name}" 2>/dev/null | fzf \
+      --reverse \
+      --cycle \
+      --height 50% \
       --no-separator \
       --prompt='  ' \
       --reverse \
       --info=inline:'' \
-			--bind='tab:down,btab:up' \
+      --bind='tab:down,btab:up' \
       --bind='enter:execute(echo {1})+abort' \
-			${TMUX:+--bind='focus:execute-silent(tmux switch-client -t {1})'} \
-			${TMUX:+--bind="load:pos($item_pos)"}
-	)
+      "${TMUX:+--bind='focus:execute-silent(tmux switch-client -t {1})'}" \
+      "${TMUX:+--bind="load:pos($item_pos)"}"
+  )
 
   [ "$session" = "" ] && return 1
 
@@ -42,42 +42,42 @@ __tmux_switch_session() {
 }
 
 __tmux_switch_window() {
-	local item_pos
-	local window_id
-	local window
+  local item_pos
+  local window_id
+  local window
 
-	window_id=$(tmux display-message -p '#{window_id}')
-	item_pos=$(tmux list-windows -a -F '#{window_id}' | awk '{if ($1 == "'$window_id'") print NR}')
+  window_id=$(tmux display-message -p '#{window_id}')
+  item_pos=$(tmux list-windows -a -F '#{window_id}' | awk '{if ($1 == "'"$window_id"'") print NR}')
 
-	window=$(
-		tmux list-windows -a -F '#{session_name}#{window_name} #{window_id} #{session_id}' 2>/dev/null | fzf \
-		  --with-nth='1,2' \
-			--reverse \
-			--cycle \
-			--height 50% \
-			--delimiter=' ' \
+  window=$(
+    tmux list-windows -a -F '#{session_name}#{window_name} #{window_id} #{session_id}' 2>/dev/null | fzf \
+      --with-nth='1,2' \
+      --reverse \
+      --cycle \
+      --height 50% \
+      --delimiter=' ' \
       --prompt='  ' \
       --reverse \
       --no-separator \
       --info=inline:'' \
-			--bind='tab:down,btab:up' \
-			${TMUX:+--bind='focus:execute-silent(tmux switch-client -t {4}; tmux select-window -t {3})'} \
-			${TMUX:+--bind="load:pos($item_pos)"}
-	)
+      --bind='tab:down,btab:up' \
+      "${TMUX:+--bind='focus:execute-silent(tmux switch-client -t {4}; tmux select-window -t {3})'}" \
+      "${TMUX:+--bind="load:pos($item_pos)"}"
+  )
 }
 
 __tmux_new_session() {
-	local max_session session_name
-	max_session=$(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep -E '^[0-9]+$' | sort -n | tail -1)
-	session_name=$((${max_session:-0} + 1))
+  local max_session session_name
+  max_session=$(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep -E '^[0-9]+$' | sort -n | tail -1)
+  session_name=$((${max_session:-0} + 1))
 
-	session=$(tmux new-session -d -s"$session_name" -P -F "#{session_name}")
+  session=$(tmux new-session -d -s"$session_name" -P -F "#{session_name}")
 
-	if [ -n "$TMUX" ]; then
-		tmux switch-client -t "$session"
-	else
-		tmux attach-session -t "$session"
-	fi
+  if [ "$TMUX" != "" ]; then
+    tmux switch-client -t "$session"
+  else
+    tmux attach-session -t "$session"
+  fi
 }
 
 __tmux_kill_session() {
@@ -87,11 +87,11 @@ __tmux_kill_session() {
 
 __tmux_attach_session() {
   local session current
-  [ -n "$TMUX" ] && current=$(tmux display-message -p '#S')
+  [ "$TMUX" != "" ] && current=$(tmux display-message -p '#S')
   session=$(tmux ls -F '#{session_name}|#{?session_attached,attached,not attached}|#{session_activity}' 2>/dev/null | awk -F'|' -v current="$current" '$2 == "attached" && $1 != current {print $1; exit} $2 == "not attached" && $1 != current && ($3 > max_activity || !found) {found=1; max_activity=$3; unattached=$1} END {if (unattached) print unattached}')
 
-  if [ -n "$session" ]; then
-    if [ -n "$TMUX" ]; then
+  if [ "$session" != "" ]; then
+    if [ "$TMUX" != "" ]; then
       tmux switch-client -t "$session"
     else
       tmux attach -t "$session"
@@ -136,17 +136,17 @@ __tmux_nvim_copy_mode() {
   scroll_position=$(tmux display-message -p '#{scroll_position}')
   history_size=$(tmux display-message -p '#{history_size}')
 
-  tmux capture-pane -epJS - | sed 's/ \{10,\}.*$//' > "$tmpfile"
+  tmux capture-pane -epJS - | sed 's/ \{10,\}.*$//' >"$tmpfile"
 
   local target_line target_col
   target_line=$((history_size - scroll_position + cursor_y + 1))
   target_col=$((cursor_x + 1))
 
   nvim -u ~/neovim/config/init-scrollback.lua \
-       -c 'set clipboard=unnamedplus nonumber norelativenumber laststatus=0 cmdheight=0 noshowmode noruler signcolumn=no foldcolumn=0 nolist' \
-       -c 'lua vim.o.winbar = "" vim.g.baleia.once(0)' \
-       -c "normal! ${target_line}G${target_col}|" \
-       "$tmpfile"
+    -c 'set clipboard=unnamedplus nonumber norelativenumber laststatus=0 cmdheight=0 noshowmode noruler signcolumn=no foldcolumn=0 nolist' \
+    -c 'lua vim.o.winbar = "" vim.g.baleia.once(0)' \
+    -c "normal! ${target_line}G${target_col}|" \
+    "$tmpfile"
 
   rm -f "$tmpfile"
 }
@@ -195,7 +195,7 @@ __tmux_move_window_to_prev_session() {
 }
 
 __tmux_open_url() {
-  if ! command -v tmux >/dev/null 2>&1 || [ -z "$TMUX" ]; then
+  if ! command -v tmux >/dev/null 2>&1 || [ "$TMUX" = "" ]; then
     return 1
   fi
 
@@ -203,13 +203,14 @@ __tmux_open_url() {
   input="$(tmux capture-pane -p -S -3000)"
 
   local urls
-  urls="$(echo "$input" | \
-    grep -oP 'https?://[^\s<>"{}|\\^`\[\]]+' | \
-    awk '!seen[$0]++' | \
-    fzf --tac --multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'
+  urls="$(
+    echo "$input" |
+      grep -oP 'https?://[^\s<>"{}|\\^`\[\]]+' |
+      awk '!seen[$0]++' |
+      fzf --tac --multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'
   )"
 
-  if [ -n "$urls" ]; then
+  if [ "$urls" != "" ]; then
     echo "$urls" | while IFS= read -r url; do
       setsid xdg-open "$url" >/dev/null 2>&1 || setsid open "$url" >/dev/null 2>&1 &
     done
