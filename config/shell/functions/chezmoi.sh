@@ -28,15 +28,15 @@ __chezmoi_operation() {
     selected_files=$*
   else
     local files
-    files=$($chezmoi_cmd status | awk '{print $2}')
+    files=$("$chezmoi_cmd" status | awk '{print $2}')
     [ "$files" = "" ] && return 1
 
     selected_files=$(__select_files "$files" "$label $operation" "$chezmoi_cmd")
     [ "$selected_files" = "" ] && return 1
   fi
 
-  for i in $(echo "$selected_files" | xargs); do
-    $chezmoi_cmd "$operation" "$HOME/$i"
+  for i in "$(echo "$selected_files" | xargs)"; do
+    "$chezmoi_cmd" "$operation" "$HOME/$i"
   done
 }
 
@@ -113,7 +113,7 @@ __chezmoi_forget() {
 
   # "$(echo "$selected_files" | xargs)" | while IFS= read -r i; do chezmoi forget "$HOME/$i"; done
 
-  for i in $(echo "$selected_files" | xargs); do
+  for i in "$(echo "$selected_files" | xargs)"; do
     chezmoi forget "$HOME/$i"
   done
 }
