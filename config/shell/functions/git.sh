@@ -63,49 +63,56 @@ __git_fzf_cmd() {
 
 __git_open_all() {
   local list_files="git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard"
-  local repo_root="$(git rev-parse --show-toplevel)"
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" \""$EDITOR"\" "$preview"
 }
 
 __git_open_unstaged() {
   local list_files="git ls-files --others --exclude-standard --modified"
-  local repo_root="$(git rev-parse --show-toplevel)"
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" \""$EDITOR"\" "$preview"
 }
 
 __git_open_staged() {
   local list_files="git diff --name-only --cached"
-  local repo_root="$(git rev-parse --show-toplevel)"
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" \""$EDITOR"\" "$preview"
 }
 
 __git_unstage() {
   local list_files="git diff --name-only --cached"
-  local repo_root="$(git rev-parse --show-toplevel)"
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" "git restore --staged --" "$preview"
 }
 
 __git_discard() {
   local list_files="git diff --name-only"
-  local repo_root="$(git rev-parse --show-toplevel)"
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" "git checkout --" "$preview"
 }
 
 __git_untrack() {
   local list_files="git diff --name-only --cached"
-  local repo_root="$(git rev-parse --show-toplevel)"
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" "git rm --cached --" "$preview"
 }
 
 __git_rm_untracked() {
   local list_files="git ls-files --others --exclude-standard"
-  local repo_root="$(git rev-parse --show-toplevel)"
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" "rm --" "$preview"
 }
@@ -130,7 +137,8 @@ __git_ignore() {
   esac
 
   local list_files="git status --ignored --porcelain | grep '^!!' | cut -c4-"
-  local repo_root="$(git rev-parse --show-toplevel)"
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
   __git_fzf_cmd "$list_files" "$cmd" "$preview"
 }
@@ -139,7 +147,8 @@ __git_diff() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
   local list_files="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
-  local repo_root="$(git rev-parse --show-toplevel)"
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel)"
   local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
   local tracked_diff="cd \"$repo_root\" && git diff --color=always {} | $_GIT_PAGER"
   local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
@@ -261,10 +270,14 @@ __git_worktree_add() {
   local current_dir
   current_dir=$PWD
 
-  local dir_name=$(basename "$current_dir")
-  local current_branch=$(git rev-parse --abbrev-ref HEAD)
-  local commit=$(git rev-parse --short HEAD)
-  local header=$(printf "%s\t%s\t[%s]" "$dir_name" "$commit" "$current_branch")
+  local dir_name
+  dir_name=$(basename "$current_dir")
+  local current_branch
+  current_branch=$(git rev-parse --abbrev-ref HEAD)
+  local commit
+  commit=$(git rev-parse --short HEAD)
+  local header
+  header=$(printf "%s\t%s\t[%s]" "$dir_name" "$commit" "$current_branch")
 
   local checked_out_branches
   checked_out_branches=$(git worktree list | awk '{print $3}' | sed 's/\[//;s/\]//')
@@ -305,10 +318,14 @@ __git_worktree_remove() {
   local current_dir
   current_dir=$PWD
 
-  local dir_name=$(basename "$current_dir")
-  local branch=$(git rev-parse --abbrev-ref HEAD)
-  local commit=$(git rev-parse --short HEAD)
-  local header=$(printf "%s\t%s\t[%s]" "$dir_name" "$commit" "$branch")
+  local dir_name
+  dir_name=$(basename "$current_dir")
+  local branch
+  branch=$(git rev-parse --abbrev-ref HEAD)
+  local commit
+  commit=$(git rev-parse --short HEAD)
+  local header
+  header=$(printf "%s\t%s\t[%s]" "$dir_name" "$commit" "$branch")
 
   local list_worktrees="git worktree list | tail -n +2 | awk '{dir=\$1; sub(/.*\//, \"\", dir); print dir \"\t\" \$2 \"\t\" \$3 \"\t\" \$1}'"
   local fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"$header\" --with-nth=1,2,3 --delimiter='\t' --prompt='  ' --bind='ctrl-a:select-all'"
@@ -333,7 +350,8 @@ __git_stash() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
   local list_files="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
-  local repo_root="$(git rev-parse --show-toplevel)"
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel)"
   local is_staged="cd \"$repo_root\" && git diff --cached --name-only -- {} | grep -q ."
   local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
   local staged_diff="cd \"$repo_root\" && git diff --cached --color=always {} | $_GIT_PAGER"
