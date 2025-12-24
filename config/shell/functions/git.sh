@@ -210,13 +210,13 @@ __git_install_lefthook() {
 }
 
 __git_info() {
-  echo "\033[3mgit config user.name\033[23m"
+  printf "\033[3mgit config user.name\033[23m\n"
   git config user.name
   echo
-  echo "\033[3mgit config user.email\033[23m"
+  printf "\033[3mgit config user.email\033[23m\n"
   git config user.email
   echo
-  echo "\033[3mgit remote -v\033[23m"
+  printf "\033[3mgit remote -v\033[23m\n"
   git remote -v
 }
 
