@@ -102,6 +102,7 @@ __tmux_attach_session() {
 }
 
 __tmux_kill_pane() {
+  local direction="${1:-next}"
   local pane_count window_count session_count
   pane_count=$(tmux display-message -p '#{window_panes}')
   window_count=$(tmux display-message -p '#{session_windows}')
@@ -110,15 +111,32 @@ __tmux_kill_pane() {
   if [ "$pane_count" -gt 1 ]; then
     tmux kill-pane
   elif [ "$window_count" -gt 1 ]; then
-    tmux kill-window
+    local current_window window_list first_window last_window
+    current_window=$(tmux display-message -p '#{window_index}')
+    window_list=$(tmux list-windows -F '#{window_index}' | sort -n)
+    first_window=$(echo "$window_list" | head -1)
+    last_window=$(echo "$window_list" | tail -1)
+
+    if [ "$current_window" = "$first_window" ]; then
+      tmux select-window -n
+    elif [ "$current_window" = "$last_window" ]; then
+      tmux select-window -p
+    elif [ "$direction" = "next" ]; then
+      tmux select-window -n
+    else
+      tmux select-window -p
+    fi
+
+    tmux kill-window -t:"$current_window"
   elif [ "$session_count" -gt 1 ]; then
-    local current_session current_index prev_index prev_session
+    local current_session session_list current_index prev_index prev_session
     current_session=$(tmux display-message -p '#S')
-    current_index=$(tmux list-sessions -F '#{session_name}' | sort -V | awk -v sess="$current_session" '{if ($1 == sess) print NR}')
+    session_list=$(tmux list-sessions -F '#{session_name}' | sort -V)
+    current_index=$(echo "$session_list" | awk -v sess="$current_session" '{if ($1 == sess) print NR}')
 
     [ "$current_index" -eq 1 ] && prev_index=$session_count || prev_index=$((current_index - 1))
-    prev_session=$(tmux list-sessions -F '#{session_name}' | sort -V | sed -n "${prev_index}p")
 
+    prev_session=$(echo "$session_list" | sed -n "${prev_index}p")
     tmux switch-client -t "$prev_session"
     tmux kill-session -t "$current_session"
   else
@@ -184,14 +202,6 @@ __tmux_move_window_to_session() {
 
   tmux move-window -t "$target_session:"
   tmux switch-client -t "$target_session"
-}
-
-__tmux_move_window_to_next_session() {
-  __tmux_move_window_to_session next
-}
-
-__tmux_move_window_to_prev_session() {
-  __tmux_move_window_to_session prev
 }
 
 __tmux_open_url() {
