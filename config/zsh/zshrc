@@ -10,40 +10,40 @@ zle -N bracketed-paste bracketed-paste-magic
 # ------------------------------------ Key mappings
 typeset -A KEYS
 KEYS=(
-  SHIFT_ENTER    '^[[13;2u'
-  LEFT_ARROW     '^[OD'
-  RIGHT_ARROW    '^[OC'
-  ALT_T          '\et'
-  CTRL_LEFT      '^[[1;5D'
-  CTRL_RIGHT     '^[[1;5C'
-  CTRL_TAB       '\e[9;5u'
-  CTRL_SHIFT_TAB '\e[9;6u'
-  CTRL_E         '^E'
-  CTRL_A         '^A'
-  CTRL_U         '^U'
-  CTRL_J         '^J'
-  CTRL_K         '^K'
-  CTRL_BACKSPACE '^[[27;5;127~'
-  CTRL_DELETE    '^[[3;5~'
-  UP_ARROW       '^[[A'
-  UP_ARROW_ALT   '^[OA'
-  DOWN_ARROW     '^[[B'
-  DOWN_ARROW_ALT '^[OB'
-  TAB            '^I'
-  SHIFT_TAB      '^[[Z'
-  ESCAPE         '^['
-  CTRL_ENTER     '\x1b[13;5u'
-  CTRL_ENTER_ALT 'CSI 13 ; 5 u'
-  SHIFT_DELETE   '^[[3;2~'
-  SHIFT_SPACE    '\x1b[32;2u'
-  SHIFT_ESCAPE   '\u001b[27;2u'
-  SPACE          ' '
-  ENTER          '^M'
-  PAGE_UP        '^[[5~'
-  PAGE_DOWN      '^[[6~'
-  CTRL_V         '^V'
-  CTRL_W         '^W'
-  CTRL_Q         '^Q'
+  [SHIFT_ENTER]='^[[13;2u'
+  [LEFT_ARROW]='^[OD'
+  [RIGHT_ARROW]='^[OC'
+  [ALT_T]='\et'
+  [CTRL_LEFT]='^[[1;5D'
+  [CTRL_RIGHT]='^[[1;5C'
+  [CTRL_TAB]='\e[9;5u'
+  [CTRL_SHIFT_TAB]='\e[9;6u'
+  [CTRL_E]='^E'
+  [CTRL_A]='^A'
+  [CTRL_U]='^U'
+  [CTRL_J]='^J'
+  [CTRL_K]='^K'
+  [CTRL_BACKSPACE]='^[[27;5;127~'
+  [CTRL_DELETE]='^[[3;5~'
+  [UP_ARROW]='^[[A'
+  [UP_ARROW_ALT]='^[OA'
+  [DOWN_ARROW]='^[[B'
+  [DOWN_ARROW_ALT]='^[OB'
+  [TAB]='^I'
+  [SHIFT_TAB]='^[[Z'
+  [ESCAPE]='^['
+  [CTRL_ENTER]='\x1b[13;5u'
+  [CTRL_ENTER_ALT]='CSI 13 ; 5 u'
+  [SHIFT_DELETE]='^[[3;2~'
+  [SHIFT_SPACE]='\x1b[32;2u'
+  [SHIFT_ESCAPE]='\u001b[27;2u'
+  [SPACE]=' '
+  [ENTER]='^M'
+  [PAGE_UP]='^[[5~'
+  [PAGE_DOWN]='^[[6~'
+  [CTRL_V]='^V'
+  [CTRL_W]='^W'
+  [CTRL_Q]='^Q'
 )
 
 # ------------------------------------ ZSH hooks
@@ -156,9 +156,9 @@ ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#7f7f7f"
 
 typeset -gA CUSTOM_SUGGESTIONS
 CUSTOM_SUGGESTIONS=(
-  "zd"	"ouch decompress SOURCES.EXTENSION"
-  "zc"	"ouch compress SOURCES TARGET.EXTENSION"
-  "zl"	"ouch list TARGET --tree"
+  [zd]="ouch decompress SOURCES.EXTENSION"
+  [zc]="ouch compress SOURCES TARGET.EXTENSION"
+  [zl]="ouch list TARGET --tree"
 )
 
 __autosuggest_execute() {
