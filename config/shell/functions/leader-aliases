@@ -46,8 +46,9 @@ g   	lazygit                                    	git                 tui	x
 g   	onefetch                                   	git                 repo                info	x
 g   	__git_set_user                             	git                 config              set user	x
 gi  	__git_info                                 	git                 repo                info	x
-gh  	__git_install_lefthook                     	lefthook            install	x
-ghr 	rm -rf .git/info/lefthook-remotes          	lefthook            delete remote cache	x
+gh  	__git_install_lefthook                     	lefthook            hook                add	x
+ghi 	lefthook install                           	lefthook            install	x
+ghr 	rm -rf .git/info/lefthook-remotes          	lefthook            remote              delete	x
 ghp 	__git_lefthook_pre_commit                  	lefthook            pre-commit          run	x
 gl  	git-forgit log                             	git                 commit              list	x
 ga  	git-forgit add                             	git                 file                stage	x
