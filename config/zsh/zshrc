@@ -1,3 +1,4 @@
+# shellcheck disable=SC2148
 # Exit if not interactive shell
 [[ -o interactive ]] || { echo "Not an interactive shell"; return; }
 
@@ -257,7 +258,7 @@ _zsh_autosuggest_strategy_custom() {
 
   [[ -n "$prefix" ]] || return
 
-  for key in "${(@k)CUSTOM_SUGGESTIONS[@]}"; do
+  for key in "${!CUSTOM_SUGGESTIONS[@]}"; do
     if [[ "$key" == "$prefix"* ]]; then
       suggestion="$key ${CUSTOM_SUGGESTIONS[$key]}"
       return
