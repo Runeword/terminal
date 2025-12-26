@@ -35,21 +35,27 @@ __chezmoi_operation() {
     [ "$selected_files" = "" ] && return 1
   fi
 
-  for i in "$(echo "$selected_files" | xargs)"; do
+  echo "$selected_files" | xargs | while read -r i; do
     "$chezmoi_cmd" "$operation" "$HOME/$i"
   done
 }
 
 __chezmoi() {
-  __chezmoi_operation "$1" "chezmoi" "chezmoi" "${@:2}"
+  local operation="$1"
+  shift
+  __chezmoi_operation "$operation" "chezmoi" "chezmoi" "$@"
 }
 
 __chezmoi_private() {
-  __chezmoi_operation "$1" "chezmoi-private" "chezmoi --source ~/.local/share/chezmoi-private --config ~/.config/chezmoi-private/chezmoi.toml" "${@:2}"
+  local operation="$1"
+  shift
+  __chezmoi_operation "$operation" "chezmoi-private" "chezmoi --source ~/.local/share/chezmoi-private --config ~/.config/chezmoi-private/chezmoi.toml" "$@"
 }
 
 __chezmoi_shared() {
-  __chezmoi_operation "$1" "chezmoi-shared" "chezmoi --source ~/.local/share/chezmoi-shared --config ~/.config/chezmoi-shared/chezmoi.toml" "${@:2}"
+  local operation="$1"
+  shift
+  __chezmoi_operation "$operation" "chezmoi-shared" "chezmoi --source ~/.local/share/chezmoi-shared --config ~/.config/chezmoi-shared/chezmoi.toml" "$@"
 }
 
 __chezmoi_status() {
@@ -113,7 +119,7 @@ __chezmoi_forget() {
 
   # "$(echo "$selected_files" | xargs)" | while IFS= read -r i; do chezmoi forget "$HOME/$i"; done
 
-  for i in "$(echo "$selected_files" | xargs)"; do
+  echo "$selected_files" | xargs | while read -r i; do
     chezmoi forget "$HOME/$i"
   done
 }
