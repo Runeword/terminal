@@ -226,3 +226,60 @@ __tmux_open_url() {
     done
   fi
 }
+
+__tmux_save_window_state() {
+  local history_file="${XDG_DATA_HOME:-$HOME/.local/share}/tmux-window-history"
+  local pane_path="$1"
+  local pane_command="$2"
+
+  # Create directory if it doesn't exist
+  mkdir -p "$(dirname "$history_file")"
+
+  # Save path and command separated by ||| delimiter
+  # Format: path|||command
+  echo "$pane_path|||$pane_command" >>"$history_file"
+  tail -20 "$history_file" >"$history_file.tmp" && mv "$history_file.tmp" "$history_file"
+}
+
+__tmux_reopen_window() {
+  local history_file="${XDG_DATA_HOME:-$HOME/.local/share}/tmux-window-history"
+
+  # Check if history file exists and has content
+  if [ ! -f "$history_file" ] || [ ! -s "$history_file" ]; then
+    tmux display-message "No closed windows to restore"
+    return 0
+  fi
+
+  # Get the last closed window entry
+  local last_entry last_path last_command
+  last_entry=$(tail -1 "$history_file")
+
+  # Remove the last entry from history
+  sed -i '$ d' "$history_file" 2>/dev/null || sed -i '' '$ d' "$history_file" 2>/dev/null
+
+  # Parse path and command (handle both old and new format)
+  if echo "$last_entry" | grep -q '|||'; then
+    last_path=$(echo "$last_entry" | cut -d'|' -f1)
+    last_command=$(echo "$last_entry" | cut -d'|' -f4-)
+  else
+    # Old format - just path
+    last_path="$last_entry"
+    last_command=""
+  fi
+
+  # Create new window with the saved path
+  if [ "$last_path" != "" ] && [ -d "$last_path" ]; then
+    if [ "$last_command" != "" ] && [ "$last_command" != "zsh" ] && [ "$last_command" != "bash" ] && [ "$last_command" != "sh" ]; then
+      # Create window and run the command
+      tmux new-window -a -c "$last_path" "$last_command"
+      tmux display-message "Restored: $last_path ($last_command)"
+    else
+      # Just create a shell window
+      tmux new-window -a -c "$last_path"
+      tmux display-message "Restored: $last_path (shell)"
+    fi
+  else
+    tmux new-window -a
+    tmux display-message "Restored (path invalid)"
+  fi
+}
