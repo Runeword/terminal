@@ -2,6 +2,9 @@
 # Exit if not interactive shell
 [[ -o interactive ]] || { echo "Not an interactive shell"; return; }
 
+# Start timer for zsh load time
+typeset -F SECONDS=0
+
 autoload -Uz compinit
 compinit
 
@@ -445,3 +448,5 @@ bindkey "${KEYS[SHIFT_ESCAPE]}" __ls_or_shift_escape
 # zle -N __git_widget
 # bindkey 'g' __git_widget
 
+# Display zsh load time
+printf "%.3fs\n" $SECONDS
