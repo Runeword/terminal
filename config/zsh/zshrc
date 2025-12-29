@@ -5,8 +5,17 @@
 # Start timer for zsh load time
 typeset -F SECONDS=0
 
+# ------------------------------------ compinit
 autoload -Uz compinit
-compinit
+typeset -g ZCOMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
+mkdir -p "$(dirname "$ZCOMPDUMP")"
+
+# shellcheck disable=SC1009,SC1073,SC1072,SC1036
+if [[ -n $ZCOMPDUMP(#qN.mh+24) ]]; then
+  compinit -d "$ZCOMPDUMP"
+else
+  compinit -C -d "$ZCOMPDUMP"
+fi
 
 autoload -Uz bracketed-paste-magic
 zle -N bracketed-paste bracketed-paste-magic
@@ -203,16 +212,22 @@ __autosuggest_accept() {
 [ -f "$NIX_OUT_SHELL/.config/shell/aliases.sh" ] && source "$NIX_OUT_SHELL/.config/shell/aliases.sh"
 
 # ------------------------------------ NVM
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+__load_nvm() {
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+}
+__load_nvm
 
 # ------------------------------------ Functions
-if [ -d "$NIX_OUT_SHELL/.config/shell/functions" ]; then
-  for file in "$NIX_OUT_SHELL/.config/shell/functions"/*.sh; do
-    . "$file"
-  done
-fi
+__source_functions() {
+  if [ -d "$NIX_OUT_SHELL/.config/shell/functions" ]; then
+    for file in "$NIX_OUT_SHELL/.config/shell/functions"/*.sh; do
+      . "$file"
+    done
+  fi
+}
+__source_functions
 
 __on_empty_buffer() {
   if [[ -n "$BUFFER" ]]; then
@@ -313,15 +328,21 @@ bindkey "${KEYS[PAGE_DOWN]}" __nextd_widget
 
 # ------------------------------------ Plugins
 
-command -v navi >/dev/null 2>&1 && eval "$(navi widget zsh)"
+# Load critical plugins immediately (needed for prompt/env)
 command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"
-command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init --no-cmd zsh)"
 command -v direnv >/dev/null 2>&1 && eval "$(direnv hook zsh)"
 
-if [[ ${options[zle]} = on ]]; then
-  . "$(fzf-share)/completion.zsh"
-  . "$(fzf-share)/key-bindings.zsh"
-fi
+# # Load fzf completion immediately (needed for completions)
+# [[ ${options[zle]} = on ]] && . "$(fzf-share)/completion.zsh"
+
+# Defer non-critical plugins until first prompt
+__load_deferred_plugins() {
+  command -v navi >/dev/null 2>&1 && eval "$(navi widget zsh)"
+  command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init --no-cmd zsh)"
+  [[ ${options[zle]} = on ]] && . "$(fzf-share)/key-bindings.zsh"
+  add-zsh-hook -d precmd __load_deferred_plugins
+}
+add-zsh-hook precmd __load_deferred_plugins
 
 # __open_file_or_autosuggest() {
 #   if [[ -z "$BUFFER" ]]; then
