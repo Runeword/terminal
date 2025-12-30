@@ -14,8 +14,8 @@ disabled = true
 
 [git_status]
 format = "[$ahead_behind](white)"
-ahead	= "+"
-behind = "-"
+ahead  = "󰕒"
+behind = ""
 
 [line_break]
 disabled = true
@@ -28,56 +28,62 @@ disabled = true
 # format = "[ $path](italic fg:#7d83d6 bg:#1e2633)"
 # format = "[ $path](italic fg:#878de8 bg:#1e2633)"
 # format = "[ $path](italic fg:#7f6bff bg:#1e2633)"
-format = "[ $path](italic fg:#7272ed bg:#1e2633)"
+format           = "[ $path](italic fg:#7272ed bg:#1e2633)"
 truncate_to_repo = false
 
 [terraform]
-format = "[$symbol$workspace]()"
-symbol = "[󱁢 ](purple)"
+disabled = true
+format   = "[$symbol$workspace]()"
+symbol   = "[󱁢 ](purple)"
 
 [git_branch]
 format = "[$symbol$branch](white) "
 symbol = "[󰊢 ](black)"
 
 [golang]
-format = "[$symbol](cyan)"
-symbol = "󰟓 "
+disabled       = true
+format         = "[$symbol](cyan)"
+symbol         = "󰟓 "
 version_format = "${raw}"
 
 [nix_shell]
 disabled = true
-format = "[$symbol](blue)"
-symbol = "󱄅 "
+format   = "[$symbol](blue)"
+symbol   = "󱄅 "
 
 [nodejs]
-format = "[$symbol](white)"
-symbol = "[󰎙 ](green)"
+disabled       = true
+format         = "[$symbol](white)"
+symbol         = "[󰎙 ](green)"
 version_format = "${raw}"
 
 [python]
-format = "[$symbol](white)"
-symbol = "[ ](green)"
+disabled       = true
+format         = "[$symbol](white)"
+symbol         = "[ ](green)"
 version_format = "${raw}"
 
 [package]
-disabled = true
-format = "[$symbol](white)"
-symbol = "[󰫈 ](purple)"
+disabled       = true
+format         = "[$symbol](white)"
+symbol         = "[󰫈 ](purple)"
 version_format = "${raw}"
 
 [rust]
-format = "[$symbol](white)"
-symbol = "[󱘗](yellow) "
+disabled       = true
+format         = "[$symbol](white)"
+symbol         = "[󱘗](yellow) "
 version_format = "${raw}"
 
 [lua]
-format = "[$symbol](white)"
-symbol = "[󰢱 ](purple) "
+disabled       = true
+format         = "[$symbol](white)"
+symbol         = "[󰢱 ](purple) "
 version_format = "${raw}"
 
 [shell]
-disabled = true
-format = "[$indicator](italic fg:#7b899c)"
+disabled       = true
+format         = "[$indicator](italic fg:#7b899c)"
 bash_indicator = "b "
 fish_indicator = "f "
-zsh_indicator = "z "
+zsh_indicator  = "z "
