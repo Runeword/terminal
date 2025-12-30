@@ -5,7 +5,7 @@ pkgs.symlinkJoin {
   paths = [ pkgs.bash ];
   nativeBuildInputs = [ pkgs.makeWrapper ];
   postBuild = ''
-    ${files.sync "bash/bashrc" ".config/bash/.bashrc"}
+    ${files.sync "bash" ".config/bash"}
     ${files.sync "shell" ".config/shell"}
     ${files.sync "readline" ".config/readline"}
     ${files.sync "direnv" ".config/direnv"}
