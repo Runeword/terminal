@@ -8,7 +8,7 @@ pkgs.symlinkJoin {
   ];
   nativeBuildInputs = [ pkgs.makeWrapper ];
   postBuild = ''
-    ${files.sync "zsh/zshrc" ".config/zsh/.zshrc"}
+    ${files.sync "zsh" ".config/zsh"}
     ${files.sync "shell" ".config/shell"}
     ${files.sync "readline" ".config/readline"}
     ${files.sync "direnv" ".config/direnv"}
