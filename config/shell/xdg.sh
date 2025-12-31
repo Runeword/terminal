@@ -38,8 +38,7 @@ export XDG_BIN_HOME="${HOME}/.local/bin"
     "${XDG_CONFIG_HOME}/java" \
     "${XDG_CONFIG_HOME}/kube" \
     "${XDG_CONFIG_HOME}/helm"
-} >/dev/null 2>&1 &!
-
+} >/dev/null 2>&1 &
 
 export CARGO_HOME="${XDG_DATA_HOME}/cargo"
 export DOCKER_CONFIG="${XDG_CONFIG_HOME}/docker"
