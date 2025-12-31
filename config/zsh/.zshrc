@@ -29,12 +29,6 @@ __load_compinit() {
       compinit -C -d "$ZCOMPDUMP"
     else
       compinit -d "$ZCOMPDUMP"
-      # Compile zcompdump for faster loading
-      { zcompile "$ZCOMPDUMP" } &!
-    fi
-    # Compile zcompdump if it's not compiled or older than the source
-    if [[ ! -f "${ZCOMPDUMP}.zwc" ]] || [[ "$ZCOMPDUMP" -nt "${ZCOMPDUMP}.zwc" ]]; then
-      { zcompile "$ZCOMPDUMP" } &!
     fi
     typeset -F __TCOMP2=$SECONDS
     _profile "[deferred] compinit loaded: %.0fms\n" $(( (__TCOMP2 - __TCOMP1) * 1000 ))
@@ -305,10 +299,6 @@ _profile "nvm: %.0fms\n" $(( (__T4 - __T3) * 1000 ))
 __source_functions() {
   if [ -d "$NIX_OUT_SHELL/.config/shell/functions" ]; then
     for file in "$NIX_OUT_SHELL/.config/shell/functions"/*.sh; do
-      # Compile function files in background if not already compiled
-      if [[ ! -f "${file}.zwc" ]] || [[ "$file" -nt "${file}.zwc" ]]; then
-        { zcompile "$file" } &!
-      fi
       . "$file"
     done
   fi
