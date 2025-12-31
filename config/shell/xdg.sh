@@ -10,8 +10,8 @@ export XDG_DATA_HOME="${HOME}/.local/share"
 export XDG_STATE_HOME="${HOME}/.local/state"
 export XDG_BIN_HOME="${HOME}/.local/bin"
 
-# Create directories in background for faster startup (silenced)
-{
+# Create directories (can be backgrounded by caller for faster startup)
+__create_xdg_dirs() {
   mkdir -p \
     "${XDG_DATA_HOME}/cargo" \
     "${XDG_CONFIG_HOME}/docker" \
@@ -38,7 +38,7 @@ export XDG_BIN_HOME="${HOME}/.local/bin"
     "${XDG_CONFIG_HOME}/java" \
     "${XDG_CONFIG_HOME}/kube" \
     "${XDG_CONFIG_HOME}/helm"
-} >/dev/null 2>&1 &
+}
 
 export CARGO_HOME="${XDG_DATA_HOME}/cargo"
 export DOCKER_CONFIG="${XDG_CONFIG_HOME}/docker"
