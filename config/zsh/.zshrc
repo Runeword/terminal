@@ -118,7 +118,11 @@ _profile "hooks+newline: %.0fms\n" $(( (__TH2 - __TH1) * 1000 ))
 
 # ------------------------------------ ENV variables
 typeset -F __TE1=$SECONDS
-[ -f "$NIX_OUT_SHELL/.config/shell/xdg.sh" ] && source "$NIX_OUT_SHELL/.config/shell/xdg.sh"
+if [ -f "$NIX_OUT_SHELL/.config/shell/xdg.sh" ]; then
+  source "$NIX_OUT_SHELL/.config/shell/xdg.sh"
+  # Background the directory creation with disown to prevent job notifications
+  { __create_xdg_dirs } >/dev/null 2>&1 &!
+fi
 typeset -F __TE2=$SECONDS
 [ -f "$NIX_OUT_SHELL/.config/shell/variables.sh" ] && source "$NIX_OUT_SHELL/.config/shell/variables.sh"
 typeset -F __TE3=$SECONDS
