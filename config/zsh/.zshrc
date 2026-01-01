@@ -21,7 +21,7 @@ typeset -g __compinit_loaded=0
 __load_compinit() {
   if (( __compinit_loaded == 0 )); then
     __compinit_loaded=1
-    typeset -F __TCOMP1=$SECONDS
+    typeset -F __T9=$SECONDS
     autoload -Uz compinit
     # Regenerate cache if it's older than 24 hours
     # shellcheck disable=SC1009,SC1073,SC1072,SC1036
@@ -30,8 +30,8 @@ __load_compinit() {
     else
       compinit -d "$ZCOMPDUMP"
     fi
-    typeset -F __TCOMP2=$SECONDS
-    _profile "[deferred] compinit loaded: %.0fms\n" $(( (__TCOMP2 - __TCOMP1) * 1000 ))
+    typeset -F __T10=$SECONDS
+    _profile "[deferred] compinit loaded: %.0fms\n" $(( (__T10 - __T9) * 1000 ))
   fi
 }
 
@@ -124,7 +124,8 @@ typeset -F __TE3=$SECONDS
 # Cache dircolors output for faster loading
 typeset -g DIRCOLORS_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/dircolors.zsh"
 if command -v dircolors >/dev/null 2>&1; then
-  if [[ ! -f "$DIRCOLORS_CACHE" ]] || [[ $(find /usr/bin/dircolors -newer "$DIRCOLORS_CACHE" 2>/dev/null) ]]; then
+  typeset -g DIRCOLORS_BIN=$(command -v dircolors)
+  if [[ ! -f "$DIRCOLORS_CACHE" ]] || [[ "$DIRCOLORS_BIN" -nt "$DIRCOLORS_CACHE" ]]; then
     dircolors -b > "$DIRCOLORS_CACHE"
   fi
   source "$DIRCOLORS_CACHE"
@@ -136,7 +137,7 @@ _profile "xdg: %.0fms, variables: %.0fms, dircolors: %.0fms\n" \
   $(( (__TE3 - __TE2) * 1000 )) \
   $(( (__TE4 - __TE3) * 1000 ))
 
-typeset -F __TH1=$SECONDS
+typeset -F __T11=$SECONDS
 mkdir -p "$XDG_STATE_HOME/zsh"
 HISTFILE="$XDG_STATE_HOME/zsh/history"
 HISTSIZE=10000
@@ -147,8 +148,8 @@ setopt HIST_REDUCE_BLANKS
 setopt SHARE_HISTORY
 setopt INC_APPEND_HISTORY
 export HISTORY_IGNORE="(! *)"
-typeset -F __TH2=$SECONDS
-_profile "history: %.0fms\n" $(( (__TH2 - __TH1) * 1000 ))
+typeset -F __T12=$SECONDS
+_profile "history: %.0fms\n" $(( (__T12 - __T11) * 1000 ))
 
 # source "$NIX_OUT_SHELL/.config/shell/scripts/ssh-agent.sh"
 # source "$NIX_OUT_SHELL"/zsh-autosuggestions/share/zsh-autosuggestions/zsh-autosuggestions.zsh
@@ -366,7 +367,7 @@ _zsh_autosuggest_strategy_custom() {
 
 __aliases_() {
     local output
-    output=$(aliases-fzf -f ~/terminal/config/shell/functions/leader-aliases 2>/dev/null)
+    output=$(aliases-fzf -f "$NIX_OUT_SHELL/.config/shell/functions/leader-aliases" 2>/dev/null)
     if [[ -n $output ]]; then
         if [[ $output == *$'\n' ]]; then
             BUFFER=$output
