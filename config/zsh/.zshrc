@@ -35,15 +35,7 @@ __load_compinit() {
   fi
 }
 
-# Load compinit on first tab press or after short delay
-__lazy_compinit_tab() {
-  __load_compinit
-  zle expand-or-complete
-}
-zle -N __lazy_compinit_tab
-bindkey '^I' __lazy_compinit_tab
-
-# Also load after 1 second in background if not triggered yet
+# Load compinit after 1 second in background if not triggered yet
 { sleep 1 && [[ $__compinit_loaded == 0 ]] && __load_compinit } &!
 
 typeset -F __T2=$SECONDS
@@ -481,6 +473,9 @@ zle -N __ripgrep_or_menu_complete
 bindkey "${KEYS[SHIFT_TAB]}" __ripgrep_or_menu_complete
 
 __tab_handler() {
+  # Load compinit on first tab press if not already loaded
+  __load_compinit
+
   # If in menu selection, move backward
   # if [[ -n "$MENUSELECT" ]]; then
   #   zle backward-char
