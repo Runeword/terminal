@@ -7,6 +7,8 @@
 # export EDITOR=nvim
 
 export HISTFILE="${XDG_STATE_HOME}"/bash/history
+HISTSIZE=2000
+HISTFILESIZE=2000
 
 # source "$NIX_OUT_SHELL/.config/shell/scripts/ssh-agent.sh"
 
@@ -16,7 +18,6 @@ export HISTFILE="${XDG_STATE_HOME}"/bash/history
 # bind '"\t": menu-complete'
 # bind '"\e[Z": menu-complete-backward' # Shift+Tab for reverse completion
 
-bind -x '"\C-n":"nvim"'
 bind -x '"\C-b":"br -c :open_preview"'
 bind -x '"\C-n":"__nextd"'
 bind -x '"\C-p":"__prevd"'
