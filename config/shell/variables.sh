@@ -52,8 +52,13 @@ export FZF_DEFAULT_OPTS="
 --color=fg+:#ffffff,fg+:regular,bg+:#142926,hl+:#67c9d6,hl+:regular,query:italic \
 --color=info:#d0d0d0,prompt:#ffffff,pointer:#7272ed,border:#2f394a \
 --color=marker:#4534bf,spinner:#ffffff,header:#535e73 \
---bind='home:first,end:last,pgup:half-page-up,pgdn:half-page-down' \
 --bind='tab:select+down,btab:deselect+up' \
+--bind='up:up,down:down' \
+--bind='page-up:half-page-up,page-down:half-page-down' \
+--bind='home:first,end:last' \
+--bind='shift-up:preview-up,shift-down:preview-down' \
+--bind='shift-page-up:preview-up+preview-up+preview-up+preview-up,shift-page-down:preview-down+preview-down+preview-down+preview-down' \
+--bind='shift-home:preview-top,shift-end:preview-bottom' \
 "
 # --color=fg+:#ffffff,fg+:regular,bg+:#142920,hl+:#67c9d6,hl+:regular,query:italic \
 # --color=marker:#458f71,spinner:#ffffff,header:#535e73 \
