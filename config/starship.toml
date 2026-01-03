@@ -37,7 +37,7 @@ format   = "[$symbol$workspace]()"
 symbol   = "[󱁢 ](purple)"
 
 [git_branch]
-format = "[$symbol$branch](white) "
+format = "[$symbol$branch](white)"
 symbol = "[󰊢 ](black)"
 
 [golang]
