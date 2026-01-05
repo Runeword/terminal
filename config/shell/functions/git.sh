@@ -466,3 +466,19 @@ __git_lefthook_pre_commit() {
   echo "Running: lefthook run --all-files --commands $commands pre-commit"
   lefthook run --all-files --commands "$commands" pre-commit
 }
+
+__git_stash_unstaged() {
+  git rev-parse --is-inside-work-tree >/dev/null || return 1
+
+  local list_files="git diff --name-only"
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel)"
+  local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+
+  local selected_files
+  selected_files=$(builtin cd "$repo_root" && sh -c "$list_files" | sh -c "fzf $_GIT_FZF_DEFAULT $preview")
+
+  if [ "$selected_files" != "" ]; then
+    builtin cd "$repo_root" && echo "$selected_files" | xargs git stash push --keep-index --
+  fi
+}
