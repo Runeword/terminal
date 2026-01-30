@@ -4,7 +4,6 @@
 with pkgs;
 [
   yazi # file manager
-  navi # cheat sheet
   ueberzugpp # images support for terminal
   gmailctl
   progress
