@@ -1,0 +1,58 @@
+% nestjs
+
+# Generate a new application workspace
+npx nest g application
+
+# Generate a new class
+npx nest g class
+
+# Generate a CLI configuration file
+npx nest g configuration
+
+# Generate a controller declaration
+npx nest g controller
+
+# Generate a custom decorator
+npx nest g decorator
+
+# Generate a filter declaration
+npx nest g filter
+
+# Generate a gateway declaration
+npx nest g gateway
+
+# Generate a guard declaration
+npx nest g guard
+
+# Generate an interceptor declaration
+npx nest g interceptor
+
+# Generate an interface
+npx nest g interface
+
+# Generate a new library within a monorepo
+npx nest g library
+
+# Generate a middleware declaration
+npx nest g middleware
+
+# Generate a module declaration
+npx nest g module
+
+# Generate a pipe declaration
+npx nest g pipe
+
+# Generate a provider declaration
+npx nest g provider
+
+# Generate a GraphQL resolver declaration
+npx nest g resolver
+
+# Generate a new CRUD resource
+npx nest g resource
+
+# Generate a service declaration
+npx nest g service
+
+# Generate a new application within a monorepo
+npx nest g sub-app
