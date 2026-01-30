@@ -11,13 +11,14 @@ disabled = true
 
 [cmd_duration]
 disabled = true
+# disabled = true
 
 [git_status]
-format   = "[$ahead_behind$staged$modified](white)"
-staged   = " [+$count](italic green)"
-modified = " [+$count](italic red)"
-ahead    = "󰕒[ +$count](italic)"
-behind   = "[ -$count](italic)"
+format   = "[$modified$staged$ahead_behind](white)"
+staged   = "[+$count](italic green)"
+modified = "[+$count](italic red)"
+ahead    = "[+$count](italic) 󰕒"
+behind   = "[-$count](italic) 󰅢"
 
 [line_break]
 disabled = true
