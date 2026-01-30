@@ -14,4 +14,5 @@ map (path: import path { inherit pkgs files; }) [
   ./bash.nix
   ./starship.nix
   ./delta.nix
+  ./navi.nix
 ]
