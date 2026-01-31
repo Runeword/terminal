@@ -20,42 +20,48 @@ __select_files() {
 __chezmoi_operation() {
   local operation="$1"
   local label="$2"
-  local chezmoi_cmd="$3"
-  shift 3
+  shift 2
+
+  local chezmoi_args=()
+  while [ $# -gt 0 ] && [ "$1" != "--" ]; do
+    chezmoi_args+=("$1")
+    shift
+  done
+  [ "$1" = "--" ] && shift
 
   if [ $# -gt 0 ]; then
     local selected_files
     selected_files=$*
   else
     local files
-    files=$("$chezmoi_cmd" status | awk '{print $2}')
+    files=$(chezmoi "${chezmoi_args[@]}" status | awk '{print $2}')
     [ "$files" = "" ] && return 1
 
-    selected_files=$(__select_files "$files" "$label $operation" "$chezmoi_cmd")
+    selected_files=$(__select_files "$files" "$label $operation" "chezmoi ${chezmoi_args[*]}")
     [ "$selected_files" = "" ] && return 1
   fi
 
   echo "$selected_files" | xargs | while read -r i; do
-    "$chezmoi_cmd" "$operation" "$HOME/$i"
+    chezmoi "${chezmoi_args[@]}" "$operation" "$HOME/$i"
   done
 }
 
 __chezmoi() {
   local operation="$1"
   shift
-  __chezmoi_operation "$operation" "chezmoi" "chezmoi" "$@"
+  __chezmoi_operation "$operation" "chezmoi" -- "$@"
 }
 
 __chezmoi_private() {
   local operation="$1"
   shift
-  __chezmoi_operation "$operation" "chezmoi-private" "chezmoi --source ~/.local/share/chezmoi-private --config ~/.config/chezmoi-private/chezmoi.toml" "$@"
+  __chezmoi_operation "$operation" "chezmoi-private" --source ~/.local/share/chezmoi-private --config ~/.config/chezmoi-private/chezmoi.toml -- "$@"
 }
 
 __chezmoi_shared() {
   local operation="$1"
   shift
-  __chezmoi_operation "$operation" "chezmoi-shared" "chezmoi --source ~/.local/share/chezmoi-shared --config ~/.config/chezmoi-shared/chezmoi.toml" "$@"
+  __chezmoi_operation "$operation" "chezmoi-shared" --source ~/.local/share/chezmoi-shared --config ~/.config/chezmoi-shared/chezmoi.toml -- "$@"
 }
 
 __chezmoi_status() {
