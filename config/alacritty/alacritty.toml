@@ -15,8 +15,8 @@ thickness      = 0.01
 style          = { blinking = "Always", shape = "Beam" }
 
 [env]
-TERM = "alacritty"
-# TERM = "xterm-256color"
+# TERM = "alacritty"
+TERM = "xterm-256color"
 
 [font]
 size        = 16
