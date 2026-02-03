@@ -158,7 +158,7 @@ __git_diff() {
 }
 
 __git_reset_soft() {
-  local list_commits="git log --oneline"
+  local list_commits="git log --oneline --first-parent"
   local preview="--preview 'git show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
   local commit
