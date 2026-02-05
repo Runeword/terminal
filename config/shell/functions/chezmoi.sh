@@ -41,7 +41,7 @@ __chezmoi_operation() {
     [ "$selected_files" = "" ] && return 1
   fi
 
-  echo "$selected_files" | xargs | while read -r i; do
+  echo "$selected_files" | while IFS= read -r i; do
     chezmoi "${chezmoi_args[@]}" "$operation" "$HOME/$i"
   done
 }
@@ -123,9 +123,7 @@ __chezmoi_forget() {
     [ "$selected_files" = "" ] && return 1
   fi
 
-  # "$(echo "$selected_files" | xargs)" | while IFS= read -r i; do chezmoi forget "$HOME/$i"; done
-
-  echo "$selected_files" | xargs | while read -r i; do
+  echo "$selected_files" | while IFS= read -r i; do
     chezmoi forget "$HOME/$i"
   done
 }
