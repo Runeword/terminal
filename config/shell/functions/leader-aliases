@@ -40,8 +40,11 @@ fm	nix flake metadata                               	flake           metadata	x
 ft	__use_flake_template "github:Runeword/templates" 	flake           templates         use	x
 fr	rm -rf .direnv .envrc .gitignore nix             	flake           files             remove
 fa 	direnv allow                                     	flake           direnv            allow	x
+td	awk '!seen[$0]++' sourceFile > targetFile        	txt            dedup
+ts	split --lines=1000 --numeric-suffixes=1 sourceFile targetFiles	txt                split
 js 	__paste | jq '@json' | tee >(__copy)             	json            to string	x
 jf	__paste | jq '.' | tee >(__copy)                 	json/string     to json	x
+jk	jq --raw-output 'keys[]' FILE.json               	json            to keys
 g   	lazygit                                    	git                 tui	x
 g   	onefetch                                   	git                 repo                info	x
 g   	__git_set_user                             	git                 config              set user	x
