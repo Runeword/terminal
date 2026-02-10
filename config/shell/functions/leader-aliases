@@ -45,6 +45,7 @@ ts	split --lines=1000 --numeric-suffixes=1 sourceFile targetFiles	txt           
 js 	__paste | jq '@json' | tee >(__copy)             	json            to string	x
 jf	__paste | jq '.' | tee >(__copy)                 	json/string     to json	x
 jk	jq --raw-output 'keys[]' FILE.json               	json            to keys
+jp	__paste | jq --raw-output '.' | jq --color-output '.'	json            pretty print	x
 g   	lazygit                                    	git                 tui	x
 g   	onefetch                                   	git                 repo                info	x
 g   	__git_set_user                             	git                 config              set user	x
