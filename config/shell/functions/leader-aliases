@@ -84,10 +84,10 @@ gni 	__git_ignore open                          	git                 Open ignore
 gnb 	nvim $(git diff --name-only master...)     	git                 open                            current branch	x
 gss 	git stash push --staged                    	git                 stash                           staged	x
 # gsp 	git stash push                             	git                 stash                  staged/unstaged	x
-gsp 	__git_stash                                	git                 stash        untracked/staged/unstaged	x
+gsp 	__git_stash_push                           	git                 stash        untracked/staged/unstaged	x
 gsa 	git stash push --include-untracked         	git                 stash        untracked/staged/unstaged	x
-gsu 	git stash push --include-untracked --keep-index 	git                 stash               untracked/unstaged	x
-gsy 	git stash apply                            	git                 stash                       apply last	x
+gsu 	git stash push --include-untracked --keep-index 	git           stash               untracked/unstaged	x
+gsy 	__git_stash_apply                          	git                 stash                            apply 	x
 gsl 	git-forgit stash_show                      	git                 stash                             list	x
 gsc 	git stash clear                            	git                 stash                       delete all
 gsf 	git-forgit stash_push                      	git                 stash                             push	x
