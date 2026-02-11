@@ -346,7 +346,7 @@ __git_worktree_remove() {
   fi
 }
 
-__git_stash() {
+__git_stash_push() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
   local list_files="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
@@ -480,5 +480,20 @@ __git_stash_unstaged() {
 
   if [ "$selected_files" != "" ]; then
     builtin cd "$repo_root" && echo "$selected_files" | xargs git stash push --keep-index --
+  fi
+}
+
+__git_stash_apply() {
+  git rev-parse --is-inside-work-tree >/dev/null || return 1
+
+  local list_stashes="git stash list"
+  local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header='select stash to apply' --prompt='  ' --wrap-sign='' --scheme=path --delimiter=':'"
+  local preview="--preview 'git stash show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+
+  local selected_stash
+  selected_stash=$(sh -c "$list_stashes" | sh -c "fzf $fzf_args $preview")
+
+  if [ "$selected_stash" != "" ]; then
+    git stash apply "$selected_stash"
   fi
 }
