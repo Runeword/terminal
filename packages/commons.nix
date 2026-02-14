@@ -77,6 +77,7 @@ with pkgs;
 
   # _______________________________ Nix
   nix-prefetch-docker
+  nix-search-tv
   nix-init
   cachix
   devenv
