@@ -494,6 +494,6 @@ __git_stash_apply() {
   selected_stash=$(sh -c "$list_stashes" | sh -c "fzf $fzf_args $preview")
 
   if [ "$selected_stash" != "" ]; then
-    git stash apply "$selected_stash"
+    git stash apply "${selected_stash%%:*}"
   fi
 }
