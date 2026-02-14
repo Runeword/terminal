@@ -154,7 +154,7 @@ __nix_system_rebuild() {
 # Interactively search for nix packages
 __nix_package_search() {
   nix-search-tv print --indexes nixpkgs |
-    fzf --preview 'nix-search-tv preview {}' --scheme history --info=inline:'' --reverse --no-separator --prompt='  ' --border none --cycle --height 70% --header-first --preview-window right,60%,noborder
+    fzf --preview 'nix-search-tv preview --indexes nixpkgs {}' --scheme history --info=inline:'' --reverse --no-separator --prompt='  ' --border none --cycle --height 70% --header-first --preview-window right,60%,noborder
 }
 
 # "dir": "contrib", "owner": "sourcegraph", "repo": "src-cli", "type": "github" type:owner/repo?dir=dir
