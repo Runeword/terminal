@@ -22,9 +22,9 @@ nu	__update_flake_inputs $NIXOS_PATH                	nixos           inputs     
 ns	__nix_system_rebuild                             	nix             config            build/boot/activate	x
 nv	nixos-version                                    	nixos           version	x
 ni	nix-info -m                                      	nixos           info	x
-np	nix shell -p PACKAGE                             	nix             package           new shell with package
-np	nix run nixpkgs#PACKAGE                          	nix             package           run
-nf	__nix_package_search                             	nix             package           search	x
+np	__nix_package                                    	nix             package           search	x
+npr	print -z "$(__nix_package run)"                   	nix             package           run	x
+nps	__nix_package shell                              	nix             package           shell	x
 nd	sudo nix-collect-garbage --verbose --delete-old  	nix             garbage           clean	x
 nl	sudo nix-collect-garbage --dry-run --delete-old  	nix             garbage           list	x
 nc	cd /nix/store && __open_file                     	nix             store             list	x
