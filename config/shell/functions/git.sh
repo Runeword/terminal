@@ -57,9 +57,9 @@ __git_fzf_cmd() {
   fi
 
   (builtin cd "$repo_root" && sh -c "$list_cmd") |
-    sh -c "fzf $fzf_args" |
-    sed "s|^|$repo_root/|" |
-    xargs -r sh -c "$action_cmd \"\$@\"" _
+    sh -c "fzf $fzf_args --print0" |
+    sed -z "s|^|$repo_root/|" |
+    xargs -r0 sh -c "$action_cmd \"\$@\"" _
 }
 
 __git_open_all() {
@@ -177,7 +177,7 @@ __git_open_commits() {
   commits=$(sh -c "$list_commits" | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
 
   if [ "$commits" != "" ]; then
-    echo "$commits" | xargs git show --name-only --pretty=format: | sort -u | grep -v '^$' | xargs "$EDITOR"
+    echo "$commits" | xargs git show --name-only --pretty=format: -z | sort -zu | sed -z '/^$/d' | xargs -0 "$EDITOR"
   fi
 }
 
