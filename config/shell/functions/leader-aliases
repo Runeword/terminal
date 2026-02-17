@@ -23,8 +23,8 @@ ns	__nix_system_rebuild                             	nix             config     
 nv	nixos-version                                    	nixos           version	x
 ni	nix-info -m                                      	nixos           info	x
 np	__nix_package                                    	nix             package           search	x
-npr	print -z "$(__nix_package run)"                   	nix             package           run	x
-nps	__nix_package shell                              	nix             package           shell	x
+npr	__nix_package run                                	nix             package           run	p
+nps	__nix_package shell                              	nix             package           shell	e
 nd	sudo nix-collect-garbage --verbose --delete-old  	nix             garbage           clean	x
 nl	sudo nix-collect-garbage --dry-run --delete-old  	nix             garbage           list	x
 nc	cd /nix/store && __open_file                     	nix             store             list	x
