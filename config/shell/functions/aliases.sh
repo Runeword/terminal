@@ -64,10 +64,15 @@ __aliases() {
   if [ $? -eq 0 ]; then
     local last_column
     last_column=$(echo "$selected_command" | awk -F $'\u00A0' '{ if (NR==2) print $NF }')
-    LBUFFER+=$(echo "$selected_command" | awk -F $'\u00A0' '{ if (NR==2) { sub(/[[:space:]]+$/, "", $2); print $2 " " } }')
+    local cmd
+    cmd=$(echo "$selected_command" | awk -F $'\u00A0' '{ if (NR==2) { sub(/[[:space:]]+$/, "", $2); print $2 " " } }')
 
-    if [ "$last_column" = "x" ]; then
-      zle accept-line
+    if [ "$last_column" = "e" ] || [ "$last_column" = "p" ]; then
+      LBUFFER+=$(eval "$cmd")
+      [ "$last_column" = "e" ] && zle accept-line
+    else
+      LBUFFER+=$cmd
+      [ "$last_column" = "x" ] && zle accept-line
     fi
   elif [ "$selected_command" ]; then
     LBUFFER+=$(echo "$selected_command" | sed -n '1p' | sed 's/[^[:alpha:]]//g')
