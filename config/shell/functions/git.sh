@@ -362,10 +362,10 @@ __git_stash_push() {
   local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
 
   local selected_files
-  selected_files=$(builtin cd "$repo_root" && sh -c "$list_files" | sh -c "fzf $_GIT_FZF_DEFAULT $preview")
+  selected_files=$(builtin cd "$repo_root" && sh -c "$list_files" | sh -c "fzf $_GIT_FZF_DEFAULT --print0 $preview")
 
   if [ "$selected_files" != "" ]; then
-    builtin cd "$repo_root" && echo "$selected_files" | xargs git stash push --
+    builtin cd "$repo_root" && echo "$selected_files" | xargs -0 git stash push --
   fi
 }
 
@@ -476,10 +476,10 @@ __git_stash_unstaged() {
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local selected_files
-  selected_files=$(builtin cd "$repo_root" && sh -c "$list_files" | sh -c "fzf $_GIT_FZF_DEFAULT $preview")
+  selected_files=$(builtin cd "$repo_root" && sh -c "$list_files" | sh -c "fzf $_GIT_FZF_DEFAULT --print0 $preview")
 
   if [ "$selected_files" != "" ]; then
-    builtin cd "$repo_root" && echo "$selected_files" | xargs git stash push --keep-index --
+    builtin cd "$repo_root" && echo "$selected_files" | xargs -0 git stash push --keep-index --
   fi
 }
 
