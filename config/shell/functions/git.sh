@@ -165,7 +165,7 @@ __git_reset_soft() {
   commit=$(sh -c "$list_commits" | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
 
   if [ "$commit" != "" ]; then
-    git reset --soft "$commit"^
+    echo "git reset --soft ${commit}^ "
   fi
 }
 
@@ -308,7 +308,7 @@ EOF
     done
 
     local worktree_path="../${repo_name}_${next_num}"
-    git worktree add "$worktree_path" "$branch" && builtin cd "$worktree_path" && ls
+    echo "git worktree add $worktree_path $branch && builtin cd $worktree_path "
   fi
 }
 
@@ -382,7 +382,7 @@ __git_merge() {
   branch=$(sh -c "$list_branches" | sh -c "fzf $fzf_args $preview")
 
   if [ "$branch" != "" ]; then
-    git merge "$branch"
+    echo "git merge $branch "
   fi
 }
 
@@ -419,7 +419,7 @@ __git_branch_switch() {
   local worktree_display
   worktree_display=$(echo "$selected" | cut -f2 | sed 's/^→ //')
   if [ "$worktree_display" = "" ]; then
-    git checkout "$branch" && ls
+    echo "git checkout $branch "
     return $?
   fi
 
@@ -427,7 +427,7 @@ __git_branch_switch() {
   branch_to_check=$(echo "$branch" | sed 's|^remotes/[^/]*/||')
   local worktree_path
   worktree_path=$(echo "$worktree_list" | awk -v branch="$branch_to_check" 'match($3, /\[(.*)\]/, m) && m[1] == branch {print $1; exit}')
-  builtin cd "$worktree_path" && ls
+  echo "builtin cd $worktree_path "
   return $?
 }
 
@@ -494,6 +494,6 @@ __git_stash_apply() {
   selected_stash=$(sh -c "$list_stashes" | sh -c "fzf $fzf_args $preview")
 
   if [ "$selected_stash" != "" ]; then
-    git stash apply "${selected_stash%%:*}"
+    echo "git stash apply ${selected_stash%%:*} "
   fi
 }
