@@ -153,17 +153,20 @@ __nix_system_rebuild() {
 
 # Interactively search, run, or shell into a nix package
 __nix_package() {
+  local fzf_multi=""
+  [ "$1" != "run" ] && fzf_multi="--multi"
+
   local selected
   selected=$(
     nix-search-tv print --indexes nixpkgs |
-      fzf --preview 'nix-search-tv preview --indexes nixpkgs {}' --scheme history --info=inline:'' --reverse --no-separator --prompt='  ' --border none --cycle --height 70% --header-first --preview-window right,60%,noborder --header="nix ${1:-search}"
+      fzf $fzf_multi --preview 'nix-search-tv preview --indexes nixpkgs {}' --scheme history --info=inline:'' --reverse --no-separator --prompt='  ' --border none --cycle --height 70% --header-first --preview-window right,60%,noborder --header="nix ${1:-search}"
   )
   [ -z "$selected" ] && return 1
 
   case "$1" in
     run) echo "nix run nixpkgs#${selected}${2:+ -- ${*:2}} " ;;
-    shell) nix shell nixpkgs#"$selected" ;;
-    *) echo "$selected" ;;
+    shell) nix shell $(echo "$selected" | sed 's/^/nixpkgs#/') ;;
+    *) echo "$selected" | xargs ;;
   esac
 }
 
