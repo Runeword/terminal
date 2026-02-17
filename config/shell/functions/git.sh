@@ -420,7 +420,7 @@ __git_branch_switch() {
   worktree_display=$(echo "$selected" | cut -f2 | sed 's/^→ //')
   if [ "$worktree_display" = "" ]; then
     echo "git checkout $branch "
-    return $?
+    return
   fi
 
   local branch_to_check
@@ -428,7 +428,6 @@ __git_branch_switch() {
   local worktree_path
   worktree_path=$(echo "$worktree_list" | awk -v branch="$branch_to_check" 'match($3, /\[(.*)\]/, m) && m[1] == branch {print $1; exit}')
   echo "builtin cd $worktree_path "
-  return $?
 }
 
 __git_lefthook_pre_commit() {
