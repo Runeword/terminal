@@ -1,5 +1,6 @@
 #!/bin/sh
 
+# shellcheck disable=SC2016
 _GIT_PAGER='$(git config core.pager || echo cat)'
 
 __git_clone() {
@@ -339,7 +340,7 @@ __git_worktree_remove() {
     main_worktree=$(git worktree list | head -n 1 | awk '{print $1}')
 
     if echo "$worktrees" | grep -q "^$current_dir$"; then
-      builtin cd "$main_worktree"
+      builtin cd "$main_worktree" || return
     fi
 
     echo "$worktrees" | xargs -I {} git worktree remove {} && ls
