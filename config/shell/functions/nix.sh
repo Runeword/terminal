@@ -165,7 +165,7 @@ __nix_package() {
 
   case "$1" in
     run) echo "nix run nixpkgs#${selected}${2:+ -- ${*:2}} " ;;
-    shell) nix shell $(echo "$selected" | sed 's/^/nixpkgs#/') ;;
+    shell) echo "nix shell $(echo "$selected" | sed 's/^/nixpkgs#/' | xargs) " ;;
     *) echo "$selected" | xargs ;;
   esac
 }
