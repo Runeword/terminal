@@ -310,7 +310,7 @@ EOF
     done
 
     local worktree_path="../${repo_name}_${next_num}"
-    echo "git worktree add $worktree_path $branch && builtin cd $worktree_path "
+    echo "git worktree add '$worktree_path' '$branch' && builtin cd '$worktree_path' "
   fi
 }
 
@@ -429,7 +429,7 @@ __git_branch_switch() {
   branch_to_check=$(echo "$branch" | sed 's|^remotes/[^/]*/||')
   local worktree_path
   worktree_path=$(echo "$worktree_list" | awk -v branch="$branch_to_check" 'match($3, /\[(.*)\]/, m) && m[1] == branch {print $1; exit}')
-  echo "builtin cd $worktree_path "
+  echo "builtin cd '$worktree_path' "
 }
 
 __git_lefthook_pre_commit() {
