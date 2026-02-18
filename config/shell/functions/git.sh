@@ -177,7 +177,8 @@ __git_open_commits() {
   commits=$(sh -c "$list_commits" | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
 
   if [ "$commits" != "" ]; then
-    echo "$commits" | xargs git show --name-only --pretty=format: -z | sort -zu | sed -z '/^$/d' | xargs -0 "$EDITOR"
+    (builtin cd "$(git rev-parse --show-toplevel)" &&
+      echo "$commits" | xargs git show --name-only --pretty=format: -z | sort -zu | sed -z '/^$/d' | xargs -0 "$EDITOR")
   fi
 }
 
