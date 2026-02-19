@@ -366,7 +366,11 @@ __git_stash_push() {
   selected_files=$(builtin cd "$repo_root" && sh -c "$list_files" | sh -c "fzf $_GIT_FZF_DEFAULT --print0 $preview")
 
   if [ "$selected_files" != "" ]; then
-    (builtin cd "$repo_root" && echo "$selected_files" | xargs -0 git stash push --)
+    local files
+    files=$(printf '%s' "$selected_files" | tr '\0' '\n' |
+      sed 's/ /\\ /g; s/^/  /; s/$/ \\/')
+    echo "git -C $repo_root stash push --include-untracked -- \\"
+    echo "${files% \\}"
   fi
 }
 
