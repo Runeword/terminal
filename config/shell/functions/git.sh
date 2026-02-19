@@ -500,7 +500,17 @@ __git_stash_apply() {
   local selected_stash
   selected_stash=$(sh -c "$list_stashes" | sh -c "fzf $fzf_args $preview")
 
-  if [ "$selected_stash" != "" ]; then
-    echo "git stash apply ${selected_stash%%:*} "
+  [ "$selected_stash" = "" ] && return
+
+  local stash_ref="${selected_stash%%:*}"
+
+  local file_fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header='select files to apply (ctrl-a: all)' --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
+  local file_preview="--preview 'git diff --color=always $stash_ref -- {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+
+  local selected_files
+  selected_files=$(git stash show --name-only "$stash_ref" | sh -c "fzf --print0 $file_fzf_args $file_preview")
+
+  if [ "$selected_files" != "" ]; then
+    printf '%s' "$selected_files" | xargs -0 git restore --source="$stash_ref" --
   fi
 }
