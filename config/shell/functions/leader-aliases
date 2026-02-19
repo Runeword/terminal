@@ -51,6 +51,7 @@ g   	lazygit                                    	git                 tui	x
 g   	onefetch                                   	git                 repo                info	x
 g   	__git_set_user                             	git                 config              set user	x
 gi  	__git_info                                 	git                 repo                info	x
+gia 	git log --format="%h %an %ae" master..HEAD	git                 authors             info	x
 gh  	__git_install_lefthook                     	lefthook            hook                add	x
 ghi 	lefthook install                           	lefthook            install	x
 ghr 	rm -rf .git/info/lefthook-remotes          	lefthook            remote              delete	x
@@ -98,7 +99,7 @@ gpu 	git push --set-upstream origin HEAD        	git                 set upstrea
 gpl 	git pull                                   	git	x
 gpl 	git pull --rebase                          	git	x
 gf  	git fetch                                  	git	x
-gx  	git absorb                                 	git                 [1] auto create fixup commits for those changes
+gx  	git absorb --one-fixup-per-commit --base master	git             [1] auto create fixup commits for those changes
 gxr 	git absorb --and-rebase                    	git                 [2] auto rebase interactively and squash the fixups
 # gx  	git commit --fixup SHA                   	git                 [1] fix commit with staged changes
 # gxr 	git rebase --interactive --autosquash SHA^      	git                 [2] fix commit with staged changes
