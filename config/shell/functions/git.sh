@@ -56,10 +56,16 @@ __git_fzf_cmd() {
     fzf_args="$_GIT_FZF_DEFAULT"
   fi
 
-  (builtin cd "$repo_root" && sh -c "$list_cmd") |
+  local selected_files
+  selected_files=$((builtin cd "$repo_root" && sh -c "$list_cmd") |
     sh -c "fzf $fzf_args --print0" |
-    sed -z "s|^|$repo_root/|" |
-    xargs -r0 sh -c "$action_cmd \"\$@\"" _
+    sed -z "s|^|$repo_root/|")
+
+  if [ "$selected_files" != "" ]; then
+    local args
+    args=$(printf '%s' "$selected_files" | tr '\0' '\n' | sed 's/ /\\ /g' | tr '\n' ' ')
+    echo "$action_cmd $args"
+  fi
 }
 
 __git_open_all() {
