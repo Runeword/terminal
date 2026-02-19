@@ -513,5 +513,6 @@ __git_stash_apply() {
 
   if [ "$selected_files" != "" ]; then
     printf '%s' "$selected_files" | xargs -0 git restore --source="$stash_ref" --
+    git status
   fi
 }
