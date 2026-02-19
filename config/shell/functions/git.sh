@@ -504,18 +504,3 @@ __git_stash_apply() {
     echo "git stash apply ${selected_stash%%:*} "
   fi
 }
-
-__git_stash_show() {
-  git rev-parse --is-inside-work-tree >/dev/null || return 1
-
-  local list_stashes="git stash list"
-  local fzf_args="--reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --header='select stash to show' --prompt='  ' --wrap-sign='' --scheme=path --delimiter=':'"
-  local preview="--preview 'git stash show --color=always -p {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-
-  local selected_stash
-  selected_stash=$(sh -c "$list_stashes" | sh -c "fzf $fzf_args $preview")
-
-  if [ "$selected_stash" != "" ]; then
-    git stash show -p "${selected_stash%%:*}"
-  fi
-}
