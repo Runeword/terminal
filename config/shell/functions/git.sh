@@ -502,10 +502,11 @@ __git_stash_apply() {
 
   [ "$selected_stash" = "" ] && return
 
-  local stash_ref="${selected_stash%%:*}"
+  local stash_ref
+  stash_ref=$(git rev-parse "${selected_stash%%:*}")
 
   local file_fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header='select files to apply (ctrl-a: all)' --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
-  local file_preview="--preview 'git diff --color=always $stash_ref -- {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local file_preview="--preview 'git diff --color=always ${stash_ref}^ $stash_ref -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local selected_files
   selected_files=$(git stash show --name-only "$stash_ref" | sh -c "fzf --print0 $file_fzf_args $file_preview")
