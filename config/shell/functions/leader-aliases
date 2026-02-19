@@ -89,7 +89,7 @@ gss 	git stash push --staged                    	git                 stash      
 gsp 	__git_stash_push                           	git                 stash        untracked/staged/unstaged	e
 gsa 	git stash push --include-untracked         	git                 stash        untracked/staged/unstaged	x
 gsu 	git stash push --include-untracked --keep-index 	git           stash               untracked/unstaged	x
-gsy 	__git_stash_apply                          	git                 stash                            apply 	e
+gsy 	__git_stash_apply                          	git                 stash                            apply 	x
 gsc 	git stash clear                            	git                 stash                       delete all
 gsf 	git-forgit stash_push                      	git                 stash                             push	x
 gpp 	git push                                   	git	x
