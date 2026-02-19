@@ -369,7 +369,9 @@ __git_stash_push() {
     local files
     files=$(printf '%s' "$selected_files" | tr '\0' '\n' |
       sed 's/ /\\ /g; s/^/  /; s/$/ \\/')
-    echo "git -C $repo_root stash push --include-untracked -- \\"
+    local git_root
+    git_root=$(git rev-parse --show-cdup)
+    echo "git -C ${git_root:-.} stash push --include-untracked -- \\"
     echo "${files% \\}"
   fi
 }
