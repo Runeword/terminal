@@ -494,7 +494,7 @@ __git_stash_apply() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
   local list_stashes="git stash list"
-  local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header='select stash to apply' --prompt='  ' --wrap-sign='' --scheme=path --delimiter=':'"
+  local fzf_args="--reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --header='select stash to apply' --prompt='  ' --wrap-sign='' --scheme=path --delimiter=':'"
   local preview="--preview 'git stash show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local selected_stash
