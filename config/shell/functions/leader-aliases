@@ -1,9 +1,9 @@
 ol	__tmux_open_url                                  	open            url	x
 on	__open_editor_history                            	open            editor history	x
 oc 	__git_open_commits                               	open            commit	x
-ou 	__git_open_unstaged                              	git             open         unstaged	x
-os 	__git_open_staged                                	git             open         staged	x
-oa 	__git_open_all                                   	git             open         staged/unstaged/untracked	x
+ou 	__git_open_unstaged                              	git             open         unstaged	e
+os 	__git_open_staged                                	git             open         staged	e
+oa 	__git_open_all                                   	git             open         staged/unstaged/untracked	e
 oh	nvim $HISTFILE                                   	open            history	x
 # ols	ollama serve                                     	ollama          serve	x
 # olr	ollama run codellama                             	ollama          run	x
@@ -81,7 +81,7 @@ gkf 	git-forgit checkout_file                   	git
 gkt 	git-forgit checkout_tag                    	git
 gkc 	git-forgit checkout_commit                 	git
 gko 	git checkout --ours FileName               	git                 merge conflict                keep our	x
-gni 	__git_ignore open                          	git                 Open ignored files	x
+gni 	__git_ignore open                          	git                 Open ignored files	e
 # gnc 	nvim $(git diff-tree --no-commit-id --name-only -r HEAD)	git         open                            last commit	x
 gnb 	nvim $(git diff --name-only master...)     	git                 open                            current branch	x
 gss 	git stash push --staged                    	git                 stash                           staged	x
@@ -102,11 +102,11 @@ gx  	git absorb --one-fixup-per-commit --base master	git             [1] auto cr
 gxr 	git absorb --and-rebase                    	git                 [2] auto rebase interactively and squash the fixups
 # gx  	git commit --fixup SHA                   	git                 [1] fix commit with staged changes
 # gxr 	git rebase --interactive --autosquash SHA^      	git                 [2] fix commit with staged changes
-grd 	__git_discard                              	git                 Discard	x
-gru 	__git_unstage                              	git                 Unstage	x
-grt 	__git_untrack                              	git                 Untrack	x
-grm 	__git_rm_untracked                         	git                 Remove untracked files	x
-gri 	__git_ignore remove                        	git                 Remove ignored files	x
+grd 	__git_discard                              	git                 Discard	e
+gru 	__git_unstage                              	git                 Unstage	e
+grt 	__git_untrack                              	git                 Untrack	e
+grm 	__git_rm_untracked                         	git                 Remove untracked files	e
+gri 	__git_ignore remove                        	git                 Remove ignored files	e
 grb 	git-forgit rebase --interactive            	git                 Interactive rebase
 grh 	git reset --hard                           	git                 Delete staged + unstaged
 gro 	git reset --hard origin/$(git branch --show-current)	git       Make the local branch identical to the remote branch	x
