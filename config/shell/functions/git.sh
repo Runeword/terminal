@@ -487,16 +487,15 @@ __git_lefthook_pre_commit() {
 __git_stash_unstaged() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
-  local list_files="git diff --name-only"
-  local repo_root
+  local repo_root repo_cdup
   repo_root="$(git rev-parse --show-toplevel)"
+  repo_cdup="$(git rev-parse --show-cdup)"
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local args
+  args=$(__git_fzf_select "git diff --name-only" "$preview")
 
-  local selected_files
-  selected_files=$(builtin cd "$repo_root" && sh -c "$list_files" | sh -c "fzf $_GIT_FZF_DEFAULT --print0 $preview")
-
-  if [ "$selected_files" != "" ]; then
-    (builtin cd "$repo_root" && echo "$selected_files" | xargs -0 git stash push --keep-index --)
+  if [ "$args" != "" ]; then
+    echo "git -C ${repo_cdup:-.} stash push --keep-index -- $args"
   fi
 }
 
