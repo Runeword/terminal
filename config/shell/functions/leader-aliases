@@ -1,6 +1,5 @@
 ol	__tmux_open_url                                  	open            url	x
 on	__open_editor_history                            	open            editor history	x
-oc 	__git_open_commits                               	open            commit	e
 ou 	__git_open_unstaged                              	git             open         unstaged	e
 os 	__git_open_staged                                	git             open         staged	e
 oa 	__git_open_all                                   	git             open         staged/unstaged/untracked	e
@@ -56,7 +55,7 @@ gh  	__git_install_lefthook                     	lefthook            hook       
 ghi 	lefthook install                           	lefthook            install	x
 ghr 	rm -rf .git/info/lefthook-remotes          	lefthook            remote              delete	x
 ghp 	__git_lefthook_pre_commit                  	lefthook            pre-commit          run	x
-gl  	git-forgit log --first-parent              	git                 commit              list	x
+gl  	__git_log                                  	git                 commit              list	e
 ga  	git-forgit add                             	git                 file                stage	x
 gu  	__git_open_url                             	git                 url                 open	x
 guc 	__git_open_url commits                     	git                 url                 open	x
