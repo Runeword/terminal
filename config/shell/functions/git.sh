@@ -178,17 +178,20 @@ __git_reset_soft() {
   fi
 }
 
-__git_open_commits() {
+__git_log() {
   local preview="--preview 'git show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  local fzf_args="--multi --reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
-  local commits
-  commits=$(git log --oneline | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
+  local fzf_args="--reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path"
+  local commit
+  commit=$(git log --oneline | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
 
-  if [ "$commits" != "" ]; then
-    local files
-    files=$(echo "$commits" | xargs git diff-tree --no-commit-id --name-only -r | sort -u | sed 's/ /\\ /g' | tr '\n' ' ')
-    echo "$EDITOR $files"
-  fi
+  [ "$commit" = "" ] && return
+
+  local file_fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header='select files to open' --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
+  local file_preview="--preview 'git show --color=always $commit -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+
+  local args
+  args=$(git diff-tree --no-commit-id --name-only -r "$commit" | sh -c "fzf --print0 $file_fzf_args $file_preview" | tr '\0' '\n' | sed 's/ /\\ /g' | tr '\n' ' ')
+  [ "$args" != "" ] && echo "$EDITOR $args"
 }
 
 __git_install_lefthook() {
