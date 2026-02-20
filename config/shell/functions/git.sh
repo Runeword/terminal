@@ -63,7 +63,7 @@ __git_open_all() {
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard" "$preview")
-  [ -n "$args" ] && echo "$EDITOR $args"
+  [ "$args" != "" ] && echo "$EDITOR $args"
 }
 
 __git_open_unstaged() {
@@ -72,7 +72,7 @@ __git_open_unstaged() {
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git ls-files --others --exclude-standard --modified" "$preview")
-  [ -n "$args" ] && echo "$EDITOR $args"
+  [ "$args" != "" ] && echo "$EDITOR $args"
 }
 
 __git_open_staged() {
@@ -81,7 +81,7 @@ __git_open_staged() {
   local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git diff --name-only --cached" "$preview")
-  [ -n "$args" ] && echo "$EDITOR $args"
+  [ "$args" != "" ] && echo "$EDITOR $args"
 }
 
 __git_unstage() {
@@ -90,7 +90,7 @@ __git_unstage() {
   local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git diff --name-only --cached" "$preview")
-  [ -n "$args" ] && echo "git -C $repo_root restore --staged -- $args"
+  [ "$args" != "" ] && echo "git -C $repo_root restore --staged -- $args"
 }
 
 __git_discard() {
@@ -99,7 +99,7 @@ __git_discard() {
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git diff --name-only" "$preview")
-  [ -n "$args" ] && echo "git -C $repo_root checkout -- $args"
+  [ "$args" != "" ] && echo "git -C $repo_root checkout -- $args"
 }
 
 __git_untrack() {
@@ -108,7 +108,7 @@ __git_untrack() {
   local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git diff --name-only --cached" "$preview")
-  [ -n "$args" ] && echo "git -C $repo_root rm --cached -- $args"
+  [ "$args" != "" ] && echo "git -C $repo_root rm --cached -- $args"
 }
 
 __git_rm_untracked() {
@@ -117,7 +117,7 @@ __git_rm_untracked() {
   local preview="--preview 'cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git ls-files --others --exclude-standard" "$preview")
-  [ -n "$args" ] && echo "git -C $repo_root clean -f -- $args"
+  [ "$args" != "" ] && echo "git -C $repo_root clean -f -- $args"
 }
 
 __git_ignore() {
@@ -144,7 +144,7 @@ __git_ignore() {
   local preview="--preview 'cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git status --ignored --porcelain | grep '^!!' | cut -c4-" "$preview")
-  [ -n "$args" ] && echo "$cmd $args"
+  [ "$args" != "" ] && echo "$cmd $args"
 }
 
 __git_diff() {
@@ -159,7 +159,7 @@ __git_diff() {
   local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq" "$preview")
-  [ -n "$args" ] && echo "$EDITOR $args"
+  [ "$args" != "" ] && echo "$EDITOR $args"
 }
 
 __git_reset_soft() {
@@ -269,7 +269,7 @@ __git_diff_branches() {
   local files_preview="--preview 'cd \"$repo_root\" && git diff --color=always $branch1 $branch2 -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "$list_files" "$files_preview")
-  [ -n "$args" ] && echo "$EDITOR $args"
+  [ "$args" != "" ] && echo "$EDITOR $args"
 }
 
 __git_worktree_add() {
