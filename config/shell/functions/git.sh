@@ -40,14 +40,10 @@ __git_open_url() {
 _GIT_FZF_DEFAULT="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
 _GIT_FZF_PREVIEW="--preview-window 'right,75%,border-none,wrap'"
 
-__git_fzf_cmd() {
-  git rev-parse --is-inside-work-tree >/dev/null || return 1
-
+__git_fzf_select() {
   local list_cmd="$1"
-  local action_cmd="$2"
-  local fzf_args="$3"
+  local fzf_args="$2"
   local repo_root
-
   repo_root="$(git rev-parse --show-toplevel)"
 
   if [ "$fzf_args" != "" ]; then
@@ -56,72 +52,72 @@ __git_fzf_cmd() {
     fzf_args="$_GIT_FZF_DEFAULT"
   fi
 
-  local selected_files
-  selected_files=$((builtin cd "$repo_root" && sh -c "$list_cmd") |
+  (builtin cd "$repo_root" && sh -c "$list_cmd") |
     sh -c "fzf $fzf_args --print0" |
-    sed -z "s|^|$repo_root/|")
-
-  if [ "$selected_files" != "" ]; then
-    local args
-    args=$(printf '%s' "$selected_files" | tr '\0' '\n' | sed 's/ /\\ /g' | tr '\n' ' ')
-    echo "$action_cmd $args"
-  fi
+    tr '\0' '\n' | sed 's/ /\\ /g' | tr '\n' ' '
 }
 
 __git_open_all() {
-  local list_files="git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" \""$EDITOR"\" "$preview"
+  local args
+  args=$(__git_fzf_select "git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard" "$preview")
+  [ -n "$args" ] && echo "$EDITOR $args"
 }
 
 __git_open_unstaged() {
-  local list_files="git ls-files --others --exclude-standard --modified"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" \""$EDITOR"\" "$preview"
+  local args
+  args=$(__git_fzf_select "git ls-files --others --exclude-standard --modified" "$preview")
+  [ -n "$args" ] && echo "$EDITOR $args"
 }
 
 __git_open_staged() {
-  local list_files="git diff --name-only --cached"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" \""$EDITOR"\" "$preview"
+  local args
+  args=$(__git_fzf_select "git diff --name-only --cached" "$preview")
+  [ -n "$args" ] && echo "$EDITOR $args"
 }
 
 __git_unstage() {
-  local list_files="git diff --name-only --cached"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" "git restore --staged --" "$preview"
+  local args
+  args=$(__git_fzf_select "git diff --name-only --cached" "$preview")
+  [ -n "$args" ] && echo "git -C $repo_root restore --staged -- $args"
 }
 
 __git_discard() {
-  local list_files="git diff --name-only"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" "git checkout --" "$preview"
+  local args
+  args=$(__git_fzf_select "git diff --name-only" "$preview")
+  [ -n "$args" ] && echo "git -C $repo_root checkout -- $args"
 }
 
 __git_untrack() {
-  local list_files="git diff --name-only --cached"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" "git rm --cached --" "$preview"
+  local args
+  args=$(__git_fzf_select "git diff --name-only --cached" "$preview")
+  [ -n "$args" ] && echo "git -C $repo_root rm --cached -- $args"
 }
 
 __git_rm_untracked() {
-  local list_files="git ls-files --others --exclude-standard"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" "rm --" "$preview"
+  local args
+  args=$(__git_fzf_select "git ls-files --others --exclude-standard" "$preview")
+  [ -n "$args" ] && echo "git -C $repo_root clean -f -- $args"
 }
 
 __git_ignore() {
@@ -143,17 +139,17 @@ __git_ignore() {
       ;;
   esac
 
-  local list_files="git status --ignored --porcelain | grep '^!!' | cut -c4-"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
   local preview="--preview 'cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" "$cmd" "$preview"
+  local args
+  args=$(__git_fzf_select "git status --ignored --porcelain | grep '^!!' | cut -c4-" "$preview")
+  [ -n "$args" ] && echo "$cmd $args"
 }
 
 __git_diff() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
-  local list_files="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
   local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
@@ -161,7 +157,9 @@ __git_diff() {
   local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
   local preview_cmd="if $is_tracked; then $tracked_diff; else $untracked_diff; fi"
   local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" \""$EDITOR"\" "$preview"
+  local args
+  args=$(__git_fzf_select "{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq" "$preview")
+  [ -n "$args" ] && echo "$EDITOR $args"
 }
 
 __git_reset_soft() {
@@ -269,7 +267,9 @@ __git_diff_branches() {
   repo_root="$(git rev-parse --show-toplevel)"
 
   local files_preview="--preview 'cd \"$repo_root\" && git diff --color=always $branch1 $branch2 -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  __git_fzf_cmd "$list_files" "\"$EDITOR\"" "$files_preview"
+  local args
+  args=$(__git_fzf_select "$list_files" "$files_preview")
+  [ -n "$args" ] && echo "$EDITOR $args"
 }
 
 __git_worktree_add() {
