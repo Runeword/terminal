@@ -113,9 +113,9 @@ gro 	git reset --hard origin/$(git branch --show-current)	git       Make the loc
 grs 	__git_reset_soft                           	git                 Revert commits and unstage their changes starting from the selected commit	e
 grth	git reset --hard HEAD~<n>                  	git                 Revert last n commit and delete their changes
 # gcln	git-forgit clean --force -d              	git                 Delete untracked files and directories
-gdd  	__git_diff                                 	git                 Show unstaged changes	x
+gdd  	__git_diff                                 	git                 Show unstaged changes	e
 gdc  	git-forgit diff --cached                   	git                 Show staged changes	x
-gdb  	__git_diff_branches                        	git                 Show diff between 2 branches	x
+gdb  	__git_diff_branches                        	git                 Show diff between 2 branches	e
 gwa 	__git_worktree_add                         	git                 worktree                  add	e
 gwr 	__git_worktree_remove                      	git                 worktree                  remove	x
 gob	go build                                     	go
