@@ -1,6 +1,6 @@
 ol	__tmux_open_url                                  	open            url	x
 on	__open_editor_history                            	open            editor history	x
-oc 	__git_open_commits                               	open            commit	x
+oc 	__git_open_commits                               	open            commit	e
 ou 	__git_open_unstaged                              	git             open         unstaged	e
 os 	__git_open_staged                                	git             open         staged	e
 oa 	__git_open_all                                   	git             open         staged/unstaged/untracked	e
