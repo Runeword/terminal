@@ -85,39 +85,43 @@ __git_open_staged() {
 }
 
 __git_unstage() {
-  local repo_root
+  local repo_root repo_cdup
   repo_root="$(git rev-parse --show-toplevel)"
+  repo_cdup="$(git rev-parse --show-cdup)"
   local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git diff --name-only --cached" "$preview")
-  [ "$args" != "" ] && echo "git -C $repo_root restore --staged -- $args"
+  [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} restore --staged -- $args"
 }
 
 __git_discard() {
-  local repo_root
+  local repo_root repo_cdup
   repo_root="$(git rev-parse --show-toplevel)"
+  repo_cdup="$(git rev-parse --show-cdup)"
   local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git diff --name-only" "$preview")
-  [ "$args" != "" ] && echo "git -C $repo_root checkout -- $args"
+  [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} checkout -- $args"
 }
 
 __git_untrack() {
-  local repo_root
+  local repo_root repo_cdup
   repo_root="$(git rev-parse --show-toplevel)"
+  repo_cdup="$(git rev-parse --show-cdup)"
   local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git diff --name-only --cached" "$preview")
-  [ "$args" != "" ] && echo "git -C $repo_root rm --cached -- $args"
+  [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} rm --cached -- $args"
 }
 
 __git_rm_untracked() {
-  local repo_root
+  local repo_root repo_cdup
   repo_root="$(git rev-parse --show-toplevel)"
+  repo_cdup="$(git rev-parse --show-cdup)"
   local preview="--preview 'cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git ls-files --others --exclude-standard" "$preview")
-  [ "$args" != "" ] && echo "git -C $repo_root clean -f -- $args"
+  [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} clean -f -- $args"
 }
 
 __git_ignore() {
