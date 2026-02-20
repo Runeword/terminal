@@ -179,14 +179,15 @@ __git_reset_soft() {
 }
 
 __git_open_commits() {
-  local list_commits="git log --oneline"
   local preview="--preview 'git show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local fzf_args="--multi --reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
-  commits=$(sh -c "$list_commits" | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
+  local commits
+  commits=$(git log --oneline | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
 
   if [ "$commits" != "" ]; then
-    (builtin cd "$(git rev-parse --show-toplevel)" &&
-      echo "$commits" | xargs git show --name-only --pretty=format: -z | sort -zu | sed -z '/^$/d' | xargs -0 "$EDITOR")
+    local files
+    files=$(echo "$commits" | xargs git diff-tree --no-commit-id --name-only -r | sort -u | sed 's/ /\\ /g' | tr '\n' ' ')
+    echo "$EDITOR $files"
   fi
 }
 
