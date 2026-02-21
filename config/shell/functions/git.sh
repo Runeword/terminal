@@ -174,7 +174,9 @@ __git_reset_soft() {
   commit=$(sh -c "$list_commits" | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
 
   if [ "$commit" != "" ]; then
-    echo "git reset --soft ${commit}^ "
+    local offset
+    offset=$(git rev-list --count --first-parent "$commit"..HEAD)
+    echo "git reset --soft HEAD~$offset "
   fi
 }
 
