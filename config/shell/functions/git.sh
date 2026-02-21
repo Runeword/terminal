@@ -192,7 +192,7 @@ __git_log() {
   local file_preview="--preview 'git show --color=always $commit -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local args
-  args=$(git diff-tree --no-commit-id --name-only -r "$commit" | sh -c "fzf --print0 $file_fzf_args $file_preview" | tr '\0' '\n' | sed 's/ /\\ /g' | tr '\n' ' ')
+  args=$(git diff-tree --root --no-commit-id --name-only -r "$commit" | sh -c "fzf --print0 $file_fzf_args $file_preview" | tr '\0' '\n' | sed 's/ /\\ /g' | tr '\n' ' ')
   [ "$args" != "" ] && echo "$EDITOR $args"
 }
 
