@@ -419,17 +419,14 @@ __git_branch_switch() {
   local worktree_list
   worktree_list=$(git --no-pager worktree list)
 
+  local worktree_map
+  worktree_map=$(echo "$worktree_list" | awk 'match($3, /\[(.*)\]/, m) { split($1, p, "/"); print m[1] "\t→ " p[length(p)] }')
+
   local list_branches
-  list_branches=$(git branch --all --format='%(refname:short)' | grep -v '^HEAD' | while read -r branch; do
-    branch_to_check=$(echo "$branch" | sed 's|^remotes/[^/]*/||')
-    worktree_path=$(echo "$worktree_list" | awk -v branch="$branch_to_check" 'match($3, /\[(.*)\]/, m) && m[1] == branch {print $1; exit}')
-    if [ "$worktree_path" != "" ]; then
-      worktree_name=$(basename "$worktree_path")
-      echo "$branch	→ $worktree_name"
-    else
-      echo "$branch	"
-    fi
-  done)
+  list_branches=$(git branch --all --format='%(refname:short)' | grep -v '^HEAD' | awk -F'\t' -v map="$worktree_map" '
+    BEGIN { n = split(map, lines, "\n"); for (i = 1; i <= n; i++) { split(lines[i], kv, "\t"); wt[kv[1]] = kv[2] } }
+    { branch = $0; sub(/^remotes\/[^/]*\//, "", branch); if (branch in wt) print $0 "\t" wt[branch]; else print $0 "\t" }
+  ')
 
   local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"switch to branch\" --with-nth=1,2 --delimiter='\t' --prompt='  ' --wrap-sign='' --scheme=path"
   local preview="--preview 'branch=\$(echo {} | cut -f1); git diff --color=always $current_branch..\$branch | $_GIT_PAGER' --preview-window 'right,65%,border-none,wrap'"
