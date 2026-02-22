@@ -1,10 +1,5 @@
 # Terminal reproducible setup
 
-→ mkTools (list of tool derivations)
-→ mkTerminal (alacritty wrapping those tools)
-→ Two modes: bundled (immutable) vs dev (live-editable)
-→ Exposed as packages, apps, and a home-manager module
-
 ## Development mode
 When running in development mode, the terminal configuration is symlinked to the Nix store.  
 This approach streamlines development, allowing you to apply configuration changes immediately without having to rebuild the flake.  
