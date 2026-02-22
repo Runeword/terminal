@@ -52,6 +52,10 @@
           type = "app";
           program = "${terminal}/bin/alacritty";
         };
+        apps.dev = {
+          type = "app";
+          program = "${mkTerminal pkgs (builtins.getEnv "TERMINAL_CONFIG_DIR")}/bin/alacritty";
+        };
 
         lib.mkTerminal =
           {
