@@ -3,7 +3,6 @@
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.nixpkgs-24-05.url = "github:NixOS/nixpkgs/nixos-24.05";
-
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
   outputs =
@@ -14,72 +13,72 @@
       flake-utils,
     }:
     let
+      mkTools =
+        pkgs: configPath:
+        import ./packages { inherit pkgs configPath; }
+        ++ import ./wrappers { inherit pkgs configPath; };
+
       mkTerminal =
-        pkgs:
-        {
-          configPath ? toString ./config,
-        }:
+        pkgs: configPath:
         import ./wrappers/alacritty.nix {
           inherit pkgs configPath;
-          tools =
-            import ./packages { inherit pkgs configPath; } ++ import ./wrappers { inherit pkgs configPath; };
-        };
-
-      mkTools =
-        pkgs:
-        {
-          configPath ? toString ./config,
-        }:
-        pkgs.buildEnv {
-          name = "tools";
-          paths =
-            import ./packages { inherit pkgs configPath; } ++ import ./wrappers { inherit pkgs configPath; };
-        };
-
-      mkSystemBuild =
-        system:
-        let
-          pkgs-24-05 = import nixpkgs-24-05 {
-            inherit system;
-            config.allowUnfree = true;
-          };
-
-          pkgs = import nixpkgs {
-            inherit system;
-            config.allowUnfree = true;
-            overlays = import ./overlays { inherit pkgs-24-05; };
-          };
-        in
-        {
-          inherit pkgs;
-          mkTerminal = mkTerminal pkgs;
-          mkTools = mkTools pkgs;
+          tools = mkTools pkgs configPath;
         };
     in
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        build = mkSystemBuild system;
+        pkgs-24-05 = import nixpkgs-24-05 {
+          inherit system;
+          config.allowUnfree = true;
+        };
+
+        pkgs = import nixpkgs {
+          inherit system;
+          config.allowUnfree = true;
+          overlays = import ./overlays { inherit pkgs-24-05; };
+        };
+
+        configPath = toString ./config;
+        devConfigPath = builtins.getEnv "TERMINAL_CONFIG_DIR";
+
+        bundled = mkTerminal pkgs configPath;
+        dev = mkTerminal pkgs devConfigPath;
       in
       {
-        # Bundled mode
-        apps.default.type = "app";
-        apps.default.program = "${build.mkTerminal { }}/bin/alacritty";
-        packages.default = build.mkTerminal { };
-        packages.tools = build.mkTools { };
+        packages.default = bundled;
+        packages.dev = dev;
+        packages.tools = pkgs.buildEnv { name = "tools"; paths = mkTools pkgs configPath; };
+        packages.devTools = pkgs.buildEnv { name = "tools"; paths = mkTools pkgs devConfigPath; };
 
-        # Dev mode
-        apps.dev.type = "app";
-        apps.dev.program = "${
-          build.mkTerminal { configPath = builtins.getEnv "TERMINAL_CONFIG_DIR"; }
-        }/bin/alacritty";
-        packages.dev = build.mkTerminal { configPath = builtins.getEnv "TERMINAL_CONFIG_DIR"; };
-        packages.devTools = build.mkTools { configPath = builtins.getEnv "TERMINAL_CONFIG_DIR"; };
+        apps.default = { type = "app"; program = "${bundled}/bin/alacritty"; };
+        apps.dev = { type = "app"; program = "${dev}/bin/alacritty"; };
 
-        devShells.default = import ./devshell.nix { inherit (build) pkgs; };
+        devShells.default = import ./devshell.nix { inherit pkgs; };
       }
     )
     // {
-      homeManagerModules.default = import ./modules/terminal.nix { inherit mkSystemBuild; };
+      homeManagerModules.default = import ./modules/terminal.nix {
+        mkSystemBuild = system:
+          let
+            pkgs-24-05 = import nixpkgs-24-05 {
+              inherit system;
+              config.allowUnfree = true;
+            };
+            pkgs = import nixpkgs {
+              inherit system;
+              config.allowUnfree = true;
+              overlays = import ./overlays { inherit pkgs-24-05; };
+            };
+          in
+          {
+            inherit pkgs;
+            mkTerminal = { configPath ? toString ./config }: mkTerminal pkgs configPath;
+            mkTools = { configPath ? toString ./config }: pkgs.buildEnv {
+              name = "tools";
+              paths = mkTools pkgs configPath;
+            };
+          };
+      };
     };
 }
