@@ -420,12 +420,17 @@ __git_branch_switch() {
   worktree_list=$(git --no-pager worktree list)
 
   local worktree_map
-  worktree_map=$(echo "$worktree_list" | awk 'match($3, /\[(.*)\]/, m) { split($1, p, "/"); print m[1] "\t→ " p[length(p)] }')
+  worktree_map=$(echo "$worktree_list" | awk '{
+    b = $3; gsub(/[\[\]]/, "", b)
+    n = split($1, p, "/")
+    if (b != "") print b "\t" p[n]
+  }')
 
   local list_branches
-  list_branches=$(git branch --all --format='%(refname:short)' | grep -v '^HEAD' | awk -F'\t' -v map="$worktree_map" '
+  list_branches=$(git branch --all --format='%(refname:short)' | grep -v '^HEAD' | awk -v map="$worktree_map" '
     BEGIN { n = split(map, lines, "\n"); for (i = 1; i <= n; i++) { split(lines[i], kv, "\t"); wt[kv[1]] = kv[2] } }
-    { branch = $0; sub(/^remotes\/[^/]*\//, "", branch); if (branch in wt) print $0 "\t" wt[branch]; else print $0 "\t" }
+    { branch = $0; sub(/^remotes\/[^/]*\//, "", branch)
+      if (branch in wt) print $0 "\t→ " wt[branch]; else print $0 "\t" }
   ')
 
   local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"switch to branch\" --with-nth=1,2 --delimiter='\t' --prompt='  ' --wrap-sign='' --scheme=path"
