@@ -7,17 +7,7 @@ pkgs.mkShell {
     pkgs.shellcheck
     pkgs.taplo
     (pkgs.writeShellScriptBin "dev" ''
-      TERMINAL_CONFIG_DIR="''${TERMINAL_CONFIG_DIR:-$PWD/config}"
-      export TERMINAL_CONFIG_DIR
-      exec "$(nix build --impure --no-link --print-out-paths --expr '
-        let
-          flake = builtins.getFlake ("path:" + builtins.getEnv "PWD");
-          system = builtins.currentSystem;
-        in
-        flake.lib.''${system}.mkTerminal {
-          configPath = builtins.getEnv "TERMINAL_CONFIG_DIR";
-        }
-      ')/bin/alacritty" "$@"
+      TERMINAL_CONFIG_DIR="$PWD/config" nix run .#dev --impure "$@"
     '')
     (pkgs.writeShellScriptBin "h" ''
       echo "type 'dev' to run alacritty in development mode"
