@@ -54,6 +54,7 @@ export FZF_DEFAULT_OPTS="
 --color=marker:#4534bf,spinner:#ffffff,header:#535e73 \
 --bind='tab:select+down,btab:deselect+up' \
 --bind='up:up,down:down' \
+--bind='ctrl-j:down,ctrl-k:up' \
 --bind='page-up:half-page-up,page-down:half-page-down' \
 --bind='home:first,end:last' \
 --bind='shift-up:preview-up,shift-down:preview-down' \
