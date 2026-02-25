@@ -507,6 +507,33 @@ __git_stash_unstaged() {
   fi
 }
 
+__git_cherry_pick() {
+  git rev-parse --is-inside-work-tree >/dev/null || return 1
+
+  local current_branch
+  current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+  local list_branches="git branch --all --format='%(refname:short)' | grep -v '^HEAD' | grep -v '^$current_branch\$'"
+  local branch_fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"cherry-pick into $current_branch\" --prompt='  ' --wrap-sign='' --scheme=path"
+  local branch_preview="--preview 'git log --oneline --color=always {}' $_GIT_FZF_PREVIEW"
+
+  local branch
+  branch=$(sh -c "$list_branches" | sh -c "fzf $branch_fzf_args $branch_preview")
+  [ "$branch" = "" ] && return
+
+  local commit_fzf_args="--multi --reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --header=\"$branch\" --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
+  local commit_preview="--preview 'git show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+
+  local selected
+  selected=$(git log --oneline "$branch" --not HEAD | sh -c "fzf $commit_fzf_args $commit_preview")
+
+  if [ "$selected" != "" ]; then
+    local commits
+    commits=$(echo "$selected" | awk '{print $1}' | tr '\n' ' ')
+    echo "git cherry-pick $commits"
+  fi
+}
+
 __git_stash_apply() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
