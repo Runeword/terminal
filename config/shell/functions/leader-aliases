@@ -75,7 +75,7 @@ gcm 	git commit --message Message               	git                 commit     
 gca 	git commit --message --amend NewMessage    	git                 commit              edit message
 gcl 	__git_clone Documents/dev                  	git                 clone               repo	x
 gcf 	cloneit                                    	git                 clone           dir/file	x
-gcp 	git-forgit cherry_pick                     	git
+gcp 	__git_cherry_pick                          	git                 cherry-pick	e
 gkf 	git-forgit checkout_file                   	git
 gkt 	git-forgit checkout_tag                    	git
 gkc 	git-forgit checkout_commit                 	git
