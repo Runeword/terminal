@@ -41,9 +41,6 @@ __load_compinit() {
 typeset -F __T2=$SECONDS
 _profile "compinit setup: %.0fms (deferred)\n" $(( (__T2 - __T1) * 1000 ))
 
-autoload -Uz bracketed-paste-magic
-zle -N bracketed-paste bracketed-paste-magic
-
 # ------------------------------------ Key mappings
 typeset -F __TK1=$SECONDS
 typeset -A KEYS
