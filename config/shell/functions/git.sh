@@ -54,7 +54,7 @@ __git_fzf_select() {
 
   (builtin cd "$repo_root" && sh -c "$list_cmd") |
     sh -c "fzf $fzf_args --print0" |
-    tr '\0' '\n' | sed 's/ /\\ /g' | tr '\n' ' '
+    tr '\0' '\n' | sed "s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' '
 }
 
 __git_open_all() {
@@ -82,6 +82,20 @@ __git_open_staged() {
   local args
   args=$(__git_fzf_select "git diff --name-only --cached" "$preview")
   [ "$args" != "" ] && echo "$EDITOR $args"
+}
+
+__git_add() {
+  local repo_root repo_cdup
+  repo_root="$(git rev-parse --show-toplevel)"
+  repo_cdup="$(git rev-parse --show-cdup)"
+  local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
+  local tracked_diff="cd \"$repo_root\" && git diff --color=always {} | $_GIT_PAGER"
+  local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
+  local preview_cmd="if $is_tracked; then $tracked_diff; else $untracked_diff; fi"
+  local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
+  local args
+  args=$(__git_fzf_select "{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq" "$preview")
+  [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} add -- $args"
 }
 
 __git_unstage() {
