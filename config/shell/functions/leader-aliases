@@ -56,7 +56,7 @@ ghi 	lefthook install                           	lefthook            install	x
 ghr 	rm -rf .git/info/lefthook-remotes          	lefthook            remote              delete	x
 ghp 	__git_lefthook_pre_commit                  	lefthook            pre-commit          run	x
 gl  	__git_log                                  	git                 commit              list	e
-ga  	git-forgit add                             	git                 file                stage	x
+ga  	__git_add                                  	git                 file                stage	e
 gu  	__git_open_url                             	git                 url                 open	x
 guc 	__git_open_url commits                     	git                 url                 open	x
 xga 	git add --intent-to-add File               	git                 file                track
