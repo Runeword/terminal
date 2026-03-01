@@ -50,7 +50,7 @@ g   	lazygit                                    	git                 tui	x
 g   	onefetch                                   	git                 repo                info	x
 g   	__git_set_user                             	git                 config              set user	x
 gi  	__git_info                                 	git                 repo                info	x
-gia 	git log --format="%h %an %ae" master..HEAD	git                 authors             info	x
+# gia 	git log --format="%h %an %ae" master..HEAD	git                 authors             info	x
 gh  	__git_install_lefthook                     	lefthook            hook                add	x
 ghi 	lefthook install                           	lefthook            install	x
 ghr 	rm -rf .git/info/lefthook-remotes          	lefthook            remote              delete	x
@@ -83,10 +83,9 @@ gko 	git checkout --ours FileName               	git                 merge confl
 gni 	__git_ignore open                          	git                 Open ignored files	e
 # gnc 	nvim $(git diff-tree --no-commit-id --name-only -r HEAD)	git         open                            last commit	x
 gnb 	nvim $(git diff --name-only master...)     	git                 open                            current branch	x
-gss 	git stash push --staged                    	git                 stash                           staged	x
-# gsp 	git stash push                             	git                 stash                  staged/unstaged	x
 gsp 	__git_stash_push                           	git                 stash        untracked/staged/unstaged	e
 gsa 	git stash push --include-untracked         	git                 stash        untracked/staged/unstaged	x
+gss 	git stash push --staged                    	git                 stash                           staged	x
 gsu 	git stash push --include-untracked --keep-index 	git           stash               untracked/unstaged	x
 gsy 	__git_stash_apply                          	git                 stash                            apply 	e
 gsc 	git stash clear                            	git                 stash                       delete all
