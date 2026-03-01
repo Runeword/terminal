@@ -378,34 +378,6 @@ __git_worktree_remove() {
   fi
 }
 
-__git_stash_push() {
-  git rev-parse --is-inside-work-tree >/dev/null || return 1
-
-  local list_files="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
-  local repo_root
-  repo_root="$(git rev-parse --show-toplevel)"
-  local is_staged="cd \"$repo_root\" && git diff --cached --name-only -- {} | grep -q ."
-  local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
-  local staged_diff="cd \"$repo_root\" && git diff --cached --color=always {} | $_GIT_PAGER"
-  local tracked_diff="cd \"$repo_root\" && git diff --color=always {} | $_GIT_PAGER"
-  local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
-  local preview_cmd="if $is_staged; then $staged_diff; elif $is_tracked; then $tracked_diff; else $untracked_diff; fi"
-  local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
-
-  local selected_files
-  selected_files=$(builtin cd "$repo_root" && sh -c "$list_files" | sh -c "fzf $_GIT_FZF_DEFAULT --print0 $preview")
-
-  if [ "$selected_files" != "" ]; then
-    local files
-    files=$(printf '%s' "$selected_files" | tr '\0' '\n' |
-      sed 's/ /\\ /g; s/^/  /; s/$/ \\/')
-    local git_root
-    git_root=$(git rev-parse --show-cdup)
-    echo "git -C ${git_root:-.} stash push --include-untracked -- \\"
-    echo "${files% \\}"
-  fi
-}
-
 __git_merge() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
@@ -530,6 +502,34 @@ __git_cherry_pick() {
     local commits
     commits=$(echo "$selected" | awk '{print $1}' | tr '\n' ' ')
     echo "git cherry-pick $commits"
+  fi
+}
+
+__git_stash_push() {
+  git rev-parse --is-inside-work-tree >/dev/null || return 1
+
+  local list_files="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel)"
+  local is_staged="cd \"$repo_root\" && git diff --cached --name-only -- {} | grep -q ."
+  local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
+  local staged_diff="cd \"$repo_root\" && git diff --cached --color=always {} | $_GIT_PAGER"
+  local tracked_diff="cd \"$repo_root\" && git diff --color=always {} | $_GIT_PAGER"
+  local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
+  local preview_cmd="if $is_staged; then $staged_diff; elif $is_tracked; then $tracked_diff; else $untracked_diff; fi"
+  local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
+
+  local selected_files
+  selected_files=$(builtin cd "$repo_root" && sh -c "$list_files" | sh -c "fzf $_GIT_FZF_DEFAULT --print0 $preview")
+
+  if [ "$selected_files" != "" ]; then
+    local files
+    files=$(printf '%s' "$selected_files" | tr '\0' '\n' |
+      sed 's/ /\\ /g; s/^/  /; s/$/ \\/')
+    local git_root
+    git_root=$(git rev-parse --show-cdup)
+    echo "git -C ${git_root:-.} stash push --include-untracked -- \\"
+    echo "${files% \\}"
   fi
 }
 
