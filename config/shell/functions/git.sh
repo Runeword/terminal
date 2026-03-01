@@ -506,21 +506,6 @@ __git_lefthook_pre_commit() {
   lefthook run --all-files --commands "$commands" pre-commit
 }
 
-__git_stash_unstaged() {
-  git rev-parse --is-inside-work-tree >/dev/null || return 1
-
-  local repo_root repo_cdup
-  repo_root="$(git rev-parse --show-toplevel)"
-  repo_cdup="$(git rev-parse --show-cdup)"
-  local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  local args
-  args=$(__git_fzf_select "git diff --name-only" "$preview")
-
-  if [ "$args" != "" ]; then
-    echo "git -C ${repo_cdup:-.} stash push --keep-index -- $args"
-  fi
-}
-
 __git_cherry_pick() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
