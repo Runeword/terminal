@@ -83,6 +83,10 @@ KEYS=(
 typeset -F __TK2=$SECONDS
 _profile "keys: %.0fms\n" $(( (__TK2 - __TK1) * 1000 ))
 
+for f in "$NIX_OUT_SHELL"/.config/zsh/plugins/*/*.plugin.zsh; do
+  source "$f"
+done
+
 # ------------------------------------ ZSH hooks
 typeset -F __TH1=$SECONDS
 autoload -Uz add-zsh-hook
