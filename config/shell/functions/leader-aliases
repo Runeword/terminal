@@ -1,8 +1,5 @@
 ol	__tmux_open_url                                  	open            url	x
 on	__open_editor_history                            	open            editor history	x
-ou 	__git_open_unstaged                              	git             open         unstaged	e
-os 	__git_open_staged                                	git             open         staged	e
-oa 	__git_open_all                                   	git             open         staged/unstaged/untracked	e
 oh	nvim $HISTFILE                                   	open            history	x
 # ols	ollama serve                                     	ollama          serve	x
 # olr	ollama run codellama                             	ollama          run	x
@@ -111,8 +108,9 @@ gro 	git reset --hard origin/$(git branch --show-current)	git       Make the loc
 grs 	__git_reset_soft                           	git                 Revert commits and unstage their changes starting from the selected commit	e
 grth	git reset --hard HEAD~<n>                  	git                 Revert last n commit and delete their changes
 # gcln	git-forgit clean --force -d              	git                 Delete untracked files and directories
-gdd  	__git_diff                                 	git                 Show unstaged changes	e
-gdc  	git-forgit diff --cached                   	git                 Show staged changes	x
+gdd 	__git_diff                                 	git                 Show staged/unstaged/untracked	e
+gdc  	__git_diff staged                          	git                 Show staged changes	e
+gdu  	__git_diff unstaged                        	git                 Show unstaged changes	e
 gdb  	__git_diff_branches                        	git                 Show diff between 2 branches	e
 gwa 	__git_worktree_add                         	git                 worktree                  add	e
 gwr 	__git_worktree_remove                      	git                 worktree                  remove	x
