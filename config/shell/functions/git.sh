@@ -57,33 +57,6 @@ __git_fzf_select() {
     tr '\0' '\n' | sed "s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' '
 }
 
-__git_open_all() {
-  local repo_root
-  repo_root="$(git rev-parse --show-toplevel)"
-  local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  local args
-  args=$(__git_fzf_select "git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard" "$preview")
-  [ "$args" != "" ] && echo "$EDITOR $args"
-}
-
-__git_open_unstaged() {
-  local repo_root
-  repo_root="$(git rev-parse --show-toplevel)"
-  local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  local args
-  args=$(__git_fzf_select "git ls-files --others --exclude-standard --modified" "$preview")
-  [ "$args" != "" ] && echo "$EDITOR $args"
-}
-
-__git_open_staged() {
-  local repo_root
-  repo_root="$(git rev-parse --show-toplevel)"
-  local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  local args
-  args=$(__git_fzf_select "git diff --name-only --cached" "$preview")
-  [ "$args" != "" ] && echo "$EDITOR $args"
-}
-
 __git_add() {
   local repo_root repo_cdup
   repo_root="$(git rev-parse --show-toplevel)"
@@ -168,15 +141,72 @@ __git_ignore() {
 __git_diff() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
-  local repo_root
+  local repo_root list_cmd diff_cmd
   repo_root="$(git rev-parse --show-toplevel)"
+
+  case "${1:-all}" in
+    staged)
+      list_cmd="git diff --name-only --cached"
+      diff_cmd="diff --cached"
+      ;;
+    unstaged)
+      list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
+      diff_cmd="diff"
+      ;;
+    *)
+      list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
+      diff_cmd="diff HEAD"
+      ;;
+  esac
+
   local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
-  local tracked_diff="cd \"$repo_root\" && git diff --color=always {} | $_GIT_PAGER"
+  local tracked_diff="cd \"$repo_root\" && git $diff_cmd --color=always -- {} | $_GIT_PAGER"
   local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
-  local preview_cmd="if $is_tracked; then $tracked_diff; else $untracked_diff; fi"
-  local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
+  local preview="--preview 'if $is_tracked; then $tracked_diff; else $untracked_diff; fi' $_GIT_FZF_PREVIEW"
+
   local args
-  args=$(__git_fzf_select "{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq" "$preview")
+  args=$(__git_fzf_select "$list_cmd" "$preview")
+  [ "$args" != "" ] && echo "$EDITOR $args"
+}
+
+__git_diff_branches() {
+  local list_branches="git branch --all --format='%(refname:short)'"
+  local fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path"
+  local preview="--preview 'git log --oneline --color=always {}' $_GIT_FZF_PREVIEW"
+
+  local selected_branches
+  selected_branches=$(sh -c "$list_branches" | sh -c "fzf $fzf_args $preview")
+
+  if [ "$selected_branches" = "" ]; then
+    echo "Select 1 or 2 branches"
+    return 1
+  fi
+
+  local branch_count
+  branch_count=$(echo "$selected_branches" | wc -l | tr -d ' ')
+
+  local branch1
+  local branch2
+
+  if [ "$branch_count" -eq 1 ]; then
+    branch1=$(echo "$selected_branches" | sed -n '1p')
+    branch2=$(git rev-parse --abbrev-ref HEAD)
+  elif [ "$branch_count" -eq 2 ]; then
+    branch1=$(echo "$selected_branches" | sed -n '1p')
+    branch2=$(echo "$selected_branches" | sed -n '2p')
+  else
+    echo "Select 1 or 2 branches"
+    return 1
+  fi
+
+  local list_files
+  local repo_root
+  list_files="git diff --name-only $branch1 $branch2"
+  repo_root="$(git rev-parse --show-toplevel)"
+
+  local files_preview="--preview 'cd \"$repo_root\" && git diff --color=always $branch1 $branch2 -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local args
+  args=$(__git_fzf_select "$list_files" "$files_preview")
   [ "$args" != "" ] && echo "$EDITOR $args"
 }
 
@@ -253,47 +283,6 @@ __git_info() {
 __git_set_user() {
   git config user.name "Runeword"
   git config user.email "60324746+Runeword@users.noreply.github.com"
-}
-
-__git_diff_branches() {
-  local list_branches="git branch --all --format='%(refname:short)'"
-  local fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path"
-  local preview="--preview 'git log --oneline --color=always {}' $_GIT_FZF_PREVIEW"
-
-  local selected_branches
-  selected_branches=$(sh -c "$list_branches" | sh -c "fzf $fzf_args $preview")
-
-  if [ "$selected_branches" = "" ]; then
-    echo "Select 1 or 2 branches"
-    return 1
-  fi
-
-  local branch_count
-  branch_count=$(echo "$selected_branches" | wc -l | tr -d ' ')
-
-  local branch1
-  local branch2
-
-  if [ "$branch_count" -eq 1 ]; then
-    branch1=$(echo "$selected_branches" | sed -n '1p')
-    branch2=$(git rev-parse --abbrev-ref HEAD)
-  elif [ "$branch_count" -eq 2 ]; then
-    branch1=$(echo "$selected_branches" | sed -n '1p')
-    branch2=$(echo "$selected_branches" | sed -n '2p')
-  else
-    echo "Select 1 or 2 branches"
-    return 1
-  fi
-
-  local list_files
-  local repo_root
-  list_files="git diff --name-only $branch1 $branch2"
-  repo_root="$(git rev-parse --show-toplevel)"
-
-  local files_preview="--preview 'cd \"$repo_root\" && git diff --color=always $branch1 $branch2 -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  local args
-  args=$(__git_fzf_select "$list_files" "$files_preview")
-  [ "$args" != "" ] && echo "$EDITOR $args"
 }
 
 __git_worktree_add() {
