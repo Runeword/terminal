@@ -38,7 +38,8 @@ __git_open_url() {
 }
 
 _GIT_FZF_DEFAULT="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
-_GIT_FZF_PREVIEW="--preview-window 'right,75%,border-none,wrap'"
+_GIT_FZF_PREVIEW_CMD="echo {};"
+_GIT_FZF_PREVIEW="--preview-window 'right,75%,border-none,wrap,~1'"
 
 __git_fzf_select() {
   local list_cmd="$1"
@@ -52,9 +53,10 @@ __git_fzf_select() {
     fzf_args="$_GIT_FZF_DEFAULT"
   fi
 
-  (builtin cd "$repo_root" && sh -c "$list_cmd") |
-    sh -c "fzf $fzf_args --print0" |
-    tr '\0' '\n' | sed "s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' '
+  local result
+  result=$( (builtin cd "$repo_root" && sh -c "$list_cmd") | sh -c "fzf $fzf_args --print0")
+  [ "$result" = "" ] && return 1
+  printf '%s' "$result" | tr '\0' '\n' | sed "s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' '
 }
 
 __git_add() {
@@ -65,7 +67,7 @@ __git_add() {
   local tracked_diff="cd \"$repo_root\" && git diff --color=always {} | $_GIT_PAGER"
   local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
   local preview_cmd="if $is_tracked; then $tracked_diff; else $untracked_diff; fi"
-  local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD $preview_cmd' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq" "$preview")
   [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} add -- $args"
@@ -75,7 +77,7 @@ __git_unstage() {
   local repo_root repo_cdup
   repo_root="$(git rev-parse --show-toplevel)"
   repo_cdup="$(git rev-parse --show-cdup)"
-  local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git diff --name-only --cached" "$preview")
   [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} restore --staged -- $args"
@@ -85,7 +87,7 @@ __git_discard() {
   local repo_root repo_cdup
   repo_root="$(git rev-parse --show-toplevel)"
   repo_cdup="$(git rev-parse --show-cdup)"
-  local preview="--preview 'cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git diff --name-only" "$preview")
   [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} checkout -- $args"
@@ -95,7 +97,7 @@ __git_untrack() {
   local repo_root repo_cdup
   repo_root="$(git rev-parse --show-toplevel)"
   repo_cdup="$(git rev-parse --show-cdup)"
-  local preview="--preview 'cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git diff --name-only --cached" "$preview")
   [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} rm --cached -- $args"
@@ -105,7 +107,7 @@ __git_rm_untracked() {
   local repo_root repo_cdup
   repo_root="$(git rev-parse --show-toplevel)"
   repo_cdup="$(git rev-parse --show-cdup)"
-  local preview="--preview 'cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git ls-files --others --exclude-standard" "$preview")
   [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} clean -f -- $args"
@@ -132,7 +134,7 @@ __git_ignore() {
 
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
-  local preview="--preview 'cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git status --ignored --porcelain | grep '^!!' | cut -c4-" "$preview")
   [ "$args" != "" ] && echo "$cmd $args"
@@ -162,7 +164,7 @@ __git_diff() {
   local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
   local tracked_diff="cd \"$repo_root\" && git $diff_cmd --color=always -- {} | $_GIT_PAGER"
   local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
-  local preview="--preview 'if $is_tracked; then $tracked_diff; else $untracked_diff; fi' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD if $is_tracked; then $tracked_diff; else $untracked_diff; fi' $_GIT_FZF_PREVIEW"
 
   local args
   args=$(__git_fzf_select "$list_cmd" "$preview")
@@ -172,7 +174,7 @@ __git_diff() {
 __git_diff_branches() {
   local list_branches="git branch --all --format='%(refname:short)'"
   local fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path"
-  local preview="--preview 'git log --oneline --color=always {}' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD git log --oneline --color=always {}' $_GIT_FZF_PREVIEW"
 
   local selected_branches
   selected_branches=$(sh -c "$list_branches" | sh -c "fzf $fzf_args $preview")
@@ -204,7 +206,7 @@ __git_diff_branches() {
   list_files="git diff --name-only $branch1 $branch2"
   repo_root="$(git rev-parse --show-toplevel)"
 
-  local files_preview="--preview 'cd \"$repo_root\" && git diff --color=always $branch1 $branch2 -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local files_preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && git diff --color=always $branch1 $branch2 -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "$list_files" "$files_preview")
   [ "$args" != "" ] && echo "$EDITOR $args"
@@ -212,7 +214,7 @@ __git_diff_branches() {
 
 __git_reset_soft() {
   local list_commits="git log --oneline --first-parent"
-  local preview="--preview 'git show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD git show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
   local commit
   commit=$(sh -c "$list_commits" | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
@@ -225,7 +227,7 @@ __git_reset_soft() {
 }
 
 __git_log() {
-  local preview="--preview 'git show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD git show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local fzf_args="--reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path"
   local commit
   commit=$(git log --oneline | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
@@ -233,7 +235,7 @@ __git_log() {
   [ "$commit" = "" ] && return
 
   local file_fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header='select files to open' --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
-  local file_preview="--preview 'git show --color=always $commit -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local file_preview="--preview '$_GIT_FZF_PREVIEW_CMD git show --color=always $commit -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local args
   args=$(git diff-tree --root --no-commit-id --name-only -r "$commit" | sh -c "fzf --print0 $file_fzf_args $file_preview" | tr '\0' '\n' | sed 's/ /\\ /g' | tr '\n' ' ')
@@ -253,7 +255,7 @@ __git_install_lefthook() {
   fi
 
   local fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header='select git hooks to install' --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
-  local preview="--preview 'curl -s https://raw.githubusercontent.com/Runeword/lefthook/main/{}' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD curl -s https://raw.githubusercontent.com/Runeword/lefthook/main/{}' $_GIT_FZF_PREVIEW"
 
   local selected_configs
   selected_configs=$(echo "$available_configs" | sh -c "fzf $fzf_args $preview")
@@ -314,7 +316,7 @@ EOF
   fi
 
   local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"$header\" --prompt='  ' --wrap-sign='' --scheme=path"
-  local preview="--preview 'git diff --color=always $current_branch..{} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD git diff --color=always $current_branch..{} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local branch
   branch=$(sh -c "$list_branches" | sh -c "fzf $fzf_args $preview")
@@ -350,7 +352,7 @@ __git_worktree_remove() {
 
   local list_worktrees="git worktree list | tail -n +2 | awk '{dir=\$1; sub(/.*\//, \"\", dir); print dir \"\t\" \$2 \"\t\" \$3 \"\t\" \$1}'"
   local fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"$header\" --with-nth=1,2,3 --delimiter='\t' --prompt='  ' --bind='ctrl-a:select-all'"
-  local preview="--preview 'git diff --color=always $branch..\$(echo {} | awk -F\"\t\" \"{print \\\$3}\" | sed \"s/\\[//;s/\\]//\") | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD git diff --color=always $branch..\$(echo {} | awk -F\"\t\" \"{print \\\$3}\" | sed \"s/\\[//;s/\\]//\") | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local worktrees
   worktrees=$(sh -c "$list_worktrees" | sh -c "fzf $fzf_args $preview" | awk -F'\t' '{print $4}')
@@ -375,7 +377,7 @@ __git_merge() {
 
   local list_branches="git branch --all --format='%(refname:short)' | grep -v '^HEAD' | grep -v '^$current_branch\$'"
   local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"merge into $current_branch\" --prompt='  ' --wrap-sign='' --scheme=path --bind='tab:down,btab:up'"
-  local preview="--preview 'git diff --color=always $current_branch...{} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD git diff --color=always $current_branch...{} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local branch
   branch=$(sh -c "$list_branches" | sh -c "fzf $fzf_args $preview")
@@ -409,7 +411,7 @@ __git_branch_switch() {
   ')
 
   local fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"switch to branch\" --with-nth=1,2 --delimiter='\t' --prompt='  ' --wrap-sign='' --scheme=path"
-  local preview="--preview 'branch=\$(echo {} | cut -f1); git diff --color=always $current_branch..\$branch | $_GIT_PAGER' --preview-window 'right,65%,border-none,wrap'"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD branch=\$(echo {} | cut -f1); git diff --color=always $current_branch..\$branch | $_GIT_PAGER' --preview-window 'right,65%,border-none,wrap,~1'"
 
   local selected
   selected=$(echo "$list_branches" | sh -c "fzf $fzf_args $preview")
@@ -475,14 +477,14 @@ __git_cherry_pick() {
 
   local list_branches="git branch --all --format='%(refname:short)' | grep -v '^HEAD' | grep -v '^$current_branch\$'"
   local branch_fzf_args="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header=\"cherry-pick into $current_branch\" --prompt='  ' --wrap-sign='' --scheme=path"
-  local branch_preview="--preview 'git log --oneline --color=always {}' $_GIT_FZF_PREVIEW"
+  local branch_preview="--preview '$_GIT_FZF_PREVIEW_CMD git log --oneline --color=always {}' $_GIT_FZF_PREVIEW"
 
   local branch
   branch=$(sh -c "$list_branches" | sh -c "fzf $branch_fzf_args $branch_preview")
   [ "$branch" = "" ] && return
 
   local commit_fzf_args="--multi --reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --header=\"$branch\" --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
-  local commit_preview="--preview 'git show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local commit_preview="--preview '$_GIT_FZF_PREVIEW_CMD git show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local selected
   selected=$(git log --oneline "$branch" --not HEAD | sh -c "fzf $commit_fzf_args $commit_preview")
@@ -506,7 +508,7 @@ __git_stash_push() {
   local tracked_diff="cd \"$repo_root\" && git diff --color=always {} | $_GIT_PAGER"
   local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
   local preview_cmd="if $is_staged; then $staged_diff; elif $is_tracked; then $tracked_diff; else $untracked_diff; fi"
-  local preview="--preview '$preview_cmd' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD $preview_cmd' $_GIT_FZF_PREVIEW"
 
   local selected_files
   selected_files=$(builtin cd "$repo_root" && sh -c "$list_files" | sh -c "fzf $_GIT_FZF_DEFAULT --print0 $preview")
@@ -527,7 +529,7 @@ __git_stash_apply() {
 
   local list_stashes="git stash list"
   local fzf_args="--reverse --no-separator --border none --cycle --height 70% --info=inline:'' --header-first --header='select stash to apply' --prompt='  ' --wrap-sign='' --scheme=path --delimiter=':'"
-  local preview="--preview 'git stash show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD git stash show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local selected_stash
   selected_stash=$(sh -c "$list_stashes" | sh -c "fzf $fzf_args $preview")
@@ -539,7 +541,7 @@ __git_stash_apply() {
   stash_ref=$(git rev-parse "$stash_name")
 
   local file_fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header='select files to apply (ctrl-a: all)' --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
-  local file_preview="--preview 'git diff --color=always ${stash_ref}^ $stash_ref -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local file_preview="--preview '$_GIT_FZF_PREVIEW_CMD git diff --color=always ${stash_ref}^ $stash_ref -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
   local selected_files
   selected_files=$(git stash show --name-only "$stash_ref" | sh -c "fzf --print0 $file_fzf_args $file_preview")
