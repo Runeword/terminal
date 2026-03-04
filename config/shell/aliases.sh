@@ -1,6 +1,4 @@
 #!/bin/sh
-# navi --path ~/.local/share/navi/cheats
-# __open_recent
 
 # ______________________________________ CORE
 
