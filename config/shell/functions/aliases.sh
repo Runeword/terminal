@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC3003,SC3024
 
 __run_alias() {
   local selected
@@ -68,8 +69,12 @@ __aliases() {
     cmd=$(echo "$selected_command" | awk -F $'\u00A0' '{ if (NR==2) { sub(/[[:space:]]+$/, "", $2); print $2 " " } }')
 
     if [ "$last_column" = "e" ] || [ "$last_column" = "p" ]; then
-      LBUFFER+=$(eval "$cmd")
-      [ "$last_column" = "e" ] && zle accept-line
+      local output
+      output=$(eval "$cmd")
+      if [ "$output" != "" ]; then
+        LBUFFER+=$output
+        [ "$last_column" = "e" ] && zle accept-line
+      fi
     else
       LBUFFER+=$cmd
       [ "$last_column" = "x" ] && zle accept-line
