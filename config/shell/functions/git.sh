@@ -73,6 +73,22 @@ __git_add() {
   [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} add -- $args"
 }
 
+__git_commit() {
+  local repo_root repo_cdup
+  repo_root="$(git rev-parse --show-toplevel)"
+  repo_cdup="$(git rev-parse --show-cdup)"
+  local is_staged="cd \"$repo_root\" && git diff --cached --name-only -- {} | grep -q ."
+  local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
+  local staged_diff="cd \"$repo_root\" && git diff --cached --color=always {} | $_GIT_PAGER"
+  local tracked_diff="cd \"$repo_root\" && git diff --color=always {} | $_GIT_PAGER"
+  local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
+  local preview_cmd="if $is_staged; then $staged_diff; elif $is_tracked; then $tracked_diff; else $untracked_diff; fi"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD $preview_cmd' $_GIT_FZF_PREVIEW"
+  local args
+  args=$(__git_fzf_select "{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq" "$preview")
+  [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} add -- $args && git commit "
+}
+
 __git_unstage() {
   local repo_root repo_cdup
   repo_root="$(git rev-parse --show-toplevel)"
@@ -222,7 +238,7 @@ __git_reset_soft() {
   if [ "$commit" != "" ]; then
     local offset
     offset=$(git rev-list --count --first-parent "$commit"..HEAD)
-    echo "git reset --soft HEAD~$offset "
+    echo "git reset --soft HEAD~$((offset + 1)) "
   fi
 }
 
