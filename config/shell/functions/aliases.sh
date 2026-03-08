@@ -39,7 +39,7 @@ __aliases() {
   done
 
   local selected_command
-  selected_command=$(
+  if selected_command=$(
     <"$aliases_file" column \
       --table \
       --separator $'\t' \
@@ -60,9 +60,7 @@ __aliases() {
         --prompt='  ' \
         --bind 'one:accept,zero:accept,tab:accept' \
         --height 70%
-  )
-
-  if [ $? -eq 0 ]; then
+  ); then
     local last_column
     last_column=$(echo "$selected_command" | awk -F $'\u00A0' '{ if (NR==2) print $NF }')
     local cmd
