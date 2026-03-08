@@ -70,6 +70,7 @@ __aliases() {
 
     if [ "$last_column" = "e" ] || [ "$last_column" = "p" ]; then
       local output
+      zle reset-prompt
       output=$(eval "$cmd")
       if [ "$output" != "" ]; then
         LBUFFER+=$output
