@@ -184,7 +184,7 @@ __git_diff() {
 
   local args
   args=$(__git_fzf_select "$list_cmd" "$preview")
-  [ "$args" != "" ] && echo "$EDITOR $args"
+  [ "$args" != "" ] && echo "(cd '$repo_root' && $EDITOR $args)"
 }
 
 __git_diff_branches() {
@@ -225,7 +225,7 @@ __git_diff_branches() {
   local files_preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && git diff --color=always $branch1 $branch2 -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "$list_files" "$files_preview")
-  [ "$args" != "" ] && echo "$EDITOR $args"
+  [ "$args" != "" ] && echo "(cd '$repo_root' && $EDITOR $args)"
 }
 
 __git_reset_soft() {
@@ -255,7 +255,9 @@ __git_log() {
 
   local args
   args=$(git diff-tree --root --no-commit-id --name-only -r "$commit" | sh -c "fzf --print0 $file_fzf_args $file_preview" | tr '\0' '\n' | sed 's/ /\\ /g' | tr '\n' ' ')
-  [ "$args" != "" ] && echo "$EDITOR $args"
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel)"
+  [ "$args" != "" ] && echo "(cd '$repo_root' && $EDITOR $args)"
 }
 
 __git_install_lefthook() {
