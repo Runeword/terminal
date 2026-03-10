@@ -123,7 +123,7 @@ __git_rm_untracked() {
   local repo_root repo_cdup
   repo_root="$(git rev-parse --show-toplevel)"
   repo_cdup="$(git rev-parse --show-cdup)"
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git ls-files --others --exclude-standard" "$preview")
   [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} clean -f -- $args"
@@ -159,8 +159,9 @@ __git_ignore() {
 __git_diff() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
-  local repo_root list_cmd diff_cmd
+  local repo_root repo_cdup list_cmd diff_cmd
   repo_root="$(git rev-parse --show-toplevel)"
+  repo_cdup="$(git rev-parse --show-cdup)"
 
   case "${1:-all}" in
     staged)
@@ -184,7 +185,7 @@ __git_diff() {
 
   local args
   args=$(__git_fzf_select "$list_cmd" "$preview")
-  [ "$args" != "" ] && echo "(cd '$repo_root' && $EDITOR $args)"
+  [ "$args" != "" ] && echo "$EDITOR ${repo_cdup:+$repo_cdup}$args"
 }
 
 __git_diff_branches() {
@@ -218,14 +219,15 @@ __git_diff_branches() {
   fi
 
   local list_files
-  local repo_root
+  local repo_root repo_cdup
   list_files="git diff --name-only $branch1 $branch2"
   repo_root="$(git rev-parse --show-toplevel)"
+  repo_cdup="$(git rev-parse --show-cdup)"
 
   local files_preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && git diff --color=always $branch1 $branch2 -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "$list_files" "$files_preview")
-  [ "$args" != "" ] && echo "(cd '$repo_root' && $EDITOR $args)"
+  [ "$args" != "" ] && echo "$EDITOR ${repo_cdup:+$repo_cdup}$args"
 }
 
 __git_reset_soft() {
@@ -253,11 +255,11 @@ __git_log() {
   local file_fzf_args="--multi --reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --header='select files to open' --prompt='  ' --wrap-sign='' --scheme=path --bind='ctrl-a:select-all'"
   local file_preview="--preview '$_GIT_FZF_PREVIEW_CMD git show --color=always $commit -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
 
+  local repo_cdup
+  repo_cdup="$(git rev-parse --show-cdup)"
   local args
   args=$(git diff-tree --root --no-commit-id --name-only -r "$commit" | sh -c "fzf --print0 $file_fzf_args $file_preview" | tr '\0' '\n' | sed 's/ /\\ /g' | tr '\n' ' ')
-  local repo_root
-  repo_root="$(git rev-parse --show-toplevel)"
-  [ "$args" != "" ] && echo "(cd '$repo_root' && $EDITOR $args)"
+  [ "$args" != "" ] && echo "$EDITOR ${repo_cdup:+$repo_cdup}$args"
 }
 
 __git_install_lefthook() {
