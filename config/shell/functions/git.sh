@@ -41,6 +41,28 @@ _GIT_FZF_DEFAULT="--multi --reverse --no-separator --keep-right --border none --
 _GIT_FZF_PREVIEW_CMD="echo {};"
 _GIT_FZF_PREVIEW="--preview-window 'right,75%,border-none,wrap,~1'"
 
+__git_file_tracked() {
+  printf 'cd "%s" && git ls-files --error-unmatch {} > /dev/null 2>&1' "$1"
+}
+
+__git_file_staged() {
+  printf 'cd "%s" && git diff --cached --name-only -- {} | grep -q .' "$1"
+}
+
+__git_diff_tracked() {
+  local repo_root="$1"
+  local diff_cmd="${2:-diff}"
+  printf 'cd "%s" && git %s --ignore-space-change --color=always {} | %s' "$repo_root" "$diff_cmd" "$_GIT_PAGER"
+}
+
+__git_diff_untracked() {
+  printf 'cd "%s" && git diff --ignore-space-change --no-index --color=always /dev/null {} | %s' "$1" "$_GIT_PAGER"
+}
+
+__git_diff_staged() {
+  printf 'cd "%s" && git diff --ignore-space-change --cached --color=always {} | %s' "$1" "$_GIT_PAGER"
+}
+
 __git_fzf_select() {
   local list_cmd="$1"
   local fzf_args="$2"
@@ -63,9 +85,9 @@ __git_add() {
   local repo_root repo_cdup
   repo_root="$(git rev-parse --show-toplevel)"
   repo_cdup="$(git rev-parse --show-cdup)"
-  local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
-  local tracked_diff="cd \"$repo_root\" && git diff --color=always {} | $_GIT_PAGER"
-  local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
+  local is_tracked=$(__git_file_tracked "$repo_root")
+  local tracked_diff=$(__git_diff_tracked "$repo_root")
+  local untracked_diff=$(__git_diff_untracked "$repo_root")
   local preview_cmd="if $is_tracked; then $tracked_diff; else $untracked_diff; fi"
   local preview="--preview '$_GIT_FZF_PREVIEW_CMD $preview_cmd' $_GIT_FZF_PREVIEW"
   local args
@@ -77,11 +99,11 @@ __git_commit() {
   local repo_root repo_cdup
   repo_root="$(git rev-parse --show-toplevel)"
   repo_cdup="$(git rev-parse --show-cdup)"
-  local is_staged="cd \"$repo_root\" && git diff --cached --name-only -- {} | grep -q ."
-  local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
-  local staged_diff="cd \"$repo_root\" && git diff --cached --color=always {} | $_GIT_PAGER"
-  local tracked_diff="cd \"$repo_root\" && git diff --color=always {} | $_GIT_PAGER"
-  local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
+  local is_staged=$(__git_file_staged "$repo_root")
+  local is_tracked=$(__git_file_tracked "$repo_root")
+  local staged_diff=$(__git_diff_staged "$repo_root")
+  local tracked_diff=$(__git_diff_tracked "$repo_root")
+  local untracked_diff=$(__git_diff_untracked "$repo_root")
   local preview_cmd="if $is_staged; then $staged_diff; elif $is_tracked; then $tracked_diff; else $untracked_diff; fi"
   local preview="--preview '$_GIT_FZF_PREVIEW_CMD $preview_cmd' $_GIT_FZF_PREVIEW"
   local args
@@ -178,9 +200,9 @@ __git_diff() {
       ;;
   esac
 
-  local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
-  local tracked_diff="cd \"$repo_root\" && git $diff_cmd --color=always -- {} | $_GIT_PAGER"
-  local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
+  local is_tracked=$(__git_file_tracked "$repo_root")
+  local tracked_diff=$(__git_diff_tracked "$repo_root" "$diff_cmd")
+  local untracked_diff=$(__git_diff_untracked "$repo_root")
   local preview="--preview '$_GIT_FZF_PREVIEW_CMD if $is_tracked; then $tracked_diff; else $untracked_diff; fi' $_GIT_FZF_PREVIEW"
 
   local args
@@ -522,11 +544,11 @@ __git_stash_push() {
   local list_files="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
-  local is_staged="cd \"$repo_root\" && git diff --cached --name-only -- {} | grep -q ."
-  local is_tracked="cd \"$repo_root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
-  local staged_diff="cd \"$repo_root\" && git diff --cached --color=always {} | $_GIT_PAGER"
-  local tracked_diff="cd \"$repo_root\" && git diff --color=always {} | $_GIT_PAGER"
-  local untracked_diff="cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER"
+  local is_staged=$(__git_file_staged "$repo_root")
+  local is_tracked=$(__git_file_tracked "$repo_root")
+  local staged_diff=$(__git_diff_staged "$repo_root")
+  local tracked_diff=$(__git_diff_tracked "$repo_root")
+  local untracked_diff=$(__git_diff_untracked "$repo_root")
   local preview_cmd="if $is_staged; then $staged_diff; elif $is_tracked; then $tracked_diff; else $untracked_diff; fi"
   local preview="--preview '$_GIT_FZF_PREVIEW_CMD $preview_cmd' $_GIT_FZF_PREVIEW"
 
