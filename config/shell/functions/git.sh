@@ -44,17 +44,24 @@ _GIT_FZF_PREVIEW="--preview-window 'right,75%,border-none,wrap,~1'"
 __git_diff_tracked() {
   local root
   root="$(git rev-parse --show-toplevel)"
-  printf 'cd "%s" && git ls-files --error-unmatch {} > /dev/null 2>&1 && git %s --ignore-space-change --color=always {} | %s' "$root" "${1:-diff}" "$_GIT_PAGER"
+  local check="cd \"$root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
+  local diff="git diff --ignore-space-change --color=always {} | $_GIT_PAGER"
+  printf '%s && %s' "$check" "$diff"
 }
 
 __git_diff_untracked() {
-  printf 'cd "%s" && git diff --ignore-space-change --no-index --color=always /dev/null {} | %s' "$(git rev-parse --show-toplevel)" "$_GIT_PAGER"
+  local root
+  root="$(git rev-parse --show-toplevel)"
+  local diff="cd \"$root\" && git diff --ignore-space-change --no-index --color=always /dev/null {} | $_GIT_PAGER"
+  printf '%s' "$diff"
 }
 
 __git_diff_staged() {
   local root
   root="$(git rev-parse --show-toplevel)"
-  printf 'cd "%s" && git diff --cached --name-only -- {} | grep -q . && git diff --ignore-space-change --cached --color=always {} | %s' "$root" "$_GIT_PAGER"
+  local check="cd \"$root\" && git diff --cached --name-only -- {} | grep -q ."
+  local diff="git diff --ignore-space-change --cached --color=always {} | $_GIT_PAGER"
+  printf '%s && %s' "$check" "$diff"
 }
 
 __git_fzf_select() {
@@ -78,7 +85,8 @@ __git_fzf_select() {
 __git_add() {
   local repo_cdup
   repo_cdup="$(git rev-parse --show-cdup)"
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+  local preview
+  preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq" "$preview")
   [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} add -- $args"
@@ -87,7 +95,8 @@ __git_add() {
 __git_commit() {
   local repo_cdup
   repo_cdup="$(git rev-parse --show-cdup)"
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+  local preview
+  preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq" "$preview")
   [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} add -- $args && git commit "
@@ -163,25 +172,23 @@ __git_ignore() {
 __git_diff() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 
-  local repo_cdup list_cmd diff_cmd
+  local repo_cdup list_cmd preview
   repo_cdup="$(git rev-parse --show-cdup)"
 
   case "${1:-all}" in
     staged)
       list_cmd="git diff --name-only --cached"
-      diff_cmd="diff --cached"
+      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
       ;;
     unstaged)
       list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
-      diff_cmd="diff"
+      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
       ;;
     *)
       list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
-      diff_cmd="diff HEAD"
+      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
       ;;
   esac
-
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked "$diff_cmd") || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
 
   local args
   args=$(__git_fzf_select "$list_cmd" "$preview")
@@ -522,7 +529,8 @@ __git_stash_push() {
   local list_files="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+  local preview
+  preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
 
   local selected_files
   selected_files=$(builtin cd "$repo_root" && sh -c "$list_files" | sh -c "fzf $_GIT_FZF_DEFAULT --print0 $preview")
