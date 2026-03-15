@@ -103,40 +103,40 @@ __git_commit() {
 }
 
 __git_unstage() {
-  local repo_root repo_cdup
-  repo_root="$(git rev-parse --show-toplevel)"
+  local repo_cdup
   repo_cdup="$(git rev-parse --show-cdup)"
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local preview
+  preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git diff --name-only --cached" "$preview")
   [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} restore --staged -- $args"
 }
 
 __git_discard() {
-  local repo_root repo_cdup
-  repo_root="$(git rev-parse --show-toplevel)"
+  local repo_cdup
   repo_cdup="$(git rev-parse --show-cdup)"
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && git diff --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local preview
+  preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked)' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git diff --name-only" "$preview")
   [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} checkout -- $args"
 }
 
 __git_untrack() {
-  local repo_root repo_cdup
-  repo_root="$(git rev-parse --show-toplevel)"
+  local repo_cdup
   repo_cdup="$(git rev-parse --show-cdup)"
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && git diff --cached --color=always -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local preview
+  preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git diff --name-only --cached" "$preview")
   [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} rm --cached -- $args"
 }
 
 __git_rm_untracked() {
-  local repo_root repo_cdup
-  repo_root="$(git rev-parse --show-toplevel)"
+  local repo_cdup
   repo_cdup="$(git rev-parse --show-cdup)"
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && git diff --no-index --color=always /dev/null {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local preview
+  preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git ls-files --others --exclude-standard" "$preview")
   [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} clean -f -- $args"
