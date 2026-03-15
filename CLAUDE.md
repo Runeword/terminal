@@ -78,6 +78,7 @@ Zsh (`config/zsh/.zshrc`) loads in this order:
 ### Conventions
 
 - Nix files use `nixfmt-rfc-style` formatting
+- Shell scripts must be POSIX-compliant
 - Shell scripts use 2-space indentation
 - Shell functions are prefixed with `__` (e.g., `__git_add`, `__tmux_kill`)
 - Shell function files are organized by topic in `config/shell/functions/`
