@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016,SC3043
 _GIT_PAGER='$(git config core.pager || echo cat)'
 
 __git_clone() {
