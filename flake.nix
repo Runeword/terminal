@@ -5,6 +5,10 @@
   inputs.nixpkgs-24-05.url = "github:NixOS/nixpkgs/nixos-24.05";
   inputs.nixpkgs-25-11.url = "github:NixOS/nixpkgs/nixos-25.11";
   inputs.flake-utils.url = "github:numtide/flake-utils";
+  inputs.ast-grep-skill = {
+    url = "github:ast-grep/agent-skill";
+    flake = false;
+  };
 
   outputs =
     {
@@ -13,6 +17,7 @@
       nixpkgs-24-05,
       nixpkgs-25-11,
       flake-utils,
+      ast-grep-skill,
     }:
     let
       mkTools =
@@ -78,7 +83,7 @@
             paths = mkTools pkgs configPath;
           };
 
-        devShells.default = import ./devshell.nix { inherit pkgs; };
+        devShells.default = import ./devshell.nix { inherit pkgs ast-grep-skill; };
       }
     )
     // {
