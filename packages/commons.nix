@@ -49,6 +49,7 @@ with pkgs;
   ngrok
   awscli2
   sqlite
+  ast-grep
 
   # _______________________________ Archivers
   ouch
