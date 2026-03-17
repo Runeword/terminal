@@ -1,40 +1,51 @@
 { pkgs }:
 {
-  devshellsDir,
+  imports ? [ ],
   extraArgs ? { },
   shellHook ? "",
   ...
 }@args:
 let
-  extraShells =
-    if builtins.pathExists devshellsDir then
-      let
-        entries = builtins.readDir devshellsDir;
-        nixFiles = builtins.filter (name: builtins.match ".*\\.nix" name != null) (
-          builtins.attrNames entries
-        );
-      in
-      map (
-        name:
-        let
-          fn = import (devshellsDir + "/${name}");
-          accepted = builtins.functionArgs fn;
-          allArgs = {
-            inherit pkgs;
-          }
-          // extraArgs;
-        in
-        fn (builtins.intersectAttrs accepted allArgs)
-      ) nixFiles
+  allArgs = {
+    inherit pkgs;
+  }
+  // extraArgs;
+
+  importFile =
+    path:
+    let
+      fn = import path;
+      accepted = builtins.functionArgs fn;
+    in
+    fn (builtins.intersectAttrs accepted allArgs);
+
+  resolveImport =
+    entry:
+    if builtins.isAttrs entry then
+      [ entry ]
     else
-      [ ];
+      let
+        type = builtins.readFileType entry;
+      in
+      if type == "directory" then
+        let
+          entries = builtins.readDir entry;
+          nixFiles = builtins.filter (name: builtins.match ".*\\.nix" name != null) (
+            builtins.attrNames entries
+          );
+        in
+        map (name: importFile (entry + "/${name}")) nixFiles
+      else
+        [ (importFile entry) ];
+
+  extraShells = builtins.concatMap resolveImport imports;
 
   extraHooks = builtins.concatStringsSep "\n" (
     builtins.filter (h: h != "") (map (s: s.shellHook or "") extraShells)
   );
 
   mkShellArgs = builtins.removeAttrs args [
-    "devshellsDir"
+    "imports"
     "extraArgs"
     "shellHook"
   ];
