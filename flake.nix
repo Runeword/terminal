@@ -69,6 +69,7 @@
           program = "${mkTerminal pkgs (builtins.getEnv "TERMINAL_CONFIG_DIR")}/bin/alacritty";
         };
 
+        lib.mkDevShell = import ./lib/mkDevShell.nix { inherit pkgs; };
         lib.mkTerminal =
           {
             configPath ? toString ./config,
@@ -83,7 +84,10 @@
             paths = mkTools pkgs configPath;
           };
 
-        devShells.default = import ./devshell.nix { inherit pkgs ast-grep-skill; };
+        devShells.default = (import ./lib/mkDevShell.nix { inherit pkgs; }) {
+          devshellsDir = ./devshells;
+          extraArgs = { inherit ast-grep-skill; };
+        };
       }
     )
     // {
