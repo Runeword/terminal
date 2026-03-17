@@ -9,6 +9,7 @@
     url = "github:ast-grep/agent-skill";
     flake = false;
   };
+  # inputs.hello-flake.url = "github:sbellem/hello-flake";
 
   outputs =
     {
@@ -17,8 +18,8 @@
       nixpkgs-24-05,
       nixpkgs-25-11,
       flake-utils,
-      ast-grep-skill,
-    }:
+      ...
+    }@inputs:
     let
       mkTools =
         pkgs: configPath:
@@ -85,8 +86,11 @@
           };
 
         devShells.default = (import ./lib/mkDevShell.nix { inherit pkgs; }) {
-          devshellsDir = ./devshells;
-          extraArgs = { inherit ast-grep-skill; };
+          imports = [
+            ./devshells
+            # inputs.hello-flake.devShells.${system}.hello
+          ];
+          extraArgs = inputs;
         };
       }
     )
