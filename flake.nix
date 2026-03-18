@@ -9,6 +9,7 @@
     url = "github:ast-grep/agent-skill";
     flake = false;
   };
+  inputs.mkdevshell.url = "github:Runeword/mkdevshell";
   # inputs.hello-flake.url = "github:sbellem/hello-flake";
 
   outputs =
@@ -70,7 +71,7 @@
           program = "${mkTerminal pkgs (builtins.getEnv "TERMINAL_CONFIG_DIR")}/bin/alacritty";
         };
 
-        lib.mkDevShell = import ./lib/mkDevShell.nix { inherit pkgs; };
+        lib.mkDevShell = inputs.mkdevshell.lib.mkDevShell { inherit pkgs; };
         lib.mkTerminal =
           {
             configPath ? toString ./config,
@@ -85,7 +86,7 @@
             paths = mkTools pkgs configPath;
           };
 
-        devShells.default = (import ./lib/mkDevShell.nix { inherit pkgs; }) {
+        devShells.default = (inputs.mkdevshell.lib.mkDevShell { inherit pkgs; }) {
           imports = [
             ./devshells
             # inputs.hello-flake.devShells.${system}.hello
