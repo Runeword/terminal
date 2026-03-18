@@ -34,6 +34,21 @@
         "type": "github"
       }
     },
+    "mkdevshell": {
+      "locked": {
+        "lastModified": 1773868670,
+        "narHash": "sha256-zyAUFF836C1bSjJh7oO8bzzcCBg5oway01mdmVjk+Xg=",
+        "owner": "Runeword",
+        "repo": "mkdevshell",
+        "rev": "0488b5891ed890011a2d9316e7674d4ba7c18027",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Runeword",
+        "repo": "mkdevshell",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1771369470,
@@ -86,6 +101,7 @@
       "inputs": {
         "ast-grep-skill": "ast-grep-skill",
         "flake-utils": "flake-utils",
+        "mkdevshell": "mkdevshell",
         "nixpkgs": "nixpkgs",
         "nixpkgs-24-05": "nixpkgs-24-05",
         "nixpkgs-25-11": "nixpkgs-25-11"
