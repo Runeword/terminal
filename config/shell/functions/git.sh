@@ -47,7 +47,7 @@ __git_diff_tracked() {
   local root
   root="$(git rev-parse --show-toplevel)"
   local check="cd \"$root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
-  local diff="git diff --ignore-space-change --color=always {} | $_GIT_PAGER"
+  local diff="git diff --ignore-space-change --color=always -- {} | $_GIT_PAGER"
   printf '{ %s && %s; }' "$check" "$diff"
 }
 
@@ -62,7 +62,7 @@ __git_diff_staged() {
   local root
   root="$(git rev-parse --show-toplevel)"
   local check="cd \"$root\" && git diff --cached --name-only -- {} | grep -q ."
-  local diff="git diff --ignore-space-change --cached --color=always {} | $_GIT_PAGER"
+  local diff="git diff --ignore-space-change --cached --color=always -- {} | $_GIT_PAGER"
   printf '{ %s && %s; }' "$check" "$diff"
 }
 
