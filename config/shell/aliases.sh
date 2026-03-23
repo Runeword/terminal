@@ -115,7 +115,14 @@ alias rt='rm -rfv $HOME/.local/share/Trash/files'
 
 # ______________________________________ PROGRAMS
 
-alias claude='claude --resume'
+claude() {
+  local instance=1
+  if [ "$1" != "" ] && [ "$1" -eq "$1" ] 2>/dev/null; then
+    instance="$1"
+    shift
+  fi
+  CLAUDE_CONFIG_DIR="$HOME/.claude-$instance" command claude "$@"
+}
 alias cursor='cursor-agent --resume'
 alias gparted='sudo -E gparted'
 alias ventoy='sudo ventoy-web'
