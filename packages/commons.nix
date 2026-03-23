@@ -74,7 +74,7 @@ with pkgs;
   glow # markdown
 
   # Info
-  neofetch # System info
+  fastfetch # System info
 
   # _______________________________ Nix
   nix-prefetch-docker
