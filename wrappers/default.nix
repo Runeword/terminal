@@ -15,4 +15,5 @@ map (path: import path { inherit pkgs files; }) [
   ./starship.nix
   ./delta.nix
   ./navi.nix
+  ./nvim-fzf.nix
 ]
