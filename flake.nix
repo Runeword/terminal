@@ -57,10 +57,16 @@
       in
       {
         packages.default = terminal;
-        packages.tools = pkgs.buildEnv {
-          name = "tools";
-          paths = mkTools pkgs configPath;
-        };
+        packages.tools =
+          let
+            env = pkgs.buildEnv {
+              name = "tools-env";
+              paths = mkTools pkgs configPath;
+            };
+          in
+          pkgs.writeShellScriptBin "tools" ''
+            exec ${env}/bin/"$1" "''${@:2}"
+          '';
 
         apps.default = {
           type = "app";
