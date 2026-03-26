@@ -335,23 +335,7 @@ __git_worktree_add() {
   worktree_info=$(git worktree list)
 
   local list_branches
-  list_branches=$(git branch --all --format='%(refname:short)' | awk -v wt="$worktree_info" '
-    BEGIN {
-      n = split(wt, lines, "\n")
-      for (i = 1; i <= n; i++) { match(lines[i], /\[([^\]]+)\]/, m); if (m[1] != "") checked[m[1]] = 1 }
-    }
-    /^HEAD/ { next }
-    $0 !~ /\// { lcl[$0] = 1 }
-    { buf[NR] = $0 }
-    END {
-      for (i = 1; i <= NR; i++) {
-        branch = buf[i]
-        if (branch in checked) continue
-        if (branch ~ /\//) { name = branch; sub(/^[^/]*\//, "", name); if (name in lcl) continue }
-        print branch
-      }
-    }
-  ')
+  list_branches=$(git-branches worktree)
 
   local fzf_args="$_GIT_FZF_BASE --header=\"$header\""
   local preview="--preview '$_GIT_FZF_PREVIEW_CMD git diff --color=always $current_branch..{} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
@@ -426,45 +410,7 @@ __git_merge() {
 }
 
 __git_branch_switch() {
-  local raw
-  raw=$(git branch --all --format='%(HEAD)%(refname:short)%09%(worktreepath)%09%(symref)') || return 1
-
-  local current_branch
-  current_branch=$(printf '%s\n' "$raw" | awk -F'\t' '/^\*/ { print substr($1, 2); exit }')
-
-  local list_branches
-  list_branches=$(printf '%s\n' "$raw" | awk -F'\t' '
-    { branch = $1; sub(/^[* ]/, "", branch); wt = $2; symref = $3 }
-    branch == "" || branch ~ /^HEAD/ || symref != "" { next }
-    branch !~ /\// { lcl[branch] = 1 }
-    { lines[NR] = $0 }
-    END {
-      for (i = 1; i <= NR; i++) {
-        split(lines[i], f, "\t"); branch = f[1]; sub(/^[* ]/, "", branch); wt = f[2]; symref = f[3]
-        if (branch == "" || branch ~ /^HEAD/ || symref != "") continue
-        if (branch ~ /\//) { name = branch; sub(/^[^/]*\//, "", name); if (name in lcl) continue }
-        if (wt != "") { n = split(wt, p, "/"); printf "%s\t→ %s\t%s\n", branch, p[n], wt }
-        else printf "%s\t\t\n", branch
-      }
-    }
-  ')
-
-  local fzf_args="$_GIT_FZF_BASE --header=\"switch to branch\" --with-nth=1,2 --delimiter='\t'"
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD branch=\$(echo {} | cut -f1); git diff --color=always $current_branch..\$branch | $_GIT_PAGER' --preview-window 'right,65%,border-none,wrap,~1'"
-
-  local selected
-  selected=$(printf '%s\n' "$list_branches" | sh -c "fzf $fzf_args $preview")
-  [ "$selected" = "" ] && return 1
-
-  local branch worktree_path
-  branch=$(printf '%s' "$selected" | cut -f1)
-  worktree_path=$(printf '%s' "$selected" | cut -f3)
-
-  if [ "$worktree_path" = "" ]; then
-    echo "git checkout $branch "
-  else
-    echo "builtin cd '$worktree_path' "
-  fi
+  eval "git-branches switch $_GIT_FZF_BASE --header='switch to branch'"
 }
 
 __git_lefthook_pre_commit() {
