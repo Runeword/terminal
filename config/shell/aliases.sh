@@ -61,6 +61,10 @@ alias disk='duf'
 # alias diskinfo = 'sudo nvme smart-log /dev/nvme0n1'
 alias audit='lynis audit system'
 
+# ______________________________________ GO
+
+alias gob='go build -o ~/.nix-profile/bin/$(basename $PWD) .'
+
 # ______________________________________ NIX
 
 alias nr='nix run --verbose'
@@ -121,7 +125,7 @@ claude() {
     instance="$1"
     shift
   fi
-  CLAUDE_CONFIG_DIR="$HOME/.claude-$instance" command claude "$@"
+  CLAUDE_CONFIG_DIR="$HOME/.claude-$instance" command claude --effort max "$@"
 }
 alias cursor='cursor-agent --resume'
 alias gparted='sudo -E gparted'
