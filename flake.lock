@@ -36,11 +36,11 @@
     },
     "mkdevshell": {
       "locked": {
-        "lastModified": 1773868670,
-        "narHash": "sha256-zyAUFF836C1bSjJh7oO8bzzcCBg5oway01mdmVjk+Xg=",
+        "lastModified": 1774553664,
+        "narHash": "sha256-h/L6bA1PRxsfk4G8s4kxQcUEMnmPsH6FJ5NzCYqUffE=",
         "owner": "Runeword",
         "repo": "mkdevshell",
-        "rev": "0488b5891ed890011a2d9316e7674d4ba7c18027",
+        "rev": "89c5cea631195dde2bb02179d1db3dcb271ee6a3",
         "type": "github"
       },
       "original": {
