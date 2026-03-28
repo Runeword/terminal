@@ -22,7 +22,6 @@ with pkgs;
   # _______________________________ AI
   gemini-cli-bin
   cursor-cli
-  claude-code
 
   # _______________________________ Coreutils
   coreutils-full
