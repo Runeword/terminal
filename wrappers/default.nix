@@ -16,4 +16,5 @@ map (path: import path { inherit pkgs files; }) [
   ./delta.nix
   ./navi.nix
   ./nvim-fzf.nix
+  ./claude.nix
 ]
