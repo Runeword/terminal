@@ -102,12 +102,12 @@
             (import ./devshells/languages.nix { inherit pkgs; })
             claude.devShells.${system}.ast-grep
             (lefthook.lib.mkShell pkgs [
-              lefthook.devShells.${system}.auto-msg
-              lefthook.devShells.${system}.format-nix
-              lefthook.devShells.${system}.format-shell
-              lefthook.devShells.${system}.format-toml
-              lefthook.devShells.${system}.format-yaml
-              lefthook.devShells.${system}.lint-shell
+              lefthook.lib.auto-msg
+              lefthook.lib.format-nix
+              lefthook.lib.format-shell
+              lefthook.lib.format-toml
+              lefthook.lib.format-yaml
+              lefthook.lib.lint-shell
             ])
           ];
         };
