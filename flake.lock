@@ -62,31 +62,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1774797623,
-        "narHash": "sha256-XiiW8WMPo7tBa4aUWClVI1ZJvO9MrlF1zzRjF3ow2L8=",
+        "lastModified": 1774803624,
+        "narHash": "sha256-UT5AGwuk4MV3Wnfu5gFBDqFZQAUURX+5CxJEF6WSwrc=",
         "owner": "Runeword",
         "repo": "lefthook",
-        "rev": "534f7ef23518c01688aab64ba5fc75376d809b2f",
+        "rev": "3ab24d15ddbd1faeaa59ba39556ab64927685267",
         "type": "github"
       },
       "original": {
         "owner": "Runeword",
         "repo": "lefthook",
-        "type": "github"
-      }
-    },
-    "mkdevshell": {
-      "locked": {
-        "lastModified": 1774553664,
-        "narHash": "sha256-h/L6bA1PRxsfk4G8s4kxQcUEMnmPsH6FJ5NzCYqUffE=",
-        "owner": "Runeword",
-        "repo": "mkdevshell",
-        "rev": "89c5cea631195dde2bb02179d1db3dcb271ee6a3",
-        "type": "github"
-      },
-      "original": {
-        "owner": "Runeword",
-        "repo": "mkdevshell",
         "type": "github"
       }
     },
@@ -143,7 +128,6 @@
         "claude": "claude",
         "flake-utils": "flake-utils",
         "lefthook": "lefthook",
-        "mkdevshell": "mkdevshell",
         "nixpkgs": "nixpkgs",
         "nixpkgs-24-05": "nixpkgs-24-05",
         "nixpkgs-25-11": "nixpkgs-25-11"
