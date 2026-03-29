@@ -13,7 +13,6 @@
     url = "github:Runeword/lefthook";
     inputs.nixpkgs.follows = "nixpkgs";
   };
-  inputs.mkdevshell.url = "github:Runeword/mkdevshell";
   # inputs.hello-flake.url = "github:sbellem/hello-flake";
 
   outputs =
@@ -23,6 +22,8 @@
       nixpkgs-24-05,
       nixpkgs-25-11,
       flake-utils,
+      claude,
+      lefthook,
       ...
     }@inputs:
     let
@@ -95,14 +96,17 @@
             paths = mkTools pkgs configPath;
           };
 
-        devShells.default = (inputs.mkdevshell.lib.mkDevShell { inherit pkgs; }) {
-          imports = [
-            ./devshells
-            inputs.claude.devShells.${system}.ast-grep
-            inputs.lefthook.devShells.${system}.default
-          ];
-          extraArgs = inputs;
-        };
+        devShells.default = lefthook.lib.mkShell pkgs [
+          (import ./devshells/terminal.nix { inherit pkgs; })
+          (import ./devshells/languages.nix { inherit pkgs; })
+          claude.devShells.${system}.ast-grep
+          lefthook.devShells.${system}.auto-msg
+          lefthook.devShells.${system}.format-nix
+          lefthook.devShells.${system}.format-shell
+          lefthook.devShells.${system}.format-toml
+          lefthook.devShells.${system}.format-yaml
+          lefthook.devShells.${system}.lint-shell
+        ];
       }
     )
     // {
