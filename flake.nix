@@ -5,9 +5,9 @@
   inputs.nixpkgs-24-05.url = "github:NixOS/nixpkgs/nixos-24.05";
   inputs.nixpkgs-25-11.url = "github:NixOS/nixpkgs/nixos-25.11";
   inputs.flake-utils.url = "github:numtide/flake-utils";
-  inputs.ast-grep-skill = {
-    url = "github:ast-grep/agent-skill";
-    flake = false;
+  inputs.claude = {
+    url = "github:Runeword/claude";
+    inputs.nixpkgs.follows = "nixpkgs";
   };
   inputs.mkdevshell.url = "github:Runeword/mkdevshell";
   # inputs.hello-flake.url = "github:sbellem/hello-flake";
@@ -77,7 +77,6 @@
           program = "${mkTerminal pkgs (builtins.getEnv "TERMINAL_CONFIG_DIR")}/bin/alacritty";
         };
 
-        lib.mkDevShell = inputs.mkdevshell.lib.mkDevShell { inherit pkgs; };
         lib.mkTerminal =
           {
             configPath ? toString ./config,
@@ -95,7 +94,7 @@
         devShells.default = (inputs.mkdevshell.lib.mkDevShell { inherit pkgs; }) {
           imports = [
             ./devshells
-            # inputs.hello-flake.devShells.${system}.hello
+            inputs.claude.devShells.${system}.ast-grep
           ];
           extraArgs = inputs;
         };
