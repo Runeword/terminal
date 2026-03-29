@@ -96,17 +96,21 @@
             paths = mkTools pkgs configPath;
           };
 
-        devShells.default = lefthook.lib.mkShell pkgs [
-          (import ./devshells/terminal.nix { inherit pkgs; })
-          (import ./devshells/languages.nix { inherit pkgs; })
-          claude.devShells.${system}.ast-grep
-          lefthook.devShells.${system}.auto-msg
-          lefthook.devShells.${system}.format-nix
-          lefthook.devShells.${system}.format-shell
-          lefthook.devShells.${system}.format-toml
-          lefthook.devShells.${system}.format-yaml
-          lefthook.devShells.${system}.lint-shell
-        ];
+        devShells.default = pkgs.mkShell {
+          inputsFrom = [
+            (import ./devshells/terminal.nix { inherit pkgs; })
+            (import ./devshells/languages.nix { inherit pkgs; })
+            claude.devShells.${system}.ast-grep
+            (lefthook.lib.mkShell pkgs [
+              lefthook.devShells.${system}.auto-msg
+              lefthook.devShells.${system}.format-nix
+              lefthook.devShells.${system}.format-shell
+              lefthook.devShells.${system}.format-toml
+              lefthook.devShells.${system}.format-yaml
+              lefthook.devShells.${system}.lint-shell
+            ])
+          ];
+        };
       }
     )
     // {
