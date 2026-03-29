@@ -9,6 +9,10 @@
     url = "github:Runeword/claude";
     inputs.nixpkgs.follows = "nixpkgs";
   };
+  inputs.lefthook = {
+    url = "github:Runeword/lefthook";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
   inputs.mkdevshell.url = "github:Runeword/mkdevshell";
   # inputs.hello-flake.url = "github:sbellem/hello-flake";
 
@@ -95,6 +99,7 @@
           imports = [
             ./devshells
             inputs.claude.devShells.${system}.ast-grep
+            inputs.lefthook.devShells.${system}.default
           ];
           extraArgs = inputs;
         };
