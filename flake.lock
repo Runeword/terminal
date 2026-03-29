@@ -55,6 +55,26 @@
         "type": "github"
       }
     },
+    "lefthook": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1774797623,
+        "narHash": "sha256-XiiW8WMPo7tBa4aUWClVI1ZJvO9MrlF1zzRjF3ow2L8=",
+        "owner": "Runeword",
+        "repo": "lefthook",
+        "rev": "534f7ef23518c01688aab64ba5fc75376d809b2f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Runeword",
+        "repo": "lefthook",
+        "type": "github"
+      }
+    },
     "mkdevshell": {
       "locked": {
         "lastModified": 1774553664,
@@ -122,6 +142,7 @@
       "inputs": {
         "claude": "claude",
         "flake-utils": "flake-utils",
+        "lefthook": "lefthook",
         "mkdevshell": "mkdevshell",
         "nixpkgs": "nixpkgs",
         "nixpkgs-24-05": "nixpkgs-24-05",
