@@ -101,17 +101,20 @@
             (import ./devshells/terminal.nix { inherit pkgs; })
             (import ./devshells/languages.nix { inherit pkgs; })
             claude.devShells.${system}.ast-grep
-            (with lefthook.lib; mkShell {
-              inherit pkgs;
-              modules = [
-                auto-msg
-                format-nix
-                format-shell
-                format-toml
-                format-yaml
-                lint-shell
-              ];
-            })
+            (
+              with lefthook.lib;
+              mkShell {
+                inherit pkgs;
+                modules = [
+                  auto-msg
+                  format-nix
+                  format-shell
+                  format-toml
+                  format-yaml
+                  lint-shell
+                ];
+              }
+            )
           ];
         };
       }
