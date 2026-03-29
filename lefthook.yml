@@ -1,2 +1,2 @@
 extends:
-  - .lefthook.d/*.yml
+  - lefthook.local.yml
