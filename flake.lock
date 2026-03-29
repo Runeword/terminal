@@ -16,6 +16,27 @@
         "type": "github"
       }
     },
+    "claude": {
+      "inputs": {
+        "ast-grep-skill": "ast-grep-skill",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1774796536,
+        "narHash": "sha256-qZzjJUJgGiLewcUHRPOG+BBltMYDgHEpFydWc3VGiV4=",
+        "owner": "Runeword",
+        "repo": "claude",
+        "rev": "adc9bdd6917911e1e72962814876af5e17998e64",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Runeword",
+        "repo": "claude",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
@@ -99,7 +120,7 @@
     },
     "root": {
       "inputs": {
-        "ast-grep-skill": "ast-grep-skill",
+        "claude": "claude",
         "flake-utils": "flake-utils",
         "mkdevshell": "mkdevshell",
         "nixpkgs": "nixpkgs",
