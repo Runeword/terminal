@@ -127,8 +127,13 @@ claude() {
   fi
 
   if [ "$TMUX" != "" ]; then
-    tmux split-window -v -l 25% -c "#{pane_current_path}" \
-      "CLAUDE_CONFIG_DIR='$HOME/.claude-$instance' command claude --effort max --model opus $(printf '%q ' "$@")"
+    local pane_path claude_pane
+    pane_path=$(tmux display-message -p '#{pane_current_path}')
+
+    claude_pane=$(tmux split-window -v -l 50% -P -F '#{pane_id}' -c "$pane_path" \
+      "CLAUDE_CONFIG_DIR='$HOME/.claude-$instance' command claude --effort max --model opus $(printf '%q ' "$@")")
+
+    tmux set-option -w @claude_pair "$claude_pane"
   else
     CLAUDE_CONFIG_DIR="$HOME/.claude-$instance" command claude --effort max "$@"
   fi
