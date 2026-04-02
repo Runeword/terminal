@@ -198,50 +198,12 @@ __git_diff() {
 }
 
 __git_diff_branches() {
-  local list_branches="git branch --all --format='%(refname:short)'"
-  local fzf_args="$_GIT_FZF_BASE --multi"
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD git log --oneline --color=always {}' $_GIT_FZF_PREVIEW"
-
-  local selected_branches
-  selected_branches=$(sh -c "$list_branches" | sh -c "fzf $fzf_args $preview")
-
-  if [ "$selected_branches" = "" ]; then
-    echo "Select 1 or 2 branches"
-    return 1
-  fi
-
-  local branch_count
-  branch_count=$(echo "$selected_branches" | wc -l | tr -d ' ')
-
-  local branch1
-  local branch2
-
-  if [ "$branch_count" -eq 1 ]; then
-    branch1=$(echo "$selected_branches" | sed -n '1p')
-    branch2=$(git rev-parse --abbrev-ref HEAD)
-  elif [ "$branch_count" -eq 2 ]; then
-    branch1=$(echo "$selected_branches" | sed -n '1p')
-    branch2=$(echo "$selected_branches" | sed -n '2p')
-  else
-    echo "Select 1 or 2 branches"
-    return 1
-  fi
-
-  local list_files
-  local repo_root repo_cdup
-  list_files="git diff --name-only $branch1 $branch2"
-  repo_root="$(git rev-parse --show-toplevel)"
-  repo_cdup="$(git rev-parse --show-cdup)"
-
-  local files_preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && git diff --color=always $branch1 $branch2 -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-  local args
-  args=$(__git_fzf_select "$list_files" "$files_preview")
-  [ "$args" != "" ] && echo "$EDITOR ${repo_cdup:+$repo_cdup}$args"
+  eval "git-branches diff-branches $_GIT_FZF_BASE"
 }
 
 __git_reset_soft() {
   local list_commits="git log --oneline --first-parent"
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD git show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD git show --color=always --decorate {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local fzf_args="$_GIT_FZF_BASE"
   local commit
   commit=$(sh -c "$list_commits" | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
@@ -254,7 +216,7 @@ __git_reset_soft() {
 }
 
 __git_log() {
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD git show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD git show --color=always --decorate {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local fzf_args="$_GIT_FZF_BASE"
   local commit
   commit=$(git log --oneline | sh -c "fzf $fzf_args $preview" | awk '{print $1}')
@@ -358,55 +320,13 @@ __git_worktree_add() {
 }
 
 __git_worktree_remove() {
-  git rev-parse --is-inside-work-tree >/dev/null || return 1
-
-  local current_dir
-  current_dir=$PWD
-
-  local dir_name
-  dir_name=$(basename "$current_dir")
-  local branch
-  branch=$(git rev-parse --abbrev-ref HEAD)
-  local commit
-  commit=$(git rev-parse --short HEAD)
-  local header
-  header=$(printf "%s\t%s\t[%s]" "$dir_name" "$commit" "$branch")
-
-  local list_worktrees="git worktree list | tail -n +2 | awk '{dir=\$1; sub(/.*\//, \"\", dir); print dir \"\t\" \$2 \"\t\" \$3 \"\t\" \$1}'"
-  local fzf_args="$_GIT_FZF_DEFAULT --header=\"$header\" --with-nth=1,2,3 --delimiter='\t'"
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD git diff --color=always $branch..\$(echo {} | awk -F\"\t\" \"{print \\\$3}\" | sed \"s/\\[//;s/\\]//\") | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-
-  local worktrees
-  worktrees=$(sh -c "$list_worktrees" | sh -c "fzf $fzf_args $preview" | awk -F'\t' '{print $4}')
-
-  if [ "$worktrees" != "" ]; then
-    local main_worktree
-    main_worktree=$(git worktree list | head -n 1 | awk '{print $1}')
-
-    if echo "$worktrees" | grep -q "^$current_dir$"; then
-      builtin cd "$main_worktree" || return
-    fi
-
-    echo "$worktrees" | xargs -I {} git worktree remove {} && ls
-  fi
+  local cmd
+  cmd=$(eval "git-branches worktree-remove $_GIT_FZF_BASE")
+  [ "$cmd" != "" ] && eval "$cmd"
 }
 
 __git_merge() {
-  git rev-parse --is-inside-work-tree >/dev/null || return 1
-
-  local current_branch
-  current_branch=$(git rev-parse --abbrev-ref HEAD)
-
-  local list_branches="git branch --all --format='%(refname:short)' | grep -v '^HEAD' | grep -v '^$current_branch\$'"
-  local fzf_args="$_GIT_FZF_BASE --header=\"merge into $current_branch\" --bind='tab:down,btab:up'"
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD git diff --color=always $current_branch...{} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-
-  local branch
-  branch=$(sh -c "$list_branches" | sh -c "fzf $fzf_args $preview")
-
-  if [ "$branch" != "" ]; then
-    echo "git merge $branch "
-  fi
+  eval "git-branches merge $_GIT_FZF_BASE"
 }
 
 __git_branch_switch() {
@@ -450,30 +370,7 @@ __git_lefthook_pre_commit() {
 }
 
 __git_cherry_pick() {
-  git rev-parse --is-inside-work-tree >/dev/null || return 1
-
-  local current_branch
-  current_branch=$(git rev-parse --abbrev-ref HEAD)
-
-  local list_branches="git branch --all --format='%(refname:short)' | grep -v '^HEAD' | grep -v '^$current_branch\$'"
-  local branch_fzf_args="$_GIT_FZF_BASE --header=\"cherry-pick into $current_branch\""
-  local branch_preview="--preview '$_GIT_FZF_PREVIEW_CMD git log --oneline --color=always {}' $_GIT_FZF_PREVIEW"
-
-  local branch
-  branch=$(sh -c "$list_branches" | sh -c "fzf $branch_fzf_args $branch_preview")
-  [ "$branch" = "" ] && return
-
-  local commit_fzf_args="$_GIT_FZF_DEFAULT --header=\"$branch\""
-  local commit_preview="--preview '$_GIT_FZF_PREVIEW_CMD git show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-
-  local selected
-  selected=$(git log --oneline "$branch" --not HEAD | sh -c "fzf $commit_fzf_args $commit_preview")
-
-  if [ "$selected" != "" ]; then
-    local commits
-    commits=$(echo "$selected" | awk '{print $1}' | tr '\n' ' ')
-    echo "git cherry-pick $commits"
-  fi
+  eval "git-branches cherry-pick $_GIT_FZF_BASE"
 }
 
 __git_stash_push() {
@@ -500,30 +397,5 @@ __git_stash_push() {
 }
 
 __git_stash_apply() {
-  git rev-parse --is-inside-work-tree >/dev/null || return 1
-
-  local list_stashes="git stash list"
-  local fzf_args="$_GIT_FZF_BASE --header='select stash to apply' --delimiter=':'"
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD git stash show --color=always {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-
-  local selected_stash
-  selected_stash=$(sh -c "$list_stashes" | sh -c "fzf $fzf_args $preview")
-
-  [ "$selected_stash" = "" ] && return
-
-  local stash_name="${selected_stash%%:*}"
-  local stash_ref
-  stash_ref=$(git rev-parse "$stash_name")
-
-  local file_fzf_args="$_GIT_FZF_DEFAULT --header='select files to apply (ctrl-a: all)'"
-  local file_preview="--preview '$_GIT_FZF_PREVIEW_CMD git diff --color=always ${stash_ref}^ $stash_ref -- {} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
-
-  local selected_files
-  selected_files=$(git stash show --name-only "$stash_ref" | sh -c "fzf --print0 $file_fzf_args $file_preview")
-
-  if [ "$selected_files" != "" ]; then
-    local args
-    args=$(printf '%s' "$selected_files" | tr '\0' '\n' | sed 's/ /\\ /g' | tr '\n' ' ')
-    echo "git restore --source=$stash_name -- $args&& git status"
-  fi
+  eval "git-branches stash-apply $_GIT_FZF_BASE"
 }
