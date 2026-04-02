@@ -18,7 +18,7 @@ __tmux_switch_session() {
 
   local session
   session=$(
-    tmux ls -F "#{session_name}" 2>/dev/null | grep -v '^_claude_' | fzf \
+    tmux ls -F "#{session_name}" 2>/dev/null | fzf \
       --reverse \
       --cycle \
       --height 50% \
@@ -48,7 +48,7 @@ __tmux_switch_window() {
   window_id=$(tmux display-message -p '#{window_id}')
   item_pos=$(tmux list-windows -a -F '#{window_id}' | awk '{if ($1 == "'"$window_id"'") print NR}')
 
-  tmux list-windows -a -F '#{session_name}#{window_name} #{window_id} #{session_id}' 2>/dev/null | grep -v '^_claude_' | fzf \
+  tmux list-windows -a -F '#{session_name}#{window_name} #{window_id} #{session_id}' 2>/dev/null | fzf \
     --with-nth='1,2' \
     --reverse \
     --cycle \
@@ -78,31 +78,15 @@ __tmux_new_session() {
   fi
 }
 
-__tmux_switch_client() {
-  local current target
-  current=$(tmux display-message -p '#{session_name}')
-  target=$(tmux list-sessions -F '#{session_name}' | grep -v '^_claude_' | awk -v cur="$current" -v dir="${1:-next}" '
-    { names[++n] = $0; if ($0 == cur) pos = n }
-    END {
-      if (n <= 1) exit 0
-      if (dir == "next") print names[pos % n + 1]
-      else print names[(pos - 2 + n) % n + 1]
-    }')
-  [ "$target" != "" ] && tmux switch-client -t "=$target"
-}
-
 __tmux_kill_session() {
-  local session
-  session=$(tmux display-message -p '#{session_name}')
-  __tmux_switch_client next
-  tmux kill-session -t "=$session" || tmux kill-session
-  tmux kill-session -t "=_claude_$session" 2>/dev/null
+  tmux switch-client -n
+  tmux kill-session -t "$(tmux display-message -p "#S")" || tmux kill-session
 }
 
 __tmux_attach_session() {
   local session current
   [ "$TMUX" != "" ] && current=$(tmux display-message -p '#S')
-  session=$(tmux ls -F '#{session_name}|#{?session_attached,attached,not attached}|#{session_activity}' 2>/dev/null | grep -v '^_claude_' | awk -F'|' -v current="$current" '$2 == "attached" && $1 != current {print $1; exit} $2 == "not attached" && $1 != current && ($3 > max_activity || !found) {found=1; max_activity=$3; unattached=$1} END {if (unattached) print unattached}')
+  session=$(tmux ls -F '#{session_name}|#{?session_attached,attached,not attached}|#{session_activity}' 2>/dev/null | awk -F'|' -v current="$current" '$2 == "attached" && $1 != current {print $1; exit} $2 == "not attached" && $1 != current && ($3 > max_activity || !found) {found=1; max_activity=$3; unattached=$1} END {if (unattached) print unattached}')
 
   if [ "$session" != "" ]; then
     if [ "$TMUX" != "" ]; then
@@ -120,7 +104,7 @@ __tmux_kill_pane() {
   local pane_count window_count session_count
   pane_count=$(tmux display-message -p '#{window_panes}')
   window_count=$(tmux display-message -p '#{session_windows}')
-  session_count=$(tmux list-sessions -F '#{session_name}' | grep -vc '^_claude_')
+  session_count=$(tmux list-sessions | wc -l)
 
   if [ "$pane_count" -gt 1 ]; then
     tmux kill-pane
@@ -143,19 +127,16 @@ __tmux_kill_pane() {
 
     tmux kill-window -t:"$current_window"
   elif [ "$session_count" -gt 1 ]; then
-    local current_session session_list filtered_count current_index prev_index prev_session
+    local current_session session_list current_index prev_index prev_session
     current_session=$(tmux display-message -p '#S')
-    session_list=$(tmux list-sessions -F '#{session_name}' | grep -v '^_claude_' | sort -V)
-    filtered_count=$(echo "$session_list" | wc -l)
+    session_list=$(tmux list-sessions -F '#{session_name}' | sort -V)
     current_index=$(echo "$session_list" | awk -v sess="$current_session" '{if ($1 == sess) print NR}')
 
-    [ "$current_index" -eq 1 ] && prev_index=$filtered_count || prev_index=$((current_index - 1))
+    [ "$current_index" -eq 1 ] && prev_index=$session_count || prev_index=$((current_index - 1))
 
     prev_session=$(echo "$session_list" | sed -n "${prev_index}p")
     tmux switch-client -t "$prev_session"
     tmux kill-session -t "$current_session"
-    tmux kill-session -t "=_claude_$current_session" 2>/dev/null
-    return 0
   else
     tmux kill-pane
   fi
@@ -190,9 +171,7 @@ __tmux_move_window_to_session() {
   local direction="${1:-next}"
   local current_session target_session session_count current_index target_index
 
-  local session_list
-  session_list=$(tmux list-sessions -F '#{session_name}' | grep -v '^_claude_' | sort -V)
-  session_count=$(echo "$session_list" | wc -l)
+  session_count=$(tmux list-sessions | wc -l)
 
   # Exit if only one session exists
   if [ "$session_count" -le 1 ]; then
@@ -200,7 +179,7 @@ __tmux_move_window_to_session() {
   fi
 
   current_session=$(tmux display-message -p '#S')
-  current_index=$(echo "$session_list" | awk -v sess="$current_session" '{if ($1 == sess) print NR}')
+  current_index=$(tmux list-sessions -F '#{session_name}' | sort -V | awk -v sess="$current_session" '{if ($1 == sess) print NR}')
 
   # Calculate target session index
   if [ "$direction" = "next" ]; then
@@ -217,7 +196,7 @@ __tmux_move_window_to_session() {
     fi
   fi
 
-  target_session=$(echo "$session_list" | sed -n "${target_index}p")
+  target_session=$(tmux list-sessions -F '#{session_name}' | sort -V | sed -n "${target_index}p")
 
   tmux move-window -t "$target_session:"
   tmux switch-client -t "$target_session"
@@ -233,25 +212,17 @@ __tmux_toggle_claude() {
     return
   fi
 
-  local current_window pair_window claude_session
-  current_window=$(tmux display-message -p '#{window_id}')
-  pair_window=$(tmux display-message -t "$pair" -p '#{window_id}')
-  claude_session="_claude_$(tmux display-message -p '#{session_name}')"
+  local zoomed
+  zoomed=$(tmux display-message -p '#{window_zoomed_flag}')
 
-  if [ "$pair_window" = "$current_window" ]; then
-    tmux set-option -w @claude_size "$(tmux display-message -t "$pair" -p '#{pane_height}')"
-    if ! tmux has-session -t "=$claude_session" 2>/dev/null; then
-      local init_wid
-      init_wid=$(tmux new-session -d -s "$claude_session" -P -F '#{window_id}')
-      tmux break-pane -d -s "$pair" -t "=$claude_session:"
-      tmux kill-window -t "$init_wid"
-    else
-      tmux break-pane -d -s "$pair" -t "=$claude_session:"
-    fi
+  if [ "$zoomed" = "1" ]; then
+    tmux resize-pane -Z
+    tmux select-pane -t "$pair"
   else
-    local size
-    size=$(tmux show-option -wqv @claude_size)
-    tmux join-pane -vs "$pair" -l "${size:-50%}"
+    local current_pane
+    current_pane=$(tmux display-message -p '#{pane_id}')
+    [ "$current_pane" = "$pair" ] && tmux select-pane -t :.+
+    tmux resize-pane -Z
   fi
 }
 
