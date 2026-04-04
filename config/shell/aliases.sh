@@ -133,7 +133,7 @@ claude() {
     claude_pane=$(tmux split-window -v -l 50% -P -F '#{pane_id}' -c "$pane_path" \
       "CLAUDE_CONFIG_DIR='$HOME/.claude-$instance' command claude --effort max --model opus $(printf '%q ' "$@")")
 
-    tmux set-option -w @claude_pair "$claude_pane"
+    tmux set-option -w @toggle_pane "$claude_pane"
   else
     CLAUDE_CONFIG_DIR="$HOME/.claude-$instance" command claude --effort max "$@"
   fi
