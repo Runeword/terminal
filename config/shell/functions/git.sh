@@ -339,13 +339,20 @@ __git_lefthook_pre_commit() {
   local repo_root
   repo_root=$(git rev-parse --show-toplevel)
 
+  __lefthook_collect_commands() {
+    local file="$1"
+    [ -f "$file" ] || return
+    grep -A 100 "^pre-commit:" "$file" | grep "^    [a-z-]*:" | sed 's/://;s/^    //'
+    grep "^ *- " "$file" | sed 's/^ *- //' | while read -r ext_file; do
+      case "$ext_file" in
+        /*) __lefthook_collect_commands "$ext_file" ;;
+        *) __lefthook_collect_commands "$repo_root/$ext_file" ;;
+      esac
+    done
+  }
+
   local commands_list
-  commands_list=$(
-    {
-      [ -f "$repo_root/lefthook.yml" ] && grep -A 100 "^pre-commit:" "$repo_root/lefthook.yml" | grep "^  [a-z-]*:" | sed 's/://;s/^  //'
-      [ -d "$repo_root/.git/info/lefthook-remotes" ] && find "$repo_root/.git/info/lefthook-remotes" -name "*.yml" -exec grep -A 100 "^pre-commit:" {} \; | grep "^    [a-z-]*:" | sed 's/://;s/^    //'
-    } | sort -u
-  )
+  commands_list=$(__lefthook_collect_commands "$repo_root/lefthook.yml" | sort -u)
 
   if [ "$commands_list" = "" ]; then
     echo "No pre-commit commands found in lefthook config"
