@@ -189,7 +189,10 @@ func worktreeList() error {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go func() { defer wg.Done(); branches, branchErr = gitLines("branch", "--all", "--format=%(refname:short)") }()
+	go func() {
+		defer wg.Done()
+		branches, branchErr = gitLines("branch", "--all", "--format=%(refname:short)")
+	}()
 	go func() { defer wg.Done(); worktrees, worktreeErr = gitLines("worktree", "list") }()
 	wg.Wait()
 
