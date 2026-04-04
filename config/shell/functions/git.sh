@@ -369,11 +369,11 @@ __git_lefthook_pre_commit() {
     return 0
   fi
 
-  local commands
-  commands=$(echo "$selected" | tr '\n' ',' | sed 's/,$//')
+  local command_flags
+  command_flags=$(echo "$selected" | sed 's/^/--command /' | tr '\n' ' ')
 
-  echo "Running: lefthook run --all-files --commands $commands pre-commit"
-  lefthook run --all-files --commands "$commands" pre-commit
+  echo "Running: lefthook run --all-files ${command_flags}pre-commit"
+  eval "lefthook run --all-files ${command_flags}pre-commit"
 }
 
 __git_cherry_pick() {
