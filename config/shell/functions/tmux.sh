@@ -202,13 +202,13 @@ __tmux_move_window_to_session() {
   tmux switch-client -t "$target_session"
 }
 
-__tmux_toggle_claude() {
+__tmux_toggle_pane() {
   local pair
-  pair=$(tmux show-option -wqv @claude_pair)
+  pair=$(tmux show-option -wqv @toggle_pane)
   [ "$pair" = "" ] && return
 
   if ! tmux display-message -t "$pair" -p '#{pane_id}' >/dev/null 2>&1; then
-    tmux set-option -wu @claude_pair
+    tmux set-option -wu @toggle_pane
     return
   fi
 
