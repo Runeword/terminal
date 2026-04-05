@@ -8,9 +8,10 @@ pkgs.symlinkJoin {
   paths = [ pkgs.claude-code ];
   nativeBuildInputs = [ pkgs.makeWrapper ];
   postBuild = ''
-    ${files.sync "claude" ".config/claude"}
+    ${files.sync "claude" ".claude"}
 
     wrapProgram $out/bin/claude \
+      --set CLAUDE_CONFIG_DIR "$out/.claude" \
       --prefix PATH : ${pkgs.lib.makeBinPath [ firefoxMcp ]}
   '';
 }
