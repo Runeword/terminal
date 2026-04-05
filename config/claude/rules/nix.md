@@ -1,3 +1,8 @@
+---
+paths:
+  - "**/*.nix"
+---
+
 # Global Claude Instructions
 
 ## Nix Code Quality Rules
