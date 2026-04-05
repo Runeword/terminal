@@ -123,13 +123,8 @@ claude() {
   fi
 
   if [ "$TMUX" != "" ]; then
-    local pane_path claude_pane
-    pane_path=$(tmux display-message -p '#{pane_current_path}')
-
-    claude_pane=$(tmux split-window -v -l 100% -P -F '#{pane_id}' -c "$pane_path" \
-      "CLAUDE_CONFIG_DIR='$HOME/.claude-$instance' command claude --effort max --model opus $(printf '%q ' "$@")")
-
-    tmux set-option -w @toggle_pane "$claude_pane"
+    sh "$NIX_OUT_TMUX/.config/tmux/scripts/toggle-pane.sh" 15 \
+      "CLAUDE_CONFIG_DIR='$HOME/.claude-$instance' command claude --effort max --model opus $(printf '%q ' "$@")"
   else
     CLAUDE_CONFIG_DIR="$HOME/.claude-$instance" command claude --effort max "$@"
   fi
