@@ -7,4 +7,5 @@
     src = ./git-branches;
     vendorHash = null;
   })
+  (import ./firefox-mcp.nix { inherit pkgs; })
 ]
