@@ -61,10 +61,6 @@ alias disk='duf'
 # alias diskinfo = 'sudo nvme smart-log /dev/nvme0n1'
 alias audit='lynis audit system'
 
-# ______________________________________ GO
-
-alias gob='go build -o ~/.nix-profile/bin/$(basename $PWD) .'
-
 # ______________________________________ NIX
 
 alias nr='nix run --verbose'
@@ -130,7 +126,7 @@ claude() {
     local pane_path claude_pane
     pane_path=$(tmux display-message -p '#{pane_current_path}')
 
-    claude_pane=$(tmux split-window -v -l 50% -P -F '#{pane_id}' -c "$pane_path" \
+    claude_pane=$(tmux split-window -v -l 100% -P -F '#{pane_id}' -c "$pane_path" \
       "CLAUDE_CONFIG_DIR='$HOME/.claude-$instance' command claude --effort max --model opus $(printf '%q ' "$@")")
 
     tmux set-option -w @toggle_pane "$claude_pane"
