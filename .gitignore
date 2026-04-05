@@ -1,3 +1,7 @@
 .direnv/
 .claude/
 lefthook.local.yml
+
+config/claude/*
+!config/claude/rules/
+!config/claude/settings.json
