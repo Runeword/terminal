@@ -1,3 +1,8 @@
+---
+paths:
+  - "**/*.go"
+---
+
 # Global Claude Instructions
 
 ## Go Code Quality Rules
