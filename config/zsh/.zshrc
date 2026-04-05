@@ -190,16 +190,18 @@ bindkey "${KEYS[CTRL_A]}" beginning-of-line
 
 # ------------------------------------ Kill
 bindkey "${KEYS[CTRL_U]}" kill-buffer
-bindkey "${KEYS[CTRL_J]}" backward-kill-line
-bindkey "${KEYS[CTRL_K]}" kill-line
+# bindkey "${KEYS[CTRL_J]}" backward-kill-line
+# bindkey "${KEYS[CTRL_K]}" kill-line
 bindkey "${KEYS[CTRL_BACKSPACE]}" backward-kill-word
 bindkey "${KEYS[CTRL_DELETE]}" kill-word
 
 # ------------------------------------ Search history
 bindkey "${KEYS[UP_ARROW_ALT]}" history-beginning-search-backward
 bindkey "${KEYS[UP_ARROW]}" history-beginning-search-backward
+bindkey "${KEYS[CTRL_K]}" history-beginning-search-backward
 bindkey "${KEYS[DOWN_ARROW]}" history-beginning-search-forward
 bindkey "${KEYS[DOWN_ARROW_ALT]}" history-beginning-search-forward
+bindkey "${KEYS[CTRL_J]}" history-beginning-search-forward
 
 # ------------------------------------ Complete
 typeset -F __TC1=$SECONDS
