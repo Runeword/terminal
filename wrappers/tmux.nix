@@ -10,6 +10,7 @@ pkgs.symlinkJoin {
   nativeBuildInputs = [ pkgs.makeWrapper ];
   postBuild = ''
     ${files.sync "tmux/tmux.conf" ".config/tmux/tmux.conf"}
+    ${files.sync "tmux/scripts/toggle-pane.sh" ".config/tmux/scripts/toggle-pane.sh"}
     ${files.sync "shell/functions/tmux.sh" ".config/shell/functions/tmux.sh"}
     ${files.copy "${pkgs.tmuxPlugins.resurrect}/share/tmux-plugins/resurrect" ".config/tmux/plugins/resurrect"}
 
