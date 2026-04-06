@@ -3,5 +3,6 @@
 lefthook.local.yml
 
 config/claude/*
+!config/claude/hooks/
 !config/claude/rules/
 !config/claude/settings.json
