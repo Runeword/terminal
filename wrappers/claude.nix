@@ -9,6 +9,7 @@ pkgs.symlinkJoin {
   nativeBuildInputs = [ pkgs.makeWrapper ];
   postBuild = ''
     ${files.sync "claude/rules" ".claude/rules"}
+    ${files.sync "claude/hooks" ".claude/hooks"}
     ${files.sync "claude/settings.json" ".claude/settings.json"}
 
     wrapProgram $out/bin/claude \
@@ -20,6 +21,7 @@ pkgs.symlinkJoin {
         ln -sf "$__CLAUDE_NIX/settings.json" "$cfg/settings.json"
         export CLAUDE_CONFIG_DIR="$cfg"
       ' \
+      --unset TMUX \
       --prefix PATH : ${pkgs.lib.makeBinPath [ firefoxMcp ]}
   '';
 }
