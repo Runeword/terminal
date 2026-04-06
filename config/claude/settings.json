@@ -1,1 +1,16 @@
-{}
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh $__CLAUDE_NIX/hooks/format.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
