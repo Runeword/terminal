@@ -72,9 +72,10 @@ func shellQuote(s string) string {
 }
 
 type branchInfo struct {
-	current  string
-	branches []string
-	pager    string
+	current   string
+	branches  []string
+	worktrees map[string]string // branch → worktree path
+	pager     string
 }
 
 // fetchBranches concurrently fetches the current branch, a filtered branch
@@ -93,7 +94,7 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 	}()
 	go func() {
 		defer wg.Done()
-		raw, rawErr = gitLines("branch", "--all", "--format=%(refname:short)%09%(symref)")
+		raw, rawErr = gitLines("branch", "--all", "--format=%(refname:short)%09%(worktreepath)%09%(symref)")
 	}()
 	go func() {
 		defer wg.Done()
@@ -109,19 +110,27 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 	}
 
 	local := map[string]bool{}
+	worktrees := map[string]string{}
 	var all []string
 	for _, line := range raw {
-		parts := strings.SplitN(line, "\t", 2)
+		parts := strings.SplitN(line, "\t", 3)
 		branch := parts[0]
+		worktree := ""
 		symref := ""
-		if len(parts) == 2 {
-			symref = parts[1]
+		if len(parts) >= 2 {
+			worktree = parts[1]
+		}
+		if len(parts) >= 3 {
+			symref = parts[2]
 		}
 		if branch == "" || strings.HasPrefix(branch, "HEAD") || symref != "" {
 			continue
 		}
 		if !strings.Contains(branch, "/") {
 			local[branch] = true
+		}
+		if worktree != "" {
+			worktrees[branch] = worktree
 		}
 		all = append(all, branch)
 	}
@@ -142,9 +151,10 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 	}
 
 	return &branchInfo{
-		current:  current,
-		branches: filtered,
-		pager:    pager,
+		current:   current,
+		branches:  filtered,
+		worktrees: worktrees,
+		pager:     pager,
 	}, nil
 }
 
@@ -184,170 +194,47 @@ func runFzf(lines []string, args ...string) (string, error) {
 // worktreeList emits branches not already checked out as a worktree,
 // skipping remote branches when a local counterpart exists.
 func worktreeList() error {
-	var branches, worktrees []string
-	var branchErr, worktreeErr error
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		branches, branchErr = gitLines("branch", "--all", "--format=%(refname:short)")
-	}()
-	go func() { defer wg.Done(); worktrees, worktreeErr = gitLines("worktree", "list") }()
-	wg.Wait()
-
-	if branchErr != nil {
-		return branchErr
-	}
-	if worktreeErr != nil {
-		return worktreeErr
+	info, err := fetchBranches(false, true)
+	if err != nil {
+		return err
 	}
 
-	// Parse checked-out branch names from "git worktree list".
-	// Lines look like: /path/to/wt  abc1234  [branch]
-	checkedOut := map[string]bool{}
-	for _, line := range worktrees {
-		start := strings.Index(line, "[")
-		end := strings.Index(line, "]")
-		if start != -1 && end != -1 {
-			checkedOut[line[start+1:end]] = true
+	for _, b := range info.branches {
+		if _, ok := info.worktrees[b]; !ok {
+			fmt.Println(b)
 		}
-	}
-
-	// First pass: collect all local branch names (no slash).
-	local := map[string]bool{}
-	var all []string
-	for _, b := range branches {
-		if b == "" || strings.HasPrefix(b, "HEAD") {
-			continue
-		}
-		if !strings.Contains(b, "/") {
-			local[b] = true
-		}
-		all = append(all, b)
-	}
-
-	// Second pass: emit branches passing both filters.
-	for _, b := range all {
-		if checkedOut[b] {
-			continue
-		}
-		if idx := strings.Index(b, "/"); idx != -1 {
-			if local[b[idx+1:]] {
-				continue
-			}
-		}
-		fmt.Println(b)
 	}
 	return nil
 }
 
 // switchBranch runs an interactive fzf picker and outputs the git command to run.
 func switchBranch() error {
-	var currentBranch string
-	var raw []string
-	var currentErr, rawErr error
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		currentBranch, currentErr = gitLine("rev-parse", "--abbrev-ref", "HEAD")
-	}()
-	go func() {
-		defer wg.Done()
-		raw, rawErr = gitLines("branch", "--all",
-			"--format=%(HEAD)%(refname:short)%09%(worktreepath)%09%(symref)")
-	}()
-	wg.Wait()
-
-	if currentErr != nil {
-		return currentErr
-	}
-	if rawErr != nil {
-		return rawErr
-	}
-
-	pager, _ := gitLine("config", "core.pager")
-	if pager == "" {
-		pager = "cat"
-	}
-
-	type entry struct {
-		branch   string
-		worktree string
-	}
-
-	local := map[string]bool{}
-	var entries []entry
-
-	for _, line := range raw {
-		parts := strings.SplitN(line, "\t", 3)
-		if len(parts) < 3 {
-			continue
-		}
-		branch := strings.TrimLeft(parts[0], "* ")
-		wt := parts[1]
-		symref := parts[2]
-
-		if branch == "" || strings.HasPrefix(branch, "HEAD") || symref != "" {
-			continue
-		}
-		if !strings.Contains(branch, "/") {
-			local[branch] = true
-		}
-		entries = append(entries, entry{branch, wt})
+	info, err := fetchBranches(false, true)
+	if err != nil {
+		return err
 	}
 
 	var lines []string
-	for _, e := range entries {
-		if idx := strings.Index(e.branch, "/"); idx != -1 {
-			if local[e.branch[idx+1:]] {
-				continue
-			}
-		}
-		if e.worktree != "" {
-			lines = append(lines, fmt.Sprintf("%s\t→ %s\t%s", e.branch, filepath.Base(e.worktree), e.worktree))
+	for _, b := range info.branches {
+		if wt, ok := info.worktrees[b]; ok {
+			lines = append(lines, fmt.Sprintf("%s\t→ %s\t%s", b, filepath.Base(wt), wt))
 		} else {
-			lines = append(lines, fmt.Sprintf("%s\t\t", e.branch))
+			lines = append(lines, fmt.Sprintf("%s\t\t", b))
 		}
 	}
 
-	fzfArgs := []string{
+	args := []string{
 		"--delimiter=\t",
 		"--with-nth=1,2",
-		fmt.Sprintf("--preview=echo {}; git diff --color=always %s..{1} | %s", currentBranch, pager),
+		fmt.Sprintf("--preview=echo {}; git diff --color=always %s..{1} | %s", info.current, info.pager),
 		"--preview-window=right,65%,border-none,wrap,~1",
 	}
-	fzfArgs = append(fzfArgs, os.Args[2:]...)
-	fzf := exec.Command("fzf", fzfArgs...)
-	fzf.Stderr = os.Stderr
+	args = append(args, os.Args[2:]...)
 
-	fzfStdin, err := fzf.StdinPipe()
+	selected, err := runFzf(lines, args...)
 	if err != nil {
 		return err
 	}
-	go func() {
-		defer fzfStdin.Close()
-		for _, line := range lines {
-			fmt.Fprintln(fzfStdin, line)
-		}
-	}()
-
-	output, err := fzf.Output()
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			if exitErr.ExitCode() == 130 {
-				os.Exit(0)
-			}
-			if exitErr.ExitCode() == 1 {
-				return nil
-			}
-		}
-		return err
-	}
-
-	selected := strings.TrimRight(string(output), "\n")
 	if selected == "" {
 		return nil
 	}
