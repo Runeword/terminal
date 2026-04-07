@@ -115,7 +115,6 @@ gdd  	__git_diff unstaged                        	git                 Show unsta
 gdb  	__git_diff_branches                        	git                 Show diff between 2 branches	e
 gwa 	__git_worktree_add                         	git                 worktree                  add	e
 gwr 	__git_worktree_remove                      	git                 worktree                  remove	x
-# gob	__go_build_custom	go build custom packages	x
 gog	go get                                       	go
 gor	go run                                       	go
 gom	go mod tidy                                  	go	x
