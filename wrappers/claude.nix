@@ -7,6 +7,27 @@
 let
   firefoxMcp = import ../packages/custom/firefox-mcp.nix { inherit pkgs; };
 
+  firefoxMcpPlugin = pkgs.runCommand "firefox-mcp-plugin" { } ''
+    mkdir -p $out/.claude-plugin
+    cat > $out/.claude-plugin/plugin.json <<MANIFEST
+    {
+      "name": "firefox-mcp",
+      "description": "Firefox DevTools MCP server",
+      "version": "${firefoxMcp.version}"
+    }
+    MANIFEST
+    cat > $out/.mcp.json <<MCP
+    {
+      "mcpServers": {
+        "firefox-devtools": {
+          "command": "${firefoxMcp}/bin/firefox-devtools-mcp",
+          "args": ["--headless"]
+        }
+      }
+    }
+    MCP
+  '';
+
   formatHook = pkgs.writeScript "format.sh" ''
     #!/bin/sh
     file=$(jq -r '.tool_input.file_path')
@@ -42,6 +63,6 @@ pkgs.symlinkJoin {
         export CLAUDE_CONFIG_DIR="$cfg"
       ' \
       --unset TMUX \
-      --prefix PATH : ${pkgs.lib.makeBinPath [ firefoxMcp ]}
+      --append-flags '--plugin-dir ${firefoxMcpPlugin}'
   '';
 }
