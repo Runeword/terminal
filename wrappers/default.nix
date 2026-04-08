@@ -1,4 +1,8 @@
-{ pkgs, configPath }:
+{
+  pkgs,
+  configPath,
+  lefthook,
+}:
 let
   files = import ../lib/files.nix {
     inherit pkgs;
@@ -16,5 +20,5 @@ map (path: import path { inherit pkgs files; }) [
   ./delta.nix
   ./navi.nix
   ./nvim-fzf.nix
-  ./claude.nix
 ]
+++ [ (import ./claude.nix { inherit pkgs files lefthook; }) ]
