@@ -115,20 +115,6 @@ alias rt='rm -rfv $HOME/.local/share/Trash/files'
 
 # ______________________________________ PROGRAMS
 
-claude() {
-  local instance=1
-  if [ "$1" != "" ] && [ "$1" -eq "$1" ] 2>/dev/null; then
-    instance="$1"
-    shift
-  fi
-
-  if [ "$TMUX" != "" ]; then
-    sh "$NIX_OUT_TMUX/.config/tmux/scripts/toggle-pane.sh" 15 \
-      "CLAUDE_CONFIG_DIR='$HOME/.claude-$instance' command claude --effort max --model opus $(printf '%q ' "$@")"
-  else
-    CLAUDE_CONFIG_DIR="$HOME/.claude-$instance" command claude --effort max "$@"
-  fi
-}
 alias cursor='cursor-agent --resume'
 alias gparted='sudo -E gparted'
 alias ventoy='sudo ventoy-web'
