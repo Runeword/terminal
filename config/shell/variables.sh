@@ -3,7 +3,7 @@
 export EDITOR="nvim"
 export VISUAL="nvim"
 export MANPAGER="nvim +Man!"
-export BROWSER="Firefox"
+export BROWSER="firefox-devedition"
 export HOME_MANAGER_PATH="$HOME/.config/home-manager"
 export NIXOS_PATH="$HOME/nixos"
 # export BROWSER="google-chrome-stable"
