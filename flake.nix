@@ -29,7 +29,8 @@
     let
       mkTools =
         pkgs: configPath:
-        import ./packages { inherit pkgs configPath; } ++ import ./wrappers { inherit pkgs configPath; };
+        import ./packages { inherit pkgs configPath; }
+        ++ import ./wrappers { inherit pkgs configPath lefthook; };
 
       mkTerminal =
         pkgs: configPath:
