@@ -144,25 +144,28 @@ pi	pip install -r Package                                         	python       
 pl	pip list                                                       	python            package      list	x
 pv	python --version                                               	python            version	x
 pb	brew list | grep python                                        	python            version      list	x
-cd	chezmoi diff --reverse                                         	chezmoi	x
-ci	chezmoi ignored                                                	chezmoi	x
-cc	__chezmoi_cd                                                   	chezmoi	x
-ce	chezmoi --refresh-externals apply                              	chezmoi	x
-cr	chezmoi state reset                                            	chezmoi           reset chezmoi local state
-ca	__chezmoi add                                                  	chezmoi	x
-xca	__chezmoi add                                                  	chezmoi
-cy	__chezmoi apply                                                	chezmoi	x
-xcy	__chezmoi apply                                                	chezmoi
-cf	__chezmoi_forget                                               	chezmoi	x
-xcf	__chezmoi_forget                                               	chezmoi
-ct	__chezmoi_status                                               	chezmoi	x
-cm	__chezmoi_managed                                              	chezmoi	x
-cp	__chezmoi_private                                              	chezmoi
-cpa	__chezmoi_private add                                          	chezmoi
-cpy	__chezmoi_private apply                                        	chezmoi
-cs	__chezmoi_shared                                               	chezmoi
-csa	__chezmoi_shared add                                           	chezmoi
-csy	__chezmoi_shared apply                                         	chezmoi
+cl	__claude                                                       	claude	x
+cf	__claude_connect_firefox                                       	claude            firefox	x
+cr	__claude --resume                                              	claude            resume	x
+chd	chezmoi diff --reverse                                         	chezmoi	x
+chi	chezmoi ignored                                                	chezmoi	x
+chc	__chezmoi_cd                                                   	chezmoi	x
+che	chezmoi --refresh-externals apply                              	chezmoi	x
+chr	chezmoi state reset                                            	chezmoi           reset chezmoi local state
+cha	__chezmoi add                                                  	chezmoi	x
+xcha	__chezmoi add                                                  	chezmoi
+chy	__chezmoi apply                                                	chezmoi	x
+xchy	__chezmoi apply                                                	chezmoi
+chf	__chezmoi_forget                                               	chezmoi	x
+xchf	__chezmoi_forget                                               	chezmoi
+cht	__chezmoi_status                                               	chezmoi	x
+chm	__chezmoi_managed                                              	chezmoi	x
+chp	__chezmoi_private                                              	chezmoi
+chpa	__chezmoi_private add                                          	chezmoi
+chpy	__chezmoi_private apply                                        	chezmoi
+chs	__chezmoi_shared                                               	chezmoi
+chsa	__chezmoi_shared add                                           	chezmoi
+chsy	__chezmoi_shared apply                                         	chezmoi
 al	aws sso login                                                  	aws          sso               login	x
 ap	aws configure list-profiles                                    	aws          profiles          list
 af	aws lambda list-functions --profile Profile                    	aws          lambda            list
