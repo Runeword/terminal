@@ -3,6 +3,7 @@
 pkgs.lib.optionals (pkgs.stdenv.isLinux) (
   with pkgs;
   [
+    xdg-utils
     wl-clipboard # copy/paste
     dragon-drop # drag and drop
     nvme-cli # NVMe storage devices manager
