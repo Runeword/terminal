@@ -33,6 +33,35 @@ let
     MCP
   '';
 
+  typescriptLspPlugin = pkgs.runCommand "typescript-lsp-plugin" { } ''
+    mkdir -p $out/.claude-plugin
+    cat > $out/.claude-plugin/plugin.json <<MANIFEST
+    {
+      "name": "typescript-lsp",
+      "description": "TypeScript/JavaScript language server for enhanced code intelligence",
+      "version": "1.0.0"
+    }
+    MANIFEST
+    cat > $out/.lsp.json <<LSP
+    {
+      "typescript": {
+        "command": "${pkgs.typescript-language-server}/bin/typescript-language-server",
+        "args": ["--stdio"],
+        "extensionToLanguage": {
+          ".ts": "typescript",
+          ".tsx": "typescriptreact",
+          ".js": "javascript",
+          ".jsx": "javascriptreact",
+          ".mts": "typescript",
+          ".cts": "typescript",
+          ".mjs": "javascript",
+          ".cjs": "javascript"
+        }
+      }
+    }
+    LSP
+  '';
+
   formatHook = pkgs.writeScript "format.sh" ''
     #!/bin/sh
     file=$(jq -r '.tool_input.file_path')
@@ -68,6 +97,7 @@ pkgs.symlinkJoin {
         export CLAUDE_CONFIG_DIR="$cfg"
       ' \
       --unset TMUX \
-      --append-flags '--plugin-dir ${mcpPlugin}'
+      --append-flags '--plugin-dir ${mcpPlugin}' \
+      --append-flags '--plugin-dir ${typescriptLspPlugin}'
   '';
 }
