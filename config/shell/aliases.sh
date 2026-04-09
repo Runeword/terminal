@@ -84,7 +84,14 @@ alias aiq='export GROQ_API_KEY="$(pass show GROQ_API_KEY)"; aider --model groq/l
 
 # ______________________________________ NPM
 
-nuke() { rm -rf .node_modules_trash_* 2>/dev/null; local t=".node_modules_trash_$RANDOM"; mv node_modules "$t" && { rm -rf "$t" & disown; } }
+nuke() {
+  rm -rf .node_modules_trash_* 2>/dev/null
+  local t=".node_modules_trash_$RANDOM"
+  mv node_modules "$t" && {
+    rm -rf "$t" &
+    disown
+  }
+}
 alias npl='npm ls --depth=0'
 alias npg='npm ls -g --depth=0'
 alias npd='npm run dev'
