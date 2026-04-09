@@ -22,7 +22,7 @@ let
       "mcpServers": {
         "firefox-devtools": {
           "command": "${firefoxMcp}/bin/firefox-devtools-mcp",
-          "args": ["--firefox-path", "${pkgs.firefox-devedition}/bin/firefox-devedition", "--headless"]
+          "args": ["--connect-existing"]
         },
         "mobile": {
           "command": "${mobileMcp}/bin/mcp-server-mobile",
