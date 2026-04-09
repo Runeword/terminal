@@ -21,13 +21,6 @@ pkgs.buildNpmPackage rec {
     runHook postBuild
   '';
 
-  nativeBuildInputs = [ pkgs.makeWrapper ];
-
-  postInstall = ''
-    wrapProgram $out/bin/firefox-devtools-mcp \
-      --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.firefox ]}
-  '';
-
   meta = {
     description = "MCP server for Firefox DevTools automation via WebDriver BiDi";
     homepage = "https://github.com/mozilla/firefox-devtools-mcp";
