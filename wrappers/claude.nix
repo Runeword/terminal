@@ -24,6 +24,10 @@ let
           "command": "${firefoxMcp}/bin/firefox-devtools-mcp",
           "args": ["--connect-existing"]
         },
+        "firefox-headless": {
+          "command": "${firefoxMcp}/bin/firefox-devtools-mcp",
+          "args": ["--headless", "--firefox-path", "${pkgs.firefox-devedition}/bin/firefox-devedition"]
+        },
         "mobile": {
           "command": "${mobileMcp}/bin/mcp-server-mobile",
           "args": []
