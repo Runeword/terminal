@@ -31,6 +31,10 @@ let
         "mobile": {
           "command": "${mobileMcp}/bin/mcp-server-mobile",
           "args": []
+        },
+        "nixos": {
+          "command": "${pkgs.mcp-nixos}/bin/mcp-nixos",
+          "args": []
         }
       }
     }
