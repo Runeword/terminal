@@ -95,6 +95,9 @@ pkgs.symlinkJoin {
     mkdir -p $out/.claude/hooks
     cp ${formatHook} $out/.claude/hooks/format.sh
 
+    ln -s ${mcpPlugin} $out/.claude/plugins/mcp
+    ln -s ${typescriptLspPlugin} $out/.claude/plugins/lsp
+
     wrapProgram $out/bin/claude \
       --set __CLAUDE_NIX "$out/.claude" \
       --run '
@@ -104,8 +107,6 @@ pkgs.symlinkJoin {
         ln -sf "$__CLAUDE_NIX/settings.json" "$cfg/settings.json"
         export CLAUDE_CONFIG_DIR="$cfg"
       ' \
-      --unset TMUX \
-      --append-flags '--plugin-dir ${mcpPlugin}' \
-      --append-flags '--plugin-dir ${typescriptLspPlugin}'
+      --unset TMUX
   '';
 }
