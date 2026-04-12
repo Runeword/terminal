@@ -14,6 +14,7 @@ eval "$(jq -r '
   @sh "cost=\(.cost.total_cost_usd // 0)"
 ')"
 
+# shellcheck disable=SC2154 # variables set by eval above
 tok_total=$((tok_in + tok_out + tok_new))
 req_cost=$(awk "BEGIN {printf \"%.4f\", ($tok_in * 15 + $tok_out * 75 + $tok_new * 18.75) / 1000000}")
 
@@ -38,7 +39,9 @@ fmt_time() {
   fi
 }
 
+# shellcheck disable=SC2154
 reset_5h=$(fmt_time "$epoch_5h" "5h")
+# shellcheck disable=SC2154
 reset_7d=$(fmt_time "$epoch_7d" "7d")
 
 bar() {
@@ -56,6 +59,7 @@ bar() {
   done
 }
 
+# shellcheck disable=SC2154
 LC_NUMERIC=C printf '↓%d ↑%d +%d (%d) $%s  ctx %s %d%%  %s %s %d%%  %s %s %d%%  $%.2f  %s' \
   "$tok_in" "$tok_out" "$tok_new" "$tok_total" "$req_cost" \
   "$(bar "$ctx_pct")" "$ctx_pct" \
