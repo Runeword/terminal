@@ -1,19 +1,21 @@
 #!/bin/sh
 # Claude Code status line - receives JSON on stdin
 
-data=$(cat)
+eval "$(jq -r '
+  @sh "model=\(.model.display_name // "?")",
+  @sh "ctx_pct=\(.context_window.used_percentage // 0)",
+  @sh "tok_in=\(.context_window.current_usage.input_tokens // 0)",
+  @sh "tok_out=\(.context_window.current_usage.output_tokens // 0)",
+  @sh "tok_new=\(.context_window.current_usage.cache_creation_input_tokens // 0)",
+  @sh "rate_5h=\(.rate_limits.five_hour.used_percentage // 0)",
+  @sh "rate_7d=\(.rate_limits.seven_day.used_percentage // 0)",
+  @sh "epoch_5h=\(.rate_limits.five_hour.resets_at // empty)",
+  @sh "epoch_7d=\(.rate_limits.seven_day.resets_at // empty)",
+  @sh "cost=\(.cost.total_cost_usd // 0)"
+')"
 
-model=$(echo "$data" | jq -r '.model.display_name // "?"')
-ctx_pct=$(echo "$data" | jq -r '.context_window.used_percentage // 0')
-tok_in=$(echo "$data" | jq -r '.context_window.current_usage.input_tokens // 0')
-tok_out=$(echo "$data" | jq -r '.context_window.current_usage.output_tokens // 0')
-tok_new=$(echo "$data" | jq -r '.context_window.current_usage.cache_creation_input_tokens // 0')
 tok_total=$((tok_in + tok_out + tok_new))
 req_cost=$(awk "BEGIN {printf \"%.4f\", ($tok_in * 15 + $tok_out * 75 + $tok_new * 18.75) / 1000000}")
-rate_5h=$(echo "$data" | jq -r '.rate_limits.five_hour.used_percentage // 0')
-rate_7d=$(echo "$data" | jq -r '.rate_limits.seven_day.used_percentage // 0')
-epoch_5h=$(echo "$data" | jq -r '.rate_limits.five_hour.resets_at // empty')
-epoch_7d=$(echo "$data" | jq -r '.rate_limits.seven_day.resets_at // empty')
 
 fmt_time() {
   epoch=$1
@@ -38,7 +40,6 @@ fmt_time() {
 
 reset_5h=$(fmt_time "$epoch_5h" "5h")
 reset_7d=$(fmt_time "$epoch_7d" "7d")
-cost=$(echo "$data" | jq -r '.cost.total_cost_usd // 0')
 
 bar() {
   pct=$1
