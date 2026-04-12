@@ -27,7 +27,6 @@ pkgs.symlinkJoin {
   postBuild = ''
     ${files.sync "claude/rules" ".claude/rules"}
     ${files.sync "claude/settings.json" ".claude/settings.json"}
-    ${files.sync "claude/statusline.sh" ".claude/statusline.sh"}
 
     mkdir -p $out/.claude/hooks
     cp ${formatHook} $out/.claude/hooks/format.sh
