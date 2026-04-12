@@ -2,7 +2,6 @@
   pkgs,
   files,
   lefthook,
-  configPath,
 }:
 
 let
@@ -27,13 +26,13 @@ pkgs.symlinkJoin {
   postBuild = ''
     ${files.sync "claude/rules" ".claude/rules"}
     ${files.sync "claude/settings.json" ".claude/settings.json"}
+    ${files.sync "claude/statusline.sh" ".claude/statusline.sh"}
 
     mkdir -p $out/.claude/hooks
     cp ${formatHook} $out/.claude/hooks/format.sh
 
     wrapProgram $out/bin/claude \
       --set __CLAUDE_NIX "$out/.claude" \
-      --set-default __CLAUDE_CONFIG "${configPath}/claude" \
       --run '
         cfg="''${CLAUDE_CONFIG_DIR:-''${XDG_CONFIG_HOME:-$HOME/.config}/claude}"
         mkdir -p "$cfg"
