@@ -8,7 +8,7 @@ hgs	__home_manager_generation_switch                 	home-manager    generation
 hp	__home_manager_packages_list                     	home-manager    packages          list	x
 hu	__update_flake_inputs $HOME_MANAGER_PATH         	home-manager    inputs            update	x
 # hs	home-manager switch --flake $HOME_MANAGER_PATH 	home-manager    config            build/activate	x
-hs	home-manager switch                              	home-manager    config            build/activate	x
+hs	__home_manager_switch                            	home-manager    config            build/activate	x
 hd	home-manager expire-generations '-7 days'        	home-manager    generation        remove old	x
 hv	home-manager --version                           	home-manager    version	x
 ngs	__nixos_generation_switch                        	nixos           generation        switch	x
@@ -120,6 +120,8 @@ gor	go run                                       	go
 gom	go mod tidy                                  	go	x
 goc	go clean -modcache                           	go
 got	go test                                      	go
+god	__go_dev                                     	go              dev             build	x
+godc	__go_dev clean                               	go              dev             clean	x
 gc	gcloud auth login                                              	gcloud              auth                    login	x
 gc	gcloud config set project PROJECT                              	gcloud              project                 set
 gc	gcloud secrets list                                            	gcloud              secret                  list
@@ -145,8 +147,9 @@ pl	pip list                                                       	python       
 pv	python --version                                               	python            version	x
 pb	brew list | grep python                                        	python            version      list	x
 cl	__claude                                                       	claude	x
-cf	__claude_connect_firefox                                       	claude            firefox	x
 cr	__claude --resume                                              	claude            resume	x
+cp	__claude_plugins                                               	claude            plugins	x
+cd	__claude_debug                                                 	claude            debug	x
 chd	chezmoi diff --reverse                                         	chezmoi	x
 chi	chezmoi ignored                                                	chezmoi	x
 chc	__chezmoi_cd                                                   	chezmoi	x
