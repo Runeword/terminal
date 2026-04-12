@@ -1,7 +1,7 @@
 {
   "statusLine": {
     "type": "command",
-    "command": "sh $__CLAUDE_CONFIG/statusline.sh"
+    "command": "sh $__CLAUDE_NIX/statusline.sh"
   },
   "hooks": {
     "PostToolUse": [
