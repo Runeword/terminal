@@ -42,7 +42,7 @@ __use_flake_template() {
   selected_template=$(
     echo "$templates" | fzf \
       --multi --info=inline:'' --reverse --no-separator --prompt='  ' --border none --cycle --height 70% \
-      --preview "bat --style=plain --color=always $(nix flake metadata $flake_path --json | jq -r .path)/{}/flake.nix" \
+      --preview "bat --style=plain --color=always $(nix flake metadata "$flake_path" --json | jq -r .path)/{}/flake.nix" \
       --preview-window right,80%,noborder
   )
   [ -z "$selected_template" ] && return 1
@@ -57,6 +57,28 @@ __use_flake_template() {
   fi
 
   direnv allow
+}
+
+# Updates local path inputs in the home-manager flake then switches
+__home_manager_switch() {
+  local hm_path="${HOME_MANAGER_PATH:-$HOME/.config/home-manager}"
+  local metadata
+  metadata=$(nix flake metadata "$hm_path" --json)
+
+  local path_inputs
+  path_inputs=$(echo "$metadata" | jq -r '
+    .locks.nodes as $nodes |
+    $nodes.root.inputs // {} | keys[] |
+    select($nodes[.].locked.type == "path")
+  ')
+
+  if [ -n "$path_inputs" ]; then
+    echo "$path_inputs" | while read -r input; do
+      nix flake update --flake "$hm_path" "$input"
+    done
+  fi
+
+  home-manager switch
 }
 
 # Interactively selects a package from Home Manager and return its full path
@@ -164,7 +186,10 @@ __nix_package() {
   [ -z "$selected" ] && return 1
 
   case "$1" in
-    run) echo "nix run nixpkgs#${selected}${2:+ -- ${*:2}} " ;;
+    run)
+      shift
+      echo "nix run nixpkgs#${selected}${1:+ -- $*} "
+      ;;
     shell) echo "nix shell $(echo "$selected" | sed 's/^/nixpkgs#/' | xargs) " ;;
     *) echo "$selected" | xargs ;;
   esac
