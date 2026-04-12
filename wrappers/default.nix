@@ -26,6 +26,5 @@ map (path: import path { inherit pkgs files; }) [
   (import ./tmux.nix { inherit pkgs files zsh; })
   (import ./claude.nix {
     inherit pkgs files lefthook;
-    configPath = configPath;
   })
 ]
