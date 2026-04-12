@@ -1,4 +1,8 @@
 {
+  "statusLine": {
+    "type": "command",
+    "command": "sh $__CLAUDE_CONFIG/statusline.sh"
+  },
   "hooks": {
     "PostToolUse": [
       {
