@@ -8,10 +8,10 @@ let
     inherit pkgs;
     rootPath = configPath;
   };
+  claudePlugins = import ./claude-plugins.nix { inherit pkgs; };
+  zsh = import ./zsh.nix { inherit pkgs files claudePlugins; };
 in
 map (path: import path { inherit pkgs files; }) [
-  ./zsh.nix
-  ./tmux.nix
   ./bat.nix
   ./fd.nix
   ./ripgrep.nix
@@ -21,4 +21,11 @@ map (path: import path { inherit pkgs files; }) [
   ./navi.nix
   ./nvim-fzf.nix
 ]
-++ [ (import ./claude.nix { inherit pkgs files lefthook; }) ]
+++ [
+  zsh
+  (import ./tmux.nix { inherit pkgs files zsh; })
+  (import ./claude.nix {
+    inherit pkgs files lefthook;
+    configPath = configPath;
+  })
+]
