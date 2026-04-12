@@ -1,4 +1,8 @@
-{ pkgs, files }:
+{
+  pkgs,
+  files,
+  claudePlugins,
+}:
 
 pkgs.symlinkJoin {
   name = "zsh-with-config";
@@ -16,6 +20,7 @@ pkgs.symlinkJoin {
     wrapProgram $out/bin/zsh \
       --set ZDOTDIR "$out/.config/zsh" \
       --set NIX_OUT_SHELL "$out" \
+      --set __CLAUDE_PLUGINS "${claudePlugins}" \
       --set INPUTRC "$out/.config/readline/inputrc" \
       --set DIRENV_CONFIG "$out/.config/direnv"
   '';
