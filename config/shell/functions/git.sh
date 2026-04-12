@@ -54,8 +54,9 @@ __git_diff_tracked() {
 __git_diff_untracked() {
   local root
   root="$(git rev-parse --show-toplevel)"
-  local diff="cd \"$root\" && git diff --ignore-space-change --no-index --color=always /dev/null {} | $_GIT_PAGER"
-  printf '{ %s; }' "$diff"
+  local link="cd \"$root\" && test -L {} && readlink {}"
+  local diff="cd \"$root\" && ! test -L {} && git diff --ignore-space-change --no-index --color=always /dev/null {} | $_GIT_PAGER"
+  printf '{ %s || %s; }' "$link" "$diff"
 }
 
 __git_diff_staged() {
