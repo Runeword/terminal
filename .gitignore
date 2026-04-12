@@ -6,3 +6,4 @@ config/claude/*
 !config/claude/hooks/
 !config/claude/rules/
 !config/claude/settings.json
+!config/claude/statusline.sh
