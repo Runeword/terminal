@@ -294,7 +294,7 @@ _profile "nvm: %.0fms\n" $(( (__T4 - __T3) * 1000 ))
 # ------------------------------------ Functions
 __source_functions() {
   if [ -d "$NIX_OUT_SHELL/.config/shell/functions" ]; then
-    for file in "$NIX_OUT_SHELL/.config/shell/functions"/*.sh; do
+    for file in "$NIX_OUT_SHELL/.config/shell/functions"/*.{sh,bash}; do
       . "$file"
     done
   fi
@@ -418,11 +418,12 @@ typeset -F __T5=$SECONDS
 if command -v starship >/dev/null 2>&1; then
   typeset -g STARSHIP_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/starship.zsh"
   typeset -g STARSHIP_BIN=$(command -v starship)
-  if [[ ! -f "$STARSHIP_CACHE" ]] || [[ "$STARSHIP_BIN" -nt "$STARSHIP_CACHE" ]]; then
-    starship init zsh > "$STARSHIP_CACHE"
+  if [[ ! -f "$STARSHIP_CACHE" ]] || { read -r __line < "$STARSHIP_CACHE" && [[ "$__line" != "# $STARSHIP_BIN" ]]; }; then
+    { echo "# $STARSHIP_BIN"; starship init zsh; } > "$STARSHIP_CACHE"
   fi
   source "$STARSHIP_CACHE"
 fi
+unset __line
 typeset -F __T6=$SECONDS
 _profile "starship: %.0fms\n" $(( (__T6 - __T5) * 1000 ))
 
@@ -430,11 +431,12 @@ typeset -F __T7=$SECONDS
 if command -v direnv >/dev/null 2>&1; then
   typeset -g DIRENV_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/direnv.zsh"
   typeset -g DIRENV_BIN=$(command -v direnv)
-  if [[ ! -f "$DIRENV_CACHE" ]] || [[ "$DIRENV_BIN" -nt "$DIRENV_CACHE" ]]; then
-    direnv hook zsh > "$DIRENV_CACHE"
+  if [[ ! -f "$DIRENV_CACHE" ]] || { read -r __line < "$DIRENV_CACHE" && [[ "$__line" != "# $DIRENV_BIN" ]]; }; then
+    { echo "# $DIRENV_BIN"; direnv hook zsh; } > "$DIRENV_CACHE"
   fi
   source "$DIRENV_CACHE"
 fi
+unset __line
 typeset -F __T8=$SECONDS
 _profile "direnv: %.0fms\n" $(( (__T8 - __T7) * 1000 ))
 
