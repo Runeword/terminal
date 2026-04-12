@@ -1,8 +1,8 @@
-{ pkgs, files }:
-
-let
-  zsh = import ./zsh.nix { inherit pkgs files; };
-in
+{
+  pkgs,
+  files,
+  zsh,
+}:
 
 pkgs.symlinkJoin {
   name = "tmux-with-config";
