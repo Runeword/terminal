@@ -1,15 +1,15 @@
 {
   pkgs,
   configPath,
-  lefthook,
 }:
 let
   files = import ../lib/files.nix {
     inherit pkgs;
     rootPath = configPath;
   };
-  claudePlugins = import ./claude-plugins.nix { inherit pkgs; };
-  zsh = import ./zsh.nix { inherit pkgs files claudePlugins; };
+  zsh = import ./zsh.nix { inherit pkgs files; };
+  tmux = import ./tmux.nix { inherit pkgs files zsh; };
+  claude = import ./claude { inherit pkgs files; };
 in
 map (path: import path { inherit pkgs files; }) [
   ./bat.nix
@@ -23,8 +23,6 @@ map (path: import path { inherit pkgs files; }) [
 ]
 ++ [
   zsh
-  (import ./tmux.nix { inherit pkgs files zsh; })
-  (import ./claude.nix {
-    inherit pkgs files lefthook;
-  })
+  tmux
+  claude
 ]
