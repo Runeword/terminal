@@ -12,7 +12,7 @@ __claude_init() {
   fi
   __claude_args="$*"
 
-  local plugins_dir="$__CLAUDE_PLUGINS"
+  local plugins_dir="$NIX_OUT_CLAUDE/plugins"
   __claude_plugins=""
   for p in "${__CLAUDE_DEFAULT_PLUGINS[@]}"; do
     [ -d "$plugins_dir/$p" ] && __claude_plugins="$__claude_plugins --plugin-dir $plugins_dir/$p"
@@ -31,7 +31,7 @@ __claude_init_fzf() {
   fi
   __claude_args="$*"
 
-  local plugins_dir="$__CLAUDE_PLUGINS"
+  local plugins_dir="$NIX_OUT_CLAUDE/plugins"
   local selected
   selected=$(find "$plugins_dir" -mindepth 1 -maxdepth 1 -printf '%f\n' 2>/dev/null | eval fzf --multi "$__CLAUDE_FZF") || return 1
   __claude_plugins=$(echo "$selected" | while IFS= read -r p; do
