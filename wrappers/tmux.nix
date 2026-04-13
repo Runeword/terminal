@@ -15,8 +15,8 @@ pkgs.symlinkJoin {
     ${files.copy "${pkgs.tmuxPlugins.resurrect}/share/tmux-plugins/resurrect" ".config/tmux/plugins/resurrect"}
 
     wrapProgram $out/bin/tmux \
-    --set TMUX_SHELL ${zsh}/bin/zsh \
-    --set NIX_OUT_TMUX "$out" \
-    --add-flags "-f $out/.config/tmux/tmux.conf"
+      --set TMUX_SHELL ${zsh}/bin/zsh \
+      --set NIX_OUT_TMUX "$out" \
+      --add-flags "-f $out/.config/tmux/tmux.conf"
   '';
 }
