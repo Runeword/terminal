@@ -19,4 +19,10 @@ rec {
       link sourceStr targetStr
     else
       copy "${rootPath}/${sourceStr}" targetStr;
+
+  runtimeLink = configDir: files: ''
+    __cfg="''${XDG_CONFIG_HOME:-$HOME/.config}/${configDir}"
+    mkdir -p "$__cfg"
+    ${pkgs.lib.concatMapStringsSep "\n    " (f: ''ln -sfn "$NIX_OUT_CLAUDE/${f}" "$__cfg/${f}"'') files}
+  '';
 }
