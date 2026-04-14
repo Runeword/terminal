@@ -5,12 +5,14 @@
 
 let
   plugins = import ./plugins.nix { inherit pkgs; };
+  claudeStatusline = import ../../packages/custom/claude-statusline { inherit pkgs; };
 
-  formatters = with pkgs; [
-    nixfmt
-    shfmt
-    go
-    taplo
+  tools = [
+    claudeStatusline
+    pkgs.nixfmt
+    pkgs.shfmt
+    pkgs.go
+    pkgs.taplo
   ];
 in
 pkgs.symlinkJoin {
@@ -18,18 +20,15 @@ pkgs.symlinkJoin {
   paths = [ pkgs.claude-code ];
   nativeBuildInputs = [ pkgs.makeWrapper ];
   postBuild = ''
-    mkdir -p $out/hooks
-
     ${files.sync "claude/rules" "rules"}
     ${files.sync "claude/settings.json" "settings.json"}
-    ${files.sync "claude/statusline.sh" "statusline.sh"}
-    ${files.sync "claude/hooks/format.sh" "hooks/format.sh"}
+    ${files.sync "claude/hooks/format.sh" "bin/claude-format"}
 
     ln -s ${plugins} $out/plugins
 
     wrapProgram $out/bin/claude \
       --set NIX_OUT_CLAUDE "$out" \
-      --prefix PATH : "${pkgs.lib.makeBinPath formatters}" \
+      --prefix PATH : "$out/bin:${pkgs.lib.makeBinPath tools}" \
       --run '${files.runtimeLink "claude" [ "settings.json" ]}' \
       --unset TMUX
   '';
