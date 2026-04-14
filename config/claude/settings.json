@@ -1,8 +1,4 @@
 {
-  "statusLine": {
-    "type": "command",
-    "command": "sh $NIX_OUT_CLAUDE/statusline.sh"
-  },
   "hooks": {
     "PostToolUse": [
       {
@@ -10,11 +6,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh $NIX_OUT_CLAUDE/hooks/format.sh",
+            "command": "claude-format",
             "timeout": 30
           }
         ]
       }
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "claude-statusline"
   }
 }
