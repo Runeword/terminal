@@ -7,3 +7,6 @@ config/claude/*
 !config/claude/rules/
 !config/claude/settings.json
 !config/claude/statusline.sh
+
+.repomix-output.txt
+result
