@@ -1,0 +1,14 @@
+{
+  "output": {
+    "filePath": ".repomix-output.txt",
+    "style": "markdown"
+  },
+  "ignore": {
+    "useGitignore": true,
+    "customPatterns": [
+      "*.lock",
+      "result",
+      ".repomix-output.txt"
+    ]
+  }
+}
