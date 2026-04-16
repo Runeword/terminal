@@ -2,98 +2,67 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## What this is
 
-Runeword Terminal is a reproducible terminal environment built with Nix flakes. It wraps Alacritty with a fully configured shell ecosystem (Zsh, Tmux, Starship, and 40+ CLI tools) into a single deployable unit. It supports Linux and macOS.
+A Nix flake that builds a reproducible Alacritty terminal, bundled with a curated set of CLI tools (zsh, tmux, bat, ripgrep, fd, starship, delta, navi, claude-code, …) each wrapped so they load their configuration from this repo's `config/` tree.
 
-## Development Commands
+## Common commands
 
-Enter the dev shell first: `nix develop`
+Enter the dev shell first (`nix develop` — direnv will do it automatically via `.envrc`). The shell provides these helpers (defined in `devshells/terminal.nix`):
 
-From within the dev shell:
-- `dev` — Run Alacritty in development mode (symlinks config for live reload)
-- `bdl` — Run Alacritty in bundled mode (config copied into Nix store, requires rebuild)
-- `tools <name>` — Run a binary from the tools package
-- `h` — Show help
+- `dev` — run Alacritty with configs **symlinked** from the working tree (`nix run .#dev --impure`, uses `TERMINAL_CONFIG_DIR=$PWD/config`). Config edits take effect immediately, no rebuild.
+- `bdl` — run Alacritty in **bundled** mode (`nix run .`). Config is copied into the Nix store; changes require a rebuild.
+- `tools <name> [args…]` — run any bundled CLI tool from the `packages.tools` env (e.g., `tools rg foo`).
+- `h` — print the helper list.
 
-Building and running directly:
-- `nix build` — Build the bundled terminal package
-- `nix run .` — Run bundled mode
-- `TERMINAL_CONFIG_DIR="$PWD/config" nix run .#dev --impure` — Run dev mode without dev shell
+Other useful commands:
 
-## Formatting and Linting
-
-Pre-commit hooks via lefthook (remote config from github:Runeword/lefthook):
-- **Nix**: `nixfmt-rfc-style` (nixfmt with RFC style)
-- **Shell**: `shfmt` (2-space indent per .editorconfig)
-- **Go**: go formatting and linting
-- **TOML**: `taplo`
-- **YAML**: yaml formatting
-- **Shell analysis**: `shellcheck`, `shellharden` (available in dev shell)
-- **Commit messages**: auto-msg module
-
-All formatters are available in the dev shell. Run them manually:
-- `nixfmt <file.nix>`
-- `shfmt -w <file.sh>`
-- `taplo fmt <file.toml>`
+- `nix flake check` / `nix flake show` — validate or inspect outputs.
+- `nix build .#default` / `nix build .#tools` — build the terminal or the tools env.
+- `lefthook run pre-commit` — run git hooks locally (hooks live in `lefthook.local.yml`, which is a symlink into the Nix store).
 
 ## Architecture
 
-### Two Deployment Modes
+`flake.nix` is the entry point. It defines two small helpers and wires them through `flake-utils.eachDefaultSystem`:
 
-The flake produces a wrapped Alacritty terminal with all tools on its PATH:
+- `mkTools pkgs configPath` = `import ./packages` ++ `import ./wrappers` — the full set of derivations.
+- `mkTerminal pkgs configPath` = `import ./wrappers/alacritty.nix` with those tools on `PATH`.
 
-1. **Development mode** (`apps.dev`): `configPath` is read from `$TERMINAL_CONFIG_DIR` env var at build time. Config files are symlinked, so edits take effect immediately without rebuild.
-2. **Bundled mode** (`apps.default`/`packages.default`): `configPath` points to `./config` in the Nix store. Fully isolated but requires `nix build` after config changes.
+Outputs:
 
-There's also a Home Manager module (`homeManagerModules.default`) for integration into NixOS/home-manager configurations.
+- `packages.default` — the wrapped Alacritty (see `wrappers/alacritty.nix`: `runCommand` + `makeWrapper`, preserves the process name `alacritty`, injects `FONTCONFIG_FILE` on Linux, points `--config-file` at the synced config).
+- `packages.tools` — a `buildEnv` of every tool, dispatched by a tiny shell script `tools <name>`.
+- `apps.default` / `apps.dev` — `nix run` targets for bundled / dev mode (dev reads `TERMINAL_CONFIG_DIR` via `--impure`).
+- `lib.mkTerminal` / `lib.mkTools` — reusable builders for downstream flakes.
+- `homeManagerModules.default` — home-manager integration (see `modules/terminal.nix`, options under `programs.terminal`).
 
-### Build Pipeline
+### The `files.sync` abstraction (`lib/files.nix`)
 
-`flake.nix` is the entry point. The build flow:
+`files.sync sourceStr targetStr` is the central dev/bundled mode switch:
 
-1. **`flake.nix`** defines `mkTools` (packages + wrappers) and `mkTerminal` (imports `wrappers/alacritty.nix` with tools on PATH)
-2. **`wrappers/alacritty.nix`** wraps Alacritty with fonts, shell (Zsh), and the combined `tools` PATH
-3. **`tools`** = `packages/` (raw CLI tools + custom packages) + `wrappers/` (config-wrapped tools)
-4. Each **wrapper** (e.g., `wrappers/zsh.nix`) uses `pkgs.symlinkJoin` + `pkgs.makeWrapper` to inject config paths and env vars into the tool
-5. **`lib/files.nix`** provides `sync`/`link`/`copy` helpers that decide whether to symlink (dev mode) or copy (bundled mode) config files based on whether `rootPath` starts with `/nix/store`
+- If `rootPath` (the `configPath`) is **not** under `/nix/store`, it emits a **symlink** into the live config dir (dev mode).
+- If it **is** under `/nix/store`, it **copies** (bundled mode).
 
-Flake outputs also expose `lib.mkTerminal` and `lib.mkTools` for external consumers, and `packages.tools` for running individual tools via `nix run .#tools`.
+Every wrapper in `wrappers/*.nix` uses this to drop configuration into its output, which is what makes `dev` vs `bdl` work without duplicating derivation logic.
 
-### Key Directories
+`files.runtimeLink` is a variant used by the Claude wrapper to create symlinks into `$XDG_CONFIG_HOME` at runtime rather than build time (so settings.json can be mutable at runtime).
 
-- **`config/`** — All dotfiles and shell configuration (alacritty, bash, bat, claude, delta, direnv, ignore, navi, nvim-fzf, readline, ripgrep, shell, starship, tmux, zsh)
-- **`config/shell/`** — Shared shell config loaded by both zsh and bash: `aliases.sh`, `variables.sh`, `xdg.sh`, and `functions/` directory with per-topic function files (git.sh, tmux.sh, nix.sh, fm.sh, etc.)
-- **`wrappers/`** — Nix expressions that wrap each tool with its config: zsh, tmux, bat, fd, ripgrep, bash, starship, delta, navi, nvim-fzf, claude. Each `.nix` file follows the same pattern: symlinkJoin + makeWrapper
-- **`packages/`** — Package lists split into `commons.nix` (cross-platform), `linux.nix`, `darwin.nix`, and `custom/` (custom-built packages like firefox-mcp and git-branches)
-- **`devshells/`** — Development shell definitions: `terminal.nix` (dev/bdl/tools commands), `languages.nix` (Go), `lefthook.nix` (formatting/linting hooks)
-- **`overlays/`** — Nixpkgs overlays pinning specific packages to other nixpkgs versions (awscli2 to 24.05, tmux to 25.11) and overriding firebase-tools build config
-- **`modules/terminal.nix`** — Home Manager module exposing `programs.terminal.enable` and `programs.terminal.configPath`
-- **`lib/files.nix`** — File sync utilities that bridge dev/bundled modes
+### Packages vs wrappers
 
-### Shell Configuration Loading Order
+- `packages/` — plain derivations we expose as-is. `default.nix` fans out to `commons.nix`, `custom/`, and one of `linux.nix` / `darwin.nix` based on `stdenv.isDarwin`.
+- `wrappers/` — derivations that take an existing upstream package (e.g., `pkgs.alacritty`, `pkgs.claude-code`) and wrap it with `makeWrapper` / `symlinkJoin` + `wrapProgram` to inject config paths, PATH entries, env vars. `wrappers/default.nix` builds `zsh`, `tmux`, and `claude` with shared handles (tmux depends on zsh; claude gets its own tool sub-env).
 
-Zsh (`config/zsh/.zshrc`) loads in this order:
-1. Deferred compinit setup (loaded on first tab press or after 1s background timer)
-2. Key mappings (KEYS associative array)
-3. Zsh plugins (from `$NIX_OUT_SHELL/.config/zsh/plugins/`)
-4. Zsh hooks (precmd for newline before prompt)
-5. XDG base directory setup (`shell/xdg.sh`)
-6. Environment variables (`shell/variables.sh`)
-7. History config, dircolors, autosuggestions
-8. Word style, completion setup, keybindings
-9. Shell aliases (`shell/aliases.sh`)
-10. NVM (Node Version Manager)
-11. Shell functions (all files from `shell/functions/`)
-12. Custom widgets and key bindings (tab handler, leader aliases, fzf)
-13. Starship prompt init (cached)
-14. Direnv hook (cached)
-15. Deferred plugins (navi, zoxide, fzf — loaded on first precmd)
+### Overlays (`overlays/default.nix`)
 
-### Conventions
+Two overlays are applied: one pins `awscli2` to nixpkgs-24.05 and `tmux` to nixpkgs-25.11; the other overrides `firebase-tools` to build against Node 20. Both follow the `final: prev:` convention — `prev` is used when redefining existing attributes.
 
-- Nix files use `nixfmt-rfc-style` formatting
-- Shell scripts use 2-space indentation
-- Shell functions are prefixed with `__` (e.g., `__git_add`, `__tmux_kill`)
-- Shell function files are organized by topic in `config/shell/functions/`
-- Multiple nixpkgs inputs (unstable, 24.05, 25.11) are used via overlays to pin specific package versions
+### Config tree (`config/`)
+
+Per-tool configuration (alacritty, zsh, bash, tmux, bat, starship, delta, direnv, ignore, navi, nvim-fzf, readline, ripgrep, shell). Each wrapper references its subdirectory via `files.sync`. `config/claude/` holds Claude Code settings, hooks, and rules.
+
+## Conventions
+
+- **Follow the Nix rules in `config/claude/rules/nix.md`.** That file is auto-loaded into Claude's context and spells out the project's Nix style (no `rec`, no `with` at top level, `lowerCamelCase`, hyphenated filenames, `nixfmt-rfc-style`, 2-space indent, `meta` last, `lib.mkOption` with explicit types, `callPackage` pattern, `prev` vs `final` in overlays, etc.). Treat violations as bugs.
+- `flake.nix` stays thin — real logic lives in `packages/`, `wrappers/`, `lib/`, `modules/`, `overlays/`, `devshells/`.
+- `flake.lock` is committed. Never gitignore it.
+- `README.md` is **regenerated daily** by `.github/workflows/docs.yml` (GPT-4.1 via `actions/ai-inference` reads `CLAUDE.md` + `flake.nix` with the prompt in `scripts/docs-prompt.txt`). Don't hand-edit README.md — edit this file or the flake and let CI rewrite it.
