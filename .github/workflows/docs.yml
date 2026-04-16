@@ -1,0 +1,37 @@
+name: Generate Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**.nix"
+      - "config/**"
+      - "wrappers/**"
+      - "lib/**"
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pack repository with repomix
+        run: npx repomix
+
+      - name: Generate documentation
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: ./scripts/generate-docs.sh
+
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          title: "docs: auto-update documentation"
+          commit-message: "docs: auto-update documentation"
+          branch: docs/auto-update
+          delete-branch: true
+          body: |
+            Automated documentation update triggered by code changes.
+
+            Generated using GitHub Models (GPT-4o-mini) with full repository context.
