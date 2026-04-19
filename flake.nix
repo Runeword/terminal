@@ -44,11 +44,13 @@
         pkgs-24-05 = import nixpkgs-24-05 {
           inherit system;
           config.allowUnfree = true;
+          overlays = [ ];
         };
 
         pkgs-25-11 = import nixpkgs-25-11 {
           inherit system;
           config.allowUnfree = true;
+          overlays = [ ];
         };
 
         pkgs = import nixpkgs {
