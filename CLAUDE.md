@@ -65,4 +65,3 @@ Per-tool configuration (alacritty, zsh, bash, tmux, bat, starship, delta, direnv
 - **Follow the Nix rules in `config/claude/rules/nix.md`.** That file is auto-loaded into Claude's context and spells out the project's Nix style (no `rec`, no `with` at top level, `lowerCamelCase`, hyphenated filenames, `nixfmt-rfc-style`, 2-space indent, `meta` last, `lib.mkOption` with explicit types, `callPackage` pattern, `prev` vs `final` in overlays, etc.). Treat violations as bugs.
 - `flake.nix` stays thin — real logic lives in `packages/`, `wrappers/`, `lib/`, `modules/`, `overlays/`, `devshells/`.
 - `flake.lock` is committed. Never gitignore it.
-- `README.md` is **regenerated daily** by `.github/workflows/docs.yml` (GPT-4.1 via `actions/ai-inference` reads `CLAUDE.md` + `flake.nix` with the prompt in `scripts/docs-prompt.txt`). Don't hand-edit README.md — edit this file or the flake and let CI rewrite it.
