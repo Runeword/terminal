@@ -86,13 +86,19 @@ __tmux_kill_session() {
 __tmux_attach_session() {
   local session current
   [ "$TMUX" != "" ] && current=$(tmux display-message -p '#S')
-  session=$(tmux ls -F '#{session_name}|#{?session_attached,attached,not attached}|#{session_activity}' 2>/dev/null | awk -F'|' -v current="$current" '$2 == "attached" && $1 != current {print $1; exit} $2 == "not attached" && $1 != current && ($3 > max_activity || !found) {found=1; max_activity=$3; unattached=$1} END {if (unattached) print unattached}')
+
+  session=$(tmux ls -F '#{session_attached} #{session_activity} #{session_name}' 2>/dev/null |
+    awk -v current="$current" '$3 != current' |
+    sort -k1,1nr -k2,2nr |
+    awk 'NR==1 {print $3}')
+
+  [ "$session" = "" ] && session=$(tmux ls -F '#{session_name}' 2>/dev/null | head -1)
 
   if [ "$session" != "" ]; then
     if [ "$TMUX" != "" ]; then
-      tmux switch-client -t "$session"
+      tmux switch-client -t "=$session"
     else
-      tmux attach -t "$session"
+      tmux attach -t "=$session"
     fi
   else
     tmux new-session
