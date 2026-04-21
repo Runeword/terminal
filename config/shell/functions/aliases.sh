@@ -59,6 +59,7 @@ __aliases() {
         --no-sort \
         --prompt='  ' \
         --bind 'one:accept,zero:accept,tab:accept' \
+        --bind 'space:put(\ )' \
         --height 70%
   ); then
     local last_column
