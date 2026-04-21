@@ -82,5 +82,23 @@ export FZF_CTRL_T_OPTS="
 --info=inline:'' \
 "
 
+# _____________________________________________ ZOXIDE
+
+export _ZO_FZF_OPTS="$FZF_DEFAULT_OPTS
+--bind='ctrl-z:ignore,btab:up,tab:down' \
+--cycle \
+--keep-right \
+--border=sharp \
+--height=45% \
+--info=inline:'' \
+--no-separator \
+--layout=reverse \
+--tabstop=1 \
+--exit-0 \
+--select-1 \
+--preview='\$NIX_OUT_SHELL/.config/shell/scripts/zoxide_preview.sh {2..}' \
+--preview-window=down,40%,border-top \
+"
+
 # --color=fg+:#ffffff,fg+:regular,bg+:-1,hl+:#6bdbd8,hl+:regular,query:regular \
 # --color=fg+:#ffffff,fg+:regular,bg+:#262626,hl+:#6bdbd8,hl+:regular,query:regular \
