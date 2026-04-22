@@ -2,7 +2,7 @@
 # Exit if not interactive shell
 [[ -o interactive ]] || { echo "Not an interactive shell"; return; }
 
-typeset -g PROFILE_ZSH=${PROFILE_ZSH:-0}
+typeset -g PROFILE_ZSH="${PROFILE_ZSH:-0}"
 # typeset -g PROFILE_ZSH=1
 
 # Helper function for conditional profiling output
@@ -12,7 +12,7 @@ _profile() { (( PROFILE_ZSH )) && printf "$@" || true; }
 typeset -F SECONDS=0
 
 # ------------------------------------ compinit (deferred)
-typeset -F __T1=$SECONDS
+typeset -F __T1="$SECONDS"
 typeset -g ZCOMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
 mkdir -p "$(dirname "$ZCOMPDUMP")"
 
@@ -21,7 +21,7 @@ typeset -g __compinit_loaded=0
 __load_compinit() {
   if (( __compinit_loaded == 0 )); then
     __compinit_loaded=1
-    typeset -F __T9=$SECONDS
+    typeset -F __T9="$SECONDS"
     autoload -Uz compinit
     # Regenerate cache if it's older than 24 hours
     # shellcheck disable=SC1009,SC1073,SC1072,SC1036
@@ -30,19 +30,22 @@ __load_compinit() {
     else
       compinit -d "$ZCOMPDUMP"
     fi
-    typeset -F __T10=$SECONDS
+    typeset -F __T10="$SECONDS"
     _profile "[deferred] compinit loaded: %.0fms\n" $(( (__T10 - __T9) * 1000 ))
   fi
 }
 
-# Load compinit after 1 second in background if not triggered yet
-{ sleep 1 && [[ $__compinit_loaded == 0 ]] && __load_compinit } &!
+# Load compinit on the first prompt so completion is ready before any tab press
+__load_compinit_once() {
+  __load_compinit
+  add-zsh-hook -d precmd __load_compinit_once
+}
 
-typeset -F __T2=$SECONDS
+typeset -F __T2="$SECONDS"
 _profile "compinit setup: %.0fms (deferred)\n" $(( (__T2 - __T1) * 1000 ))
 
 # ------------------------------------ Key mappings
-typeset -F __TK1=$SECONDS
+typeset -F __TK1="$SECONDS"
 typeset -A KEYS
 KEYS=(
   [SHIFT_ENTER]='^[[13;2u'
@@ -80,7 +83,7 @@ KEYS=(
   [CTRL_W]='^W'
   [CTRL_Q]='^Q'
 )
-typeset -F __TK2=$SECONDS
+typeset -F __TK2="$SECONDS"
 _profile "keys: %.0fms\n" $(( (__TK2 - __TK1) * 1000 ))
 
 for f in "$NIX_OUT_SHELL"/.config/zsh/plugins/*/*.plugin.zsh; do
@@ -88,7 +91,7 @@ for f in "$NIX_OUT_SHELL"/.config/zsh/plugins/*/*.plugin.zsh; do
 done
 
 # ------------------------------------ ZSH hooks
-typeset -F __TH1=$SECONDS
+typeset -F __TH1="$SECONDS"
 autoload -Uz add-zsh-hook
 
 # Starship option 'add_newline = true' has weird behavior
@@ -100,37 +103,40 @@ __add_newline() {
 
 # Use the precmd hook to execute the __add_newline function just before the prompt is displayed
 add-zsh-hook precmd __add_newline
-typeset -F __TH2=$SECONDS
+
+# Load compinit on the first precmd so completion is ready before any tab press
+add-zsh-hook precmd __load_compinit_once
+typeset -F __TH2="$SECONDS"
 _profile "hooks+newline: %.0fms\n" $(( (__TH2 - __TH1) * 1000 ))
 
 # ------------------------------------ ENV variables
-typeset -F __TE1=$SECONDS
+typeset -F __TE1="$SECONDS"
 if [ -f "$NIX_OUT_SHELL/.config/shell/xdg.sh" ]; then
   source "$NIX_OUT_SHELL/.config/shell/xdg.sh"
   # Background the directory creation with disown to prevent job notifications
   { __create_xdg_dirs } >/dev/null 2>&1 &!
 fi
-typeset -F __TE2=$SECONDS
+typeset -F __TE2="$SECONDS"
 [ -f "$NIX_OUT_SHELL/.config/shell/variables.sh" ] && source "$NIX_OUT_SHELL/.config/shell/variables.sh"
-typeset -F __TE3=$SECONDS
+typeset -F __TE3="$SECONDS"
 
 # Cache dircolors output for faster loading
 typeset -g DIRCOLORS_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/dircolors.zsh"
 if command -v dircolors >/dev/null 2>&1; then
-  typeset -g DIRCOLORS_BIN=$(command -v dircolors)
+  typeset -g DIRCOLORS_BIN="$(command -v dircolors)"
   if [[ ! -f "$DIRCOLORS_CACHE" ]] || [[ "$DIRCOLORS_BIN" -nt "$DIRCOLORS_CACHE" ]]; then
     dircolors -b > "$DIRCOLORS_CACHE"
   fi
   source "$DIRCOLORS_CACHE"
 fi
 
-typeset -F __TE4=$SECONDS
+typeset -F __TE4="$SECONDS"
 _profile "xdg: %.0fms, variables: %.0fms, dircolors: %.0fms\n" \
   $(( (__TE2 - __TE1) * 1000 )) \
   $(( (__TE3 - __TE2) * 1000 )) \
   $(( (__TE4 - __TE3) * 1000 ))
 
-typeset -F __T11=$SECONDS
+typeset -F __T11="$SECONDS"
 mkdir -p "$XDG_STATE_HOME/zsh"
 HISTFILE="$XDG_STATE_HOME/zsh/history"
 HISTSIZE=10000
@@ -141,14 +147,14 @@ setopt HIST_REDUCE_BLANKS
 setopt SHARE_HISTORY
 setopt INC_APPEND_HISTORY
 export HISTORY_IGNORE="(! *)"
-typeset -F __T12=$SECONDS
+typeset -F __T12="$SECONDS"
 _profile "history: %.0fms\n" $(( (__T12 - __T11) * 1000 ))
 
 # source "$NIX_OUT_SHELL/.config/shell/scripts/ssh-agent.sh"
 # source "$NIX_OUT_SHELL"/zsh-autosuggestions/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-typeset -F __TA1=$SECONDS
+typeset -F __TA1="$SECONDS"
 source "$NIX_OUT_SHELL"/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-typeset -F __TA2=$SECONDS
+typeset -F __TA2="$SECONDS"
 _profile "autosuggestions: %.0fms\n" $(( (__TA2 - __TA1) * 1000 ))
 # source "$NIX_OUT_SHELL/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh"
 
@@ -156,12 +162,12 @@ _profile "autosuggestions: %.0fms\n" $(( (__TA2 - __TA1) * 1000 ))
 # compinit -d "$XDG_CACHE_HOME/zsh/zcompdump-$ZSH_VERSION"
 
 # ------------------------------------ Word characters
-typeset -F __TW1=$SECONDS
+typeset -F __TW1="$SECONDS"
 autoload -U select-word-style
 select-word-style bash
 setopt GLOB_DOTS
 KEYTIMEOUT=1
-typeset -F __TW2=$SECONDS
+typeset -F __TW2="$SECONDS"
 _profile "word-style: %.0fms\n" $(( (__TW2 - __TW1) * 1000 ))
 
 # ------------------------------------ Remove default aliases
@@ -204,7 +210,7 @@ bindkey "${KEYS[DOWN_ARROW_ALT]}" history-beginning-search-forward
 bindkey "${KEYS[CTRL_J]}" history-beginning-search-forward
 
 # ------------------------------------ Complete
-typeset -F __TC1=$SECONDS
+typeset -F __TC1="$SECONDS"
 zmodload zsh/complist
 
 zstyle ':completion:*' matcher-list 'm:{[:lower:]}={[:upper:]}' 'r:|[._-]=* r:|=*' 'l:|=* r:|=*'
@@ -221,8 +227,9 @@ bindkey -M menuselect "${KEYS[TAB]}" forward-char
 bindkey -M menuselect "${KEYS[SHIFT_TAB]}" backward-char
 bindkey -M menuselect "${KEYS[ESCAPE]}" send-break
 
-setopt MENU_COMPLETE
-typeset -F __TC2=$SECONDS
+setopt AUTO_MENU
+unsetopt MENU_COMPLETE
+typeset -F __TC2="$SECONDS"
 _profile "completion-setup: %.0fms\n" $(( (__TC2 - __TC1) * 1000 ))
 # bindkey -v '^?' backward-delete-char
 
@@ -275,9 +282,9 @@ __autosuggest_accept() {
 # bindkey -M menuselect '\r' .accept-line
 # bindkey -M menuselect ' ' undo
 
-typeset -F __TAL1=$SECONDS
+typeset -F __TAL1="$SECONDS"
 [ -f "$NIX_OUT_SHELL/.config/shell/aliases.sh" ] && source "$NIX_OUT_SHELL/.config/shell/aliases.sh"
-typeset -F __TAL2=$SECONDS
+typeset -F __TAL2="$SECONDS"
 _profile "aliases: %.0fms\n" $(( (__TAL2 - __TAL1) * 1000 ))
 
 # ------------------------------------ NVM
@@ -286,9 +293,9 @@ __load_nvm() {
   [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
   [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
 }
-typeset -F __T3=$SECONDS
+typeset -F __T3="$SECONDS"
 __load_nvm
-typeset -F __T4=$SECONDS
+typeset -F __T4="$SECONDS"
 _profile "nvm: %.0fms\n" $(( (__T4 - __T3) * 1000 ))
 
 # ------------------------------------ Functions
@@ -299,9 +306,9 @@ __source_functions() {
     done
   fi
 }
-typeset -F __TF1=$SECONDS
+typeset -F __TF1="$SECONDS"
 __source_functions
-typeset -F __TF2=$SECONDS
+typeset -F __TF2="$SECONDS"
 _profile "functions: %.0fms\n" $(( (__TF2 - __TF1) * 1000 ))
 
 __on_empty_buffer() {
@@ -327,7 +334,15 @@ __navi_or_space() { __on_empty_buffer _navi_widget; }
 zle -N __navi_or_space
 bindkey "${KEYS[SHIFT_SPACE]}" __navi_or_space
 
-__ls_or_escape() { __on_empty_buffer 'echo ls; __ls'; }
+# __ls_or_escape() { __on_empty_buffer 'echo ls; __ls'; }
+__ls_or_escape() {
+  if [[ -n "$POSTDISPLAY" ]]; then
+    __autosuggest_accept
+    zle reset-prompt
+    return
+  fi
+  __on_empty_buffer 'echo ls; __ls'
+}
 # __ls_or_escape() { __on_empty_buffer 'echo; command ls --almost-all --color --width 90;' "LBUFFER+=' '; zle autosuggest-fetch"; }
 zle -N __ls_or_escape
 bindkey "${KEYS[ESCAPE]}" __ls_or_escape
@@ -414,30 +429,30 @@ bindkey "${KEYS[PAGE_DOWN]}" __nextd_widget
 # ------------------------------------ Plugins
 
 # Load critical plugins immediately (needed for prompt/env)
-typeset -F __T5=$SECONDS
+typeset -F __T5="$SECONDS"
 if command -v starship >/dev/null 2>&1; then
   typeset -g STARSHIP_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/starship.zsh"
-  typeset -g STARSHIP_BIN=$(command -v starship)
+  typeset -g STARSHIP_BIN="$(command -v starship)"
   if [[ ! -f "$STARSHIP_CACHE" ]] || { read -r __line < "$STARSHIP_CACHE" && [[ "$__line" != "# $STARSHIP_BIN" ]]; }; then
     { echo "# $STARSHIP_BIN"; starship init zsh; } > "$STARSHIP_CACHE"
   fi
   source "$STARSHIP_CACHE"
 fi
 unset __line
-typeset -F __T6=$SECONDS
+typeset -F __T6="$SECONDS"
 _profile "starship: %.0fms\n" $(( (__T6 - __T5) * 1000 ))
 
-typeset -F __T7=$SECONDS
+typeset -F __T7="$SECONDS"
 if command -v direnv >/dev/null 2>&1; then
   typeset -g DIRENV_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/direnv.zsh"
-  typeset -g DIRENV_BIN=$(command -v direnv)
+  typeset -g DIRENV_BIN="$(command -v direnv)"
   if [[ ! -f "$DIRENV_CACHE" ]] || { read -r __line < "$DIRENV_CACHE" && [[ "$__line" != "# $DIRENV_BIN" ]]; }; then
     { echo "# $DIRENV_BIN"; direnv hook zsh; } > "$DIRENV_CACHE"
   fi
   source "$DIRENV_CACHE"
 fi
 unset __line
-typeset -F __T8=$SECONDS
+typeset -F __T8="$SECONDS"
 _profile "direnv: %.0fms\n" $(( (__T8 - __T7) * 1000 ))
 
 # # Load fzf completion immediately (needed for completions)
@@ -445,13 +460,13 @@ _profile "direnv: %.0fms\n" $(( (__T8 - __T7) * 1000 ))
 
 # Defer non-critical plugins until first prompt
 __load_deferred_plugins() {
-  typeset -F __TD1=$SECONDS
+  typeset -F __TD1="$SECONDS"
   command -v navi >/dev/null 2>&1 && eval "$(navi widget zsh)"
-  typeset -F __TD2=$SECONDS
+  typeset -F __TD2="$SECONDS"
   command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init --no-cmd zsh)"
-  typeset -F __TD3=$SECONDS
+  typeset -F __TD3="$SECONDS"
   [[ ${options[zle]} = on ]] && . "$(fzf-share)/key-bindings.zsh"
-  typeset -F __TD4=$SECONDS
+  typeset -F __TD4="$SECONDS"
   _profile "[deferred] navi: %.0fms, zoxide: %.0fms, fzf: %.0fms\n" \
     $(( (__TD2 - __TD1) * 1000 )) \
     $(( (__TD3 - __TD2) * 1000 )) \
@@ -478,27 +493,22 @@ zle -N __ripgrep_or_menu_complete
 bindkey "${KEYS[SHIFT_TAB]}" __ripgrep_or_menu_complete
 
 __tab_handler() {
-  # Load compinit on first tab press if not already loaded
-  __load_compinit
-
-  # If in menu selection, move backward
-  # if [[ -n "$MENUSELECT" ]]; then
-  #   zle backward-char
-  #   return
-  # If not in menu and buffer is empty, run ripgrep
   if [[ -z "$BUFFER" ]]; then
-    # __ripgrep
-    # zle reset-prompt
     __open_file
-    # return
-  # If buffer has text, accept autosuggestion
-  elif [[ -n "$POSTDISPLAY" ]]; then
-    # zle autosuggest-accept
-    __autosuggest_accept
+    # if [[ -z "$BUFFER" ]]; then
+    #   # __ripgrep
+    #   # zle reset-prompt
+    #   __open_file
+    #   # return
+    # # If buffer has text, accept autosuggestion
+    # elif [[ -n "$POSTDISPLAY" ]]; then
+    #   # zle autosuggest-accept
+    #   __autosuggest_accept
+    zle reset-prompt
   else
-    __autosuggest_execute
+    zle menu-select
   fi
-  zle reset-prompt
+  # zle reset-prompt
 }
 
 zle -N __tab_handler
