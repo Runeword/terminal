@@ -11,7 +11,7 @@ __cd() {
   # do nothing since we don't want to needlessly populate the directory stack
   # with repeat entries.
   if [ "$target" != "$PWD" ]; then
-    builtin pushd "$target" >/dev/null 2>&1 || return 1
+    builtin pushd "$target" >/dev/null || return 1
     printf '\033[38;2;83;94;115m%s\033[0m\n' "$PWD"
   fi
 }
