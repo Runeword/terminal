@@ -69,6 +69,7 @@ export FZF_DEFAULT_OPTS="
 --bind='i:toggle-search+toggle-bind(j,k,g,G,f,i,q,y)' \
 --bind='start:unbind(j,k,g,G,f,i,q,y)' \
 --bind='alt-i:toggle-search+toggle-bind(j,k,g,G,f,i,q,y)' \
+--bind='esc:transform{[ \"\$FZF_INPUT_STATE\" = enabled ] && echo \"abort\" || echo \"toggle-search+toggle-bind(j,k,g,G,f,i,q,y)\"}' \
 "
 # --color=fg+:#ffffff,fg+:regular,bg+:#142920,hl+:#67c9d6,hl+:regular,query:italic \
 # --color=marker:#458f71,spinner:#ffffff,header:#535e73 \
