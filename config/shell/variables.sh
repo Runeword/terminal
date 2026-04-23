@@ -54,12 +54,21 @@ export FZF_DEFAULT_OPTS="
 --color=marker:#4534bf,spinner:#ffffff,header:#535e73 \
 --bind='tab:select+down,btab:deselect+up' \
 --bind='up:up,down:down' \
---bind='ctrl-j:down,ctrl-k:up' \
+--bind='ctrl-j:transform{[ \"\$FZF_INPUT_STATE\" = enabled ] && echo \"toggle-search+toggle-bind(j,k,g,G,f,i,q,y)+down\" || echo \"down+down+down+down+down\"}' \
+--bind='ctrl-k:transform{[ \"\$FZF_INPUT_STATE\" = enabled ] && echo \"toggle-search+toggle-bind(j,k,g,G,f,i,q,y)+up\" || echo \"up+up+up+up+up\"}' \
 --bind='page-up:half-page-up,page-down:half-page-down' \
 --bind='home:first,end:last' \
 --bind='shift-up:preview-up,shift-down:preview-down' \
 --bind='shift-page-up:preview-up+preview-up+preview-up+preview-up,shift-page-down:preview-down+preview-down+preview-down+preview-down' \
 --bind='shift-home:preview-top,shift-end:preview-bottom' \
+--bind='j:down,k:up' \
+--bind='g:first,G:last' \
+--bind='f:jump-accept' \
+--bind='q:abort' \
+--bind='y:execute-silent(wl-copy {})' \
+--bind='i:toggle-search+toggle-bind(j,k,g,G,f,i,q,y)' \
+--bind='start:unbind(j,k,g,G,f,i,q,y)' \
+--bind='alt-i:toggle-search+toggle-bind(j,k,g,G,f,i,q,y)' \
 "
 # --color=fg+:#ffffff,fg+:regular,bg+:#142920,hl+:#67c9d6,hl+:regular,query:italic \
 # --color=marker:#458f71,spinner:#ffffff,header:#535e73 \
