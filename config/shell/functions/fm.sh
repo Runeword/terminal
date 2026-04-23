@@ -26,7 +26,6 @@ __open_file() {
         --header=''\''exact !not [!]^prefix [!]suffix$' \
         --preview "$NIX_OUT_SHELL/.config/shell/scripts/fm_preview.sh {}" \
         --preview-window right,55%,border-none,~2 \
-        --bind='ctrl-c:execute-silent(wl-copy {})' \
         --bind='ctrl-a:select-all' \
         --bind='ctrl-o:execute(nohup setsid cursor {} > /dev/null 2>&1 &)'
   ) || return 1
