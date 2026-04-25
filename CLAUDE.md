@@ -45,8 +45,6 @@ Outputs:
 
 Every wrapper in `wrappers/*.nix` uses this to drop configuration into its output, which is what makes `dev` vs `bdl` work without duplicating derivation logic.
 
-`files.runtimeLink` is a variant used by the Claude wrapper to create symlinks into `$XDG_CONFIG_HOME` at runtime rather than build time (so settings.json can be mutable at runtime).
-
 ### Packages vs wrappers
 
 - `packages/` — plain derivations we expose as-is. `default.nix` fans out to `commons.nix`, `custom/`, and one of `linux.nix` / `darwin.nix` based on `stdenv.isDarwin`.
@@ -62,6 +60,4 @@ Per-tool configuration (alacritty, zsh, bash, tmux, bat, starship, delta, direnv
 
 ## Conventions
 
-- **Follow the Nix rules in `config/claude/rules/nix.md`.** That file is auto-loaded into Claude's context and spells out the project's Nix style (no `rec`, no `with` at top level, `lowerCamelCase`, hyphenated filenames, `nixfmt-rfc-style`, 2-space indent, `meta` last, `lib.mkOption` with explicit types, `callPackage` pattern, `prev` vs `final` in overlays, etc.). Treat violations as bugs.
 - `flake.nix` stays thin — real logic lives in `packages/`, `wrappers/`, `lib/`, `modules/`, `overlays/`, `devshells/`.
-- `flake.lock` is committed. Never gitignore it.
