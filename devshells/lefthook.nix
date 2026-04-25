@@ -10,6 +10,7 @@ mkShell {
     format-toml
     format-yaml
     lint-go
+    lint-nix
     lint-shell
   ];
 }
