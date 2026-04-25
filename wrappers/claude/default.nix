@@ -29,7 +29,7 @@ pkgs.symlinkJoin {
     wrapProgram $out/bin/claude \
       --set NIX_OUT_CLAUDE "$out" \
       --prefix PATH : "$out/bin:${pkgs.lib.makeBinPath tools}" \
-      --run '${files.runtimeLink "claude" [ "settings.json" ]}' \
+      --add-flags "--settings $out/settings.json --setting-sources project,local" \
       --unset TMUX
   '';
 }
