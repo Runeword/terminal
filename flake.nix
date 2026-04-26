@@ -109,7 +109,7 @@
       }
     )
     // {
-      homeManagerModules.default = import ./modules/terminal.nix {
+      homeModules.default = import ./modules/terminal.nix {
         mkSystemBuild = system: self.lib.${system};
       };
     };
