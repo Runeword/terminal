@@ -7,22 +7,17 @@ let
     inherit pkgs;
     rootPath = configPath;
   };
+in
+rec {
   zsh = import ./zsh.nix { inherit pkgs files; };
   tmux = import ./tmux.nix { inherit pkgs files zsh; };
   claude = import ./claude { inherit pkgs files; };
-in
-map (path: import path { inherit pkgs files; }) [
-  ./bat.nix
-  ./fd.nix
-  ./ripgrep.nix
-  ./bash.nix
-  ./starship.nix
-  ./delta.nix
-  ./navi.nix
-  ./nvim-fzf.nix
-]
-++ [
-  zsh
-  tmux
-  claude
-]
+  bat = import ./bat.nix { inherit pkgs files; };
+  fd = import ./fd.nix { inherit pkgs files; };
+  ripgrep = import ./ripgrep.nix { inherit pkgs files; };
+  bash = import ./bash.nix { inherit pkgs files; };
+  starship = import ./starship.nix { inherit pkgs files; };
+  delta = import ./delta.nix { inherit pkgs files; };
+  navi = import ./navi.nix { inherit pkgs files; };
+  nvim-fzf = import ./nvim-fzf.nix { inherit pkgs files; };
+}
