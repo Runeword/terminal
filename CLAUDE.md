@@ -34,7 +34,7 @@ Outputs:
 - `packages.tools` — a `buildEnv` of every tool, dispatched by a tiny shell script `tools <name>`.
 - `apps.default` / `apps.dev` — `nix run` targets for bundled / dev mode (dev reads `TERMINAL_CONFIG_DIR` via `--impure`).
 - `lib.mkTerminal` / `lib.mkTools` — reusable builders for downstream flakes.
-- `homeManagerModules.default` — home-manager integration (see `modules/terminal.nix`, options under `programs.terminal`).
+- `homeModules.default` — home-manager integration (see `modules/terminal.nix`, options under `programs.terminal`).
 
 ### The `files.sync` abstraction (`lib/files.nix`)
 
