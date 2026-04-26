@@ -27,9 +27,11 @@
       ...
     }@inputs:
     let
+      mkWrappers = pkgs: configPath: import ./wrappers { inherit pkgs configPath; };
+
       mkTools =
         pkgs: configPath:
-        import ./packages { inherit pkgs configPath; } ++ import ./wrappers { inherit pkgs configPath; };
+        import ./packages { inherit pkgs configPath; } ++ builtins.attrValues (mkWrappers pkgs configPath);
 
       mkTerminal =
         pkgs: configPath:
@@ -106,6 +108,19 @@
             (import ./devshells/lefthook.nix { inherit pkgs lefthook; })
           ];
         };
+
+        checks =
+          pkgs.lib.mapAttrs'
+            (name: drv: {
+              name = "smoke-${name}";
+              value = drv;
+            })
+            (
+              import ./checks/smoke.nix {
+                inherit pkgs;
+                wrappers = mkWrappers pkgs configPath;
+              }
+            );
       }
     )
     // {
