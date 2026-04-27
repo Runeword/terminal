@@ -2,16 +2,16 @@
 
 pkgs.buildNpmPackage rec {
   pname = "mobile-mcp";
-  version = "0.0.51";
+  version = "0.0.52";
 
   src = pkgs.fetchFromGitHub {
     owner = "mobile-next";
     repo = "mobile-mcp";
     rev = version;
-    hash = "sha256-A8Z6k6oWvQsJSdEfroEdWQ/454H1hIbqLUs06aE1mXE=";
+    hash = "sha256-m1nIk7y3Zs0bMBNrNlrsNlPsJShy6bW5/5W0cqd06Do=";
   };
 
-  npmDepsHash = "sha256-E0BLwtoenlDimMOeKEfx2HerfOy8VpcK8+Tu0uiueJY=";
+  npmDepsHash = "sha256-YcHd1dnG1kuT9gU830B01p93LO/Zt74a9iKwYgOEDds=";
 
   nodejs = pkgs.nodejs_22;
 
