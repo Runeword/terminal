@@ -30,14 +30,13 @@
       mkWrappers = pkgs: configPath: import ./wrappers { inherit pkgs configPath; };
 
       mkTools =
-        pkgs: configPath:
-        import ./packages { inherit pkgs configPath; } ++ builtins.attrValues (mkWrappers pkgs configPath);
+        pkgs: configPath: wrappers:
+        import ./packages { inherit pkgs configPath; } ++ builtins.attrValues wrappers;
 
       mkTerminal =
-        pkgs: configPath:
+        pkgs: configPath: tools:
         import ./wrappers/alacritty.nix {
-          inherit pkgs configPath;
-          tools = mkTools pkgs configPath;
+          inherit pkgs configPath tools;
         };
     in
     flake-utils.lib.eachDefaultSystem (
@@ -62,7 +61,9 @@
         };
 
         configPath = toString ./config;
-        terminal = mkTerminal pkgs configPath;
+        wrappers = mkWrappers pkgs configPath;
+        tools = mkTools pkgs configPath wrappers;
+        terminal = mkTerminal pkgs configPath tools;
       in
       {
         packages.default = terminal;
@@ -70,7 +71,7 @@
           let
             env = pkgs.buildEnv {
               name = "tools-env";
-              paths = mkTools pkgs configPath;
+              paths = tools;
             };
           in
           pkgs.writeShellScriptBin "tools" ''
@@ -81,23 +82,32 @@
           type = "app";
           program = "${terminal}/bin/alacritty";
         };
-        apps.dev = {
-          type = "app";
-          program = "${mkTerminal pkgs (builtins.getEnv "TERMINAL_CONFIG_DIR")}/bin/alacritty";
-        };
+        apps.dev =
+          let
+            devConfigPath = builtins.getEnv "TERMINAL_CONFIG_DIR";
+            devWrappers = mkWrappers pkgs devConfigPath;
+            devTools = mkTools pkgs devConfigPath devWrappers;
+          in
+          {
+            type = "app";
+            program = "${mkTerminal pkgs devConfigPath devTools}/bin/alacritty";
+          };
 
         lib.mkTerminal =
           {
             configPath ? toString ./config,
           }:
-          mkTerminal pkgs configPath;
+          let
+            ws = mkWrappers pkgs configPath;
+          in
+          mkTerminal pkgs configPath (mkTools pkgs configPath ws);
         lib.mkTools =
           {
             configPath ? toString ./config,
           }:
           pkgs.buildEnv {
             name = "tools";
-            paths = mkTools pkgs configPath;
+            paths = mkTools pkgs configPath (mkWrappers pkgs configPath);
           };
 
         devShells.default = pkgs.mkShell {
@@ -109,18 +119,10 @@
           ];
         };
 
-        checks =
-          pkgs.lib.mapAttrs'
-            (name: drv: {
-              name = "smoke-${name}";
-              value = drv;
-            })
-            (
-              import ./checks/smoke.nix {
-                inherit pkgs;
-                wrappers = mkWrappers pkgs configPath;
-              }
-            );
+        checks = pkgs.lib.mapAttrs' (name: drv: {
+          name = "smoke-${name}";
+          value = drv;
+        }) (import ./checks/smoke.nix { inherit pkgs wrappers; });
       }
     )
     // {
