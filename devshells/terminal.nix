@@ -1,7 +1,6 @@
 { pkgs }:
 pkgs.mkShell {
   buildInputs = [
-    pkgs.nix-update
     (pkgs.writeShellScriptBin "h" ''
       echo "type 'dev' to run alacritty in development mode"
       echo "type 'bdl' to run alacritty in bundled mode"
