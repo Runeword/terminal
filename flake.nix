@@ -78,21 +78,29 @@
           }/bin/"$1" "''${@:2}"
         '';
 
-        apps.default = {
-          type = "app";
-          program = "${terminal}/bin/alacritty";
-        };
-        apps.dev =
+        apps =
           let
             devConfigPath = builtins.getEnv "TERMINAL_CONFIG_DIR";
-            devWrappers = mkWrappers pkgs devConfigPath;
-            devTools = mkTools pkgs devConfigPath devWrappers;
           in
-          assert pkgs.lib.assertMsg (devConfigPath != "")
-            "apps.dev requires TERMINAL_CONFIG_DIR to be set. Use the `dev` helper from the devshell, or invoke directly with: TERMINAL_CONFIG_DIR=$PWD/config nix run .#dev --impure";
           {
-            type = "app";
-            program = "${mkTerminal pkgs devConfigPath devTools}/bin/alacritty";
+            default = {
+              type = "app";
+              program = "${terminal}/bin/alacritty";
+              meta.description = "Alacritty terminal with bundled config";
+            };
+          }
+          # apps.dev requires TERMINAL_CONFIG_DIR; omitted in pure mode (getEnv → "")
+          # so `nix flake check` stays clean.
+          // pkgs.lib.optionalAttrs (devConfigPath != "") {
+            dev =
+              let
+                devWrappers = mkWrappers pkgs devConfigPath;
+                devTools = mkTools pkgs devConfigPath devWrappers;
+              in
+              {
+                type = "app";
+                program = "${mkTerminal pkgs devConfigPath devTools}/bin/alacritty";
+              };
           };
 
         lib.mkTerminal =
