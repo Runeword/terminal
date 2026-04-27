@@ -88,6 +88,8 @@
             devWrappers = mkWrappers pkgs devConfigPath;
             devTools = mkTools pkgs devConfigPath devWrappers;
           in
+          assert pkgs.lib.assertMsg (devConfigPath != "")
+            "apps.dev requires TERMINAL_CONFIG_DIR to be set. Use the `dev` helper from the devshell, or invoke directly with: TERMINAL_CONFIG_DIR=$PWD/config nix run .#dev --impure";
           {
             type = "app";
             program = "${mkTerminal pkgs devConfigPath devTools}/bin/alacritty";
