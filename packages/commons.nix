@@ -79,6 +79,7 @@ with pkgs;
   nix-prefetch-docker
   nix-search-tv
   nix-init
+  nix-update
   cachix
   devenv
   direnv
