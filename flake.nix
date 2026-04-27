@@ -118,7 +118,7 @@
           ];
         };
 
-        checks = import ./checks/smoke.nix { inherit pkgs wrappers; };
+        checks = pkgs.lib.mapAttrs (_: drv: drv.passthru.tests.smoke) wrappers;
       }
     )
     // {
