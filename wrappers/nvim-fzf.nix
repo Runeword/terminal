@@ -1,4 +1,8 @@
-{ pkgs, files }:
+{
+  pkgs,
+  files,
+  tests,
+}:
 
 let
   plugins = pkgs.vimUtils.packDir {
@@ -51,33 +55,46 @@ let
       ];
     };
   };
+
+  self = pkgs.symlinkJoin {
+    name = "nvim-fzf";
+    paths = [ pkgs.neovim-unwrapped ];
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    postBuild = ''
+      ${files.sync "nvim-fzf/init.lua" ".config/nvim-fzf/init.lua"}
+
+      mv $out/bin/nvim $out/bin/.nvim-fzf-wrapped
+      makeWrapper $out/bin/.nvim-fzf-wrapped $out/bin/.nvim-fzf-inner \
+        --add-flags "--clean" \
+        --add-flags "-u $out/.config/nvim-fzf/init.lua" \
+        --set NVIM_FZF_PACK_PATH "${plugins}" \
+        --prefix PATH : "${
+          pkgs.lib.makeBinPath [
+            pkgs.fzf
+            pkgs.fd
+            pkgs.ripgrep
+          ]
+        }"
+
+      cat > $out/bin/nvim-fzf <<EOF
+      #!/bin/sh
+      export NVIM_FZF_ARGS="\$*"
+      exec $out/bin/.nvim-fzf-inner
+      EOF
+      chmod +x $out/bin/nvim-fzf
+    '';
+    passthru.tests.smoke = tests.smoke {
+      name = "nvim-fzf";
+      description = "Verify nvim-fzf launches headless with its config";
+      script = ''
+        # Launch nvim headless, run a no-op, then quit. This loads init.lua.
+        if NVIM_FZF_ARGS="" ${self}/bin/.nvim-fzf-inner --headless +qa > /dev/null 2>&1; then
+          ok "launches with config"
+        else
+          fail "failed to launch with config"
+        fi
+      '';
+    };
+  };
 in
-
-pkgs.symlinkJoin {
-  name = "nvim-fzf";
-  paths = [ pkgs.neovim-unwrapped ];
-  nativeBuildInputs = [ pkgs.makeWrapper ];
-  postBuild = ''
-    ${files.sync "nvim-fzf/init.lua" ".config/nvim-fzf/init.lua"}
-
-    mv $out/bin/nvim $out/bin/.nvim-fzf-wrapped
-    makeWrapper $out/bin/.nvim-fzf-wrapped $out/bin/.nvim-fzf-inner \
-      --add-flags "--clean" \
-      --add-flags "-u $out/.config/nvim-fzf/init.lua" \
-      --set NVIM_FZF_PACK_PATH "${plugins}" \
-      --prefix PATH : "${
-        pkgs.lib.makeBinPath [
-          pkgs.fzf
-          pkgs.fd
-          pkgs.ripgrep
-        ]
-      }"
-
-    cat > $out/bin/nvim-fzf <<EOF
-    #!/bin/sh
-    export NVIM_FZF_ARGS="\$*"
-    exec $out/bin/.nvim-fzf-inner
-    EOF
-    chmod +x $out/bin/nvim-fzf
-  '';
-}
+self
