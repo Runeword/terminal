@@ -1,2 +1,18 @@
 extends:
   - lefthook.local.yml
+
+pre-push:
+  commands:
+    smoke:
+      # Only run when something that affects wrapper outputs has changed.
+      # Pre-push uses {push_files}; if none match, lefthook skips the command.
+      glob:
+        - "flake.nix"
+        - "flake.lock"
+        - "lib/**/*.nix"
+        - "wrappers/**/*"
+        - "packages/**/*"
+        - "overlays/**/*.nix"
+        - "config/**/*"
+        - "checks/**/*.nix"
+      run: nix flake check -L --keep-going -j auto
