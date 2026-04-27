@@ -1,6 +1,5 @@
 extends:
   - lefthook.local.yml
-
 pre-push:
   commands:
     smoke:
