@@ -22,6 +22,11 @@ let
         fail() { echo "  FAIL: $1"; failed=1; }
         ok()   { echo "  OK: $1"; }
 
+        # The Nix sandbox sets HOME=/homeless-shelter (unwritable). Tools that
+        # touch XDG paths (zsh, bash, nvim, claude, …) need a writable HOME.
+        export HOME="$TMPDIR/home"
+        mkdir -p "$HOME"
+
         ${script}
 
         if [ "$failed" -ne 0 ]; then exit 1; fi
@@ -42,10 +47,7 @@ in
         fail "ZDOTDIR is '$zdotdir', expected '${wrappers.zsh}/.config/zsh'"
       fi
 
-      # Sourcing .zshrc must not produce errors. Set HOME to a writable dir
-      # since the Nix sandbox sets HOME=/homeless-shelter.
-      export HOME="$TMPDIR/home"
-      mkdir -p "$HOME"
+      # Sourcing .zshrc must not produce errors.
       err=$(${wrappers.zsh}/bin/zsh -i -c 'exit 0' 2>&1 >/dev/null)
       if [ -z "$err" ]; then
         ok ".zshrc sources without errors"
@@ -162,12 +164,16 @@ in
 
   delta = mkSmoke {
     name = "delta";
-    description = "Verify delta runs with its config";
+    description = "Verify delta loads its config (config-driven values appear in --show-config)";
     script = ''
-      if echo "" | ${wrappers.delta}/bin/delta > /dev/null 2>&1; then
-        ok "runs with config"
+      # --show-config prints the merged effective config. Grep for a value that
+      # differs from delta's defaults (file-modified-label defaults to a glyph,
+      # not '~'), so a passing test proves our config was actually loaded.
+      cfg=$(${wrappers.delta}/bin/delta --show-config 2>/dev/null)
+      if echo "$cfg" | grep -qE '^[[:space:]]*file-modified-label[[:space:]]*=[[:space:]]*~[[:space:]]*$'; then
+        ok "config-driven file-modified-label loaded"
       else
-        fail "failed to run with config"
+        fail "file-modified-label not '~' — config did not load"
       fi
     '';
   };
@@ -200,12 +206,15 @@ in
 
   claude = mkSmoke {
     name = "claude";
-    description = "Verify claude runs with its config";
+    description = "Verify claude binary executes (no behavioral config probe available without auth/network)";
     script = ''
+      # claude-code does not expose a config-loading probe that works in a
+      # sandbox without auth/network. This test only verifies the wrapper's
+      # binary executes — config-loading is exercised at runtime, not here.
       if ${wrappers.claude}/bin/claude --version > /dev/null 2>&1; then
-        ok "runs successfully"
+        ok "binary executes"
       else
-        fail "failed to run"
+        fail "binary failed to execute"
       fi
     '';
   };
