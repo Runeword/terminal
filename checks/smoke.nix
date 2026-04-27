@@ -19,25 +19,12 @@ let
       }
       ''
         failed=0
+        fail() { echo "  FAIL: $1"; failed=1; }
+        ok()   { echo "  OK: $1"; }
 
-        fail() {
-          echo "  FAIL: $1"
-          failed=1
-        }
-
-        ok() {
-          echo "  OK: $1"
-        }
-
-        echo "Testing ${name}..."
         ${script}
 
-        if [ "$failed" -ne 0 ]; then
-          echo ""
-          echo "Smoke test for ${name} failed!"
-          exit 1
-        fi
-
+        if [ "$failed" -ne 0 ]; then exit 1; fi
         touch $out
       '';
 
