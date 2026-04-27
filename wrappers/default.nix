@@ -7,9 +7,10 @@ let
     inherit pkgs;
     rootPath = configPath;
   };
-in
-rec {
   zsh = import ./zsh.nix { inherit pkgs files; };
+in
+{
+  inherit zsh;
   tmux = import ./tmux.nix { inherit pkgs files zsh; };
   claude = import ./claude { inherit pkgs files; };
   bat = import ./bat.nix { inherit pkgs files; };
