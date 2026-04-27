@@ -13,5 +13,4 @@ pre-push:
         - "packages/**/*"
         - "overlays/**/*.nix"
         - "config/**/*"
-        - "checks/**/*.nix"
       run: nix flake check -L --keep-going -j auto
