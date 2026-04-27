@@ -1,6 +1,7 @@
 {
   pkgs,
   files,
+  tests,
 }:
 
 let
@@ -14,22 +15,38 @@ let
     pkgs.go
     pkgs.taplo
   ];
+
+  self = pkgs.symlinkJoin {
+    name = "claude-with-config";
+    paths = [ pkgs.claude-code ];
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    postBuild = ''
+      ${files.sync "claude/rules" "rules"}
+      ${files.sync "claude/settings.json" "settings.json"}
+      ${files.sync "claude/hooks/format.sh" "bin/claude-format"}
+
+      ln -s ${plugins} $out/plugins
+
+      wrapProgram $out/bin/claude \
+        --set NIX_OUT_CLAUDE "$out" \
+        --prefix PATH : "$out/bin:${pkgs.lib.makeBinPath tools}" \
+        --add-flags "--settings $out/settings.json --setting-sources project,local" \
+        --unset TMUX
+    '';
+    passthru.tests.smoke = tests.smoke {
+      name = "claude";
+      description = "Verify claude binary executes (no behavioral config probe available without auth/network)";
+      script = ''
+        # claude-code does not expose a config-loading probe that works in a
+        # sandbox without auth/network. This test only verifies the wrapper's
+        # binary executes — config-loading is exercised at runtime, not here.
+        if ${self}/bin/claude --version > /dev/null 2>&1; then
+          ok "binary executes"
+        else
+          fail "binary failed to execute"
+        fi
+      '';
+    };
+  };
 in
-pkgs.symlinkJoin {
-  name = "claude-with-config";
-  paths = [ pkgs.claude-code ];
-  nativeBuildInputs = [ pkgs.makeWrapper ];
-  postBuild = ''
-    ${files.sync "claude/rules" "rules"}
-    ${files.sync "claude/settings.json" "settings.json"}
-    ${files.sync "claude/hooks/format.sh" "bin/claude-format"}
-
-    ln -s ${plugins} $out/plugins
-
-    wrapProgram $out/bin/claude \
-      --set NIX_OUT_CLAUDE "$out" \
-      --prefix PATH : "$out/bin:${pkgs.lib.makeBinPath tools}" \
-      --add-flags "--settings $out/settings.json --setting-sources project,local" \
-      --unset TMUX
-  '';
-}
+self
