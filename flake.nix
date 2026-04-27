@@ -67,16 +67,14 @@
       in
       {
         packages.default = terminal;
-        packages.tools =
-          let
-            env = pkgs.buildEnv {
+        packages.tools = pkgs.writeShellScriptBin "tools" ''
+          exec ${
+            pkgs.buildEnv {
               name = "tools-env";
               paths = tools;
-            };
-          in
-          pkgs.writeShellScriptBin "tools" ''
-            exec ${env}/bin/"$1" "''${@:2}"
-          '';
+            }
+          }/bin/"$1" "''${@:2}"
+        '';
 
         apps.default = {
           type = "app";
@@ -97,10 +95,7 @@
           {
             configPath ? toString ./config,
           }:
-          let
-            ws = mkWrappers pkgs configPath;
-          in
-          mkTerminal pkgs configPath (mkTools pkgs configPath ws);
+          mkTerminal pkgs configPath (mkTools pkgs configPath (mkWrappers pkgs configPath));
         lib.mkTools =
           {
             configPath ? toString ./config,
@@ -119,10 +114,7 @@
           ];
         };
 
-        checks = pkgs.lib.mapAttrs' (name: drv: {
-          name = "smoke-${name}";
-          value = drv;
-        }) (import ./checks/smoke.nix { inherit pkgs wrappers; });
+        checks = import ./checks/smoke.nix { inherit pkgs wrappers; };
       }
     )
     // {
