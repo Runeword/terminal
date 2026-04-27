@@ -67,6 +67,8 @@
       in
       {
         packages.default = terminal;
+        packages.firefox-mcp = import ./packages/custom/firefox-mcp.nix { inherit pkgs; };
+        packages.mobile-mcp = import ./packages/custom/mobile-mcp.nix { inherit pkgs; };
         packages.tools = pkgs.writeShellScriptBin "tools" ''
           exec ${
             pkgs.buildEnv {
