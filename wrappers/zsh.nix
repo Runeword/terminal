@@ -2,6 +2,7 @@
   pkgs,
   files,
   tests,
+  claude,
 }:
 
 let
@@ -17,6 +18,9 @@ let
       ${files.sync "shell" ".config/shell"}
       ${files.sync "readline" ".config/readline"}
       ${files.sync "direnv" ".config/direnv"}
+
+      mkdir -p $out/paths
+      ln -s ${claude} $out/paths/claude
 
       wrapProgram $out/bin/zsh \
         --set ZDOTDIR "$out/.config/zsh" \
