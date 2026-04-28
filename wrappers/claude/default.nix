@@ -28,7 +28,6 @@ let
       ln -s ${plugins} $out/plugins
 
       wrapProgram $out/bin/claude \
-        --set NIX_OUT_CLAUDE "$out" \
         --prefix PATH : "$out/bin:${pkgs.lib.makeBinPath tools}" \
         --add-flags "--settings $out/settings.json --setting-sources project,local" \
         --unset TMUX
