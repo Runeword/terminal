@@ -12,9 +12,7 @@ __claude_init() {
   fi
   __claude_args="$*"
 
-  local claude_bin
-  claude_bin=$(command -v claude 2>/dev/null) || return 1
-  local plugins_dir="$(dirname "$(dirname "$(readlink -f "$claude_bin")")")/plugins"
+  local plugins_dir="$NIX_OUT_SHELL/paths/claude/plugins"
   __claude_plugins=""
   for p in "${__CLAUDE_DEFAULT_PLUGINS[@]}"; do
     [ -d "$plugins_dir/$p" ] && __claude_plugins="$__claude_plugins --plugin-dir $plugins_dir/$p"
@@ -34,9 +32,7 @@ __claude_init_fzf() {
   fi
   __claude_args="$*"
 
-  local claude_bin
-  claude_bin=$(command -v claude 2>/dev/null) || return 1
-  local plugins_dir="$(dirname "$(dirname "$(readlink -f "$claude_bin")")")/plugins"
+  local plugins_dir="$NIX_OUT_SHELL/paths/claude/plugins"
   local selected
   selected=$(find -L "$plugins_dir" -mindepth 1 -maxdepth 1 -exec basename {} \; 2>/dev/null | eval fzf --multi "$__CLAUDE_FZF") || return 1
   __claude_plugins=$(echo "$selected" | while IFS= read -r p; do
