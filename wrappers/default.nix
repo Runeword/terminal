@@ -8,10 +8,18 @@ let
     rootPath = configPath;
   };
   tests = import ../lib/tests.nix { inherit pkgs; };
-  zsh = import ./zsh.nix { inherit pkgs files tests; };
+  claude = import ./claude { inherit pkgs files tests; };
+  zsh = import ./zsh.nix {
+    inherit
+      pkgs
+      files
+      tests
+      claude
+      ;
+  };
 in
 {
-  inherit zsh;
+  inherit zsh claude;
   tmux = import ./tmux.nix {
     inherit
       pkgs
@@ -20,7 +28,6 @@ in
       zsh
       ;
   };
-  claude = import ./claude { inherit pkgs files tests; };
   bat = import ./bat.nix { inherit pkgs files tests; };
   fd = import ./fd.nix { inherit pkgs files tests; };
   ripgrep = import ./ripgrep.nix { inherit pkgs files tests; };
