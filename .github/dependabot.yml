@@ -4,6 +4,12 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # Pinned channels — we manually decide when to bump these.
+      # Bumping the channel ref defeats the purpose of the pin
+      # (see overlays/default.nix for what they pin).
+      - dependency-name: "nixpkgs-24-05"
+      - dependency-name: "nixpkgs-25-11"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
