@@ -56,13 +56,21 @@ let
     };
   };
 
+  config = files.mkConfig "nvim-fzf-config" [
+    {
+      source = "nvim-fzf/init.lua";
+      target = ".config/nvim-fzf/init.lua";
+    }
+  ];
+
   self = pkgs.symlinkJoin {
     name = "nvim-fzf";
-    paths = [ pkgs.neovim-unwrapped ];
+    paths = [
+      pkgs.neovim-unwrapped
+      config
+    ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
-      ${files.sync "nvim-fzf/init.lua" ".config/nvim-fzf/init.lua"}
-
       mv $out/bin/nvim $out/bin/.nvim-fzf-wrapped
       makeWrapper $out/bin/.nvim-fzf-wrapped $out/bin/.nvim-fzf-inner \
         --add-flags "--clean" \
