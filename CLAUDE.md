@@ -36,14 +36,14 @@ Outputs:
 - `lib.mkTerminal` / `lib.mkTools` — reusable builders for downstream flakes.
 - `homeModules.default` — home-manager integration (see `modules/terminal.nix`, options under `programs.terminal`).
 
-### The `files.sync` abstraction (`lib/files.nix`)
+### The `files.mkConfig` abstraction (`lib/files.nix`)
 
-`files.sync sourceStr targetStr` is the central dev/bundled mode switch:
+`files.mkConfig name entries` returns a `pkgs.linkFarm` derivation that symlinks each entry's `source` (relative to `rootPath`, or absolute) at `target` under `$out`. Wrappers add this derivation to their `symlinkJoin` `paths`, which carries the configs into the wrapper's `$out` tree.
 
-- If `rootPath` (the `configPath`) is **not** under `/nix/store`, it emits a **symlink** into the live config dir (dev mode).
-- If it **is** under `/nix/store`, it **copies** (bundled mode).
+`rootPath` is the dev/bundled mode switch:
 
-Every wrapper in `wrappers/*.nix` uses this to drop configuration into its output, which is what makes `dev` vs `bdl` work without duplicating derivation logic.
+- A **Nix path** (`./config`) — bundled mode. Sub-paths are interpolated as proper store references and propagate into downstream closures.
+- A **string** (`$TERMINAL_CONFIG_DIR`) — dev mode. Symlinks point at the live filesystem and `--impure` is required.
 
 ### Packages vs wrappers
 
@@ -56,7 +56,7 @@ Two overlays are applied: one pins `awscli2` to nixpkgs-24.05 and `tmux` to nixp
 
 ### Config tree (`config/`)
 
-Per-tool configuration (alacritty, zsh, bash, tmux, bat, starship, delta, direnv, ignore, navi, nvim-fzf, readline, ripgrep, shell). Each wrapper references its subdirectory via `files.sync`. `config/claude/` holds Claude Code settings, hooks, and rules.
+Per-tool configuration (alacritty, zsh, bash, tmux, bat, starship, delta, direnv, ignore, navi, nvim-fzf, readline, ripgrep, shell). Each wrapper references its subdirectory via `files.mkConfig`. `config/claude/` holds Claude Code settings, hooks, and rules.
 
 ## Conventions
 
