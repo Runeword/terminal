@@ -60,7 +60,7 @@
           overlays = import ./overlays { inherit pkgs-24-05 pkgs-25-11; };
         };
 
-        configPath = toString ./config;
+        configPath = ./config;
         wrappers = mkWrappers pkgs configPath;
         tools = mkTools pkgs configPath wrappers;
         terminal = mkTerminal pkgs configPath tools;
@@ -74,6 +74,10 @@
             pkgs.buildEnv {
               name = "tools-env";
               paths = tools;
+              # `tools <cmd>` only dispatches binaries; restrict to /bin so wrappers
+              # that share config files (e.g. fd and ripgrep both ship .config/ignore)
+              # don't conflict in the merged env.
+              pathsToLink = [ "/bin" ];
             }
           }/bin/"$1" "''${@:2}"
         '';
@@ -105,12 +109,12 @@
 
         lib.mkTerminal =
           {
-            configPath ? toString ./config,
+            configPath ? ./config,
           }:
           mkTerminal pkgs configPath (mkTools pkgs configPath (mkWrappers pkgs configPath));
         lib.mkTools =
           {
-            configPath ? toString ./config,
+            configPath ? ./config,
           }:
           pkgs.buildEnv {
             name = "tools";
