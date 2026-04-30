@@ -5,13 +5,20 @@
 }:
 
 let
+  config = files.mkConfig "fd-config" [
+    {
+      source = "ignore";
+      target = ".config/ignore";
+    }
+  ];
   self = pkgs.symlinkJoin {
     name = "fd-with-config";
-    paths = [ pkgs.fd ];
+    paths = [
+      pkgs.fd
+      config
+    ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
-      ${files.sync "ignore" ".config/ignore"}
-
       wrapProgram $out/bin/fd \
         --add-flags "--ignore-file $out/.config/ignore"
     '';
