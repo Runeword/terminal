@@ -5,14 +5,24 @@
 }:
 
 let
+  config = files.mkConfig "ripgrep-config" [
+    {
+      source = "ignore";
+      target = ".config/ignore";
+    }
+    {
+      source = "ripgrep/ripgreprc";
+      target = ".config/ripgrep/ripgreprc";
+    }
+  ];
   self = pkgs.symlinkJoin {
     name = "ripgrep-with-config";
-    paths = [ pkgs.ripgrep ];
+    paths = [
+      pkgs.ripgrep
+      config
+    ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
-      ${files.sync "ignore" ".config/ignore"}
-      ${files.sync "ripgrep/ripgreprc" ".config/ripgrep/ripgreprc"}
-
       wrapProgram $out/bin/rg \
         --set RIPGREP_CONFIG_PATH "$out/.config/ripgrep/ripgreprc" \
         --add-flags "--ignore-file $out/.config/ignore"
