@@ -16,15 +16,29 @@ let
     pkgs.taplo
   ];
 
+  config = files.mkConfig "claude-config" [
+    {
+      source = "claude/rules";
+      target = "rules";
+    }
+    {
+      source = "claude/settings.json";
+      target = "settings.json";
+    }
+    {
+      source = "claude/hooks/format.sh";
+      target = "bin/claude-format";
+    }
+  ];
+
   self = pkgs.symlinkJoin {
     name = "claude-with-config";
-    paths = [ pkgs.claude-code ];
+    paths = [
+      pkgs.claude-code
+      config
+    ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
-      ${files.sync "claude/rules" "rules"}
-      ${files.sync "claude/settings.json" "settings.json"}
-      ${files.sync "claude/hooks/format.sh" "bin/claude-format"}
-
       ln -s ${plugins} $out/plugins
 
       wrapProgram $out/bin/claude \
