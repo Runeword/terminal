@@ -1,4 +1,4 @@
-{ mkSystemBuild }:
+{ flake }:
 {
   config,
   lib,
@@ -7,7 +7,6 @@
 }:
 let
   cfg = config.programs.terminal;
-  build = mkSystemBuild pkgs.stdenv.hostPlatform.system;
 in
 {
   options.programs.terminal = {
@@ -29,9 +28,12 @@ in
   config = lib.mkIf cfg.enable {
     programs.terminal.package = lib.mkDefault (
       if cfg.configPath != null then
-        build.mkTerminal { configPath = cfg.configPath; }
+        flake.lib.mkTerminal {
+          inherit pkgs;
+          configPath = cfg.configPath;
+        }
       else
-        build.mkTerminal { }
+        flake.lib.mkTerminal { inherit pkgs; }
     );
     home.packages = [ cfg.package ];
   };
