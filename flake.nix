@@ -107,21 +107,6 @@
               };
           };
 
-        lib.mkTerminal =
-          {
-            configPath ? ./config,
-          }:
-          mkTerminal pkgs configPath (mkTools pkgs configPath (mkWrappers pkgs configPath));
-        lib.mkTools =
-          {
-            configPath ? ./config,
-          }:
-          pkgs.buildEnv {
-            name = "tools";
-            paths = mkTools pkgs configPath (mkWrappers pkgs configPath);
-            pathsToLink = [ "/bin" ];
-          };
-
         devShells.default = pkgs.mkShell {
           inputsFrom = [
             (import ./devshells/terminal.nix { inherit pkgs; })
@@ -135,8 +120,26 @@
       }
     )
     // {
+      lib.mkTerminal =
+        {
+          pkgs,
+          configPath ? ./config,
+        }:
+        mkTerminal pkgs configPath (mkTools pkgs configPath (mkWrappers pkgs configPath));
+
+      lib.mkTools =
+        {
+          pkgs,
+          configPath ? ./config,
+        }:
+        pkgs.buildEnv {
+          name = "tools";
+          paths = mkTools pkgs configPath (mkWrappers pkgs configPath);
+          pathsToLink = [ "/bin" ];
+        };
+
       homeModules.default = import ./modules/terminal.nix {
-        mkSystemBuild = system: self.lib.${system};
+        flake = self;
       };
     };
 }
