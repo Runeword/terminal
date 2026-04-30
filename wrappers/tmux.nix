@@ -6,16 +6,32 @@
 }:
 
 let
+  config = files.mkConfig "tmux-config" [
+    {
+      source = "tmux/tmux.conf";
+      target = ".config/tmux/tmux.conf";
+    }
+    {
+      source = "tmux/scripts/toggle-pane.sh";
+      target = ".config/tmux/scripts/toggle-pane.sh";
+    }
+    {
+      source = "shell/functions/tmux.sh";
+      target = ".config/shell/functions/tmux.sh";
+    }
+    {
+      source = "${pkgs.tmuxPlugins.resurrect}/share/tmux-plugins/resurrect";
+      target = ".config/tmux/plugins/resurrect";
+    }
+  ];
   self = pkgs.symlinkJoin {
     name = "tmux-with-config";
-    paths = [ pkgs.tmux ];
+    paths = [
+      pkgs.tmux
+      config
+    ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
-      ${files.sync "tmux/tmux.conf" ".config/tmux/tmux.conf"}
-      ${files.sync "tmux/scripts/toggle-pane.sh" ".config/tmux/scripts/toggle-pane.sh"}
-      ${files.sync "shell/functions/tmux.sh" ".config/shell/functions/tmux.sh"}
-      ${files.copy "${pkgs.tmuxPlugins.resurrect}/share/tmux-plugins/resurrect" ".config/tmux/plugins/resurrect"}
-
       wrapProgram $out/bin/tmux \
         --set TMUX_SHELL ${zsh}/bin/zsh \
         --set NIX_OUT_TMUX "$out" \
