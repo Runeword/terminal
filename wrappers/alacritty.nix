@@ -10,6 +10,13 @@ let
     rootPath = configPath;
   };
 
+  config = files.mkConfig "alacritty-config" [
+    {
+      source = "alacritty";
+      target = ".config/alacritty";
+    }
+  ];
+
   fonts = pkgs.lib.optionals (!pkgs.stdenv.isDarwin) [
     pkgs.nerd-fonts.sauce-code-pro
     pkgs.nerd-fonts.monaspace
@@ -21,7 +28,8 @@ pkgs.runCommand "alacritty"
     nativeBuildInputs = [ pkgs.makeWrapper ];
   }
   ''
-    ${files.sync "alacritty" ".config/alacritty"}
+    mkdir -p $out
+    ln -s ${config}/.config $out/.config
 
     # use makeWrapper instead of wrapProgram to preserve the original process name 'alacritty'
     # wrapProgram would have named it alacritty-wrapped instead
