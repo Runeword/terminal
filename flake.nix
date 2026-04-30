@@ -119,6 +119,7 @@
           pkgs.buildEnv {
             name = "tools";
             paths = mkTools pkgs configPath (mkWrappers pkgs configPath);
+            pathsToLink = [ "/bin" ];
           };
 
         devShells.default = pkgs.mkShell {
