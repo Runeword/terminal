@@ -5,16 +5,32 @@
 }:
 
 let
+  config = files.mkConfig "bash-config" [
+    {
+      source = "bash";
+      target = ".config/bash";
+    }
+    {
+      source = "shell";
+      target = ".config/shell";
+    }
+    {
+      source = "readline";
+      target = ".config/readline";
+    }
+    {
+      source = "direnv";
+      target = ".config/direnv";
+    }
+  ];
   self = pkgs.symlinkJoin {
     name = "bash-with-config";
-    paths = [ pkgs.bash ];
+    paths = [
+      pkgs.bash
+      config
+    ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
-      ${files.sync "bash" ".config/bash"}
-      ${files.sync "shell" ".config/shell"}
-      ${files.sync "readline" ".config/readline"}
-      ${files.sync "direnv" ".config/direnv"}
-
       wrapProgram $out/bin/bash \
         --add-flags "--rcfile $out/.config/bash/.bashrc" \
         --set NIX_OUT_SHELL "$out" \
