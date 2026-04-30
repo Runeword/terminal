@@ -5,13 +5,20 @@
 }:
 
 let
+  config = files.mkConfig "bat-config" [
+    {
+      source = "bat";
+      target = ".config/bat";
+    }
+  ];
   self = pkgs.symlinkJoin {
     name = "bat-with-config";
-    paths = [ pkgs.bat ];
+    paths = [
+      pkgs.bat
+      config
+    ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
-      ${files.sync "bat" ".config/bat"}
-
       wrapProgram $out/bin/bat \
         --set BAT_CONFIG_PATH "$out/.config/bat/config"
     '';
