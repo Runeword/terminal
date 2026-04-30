@@ -5,13 +5,20 @@
 }:
 
 let
+  config = files.mkConfig "starship-config" [
+    {
+      source = "starship.toml";
+      target = ".config/starship.toml";
+    }
+  ];
   self = pkgs.symlinkJoin {
     name = "starship-with-config";
-    paths = [ pkgs.starship ];
+    paths = [
+      pkgs.starship
+      config
+    ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
-      ${files.sync "starship.toml" ".config/starship.toml"}
-
       wrapProgram $out/bin/starship \
         --set STARSHIP_CONFIG "$out/.config/starship.toml"
     '';
