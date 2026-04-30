@@ -6,19 +6,33 @@
 }:
 
 let
+  config = files.mkConfig "zsh-config" [
+    {
+      source = "zsh";
+      target = ".config/zsh";
+    }
+    {
+      source = "shell";
+      target = ".config/shell";
+    }
+    {
+      source = "readline";
+      target = ".config/readline";
+    }
+    {
+      source = "direnv";
+      target = ".config/direnv";
+    }
+  ];
   self = pkgs.symlinkJoin {
     name = "zsh-with-config";
     paths = [
       pkgs.zsh
       pkgs.zsh-autosuggestions
+      config
     ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
-      ${files.sync "zsh" ".config/zsh"}
-      ${files.sync "shell" ".config/shell"}
-      ${files.sync "readline" ".config/readline"}
-      ${files.sync "direnv" ".config/direnv"}
-
       mkdir -p $out/paths
       ln -s ${claude} $out/paths/claude
 
