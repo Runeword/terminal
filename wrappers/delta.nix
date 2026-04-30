@@ -5,13 +5,20 @@
 }:
 
 let
+  config = files.mkConfig "delta-config" [
+    {
+      source = "delta/config";
+      target = ".config/delta/config";
+    }
+  ];
   self = pkgs.symlinkJoin {
     name = "delta-with-config";
-    paths = [ pkgs.delta ];
+    paths = [
+      pkgs.delta
+      config
+    ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
-      ${files.sync "delta/config" ".config/delta/config"}
-
       wrapProgram $out/bin/delta \
         --add-flags "--config $out/.config/delta/config"
     '';
