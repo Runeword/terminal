@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "mobile-mcp": {
+      "command": "mcp-server-mobile"
+    }
+  }
+}
