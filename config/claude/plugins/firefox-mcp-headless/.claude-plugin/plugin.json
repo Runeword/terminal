@@ -1,0 +1,5 @@
+{
+  "name": "firefox-mcp-headless",
+  "description": "Headless Firefox MCP server",
+  "version": "1.0.0"
+}
