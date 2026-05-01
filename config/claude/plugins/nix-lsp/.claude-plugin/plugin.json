@@ -1,0 +1,5 @@
+{
+  "name": "nix-lsp",
+  "description": "Nix language server for enhanced code intelligence",
+  "version": "1.0.0"
+}
