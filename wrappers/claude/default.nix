@@ -22,6 +22,13 @@ let
     pkgs.firefox-devedition
     firefoxMcpPkg
     mobileMcpPkg
+  ]
+  # Required by claude's built-in `/sandbox` on Linux (Seatbelt is built in on macOS).
+  # Presence on PATH only enables the feature; sandbox stays off until opted into via
+  # `/sandbox` or `sandbox.enabled` in settings.json.
+  ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+    pkgs.bubblewrap
+    pkgs.socat
   ];
 
   config = files.mkConfig "claude-config" [
