@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "firefox-mcp-headless": {
+      "command": "firefox-devtools-mcp",
+      "args": ["--headless", "--firefox-path", "firefox-devedition"]
+    }
+  }
+}
