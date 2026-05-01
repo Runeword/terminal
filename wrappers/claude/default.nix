@@ -5,8 +5,9 @@
 }:
 
 let
-  plugins = import ./plugins.nix { inherit pkgs; };
   claudeStatusline = import ../../packages/custom/claude-statusline { inherit pkgs; };
+  firefoxMcpPkg = import ../../packages/custom/firefox-mcp.nix { inherit pkgs; };
+  mobileMcpPkg = import ../../packages/custom/mobile-mcp.nix { inherit pkgs; };
 
   tools = [
     claudeStatusline
@@ -14,12 +15,23 @@ let
     pkgs.shfmt
     pkgs.go
     pkgs.taplo
+    # Plugin binaries — referenced by bare name from config/claude/plugins/*.mcp.json
+    pkgs.mcp-nixos
+    pkgs.nil
+    pkgs.typescript-language-server
+    pkgs.firefox-devedition
+    firefoxMcpPkg
+    mobileMcpPkg
   ];
 
   config = files.mkConfig "claude-config" [
     {
       source = "claude/rules";
       target = "rules";
+    }
+    {
+      source = "claude/plugins";
+      target = "plugins";
     }
     {
       source = "claude/settings.json";
@@ -39,8 +51,6 @@ let
     ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
-      ln -s ${plugins} $out/plugins
-
       wrapProgram $out/bin/claude \
         --prefix PATH : "$out/bin:${pkgs.lib.makeBinPath tools}" \
         --add-flags "--settings $out/settings.json --setting-sources project,local" \
