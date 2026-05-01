@@ -35,6 +35,8 @@ pkgs.runCommand "alacritty"
     # wrapProgram would have named it alacritty-wrapped instead
     mkdir -p $out/bin
     makeWrapper ${pkgs.alacritty}/bin/alacritty $out/bin/alacritty \
+      --unset TMUX \
+      --unset TMUX_PANE \
       --prefix PATH : ${pkgs.lib.makeBinPath tools} \
       ${
         pkgs.lib.optionalString (fonts != [ ])
