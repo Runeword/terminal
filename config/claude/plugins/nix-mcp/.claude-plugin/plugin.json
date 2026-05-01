@@ -1,0 +1,5 @@
+{
+  "name": "nix-mcp",
+  "description": "NixOS MCP server",
+  "version": "1.0.0"
+}
