@@ -4,6 +4,14 @@
 __CLAUDE_FZF="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path"
 __CLAUDE_DEFAULT_PLUGINS=(nix-mcp nix-lsp typescript-lsp)
 
+# Build __CLAUDE_CMD from __claude_instance, __claude_plugins, __claude_args.
+__claude_build_cmd() {
+  local args
+  args=$(printf '%q ' "$__claude_args")
+  # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
+  __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-7 $args"
+}
+
 __claude_init() {
   __claude_instance=1
   if [ "$1" != "" ] && [ "$1" -eq "$1" ] 2>/dev/null; then
@@ -18,10 +26,7 @@ __claude_init() {
     [ -d "$plugins_dir/$p" ] && __claude_plugins="$__claude_plugins --plugin-dir $plugins_dir/$p"
   done
 
-  local args
-  args=$(printf '%q ' "$__claude_args")
-  # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
-  __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-7 $args"
+  __claude_build_cmd
 }
 
 __claude_init_fzf() {
@@ -39,10 +44,7 @@ __claude_init_fzf() {
     [ "$p" != "" ] && printf ' --plugin-dir %s/%s' "$plugins_dir" "$p"
   done)
 
-  local args
-  args=$(printf '%q ' "$__claude_args")
-  # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
-  __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-7 $args"
+  __claude_build_cmd
 }
 
 __claude_run() {
