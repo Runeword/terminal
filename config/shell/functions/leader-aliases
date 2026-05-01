@@ -149,7 +149,8 @@ pv	python --version                                               	python       
 pb	brew list | grep python                                        	python            version      list	x
 cl	__claude                                                       	claude	x
 cr	__claude --resume                                              	claude            resume	x
-cp	__claude_plugins                                               	claude            plugins	x
+cpl	__claude_plugins                                               	claude            plugins	x
+cpr	__claude_plugins --resume                                      	claude            plugins      resume	x
 cd	__claude_debug                                                 	claude            debug	x
 chd	chezmoi diff --reverse                                         	chezmoi	x
 chi	chezmoi ignored                                                	chezmoi	x
