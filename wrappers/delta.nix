@@ -7,8 +7,8 @@
 let
   config = files.mkConfig "delta-config" [
     {
-      source = "delta/config";
-      target = ".config/delta/config";
+      source = "delta/config.gitconfig";
+      target = ".config/delta/config.gitconfig";
     }
   ];
   self = pkgs.symlinkJoin {
@@ -20,7 +20,7 @@ let
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
       wrapProgram $out/bin/delta \
-        --add-flags "--config $out/.config/delta/config"
+        --add-flags "--config $out/.config/delta/config.gitconfig"
     '';
     passthru.tests.smoke = tests.smoke {
       name = "delta";
