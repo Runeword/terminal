@@ -48,6 +48,10 @@ let
       source = "claude/hooks/format.sh";
       target = "bin/claude-format";
     }
+    {
+      source = "claude/hooks/docs-guard.sh";
+      target = "bin/claude-docs-guard";
+    }
   ];
 
   self = pkgs.symlinkJoin {
