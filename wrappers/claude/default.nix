@@ -38,11 +38,11 @@ let
     }
     {
       source = "claude/plugins";
-      target = "plugins";
+      target = ".claude/plugins";
     }
     {
       source = "claude/settings.json";
-      target = "settings.json";
+      target = ".claude/settings.json";
     }
     {
       source = "claude/hooks/format.sh";
@@ -60,7 +60,7 @@ let
     postBuild = ''
       wrapProgram $out/bin/claude \
         --prefix PATH : "$out/bin:${pkgs.lib.makeBinPath tools}" \
-        --add-flags "--settings $out/settings.json --setting-sources project,local --add-dir $out" \
+        --add-flags "--settings $out/.claude/settings.json --setting-sources project,local --add-dir $out" \
         --set-default CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD 1 \
         --unset TMUX
     '';
