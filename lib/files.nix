@@ -11,18 +11,23 @@
   # store references so the source propagates into downstream closures) or a
   # plain string (dev mode - symlinks point at the live filesystem; --impure
   # required).
+  #
+  # Nix path literals (e.g. ./foo) are rejected: `toString` of a path produces
+  # an absolute string, which would silently bypass the dev-mode rootPath swap.
   mkConfig =
     name: entries:
     pkgs.linkFarm name (
-      map (e: {
-        name = e.target;
+      map (entry: {
+        name = entry.target;
         path =
-          if pkgs.lib.hasPrefix "/" (toString e.source) then
-            e.source
+          if builtins.isPath entry.source then
+            throw "mkConfig: `source` must be a string, not a Nix path (target=${entry.target})"
+          else if pkgs.lib.hasPrefix "/" entry.source then
+            entry.source
           else if builtins.isPath rootPath then
-            rootPath + "/${e.source}"
+            rootPath + "/${entry.source}"
           else
-            "${rootPath}/${e.source}";
+            "${rootPath}/${entry.source}";
       }) entries
     );
 }
