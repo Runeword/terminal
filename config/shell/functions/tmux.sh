@@ -28,7 +28,7 @@ __tmux_switch_session() {
       --info=inline:'' \
       --bind='tab:down,btab:up' \
       --bind='enter:execute(echo {1})+abort' \
-      "${TMUX:+--bind='focus:execute-silent(tmux switch-client -t {1})'}" \
+      "${TMUX:+--bind="focus:execute-silent(tmux switch-client -t {1})"}" \
       "${TMUX:+--bind="load:pos($item_pos)"}"
   )
 
@@ -59,7 +59,7 @@ __tmux_switch_window() {
     --no-separator \
     --info=inline:'' \
     --bind='tab:down,btab:up' \
-    "${TMUX:+--bind='focus:execute-silent(tmux switch-client -t {4}; tmux select-window -t {3})'}" \
+    "${TMUX:+--bind="focus:execute-silent(tmux switch-client -t {4}; tmux select-window -t {3})"}" \
     "${TMUX:+--bind="load:pos($item_pos)"}" \
     >/dev/null
 }
