@@ -7,8 +7,8 @@
 let
   config = files.mkConfig "starship-config" [
     {
-      source = "starship.toml";
-      target = ".config/starship.toml";
+      source = "starship/starship.toml";
+      target = ".config/starship/starship.toml";
     }
   ];
   self = pkgs.symlinkJoin {
@@ -20,7 +20,7 @@ let
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
       wrapProgram $out/bin/starship \
-        --set STARSHIP_CONFIG "$out/.config/starship.toml"
+        --set STARSHIP_CONFIG "$out/.config/starship/starship.toml"
     '';
     passthru.tests.smoke = tests.smoke {
       name = "starship";
