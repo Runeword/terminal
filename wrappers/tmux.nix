@@ -19,6 +19,9 @@ let
       source = "shell/functions/tmux.sh";
       target = ".config/shell/functions/tmux.sh";
     }
+    # tmux-resurrect plugin tree, supplied by nixpkgs instead of vendored
+    # or fetched at runtime via TPM. tmux.conf references its scripts via
+    # $NIX_OUT_TMUX/.config/tmux/plugins/resurrect/...
     {
       source = "${pkgs.tmuxPlugins.resurrect}/share/tmux-plugins/resurrect";
       target = ".config/tmux/plugins/resurrect";
