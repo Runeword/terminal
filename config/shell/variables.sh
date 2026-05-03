@@ -96,6 +96,8 @@ export FZF_CTRL_T_OPTS="
 
 export _ZO_FZF_OPTS="$FZF_DEFAULT_OPTS
 --bind='ctrl-z:ignore,btab:up,tab:down' \
+--no-sort \
+--tiebreak=index \
 --cycle \
 --keep-right \
 --border=sharp \
