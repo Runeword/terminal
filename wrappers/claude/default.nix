@@ -6,11 +6,13 @@
 
 let
   claudeStatusline = import ../../packages/custom/claude-statusline { inherit pkgs; };
+  gitAllowlistHook = import ../../packages/custom/git-allowlist-hook { inherit pkgs; };
   firefoxMcpPkg = import ../../packages/custom/firefox-mcp.nix { inherit pkgs; };
   mobileMcpPkg = import ../../packages/custom/mobile-mcp.nix { inherit pkgs; };
 
   tools = [
     claudeStatusline
+    gitAllowlistHook
     pkgs.nixfmt
     pkgs.shfmt
     pkgs.go
