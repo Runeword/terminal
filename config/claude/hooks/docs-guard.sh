@@ -7,7 +7,7 @@
 prompt=$(jq -r '.prompt // ""')
 
 printf %s "$prompt" | grep -qiE \
-  '(claude[ -]code|claude[ -]?api|anthropic[ -]?(api|sdk)|agent[ -]?sdk|claude_agent_sdk|@anthropic-ai/sdk|\bmcp\b|userpromptsubmit|posttooluse|pretooluse|sessionstart|subagentstop|stop[ -]?hook|slash[ -]?command|claude[ -]?(hook|skill|subagent|plugin|command)|claude\.md)' ||
+  '(claude[ -]code|claude[ -]?api|anthropic[ -]?(api|sdk)|agent[ -]?sdk|claude_agent_sdk|@anthropic-ai/sdk|\bmcp\b|userpromptsubmit|posttooluse|pretooluse|sessionstart|subagentstop|stop[ -]?hook|slash[ -]?command|claude[ -]?(hook|skill|subagent|plugin|command)|claude\.md|claude.{0,40}(feature|release|changelog|version|doc)|\b(opus|sonnet|haiku)[ -]?[0-9])' ||
   exit 0
 
 cat <<'EOF'
