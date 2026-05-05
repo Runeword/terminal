@@ -17,6 +17,7 @@ let
     pkgs.shfmt
     pkgs.go
     pkgs.taplo
+    pkgs.rtk
     # Plugin binaries — referenced by bare name from config/claude/plugins/*.mcp.json
     pkgs.mcp-nixos
     pkgs.nil
@@ -68,6 +69,7 @@ let
         --prefix PATH : "$out/bin:${pkgs.lib.makeBinPath tools}" \
         --add-flags "--settings $out/.claude/settings.json --setting-sources project,local --add-dir $out" \
         --set-default CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD 1 \
+        --set RTK_TELEMETRY_DISABLED 1 \
         --unset TMUX
     '';
     passthru.tests.smoke = tests.smoke {
