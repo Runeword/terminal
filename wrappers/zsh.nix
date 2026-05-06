@@ -37,6 +37,7 @@ let
       ln -s ${claude} $out/paths/claude
 
       wrapProgram $out/bin/zsh \
+        --add-flags --no-global-rcs \
         --set ZDOTDIR "$out/.config/zsh" \
         --set NIX_OUT_SHELL "$out" \
         --set INPUTRC "$out/.config/readline/inputrc" \
