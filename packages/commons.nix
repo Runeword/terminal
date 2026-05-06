@@ -18,6 +18,7 @@ with pkgs;
   gh
   google-cloud-sdk
   firebase-tools
+  acli
 
   # _______________________________ AI
   gemini-cli-bin
