@@ -3,7 +3,6 @@
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.nixpkgs-24-05.url = "github:NixOS/nixpkgs/nixos-24.05";
-  inputs.nixpkgs-25-11.url = "github:NixOS/nixpkgs/nixos-25.11";
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.claude = {
     url = "github:Runeword/claude";
@@ -20,7 +19,6 @@
       self,
       nixpkgs,
       nixpkgs-24-05,
-      nixpkgs-25-11,
       flake-utils,
       claude,
       lefthook,
@@ -29,58 +27,50 @@
     let
       mkWrappers = pkgs: configPath: import ./wrappers { inherit pkgs configPath; };
 
-      mkTools =
-        pkgs: configPath: wrappers:
-        import ./packages { inherit pkgs configPath; } ++ builtins.attrValues wrappers;
+      mkTools = pkgs: wrappers: import ./packages { inherit pkgs; } ++ builtins.attrValues wrappers;
 
       mkTerminal =
         pkgs: configPath: tools:
         import ./wrappers/alacritty.nix {
           inherit pkgs configPath tools;
         };
+
+      mkPkgs =
+        system:
+        let
+          pkgs-24-05 = import nixpkgs-24-05 {
+            inherit system;
+            config.allowUnfree = true;
+            overlays = [ ];
+          };
+        in
+        import nixpkgs {
+          inherit system;
+          config.allowUnfree = true;
+          overlays = import ./overlays { inherit pkgs-24-05; };
+        };
     in
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs-24-05 = import nixpkgs-24-05 {
-          inherit system;
-          config.allowUnfree = true;
-          overlays = [ ];
-        };
-
-        pkgs-25-11 = import nixpkgs-25-11 {
-          inherit system;
-          config.allowUnfree = true;
-          overlays = [ ];
-        };
-
-        pkgs = import nixpkgs {
-          inherit system;
-          config.allowUnfree = true;
-          overlays = import ./overlays { inherit pkgs-24-05 pkgs-25-11; };
-        };
+        pkgs = mkPkgs system;
 
         configPath = ./config;
         wrappers = mkWrappers pkgs configPath;
-        tools = mkTools pkgs configPath wrappers;
+        tools = mkTools pkgs wrappers;
         terminal = mkTerminal pkgs configPath tools;
       in
       {
         packages.default = terminal;
         packages.firefox-mcp = import ./packages/custom/firefox-mcp.nix { inherit pkgs; };
         packages.mobile-mcp = import ./packages/custom/mobile-mcp.nix { inherit pkgs; };
-        packages.tools = pkgs.writeShellScriptBin "tools" ''
-          exec ${
-            pkgs.buildEnv {
-              name = "tools-env";
-              paths = tools;
-              # `tools <cmd>` only dispatches binaries; restrict to /bin so wrappers
-              # that share config files (e.g. fd and ripgrep both ship .config/ignore)
-              # don't conflict in the merged env.
-              pathsToLink = [ "/bin" ];
-            }
-          }/bin/"$1" "''${@:2}"
-        '';
+        packages.tools = pkgs.buildEnv {
+          name = "tools";
+          paths = tools;
+          # Restrict to /bin so wrappers that share config files (e.g. fd and
+          # ripgrep both ship .config/ignore) don't conflict in the merged env.
+          pathsToLink = [ "/bin" ];
+        };
 
         apps =
           let
@@ -99,7 +89,7 @@
             dev =
               let
                 devWrappers = mkWrappers pkgs devConfigPath;
-                devTools = mkTools pkgs devConfigPath devWrappers;
+                devTools = mkTools pkgs devWrappers;
               in
               {
                 type = "app";
@@ -122,19 +112,25 @@
     // {
       lib.mkTerminal =
         {
-          pkgs,
+          system,
           configPath ? ./config,
         }:
-        mkTerminal pkgs configPath (mkTools pkgs configPath (mkWrappers pkgs configPath));
+        let
+          pkgs = mkPkgs system;
+        in
+        mkTerminal pkgs configPath (mkTools pkgs (mkWrappers pkgs configPath));
 
       lib.mkTools =
         {
-          pkgs,
+          system,
           configPath ? ./config,
         }:
+        let
+          pkgs = mkPkgs system;
+        in
         pkgs.buildEnv {
           name = "tools";
-          paths = mkTools pkgs configPath (mkWrappers pkgs configPath);
+          paths = mkTools pkgs (mkWrappers pkgs configPath);
           pathsToLink = [ "/bin" ];
         };
 

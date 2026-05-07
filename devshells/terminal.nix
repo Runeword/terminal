@@ -1,12 +1,13 @@
 { pkgs }:
 pkgs.mkShell {
-  buildInputs = [
+  packages = [
     (pkgs.writeShellScriptBin "h" ''
-      echo "'dev' run alacritty in development mode"
-      echo "'bdl' run alacritty in bundled mode"
-      echo "'tools' <name> run a binary from the tools package"
-      echo "'smoke' run wrapper smoke tests"
-      echo "'h' for help"
+      printf '%-20s %s\n' \
+      'dev'                 'alacritty with configs symlinked from ./config (edit live, no rebuild)' \
+      'bdl'                 'alacritty with configs copied into the nix store (requires rebuild)' \
+      'tools <name> [args]' 'run a CLI from the bundled tools env' \
+      'smoke'               'run wrapper smoke tests' \
+      'h'                   'show this help'
     '')
     (pkgs.writeShellScriptBin "dev" ''
       TERMINAL_CONFIG_DIR="$PWD/config" nix run .#dev --impure -- "$@"
@@ -15,7 +16,7 @@ pkgs.mkShell {
       nix run . -- "$@"
     '')
     (pkgs.writeShellScriptBin "tools" ''
-      nix run .#tools -- "$@"
+      exec nix shell .#tools --command "$@"
     '')
     (pkgs.writeShellScriptBin "smoke" ''
       nix flake check -L --keep-going -j auto "$@"

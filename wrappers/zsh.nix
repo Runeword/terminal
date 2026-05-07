@@ -54,7 +54,7 @@ let
           fail "ZDOTDIR is '$zdotdir', expected '${self}/.config/zsh'"
         fi
 
-        # Sourcing .zshrc must not produce errors.
+        # Sourcing .zshrc must not produce errors. -i would load /etc/zshrc from the host without --no-global-rcs (set above).
         err=$(${self}/bin/zsh -i -c 'exit 0' 2>&1 >/dev/null)
         if [ -z "$err" ]; then
           ok ".zshrc sources without errors"
