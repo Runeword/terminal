@@ -26,7 +26,7 @@ Other useful commands:
 
 `flake.nix` is the entry point. It defines four small helpers and wires them through `flake-utils.eachDefaultSystem`:
 
-- `mkPkgs system` — imports this flake's pinned `nixpkgs` (with the `nixpkgs-24-05` / `nixpkgs-25-11` overlays applied). Always used so wrapper builds are reproducible against `flake.lock`, regardless of what `pkgs` a consumer's flake might bring.
+- `mkPkgs system` — imports this flake's pinned `nixpkgs` (with the `nixpkgs-24-05` overlay applied). Always used so wrapper builds are reproducible against `flake.lock`, regardless of what `pkgs` a consumer's flake might bring.
 - `mkWrappers pkgs configPath` = `import ./wrappers` — attrset of wrapper derivations (used as a handle so wrappers can depend on each other, e.g. tmux ← zsh ← claude).
 - `mkTools pkgs configPath wrappers` = `import ./packages` ++ `attrValues wrappers` — the full set of derivations.
 - `mkTerminal pkgs configPath tools` = `import ./wrappers/alacritty.nix` with those tools on `PATH`.
@@ -60,7 +60,7 @@ Outputs:
 
 ### Overlays (`overlays/default.nix`)
 
-Two overlays are applied: one pins `awscli2` to nixpkgs-24.05 and `tmux` to nixpkgs-25.11; the other overrides `firebase-tools` to build against Node 20. Both follow the `final: prev:` convention — `prev` is used when redefining existing attributes.
+Three overlays are applied: one pins `awscli2` to nixpkgs-24.05; one source-pins `tmux` to 3.6a via `overrideAttrs` + `fetchFromGitHub` (so we don't carry a second nixpkgs input just to freeze the version); the third overrides `firebase-tools` to build against Node 20. All follow the `final: prev:` convention — `prev` is used when redefining existing attributes.
 
 ### Config tree (`config/`)
 
