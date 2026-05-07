@@ -27,9 +27,7 @@
     let
       mkWrappers = pkgs: configPath: import ./wrappers { inherit pkgs configPath; };
 
-      mkTools =
-        pkgs: configPath: wrappers:
-        import ./packages { inherit pkgs configPath; } ++ builtins.attrValues wrappers;
+      mkTools = pkgs: wrappers: import ./packages { inherit pkgs; } ++ builtins.attrValues wrappers;
 
       mkTerminal =
         pkgs: configPath: tools:
@@ -59,7 +57,7 @@
 
         configPath = ./config;
         wrappers = mkWrappers pkgs configPath;
-        tools = mkTools pkgs configPath wrappers;
+        tools = mkTools pkgs wrappers;
         terminal = mkTerminal pkgs configPath tools;
       in
       {
@@ -91,7 +89,7 @@
             dev =
               let
                 devWrappers = mkWrappers pkgs devConfigPath;
-                devTools = mkTools pkgs devConfigPath devWrappers;
+                devTools = mkTools pkgs devWrappers;
               in
               {
                 type = "app";
@@ -120,7 +118,7 @@
         let
           pkgs = mkPkgs system;
         in
-        mkTerminal pkgs configPath (mkTools pkgs configPath (mkWrappers pkgs configPath));
+        mkTerminal pkgs configPath (mkTools pkgs (mkWrappers pkgs configPath));
 
       lib.mkTools =
         {
@@ -132,7 +130,7 @@
         in
         pkgs.buildEnv {
           name = "tools";
-          paths = mkTools pkgs configPath (mkWrappers pkgs configPath);
+          paths = mkTools pkgs (mkWrappers pkgs configPath);
           pathsToLink = [ "/bin" ];
         };
 
