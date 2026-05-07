@@ -24,8 +24,9 @@ Other useful commands:
 
 ## Architecture
 
-`flake.nix` is the entry point. It defines three small helpers and wires them through `flake-utils.eachDefaultSystem`:
+`flake.nix` is the entry point. It defines four small helpers and wires them through `flake-utils.eachDefaultSystem`:
 
+- `mkPkgs system` — imports this flake's pinned `nixpkgs` (with the `nixpkgs-24-05` / `nixpkgs-25-11` overlays applied). Always used so wrapper builds are reproducible against `flake.lock`, regardless of what `pkgs` a consumer's flake might bring.
 - `mkWrappers pkgs configPath` = `import ./wrappers` — attrset of wrapper derivations (used as a handle so wrappers can depend on each other, e.g. tmux ← zsh ← claude).
 - `mkTools pkgs configPath wrappers` = `import ./packages` ++ `attrValues wrappers` — the full set of derivations.
 - `mkTerminal pkgs configPath tools` = `import ./wrappers/alacritty.nix` with those tools on `PATH`.
@@ -37,7 +38,7 @@ Outputs:
 - `packages.firefox-mcp` / `packages.mobile-mcp` — standalone MCP server packages from `packages/custom/`.
 - `apps.default` / `apps.dev` — `nix run` targets for bundled / dev mode. `apps.dev` is conditionally added only when `TERMINAL_CONFIG_DIR` is set (via `getEnv` + `--impure`), so `nix flake check` stays clean in pure mode.
 - `checks.<wrapper>` — each wrapper's `passthru.tests.smoke` derivation, run by `nix flake check`.
-- `lib.mkTerminal` / `lib.mkTools` — reusable builders for downstream flakes.
+- `lib.mkTerminal` / `lib.mkTools` — reusable builders for downstream flakes. Both take `{ system, configPath ? ./config }` (not `pkgs`); they call `mkPkgs system` internally so consumers can't accidentally pull stale versions of version-sensitive tools through their own `nixpkgs` lock.
 - `homeModules.default` — home-manager integration (see `modules/terminal.nix`, options under `programs.terminal`).
 
 `devShells.default` is composed via `inputsFrom` from four sub-shells: `devshells/terminal.nix` (the `dev`/`bdl`/`tools`/`smoke`/`h` helpers above), `devshells/languages.nix`, `claude.devShells.${system}.ast-grep` (from the `claude` flake input), and `devshells/lefthook.nix`.
