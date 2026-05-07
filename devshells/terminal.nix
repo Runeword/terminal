@@ -15,7 +15,7 @@ pkgs.mkShell {
       nix run . -- "$@"
     '')
     (pkgs.writeShellScriptBin "tools" ''
-      nix run .#tools -- "$@"
+      exec nix shell .#tools --command "$@"
     '')
     (pkgs.writeShellScriptBin "smoke" ''
       nix flake check -L --keep-going -j auto "$@"
