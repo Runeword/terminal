@@ -1,6 +1,6 @@
 { pkgs }:
 pkgs.mkShell {
-  buildInputs = [
+  packages = [
     (pkgs.writeShellScriptBin "h" ''
       echo "'dev' run alacritty in development mode"
       echo "'bdl' run alacritty in bundled mode"
