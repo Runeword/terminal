@@ -3,6 +3,8 @@ extends:
 pre-push:
   commands:
     smoke:
+      # Stream nix's build logs live to the terminal
+      interactive: true
       # Only run when something that affects wrapper outputs has changed.
       # Pre-push uses {push_files}; if none match, lefthook skips the command.
       glob:
