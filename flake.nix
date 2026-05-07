@@ -3,7 +3,6 @@
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.nixpkgs-24-05.url = "github:NixOS/nixpkgs/nixos-24.05";
-  inputs.nixpkgs-25-11.url = "github:NixOS/nixpkgs/nixos-25.11";
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.claude = {
     url = "github:Runeword/claude";
@@ -20,7 +19,6 @@
       self,
       nixpkgs,
       nixpkgs-24-05,
-      nixpkgs-25-11,
       flake-utils,
       claude,
       lefthook,
@@ -47,17 +45,11 @@
             config.allowUnfree = true;
             overlays = [ ];
           };
-
-          pkgs-25-11 = import nixpkgs-25-11 {
-            inherit system;
-            config.allowUnfree = true;
-            overlays = [ ];
-          };
         in
         import nixpkgs {
           inherit system;
           config.allowUnfree = true;
-          overlays = import ./overlays { inherit pkgs-24-05 pkgs-25-11; };
+          overlays = import ./overlays { inherit pkgs-24-05; };
         };
     in
     flake-utils.lib.eachDefaultSystem (
