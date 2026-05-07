@@ -34,7 +34,7 @@ Other useful commands:
 Outputs:
 
 - `packages.default` — the wrapped Alacritty (see `wrappers/alacritty.nix`: `runCommand` + `makeWrapper`, preserves the process name `alacritty`, injects `FONTCONFIG_FILE` on Linux, points `--config-file` at the synced config).
-- `packages.tools` — a `buildEnv` of every tool, dispatched by a tiny shell script `tools <name>`. `pathsToLink = [ "/bin" ]` to avoid config-file collisions between wrappers (e.g. `fd` and `ripgrep` both ship a `.config/ignore`).
+- `packages.tools` — a `buildEnv` of every tool. `pathsToLink = [ "/bin" ]` to avoid config-file collisions between wrappers (e.g. `fd` and `ripgrep` both ship a `.config/ignore`). The devshell `tools` helper runs binaries from it via `nix shell .#tools --command`.
 - `packages.firefox-mcp` / `packages.mobile-mcp` — standalone MCP server packages from `packages/custom/`.
 - `apps.default` / `apps.dev` — `nix run` targets for bundled / dev mode. `apps.dev` is conditionally added only when `TERMINAL_CONFIG_DIR` is set (via `getEnv` + `--impure`), so `nix flake check` stays clean in pure mode.
 - `checks.<wrapper>` — each wrapper's `passthru.tests.smoke` derivation, run by `nix flake check`.
