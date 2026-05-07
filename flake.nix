@@ -38,27 +38,32 @@
         import ./wrappers/alacritty.nix {
           inherit pkgs configPath tools;
         };
-    in
-    flake-utils.lib.eachDefaultSystem (
-      system:
-      let
-        pkgs-24-05 = import nixpkgs-24-05 {
-          inherit system;
-          config.allowUnfree = true;
-          overlays = [ ];
-        };
 
-        pkgs-25-11 = import nixpkgs-25-11 {
-          inherit system;
-          config.allowUnfree = true;
-          overlays = [ ];
-        };
+      mkPkgs =
+        system:
+        let
+          pkgs-24-05 = import nixpkgs-24-05 {
+            inherit system;
+            config.allowUnfree = true;
+            overlays = [ ];
+          };
 
-        pkgs = import nixpkgs {
+          pkgs-25-11 = import nixpkgs-25-11 {
+            inherit system;
+            config.allowUnfree = true;
+            overlays = [ ];
+          };
+        in
+        import nixpkgs {
           inherit system;
           config.allowUnfree = true;
           overlays = import ./overlays { inherit pkgs-24-05 pkgs-25-11; };
         };
+    in
+    flake-utils.lib.eachDefaultSystem (
+      system:
+      let
+        pkgs = mkPkgs system;
 
         configPath = ./config;
         wrappers = mkWrappers pkgs configPath;
@@ -122,16 +127,22 @@
     // {
       lib.mkTerminal =
         {
-          pkgs,
+          system,
           configPath ? ./config,
         }:
+        let
+          pkgs = mkPkgs system;
+        in
         mkTerminal pkgs configPath (mkTools pkgs configPath (mkWrappers pkgs configPath));
 
       lib.mkTools =
         {
-          pkgs,
+          system,
           configPath ? ./config,
         }:
+        let
+          pkgs = mkPkgs system;
+        in
         pkgs.buildEnv {
           name = "tools";
           paths = mkTools pkgs configPath (mkWrappers pkgs configPath);
