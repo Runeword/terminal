@@ -1,4 +1,4 @@
-{ pkgs, configPath }:
+{ pkgs }:
 import ./commons.nix { inherit pkgs; }
 ++ import ./custom { inherit pkgs; }
 ++ (

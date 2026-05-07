@@ -29,11 +29,13 @@ in
     programs.terminal.package = lib.mkDefault (
       if cfg.configPath != null then
         flake.lib.mkTerminal {
-          inherit pkgs;
+          inherit (pkgs.stdenv.hostPlatform) system;
           configPath = cfg.configPath;
         }
       else
-        flake.lib.mkTerminal { inherit pkgs; }
+        flake.lib.mkTerminal {
+          inherit (pkgs.stdenv.hostPlatform) system;
+        }
     );
     home.packages = [ cfg.package ];
   };

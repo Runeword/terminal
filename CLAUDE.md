@@ -24,8 +24,9 @@ Other useful commands:
 
 ## Architecture
 
-`flake.nix` is the entry point. It defines three small helpers and wires them through `flake-utils.eachDefaultSystem`:
+`flake.nix` is the entry point. It defines four small helpers and wires them through `flake-utils.eachDefaultSystem`:
 
+- `mkPkgs system` — imports this flake's pinned `nixpkgs` (with the `nixpkgs-24-05` overlay applied). Always used so wrapper builds are reproducible against `flake.lock`, regardless of what `pkgs` a consumer's flake might bring.
 - `mkWrappers pkgs configPath` = `import ./wrappers` — attrset of wrapper derivations (used as a handle so wrappers can depend on each other, e.g. tmux ← zsh ← claude).
 - `mkTools pkgs configPath wrappers` = `import ./packages` ++ `attrValues wrappers` — the full set of derivations.
 - `mkTerminal pkgs configPath tools` = `import ./wrappers/alacritty.nix` with those tools on `PATH`.
@@ -33,11 +34,11 @@ Other useful commands:
 Outputs:
 
 - `packages.default` — the wrapped Alacritty (see `wrappers/alacritty.nix`: `runCommand` + `makeWrapper`, preserves the process name `alacritty`, injects `FONTCONFIG_FILE` on Linux, points `--config-file` at the synced config).
-- `packages.tools` — a `buildEnv` of every tool, dispatched by a tiny shell script `tools <name>`. `pathsToLink = [ "/bin" ]` to avoid config-file collisions between wrappers (e.g. `fd` and `ripgrep` both ship a `.config/ignore`).
+- `packages.tools` — a `buildEnv` of every tool. `pathsToLink = [ "/bin" ]` to avoid config-file collisions between wrappers (e.g. `fd` and `ripgrep` both ship a `.config/ignore`). The devshell `tools` helper runs binaries from it via `nix shell .#tools --command`.
 - `packages.firefox-mcp` / `packages.mobile-mcp` — standalone MCP server packages from `packages/custom/`.
 - `apps.default` / `apps.dev` — `nix run` targets for bundled / dev mode. `apps.dev` is conditionally added only when `TERMINAL_CONFIG_DIR` is set (via `getEnv` + `--impure`), so `nix flake check` stays clean in pure mode.
 - `checks.<wrapper>` — each wrapper's `passthru.tests.smoke` derivation, run by `nix flake check`.
-- `lib.mkTerminal` / `lib.mkTools` — reusable builders for downstream flakes.
+- `lib.mkTerminal` / `lib.mkTools` — reusable builders for downstream flakes. Both take `{ system, configPath ? ./config }` (not `pkgs`); they call `mkPkgs system` internally so consumers can't accidentally pull stale versions of version-sensitive tools through their own `nixpkgs` lock.
 - `homeModules.default` — home-manager integration (see `modules/terminal.nix`, options under `programs.terminal`).
 
 `devShells.default` is composed via `inputsFrom` from four sub-shells: `devshells/terminal.nix` (the `dev`/`bdl`/`tools`/`smoke`/`h` helpers above), `devshells/languages.nix`, `claude.devShells.${system}.ast-grep` (from the `claude` flake input), and `devshells/lefthook.nix`.
@@ -59,7 +60,7 @@ Outputs:
 
 ### Overlays (`overlays/default.nix`)
 
-Two overlays are applied: one pins `awscli2` to nixpkgs-24.05 and `tmux` to nixpkgs-25.11; the other overrides `firebase-tools` to build against Node 20. Both follow the `final: prev:` convention — `prev` is used when redefining existing attributes.
+Three overlays are applied: one pins `awscli2` to nixpkgs-24.05; one source-pins `tmux` to 3.6a via `overrideAttrs` + `fetchFromGitHub` (so we don't carry a second nixpkgs input just to freeze the version); the third overrides `firebase-tools` to build against Node 20. All follow the `final: prev:` convention — `prev` is used when redefining existing attributes.
 
 ### Config tree (`config/`)
 
