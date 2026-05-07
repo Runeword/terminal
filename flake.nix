@@ -74,18 +74,13 @@
         packages.default = terminal;
         packages.firefox-mcp = import ./packages/custom/firefox-mcp.nix { inherit pkgs; };
         packages.mobile-mcp = import ./packages/custom/mobile-mcp.nix { inherit pkgs; };
-        packages.tools = pkgs.writeShellScriptBin "tools" ''
-          exec ${
-            pkgs.buildEnv {
-              name = "tools-env";
-              paths = tools;
-              # `tools <cmd>` only dispatches binaries; restrict to /bin so wrappers
-              # that share config files (e.g. fd and ripgrep both ship .config/ignore)
-              # don't conflict in the merged env.
-              pathsToLink = [ "/bin" ];
-            }
-          }/bin/"$1" "''${@:2}"
-        '';
+        packages.tools = pkgs.buildEnv {
+          name = "tools";
+          paths = tools;
+          # Restrict to /bin so wrappers that share config files (e.g. fd and
+          # ripgrep both ship .config/ignore) don't conflict in the merged env.
+          pathsToLink = [ "/bin" ];
+        };
 
         apps =
           let
