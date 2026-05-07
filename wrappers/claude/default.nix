@@ -19,12 +19,16 @@ let
     pkgs.taplo
     pkgs.rtk
     # Plugin binaries — referenced by bare name from config/claude/plugins/*.mcp.json
-    pkgs.mcp-nixos
     pkgs.nil
     pkgs.typescript-language-server
     pkgs.firefox-devedition
     firefoxMcpPkg
     mobileMcpPkg
+  ]
+  # mcp-nixos: nixpkgs eval breaks transitively on Darwin
+  # (lupa→luajit_2_0 on aarch64-darwin; arrow-cpp on x86_64-darwin, see utensils/mcp-nixos#137).
+  ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+    pkgs.mcp-nixos
   ]
   # Required by claude's built-in `/sandbox` on Linux (Seatbelt is built in on macOS).
   # Presence on PATH only enables the feature; sandbox stays off until opted into via
