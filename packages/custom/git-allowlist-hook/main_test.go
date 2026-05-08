@@ -78,6 +78,78 @@ func TestCheckCommand(t *testing.T) {
 
 		{"unterminated quote", "git status 'unterminated", true},
 		{"unterminated subst", "git status $(echo", true},
+
+		// Combined-flag shell escape.
+		{"bash -ec deny", `bash -ec 'git push'`, true},
+		{"bash -ec allow", `bash -ec 'git status'`, false},
+		{"sh -uec deny", `sh -uec 'git push'`, true},
+		{"zsh -ec deny hard reset", `zsh -ec 'git reset --hard'`, true},
+		{"abs sh -ec deny", `/bin/sh -ec 'git commit'`, true},
+		{"multiple -c both checked", `bash -c 'git status' -c 'git push'`, true},
+
+		// eval recursion.
+		{"eval deny", `eval 'git push'`, true},
+		{"eval allow", `eval 'git status'`, false},
+		{"eval multi-arg join deny", `eval git push`, true},
+		{"eval non-literal deny", `eval $cmd`, true},
+		{"eval empty allow", `eval ''`, false},
+		{"eval no args allow", `eval`, false},
+
+		// Command-prefix wrappers.
+		{"xargs git push deny", `xargs git push`, true},
+		{"xargs git status allow", `xargs git status`, false},
+		{"xargs -I {} git push deny", `xargs -I {} git push`, true},
+		{"xargs -n 1 git push deny", `xargs -n 1 git push`, true},
+		{"pipe to xargs deny", `echo HEAD | xargs git push`, true},
+		{"pipe to xargs allow", `echo HEAD | xargs git show`, false},
+		{"env GIT_PAGER deny", `env GIT_PAGER=cat git push`, true},
+		{"env GIT_PAGER allow", `env GIT_PAGER=cat git status`, false},
+		{"env -u git push deny", `env -u FOO git push`, true},
+		{"nice git push deny", `nice git push`, true},
+		{"nice -n 5 git push deny", `nice -n 5 git push`, true},
+		{"timeout git push deny", `timeout 5 git push`, true},
+		{"timeout git status allow", `timeout 5 git status`, false},
+		{"timeout -s git push deny", `timeout -s KILL 5 git push`, true},
+		{"command git push deny", `command git push`, true},
+		{"exec git push deny", `exec git push`, true},
+		{"stdbuf git push deny", `stdbuf -o0 git push`, true},
+		{"xargs env chain deny", `xargs env GIT_PAGER=cat git push`, true},
+		{"xargs bash -c deny", `xargs bash -c 'git push'`, true},
+
+		// Dangerous -c config keys.
+		{"-c fsmonitor RCE deny", `git -c core.fsmonitor='!evil' status`, true},
+		{"-c fsmonitor space form deny", `git -c core.fsmonitor=!evil status`, true},
+		{"-c pager deny", `git -c core.pager='!evil' log`, true},
+		{"-c sshcommand deny", `git -c core.sshCommand='!evil' status`, true},
+		{"-c alias prefix deny", `git -c alias.x='!evil' log`, true},
+		{"-c pager prefix deny", `git -c pager.log='!evil' log`, true},
+		{"-c url prefix deny", `git -c url.evil.insteadof=https://github.com log`, true},
+		{"-c safe.directory deny", `git -c safe.directory=* status`, true},
+		{"-c color.ui still allow", `git -c color.ui=always log`, false},
+		{"-c separate value deny", `git -c core.pager=cat log`, true},
+		{"--config-env dangerous deny", `git --config-env=core.pager=PAGER log`, true},
+		{"--config-env benign allow", `git --config-env=color.ui=COLOR log`, false},
+
+		// --exec-path always denied.
+		{"--exec-path= deny", `git --exec-path=/tmp/evil status`, true},
+		{"--exec-path bare deny", `git --exec-path status`, true},
+
+		// git config write detection.
+		{"git config write 2 args deny", `git config user.email new@email.com`, true},
+		{"git config alias write deny", `git config alias.x '!evil'`, true},
+		{"git config --add deny", `git config --add user.email new@email.com`, true},
+		{"git config --unset deny", `git config --unset user.name`, true},
+		{"git config --unset-all deny", `git config --unset-all user.email`, true},
+		{"git config --replace-all deny", `git config --replace-all user.email new@email.com`, true},
+		{"git config --rename-section deny", `git config --rename-section old new`, true},
+		{"git config --remove-section deny", `git config --remove-section old`, true},
+		{"git config --edit deny", `git config --edit`, true},
+		{"git config -e deny", `git config -e`, true},
+		{"git config --get-regexp 2 args allow", `git config --get-regexp 'user\..*' value`, false},
+		{"git config --get allow", `git config --get user.email`, false},
+		{"git config --type with arg allow", `git config --type int branch.master.remote`, false},
+		{"git config --list allow", `git config --list`, false},
+		{"git config -l allow", `git config -l`, false},
 	}
 
 	for _, tt := range tests {
