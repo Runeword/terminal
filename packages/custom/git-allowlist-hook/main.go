@@ -1,6 +1,9 @@
 // Command git-allowlist-hook is a Claude Code PreToolUse hook that denies any
 // shell command which invokes git with a subcommand outside a small read-only
-// allowlist. It exits 2 (Claude Code's "block" exit code) on policy violations.
+// allowlist. It emits a structured PreToolUse permissionDecision JSON document
+// on stdout. Any internal error (malformed input, unparseable shell) maps to a
+// deny, so the hook fails closed: a hook that cannot enforce policy must not
+// let the tool call through.
 package main
 
 import (
@@ -9,12 +12,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
 )
-
-const denyExitCode = 2
 
 var (
 	allowedSubcommands = map[string]struct{}{
@@ -36,40 +38,59 @@ var (
 )
 
 type hookInput struct {
+	ToolName  string `json:"tool_name"`
 	ToolInput struct {
 		Command string `json:"command"`
 	} `json:"tool_input"`
 }
 
-// denyErr signals a policy violation. main exits with denyExitCode when it
-// unwraps to one of these.
-type denyErr struct{ msg string }
+type hookOutput struct {
+	HookSpecificOutput hookSpecificOutput `json:"hookSpecificOutput"`
+}
 
-func (e *denyErr) Error() string { return e.msg }
-
-func deny(format string, a ...any) error {
-	return &denyErr{msg: "git-allowlist: " + fmt.Sprintf(format, a...)}
+type hookSpecificOutput struct {
+	HookEventName            string `json:"hookEventName"`
+	PermissionDecision       string `json:"permissionDecision"`
+	PermissionDecisionReason string `json:"permissionDecisionReason"`
 }
 
 func main() {
-	err := run(os.Stdin)
-	if err == nil {
+	out := decide(os.Stdin)
+	if out == nil {
 		return
 	}
-	fmt.Fprintln(os.Stderr, err)
-	var d *denyErr
-	if errors.As(err, &d) {
-		os.Exit(denyExitCode)
+	if err := json.NewEncoder(os.Stdout).Encode(out); err != nil {
+		// stdout write failed; fall back to exit-code blocking so the call is denied.
+		fmt.Fprintln(os.Stderr, "git-allowlist:", err)
+		os.Exit(2)
 	}
-	os.Exit(1)
 }
 
-func run(r io.Reader) error {
+// decide returns nil to allow the tool call, or a deny payload to block it.
+// Errors at any layer (input parse, shell parse, policy) are converted to
+// denies so the hook fails closed.
+func decide(r io.Reader) *hookOutput {
 	in, err := parseInput(r)
 	if err != nil {
-		return fmt.Errorf("git-allowlist: parse hook input: %w", err)
+		return denyOutput(fmt.Sprintf("parse hook input: %v", err))
 	}
-	return checkCommand(in.ToolInput.Command)
+	if in.ToolName != "" && in.ToolName != "Bash" {
+		return nil
+	}
+	if err := checkCommand(in.ToolInput.Command); err != nil {
+		return denyOutput(err.Error())
+	}
+	return nil
+}
+
+func denyOutput(reason string) *hookOutput {
+	return &hookOutput{
+		HookSpecificOutput: hookSpecificOutput{
+			HookEventName:            "PreToolUse",
+			PermissionDecision:       "deny",
+			PermissionDecisionReason: "git-allowlist: " + reason,
+		},
+	}
 }
 
 func parseInput(r io.Reader) (hookInput, error) {
@@ -86,7 +107,7 @@ func checkCommand(cmd string) error {
 	}
 	file, err := syntax.NewParser().Parse(strings.NewReader(cmd), "")
 	if err != nil {
-		return deny("failed to parse command: %v", err)
+		return fmt.Errorf("failed to parse command: %v", err)
 	}
 	return walkAndCheck(file)
 }
@@ -136,14 +157,14 @@ func checkGitCall(args []*syntax.Word) error {
 		i++
 	}
 	if i >= len(args) {
-		return deny("git invoked without a subcommand")
+		return errors.New("git invoked without a subcommand")
 	}
 	sub, ok := wordLiteral(args[i])
 	if !ok {
-		return deny("cannot statically resolve git subcommand")
+		return errors.New("cannot statically resolve git subcommand")
 	}
 	if _, allowed := allowedSubcommands[sub]; !allowed {
-		return deny("%q is not in the allowlist", "git "+sub)
+		return fmt.Errorf("%q is not in the allowlist", "git "+sub)
 	}
 	for _, w := range args[i+1:] {
 		tok, ok := wordLiteral(w)
@@ -158,7 +179,7 @@ func checkGitCall(args []*syntax.Word) error {
 			flag = flag[:eq]
 		}
 		if _, bad := forbiddenFlags[flag]; bad {
-			return deny("forbidden flag %s", flag)
+			return fmt.Errorf("forbidden flag %s", flag)
 		}
 	}
 	return nil
@@ -191,15 +212,10 @@ func wordLiteral(w *syntax.Word) (string, bool) {
 	return b.String(), true
 }
 
-func isGit(name string) bool {
-	return name == "git" || strings.HasSuffix(name, "/git")
-}
+func isGit(name string) bool { return path.Base(name) == "git" }
 
 func isShellRunner(name string) bool {
-	if i := strings.LastIndexByte(name, '/'); i >= 0 {
-		name = name[i+1:]
-	}
-	_, ok := shellRunners[name]
+	_, ok := shellRunners[path.Base(name)]
 	return ok
 }
 
