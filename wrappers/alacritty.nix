@@ -25,16 +25,16 @@ let
 in
 pkgs.runCommand "alacritty"
   {
-    nativeBuildInputs = [ pkgs.makeWrapper ];
+    nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
   }
   ''
     mkdir -p $out
     ln -s ${config}/.config $out/.config
 
-    # use makeWrapper instead of wrapProgram to preserve the original process name 'alacritty'
-    # wrapProgram would have named it alacritty-wrapped instead
+    # makeBinaryWrapper compiles a tiny C launcher (no bash indirection per launch).
+    # Bare make*Wrapper instead of wrapProgram to preserve the original process name 'alacritty'.
     mkdir -p $out/bin
-    makeWrapper ${pkgs.alacritty}/bin/alacritty $out/bin/alacritty \
+    makeBinaryWrapper ${pkgs.alacritty}/bin/alacritty $out/bin/alacritty \
       --unset TMUX \
       --unset TMUX_PANE \
       --prefix PATH : ${pkgs.lib.makeBinPath tools} \
