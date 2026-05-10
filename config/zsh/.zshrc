@@ -86,6 +86,9 @@ KEYS=(
 typeset -F __TK2="$SECONDS"
 _profile "keys: %.0fms\n" $(( (__TK2 - __TK1) * 1000 ))
 
+# Force emacs keymap regardless of $EDITOR (nvim would otherwise auto-select viins)
+bindkey -e
+
 for f in "$NIX_OUT_SHELL"/.config/zsh/plugins/*/*.plugin.zsh; do
   source "$f"
 done
@@ -178,10 +181,10 @@ unalias ll 2>/dev/null
 unalias ls 2>/dev/null
 
 # ------------------------------------ Remove default bindings
-bindkey -r "${KEYS[ESCAPE]}"
-bindkey -r "${KEYS[CTRL_V]}"
-bindkey -r "${KEYS[CTRL_W]}"
-bindkey -r "${KEYS[CTRL_Q]}"
+# bindkey -r "${KEYS[ESCAPE]}"
+# bindkey -r "${KEYS[CTRL_V]}"
+# bindkey -r "${KEYS[CTRL_W]}"
+# bindkey -r "${KEYS[CTRL_Q]}"
 
 # ------------------------------------ Move
 # bindkey "${KEYS[SHIFT_ENTER]}" accept-line
