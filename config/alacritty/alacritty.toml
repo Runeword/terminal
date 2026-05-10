@@ -166,7 +166,7 @@ bindings = [
   { key = "Tab", mods = "Control|Shift", chars = "\u001B[9;6u" },
   { key = "Tab", mods = "Control|Alt", chars = "\u001B[9;7u" },
   { key = "Tab", mods = "Control|Alt|Shift", chars = "\u001B[9;8u" },
-  { key = "Escape", mods = "Control", chars = "\u0002[" },
+  { key = "Escape", mods = "Control", chars = "\u001b[27;5u" },
   { key = "Escape", mods = "Shift", chars = "\u001b[27;2u" },
 
   { key = "Key0", mods = "Control", chars = "\u001B[48;5u" },
