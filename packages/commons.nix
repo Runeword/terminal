@@ -56,7 +56,6 @@ with pkgs;
   unzip
 
   # _______________________________ Git
-  git
   gitleaks # security scan
   lazygit # tui
   onefetch # info
