@@ -40,6 +40,7 @@ in
   bash = import ./bash.nix { inherit pkgs files tests; };
   starship = import ./starship.nix { inherit pkgs files tests; };
   delta = import ./delta.nix { inherit pkgs files tests; };
+  git = import ./git.nix { inherit pkgs files tests; };
   navi = import ./navi.nix { inherit pkgs files tests; };
   nvim-fzf = import ./nvim-fzf.nix { inherit pkgs files tests; };
 }
