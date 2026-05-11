@@ -1,0 +1,27 @@
+[user]
+	email = 60324746+Runeword@users.noreply.github.com
+	name = Runeword
+[push]
+	default = current
+	autoSetupRemote = true
+[init]
+	defaultBranch = main
+[core]
+  pager = delta
+  untrackedCache = true
+[interactive]
+  diffFilter = delta --color-only
+[diff]
+  algorithm = histogram
+  colorMoved = zebra
+  colorMovedWS = allow-indentation-change
+  mnemonicPrefix = true
+  renames = copies
+[branch]
+  sort = -committerdate
+[rerere]
+  enabled = true
+[merge]
+  conflictStyle = zdiff3
+[include]
+  path = ../delta/config
