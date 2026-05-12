@@ -142,8 +142,8 @@ _profile "xdg: %.0fms, variables: %.0fms, dircolors: %.0fms\n" \
 typeset -F __T11="$SECONDS"
 mkdir -p "$XDG_STATE_HOME/zsh"
 HISTFILE="$XDG_STATE_HOME/zsh/history"
-HISTSIZE=10000
-SAVEHIST=10000
+HISTSIZE=100000
+SAVEHIST=100000
 setopt EXTENDED_HISTORY
 setopt HIST_IGNORE_ALL_DUPS
 setopt HIST_REDUCE_BLANKS
@@ -406,20 +406,16 @@ bindkey "${KEYS[ENTER]}" __aliases_or_enter
 
 ZSH_AUTOSUGGEST_STRATEGY=(custom history completion)
 
-# Defer compdef calls until compinit is loaded
+# Defer compdef calls until compinit is loaded; self-disable after the first successful run.
 __deferred_compdefs() {
-  # Only run if compinit has been loaded
-  if (( __compinit_loaded == 1 )); then
-    compdef _cd __cd 2>/dev/null # Use the built-in cd completion for the custom cd function
-    compdef _cd __mkdir_cd 2>/dev/null
-    compdef _files __chezmoi add 2>/dev/null
-    compdef _files __cp 2>/dev/null
-  fi
+  (( __compinit_loaded )) || return
+  compdef _cd __cd 2>/dev/null
+  compdef _cd __mkdir_cd 2>/dev/null
+  compdef _files __chezmoi add 2>/dev/null
+  compdef _files __cp 2>/dev/null
+  add-zsh-hook -d precmd __deferred_compdefs
 }
-
-# Will be called after compinit loads via background timer or first tab
-typeset -ga precmd_functions
-precmd_functions+=(__deferred_compdefs)
+add-zsh-hook precmd __deferred_compdefs
 
 __prevd_widget() { __prevd; zle reset-prompt; }
 zle -N __prevd_widget
