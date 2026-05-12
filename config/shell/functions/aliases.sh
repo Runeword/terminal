@@ -80,7 +80,7 @@ __aliases() {
       [ "$last_column" = "x" ] && zle accept-line
     fi
   elif [ "$selected_command" ]; then
-    LBUFFER+=$(echo "$selected_command" | sed -n '1p' | sed 's/[^[:alpha:]]//g')
+    LBUFFER+=$(echo "$selected_command" | sed -n '1p' | sed 's/^\^//')
   fi
 
   zle autosuggest-fetch
