@@ -12,5 +12,6 @@ mkShell {
     lint-go
     lint-nix
     lint-shell
+    security-gitleaks
   ];
 }
