@@ -1,11 +1,9 @@
 [delta]
   syntax-theme = none
-  dark = true
   navigate = true
   side-by-side = false
   line-numbers = true
   width = variable
-  raw = true
   diff-highlight = true
 
   # labels
@@ -21,9 +19,9 @@
   whitespace-error-style = "red reverse"
   file-style = "italic bold #ffffff"
   file-decoration-style = "none"
-  line-numbers-left-style = " #4B586E"
-  line-numbers-right-style = " #4B586e"
-  line-numbers-zero-style = " #4B586e"
+  line-numbers-left-style = " #4b586e"
+  line-numbers-right-style = " #4b586e"
+  line-numbers-zero-style = " #4b586e"
   line-numbers-minus-style =" #4b586e"
   line-numbers-plus-style = " #4b586e"
   minus-style = "#ffffff #664046"
