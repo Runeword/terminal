@@ -25,3 +25,5 @@
   conflictStyle = zdiff3
 [include]
   path = ../delta/config
+[include]
+  path = ~/.config/git/config.local
