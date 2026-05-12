@@ -7,8 +7,8 @@
 # export EDITOR=nvim
 
 export HISTFILE="${XDG_STATE_HOME}"/bash/history
-HISTSIZE=2000
-HISTFILESIZE=2000
+HISTSIZE=100000
+HISTFILESIZE=100000
 
 # source "$NIX_OUT_SHELL/.config/shell/scripts/ssh-agent.sh"
 
