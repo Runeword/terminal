@@ -1,5 +1,9 @@
 name: dependabot-auto-merge
-on: pull_request_target
+# pull_request_target is the GitHub-documented pattern for Dependabot auto-merge:
+# Dependabot PRs run with read-only token under `pull_request`, so write access
+# requires `pull_request_target`. Safe here because we never check out PR code
+# and gate on the actor being dependabot[bot].
+on: pull_request_target # zizmor: ignore[dangerous-triggers]
 permissions:
   contents: write
   pull-requests: write
@@ -9,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: metadata
-        uses: dependabot/fetch-metadata@v3
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3
       - if: steps.metadata.outputs.update-type != 'version-update:semver-major'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
