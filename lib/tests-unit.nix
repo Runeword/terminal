@@ -1,8 +1,8 @@
-# nix-unit-shaped invariants for the flake outputs.
+# Pure-eval invariants for the flake outputs.
 #
-# Each attribute is `{ expr = ...; expected = ...; }` per
-# https://nix-community.github.io/nix-unit/. Run via `checks.<system>.nix-unit`
-# (which invokes `nix-unit --flake .#tests.<system>`).
+# Each attribute is `{ expr = ...; expected = ...; }` and is consumed by
+# `pkgs.lib.runTests`, surfaced as `checks.<system>.unit-tests`. Only
+# attributes whose names start with `test` are picked up.
 {
   lib,
   wrappers,
