@@ -64,6 +64,7 @@ with pkgs;
   zsh-forgit # fuzzy git
 
   # _______________________________ Infra
+  opentofu
   lazydocker
   docker-compose
   # terraform
