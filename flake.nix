@@ -111,47 +111,24 @@
           ];
         };
 
-        tests = unitTests;
-
         checks = (pkgs.lib.mapAttrs (_: drv: drv.passthru.tests.smoke) wrappers) // {
-          nix-unit =
+          unit-tests =
             let
-              # Self-contained Nix expression that reconstructs `wrappers` from
-              # store paths and feeds it to lib/tests-unit.nix. Avoids
-              # `nix-unit --flake`, which would re-evaluate the whole flake
-              # inside the sandbox and need every transitive input fetched.
-              testFile = pkgs.writeText "tests.nix" ''
-                let
-                  pkgs-24-05 = import ${nixpkgs-24-05} {
-                    system = "${system}";
-                    config.allowUnfree = true;
-                    overlays = [ ];
-                  };
-                  pkgs = import ${nixpkgs} {
-                    system = "${system}";
-                    config.allowUnfree = true;
-                    overlays = import ${./overlays} { inherit pkgs-24-05; };
-                  };
-                  wrappers = import ${./wrappers} {
-                    inherit pkgs;
-                    configPath = ${./config};
-                  };
-                in
-                import ${./lib/tests-unit.nix} {
-                  inherit (pkgs) lib;
-                  inherit wrappers;
-                }
-              '';
+              failures = pkgs.lib.runTests unitTests;
             in
-            pkgs.runCommand "nix-unit"
+            pkgs.runCommand "unit-tests"
               {
-                nativeBuildInputs = [ pkgs.nix-unit ];
+                passthru.failures = failures;
               }
-              ''
-                export HOME="$(realpath .)"
-                nix-unit --eval-store "$HOME" ${testFile}
-                touch $out
-              '';
+              (
+                if failures == [ ] then
+                  "touch $out"
+                else
+                  ''
+                    echo ${pkgs.lib.escapeShellArg (builtins.toJSON failures)} >&2
+                    exit 1
+                  ''
+              );
         };
       }
     )
