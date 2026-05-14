@@ -38,8 +38,7 @@ Outputs:
 - `packages.firefox-mcp` / `packages.mobile-mcp` — standalone MCP server packages from `packages/custom/`. Other `packages/custom/` entries (`claude-statusline`, `git-allowlist-hook`, `git-branches`) are Go binaries built and consumed internally by the `claude` wrapper / `config/claude/settings.json` hooks — not exposed as flake outputs.
 - `apps.default` / `apps.dev` — `nix run` targets for bundled / dev mode. `apps.dev` is conditionally added only when `TERMINAL_CONFIG_DIR` is set (via `getEnv` + `--impure`), so `nix flake check` stays clean in pure mode.
 - `checks.<wrapper>` — each wrapper's `passthru.tests.smoke` derivation, run by `nix flake check`.
-- `checks.nix-unit` — runs `lib/tests-unit.nix` invariants (e.g. "every wrapper has a smoke test") via `nix-unit`. The check builds a self-contained `tests.nix` referencing store paths so the sandbox doesn't need to refetch flake inputs.
-- `tests` — the raw nix-unit attrset, exposed at the top level so `nix-unit --flake .#tests` works without going through `checks`.
+- `checks.unit-tests` — runs `lib/tests-unit.nix` invariants (e.g. "every wrapper has a smoke test") via `pkgs.lib.runTests` at flake-evaluation time. On failure, the derivation build emits the JSON failure list on stderr and exits 1 (failure is scoped to this check; unrelated flake outputs are unaffected). Failures are also exposed via `passthru.failures` for `nix eval` introspection.
 - `lib.mkTerminal` / `lib.mkTools` — reusable builders for downstream flakes. Both take `{ system, configPath ? ./config }` (not `pkgs`); they call `mkPkgs system` internally so consumers can't accidentally pull stale versions of version-sensitive tools through their own `nixpkgs` lock.
 - `homeModules.default` — home-manager integration (see `modules/terminal.nix`, options under `programs.terminal`).
 
