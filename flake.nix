@@ -1,8 +1,8 @@
 {
   description = "Alacritty with configuration";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-  inputs.nixpkgs-24-05.url = "github:NixOS/nixpkgs/nixos-24.05";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+  inputs.nixpkgs-24-05.url = "github:NixOS/nixpkgs/nixpkgs-24.05-darwin";
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.claude = {
     url = "github:Runeword/claude";
