@@ -3,27 +3,19 @@
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   inputs.nixpkgs-24-05.url = "github:NixOS/nixpkgs/nixpkgs-24.05-darwin";
+
   inputs.flake-utils.url = "github:numtide/flake-utils";
-  inputs.claude = {
-    url = "github:Runeword/claude";
-    inputs.nixpkgs.follows = "nixpkgs";
-  };
-  inputs.lefthook = {
-    url = "github:Runeword/lefthook";
-    inputs.nixpkgs.follows = "nixpkgs";
-  };
+
+  inputs.claude.url = "github:Runeword/claude";
+  inputs.claude.inputs.nixpkgs.follows = "nixpkgs";
+
+  inputs.lefthook.url = "github:Runeword/lefthook";
+  inputs.lefthook.inputs.nixpkgs.follows = "nixpkgs";
+
   # inputs.hello-flake.url = "github:sbellem/hello-flake";
 
   outputs =
-    {
-      self,
-      nixpkgs,
-      nixpkgs-24-05,
-      flake-utils,
-      claude,
-      lefthook,
-      ...
-    }@inputs:
+    inputs@{ self, ... }:
     let
       mkWrappers = pkgs: configPath: import ./wrappers { inherit pkgs configPath; };
 
@@ -38,19 +30,19 @@
       mkPkgs =
         system:
         let
-          pkgs-24-05 = import nixpkgs-24-05 {
+          pkgs-24-05 = import inputs.nixpkgs-24-05 {
             inherit system;
             config.allowUnfree = true;
             overlays = [ ];
           };
         in
-        import nixpkgs {
+        import inputs.nixpkgs {
           inherit system;
           config.allowUnfree = true;
           overlays = import ./overlays { inherit pkgs-24-05; };
         };
     in
-    flake-utils.lib.eachDefaultSystem (
+    inputs.flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = mkPkgs system;
@@ -106,8 +98,8 @@
           inputsFrom = [
             (import ./devshells/terminal.nix { inherit pkgs; })
             (import ./devshells/languages.nix { inherit pkgs; })
-            claude.devShells.${system}.ast-grep
-            (import ./devshells/lefthook.nix { inherit pkgs lefthook; })
+            inputs.claude.devShells.${system}.ast-grep
+            (import ./devshells/lefthook.nix { inherit inputs system; })
           ];
         };
 
