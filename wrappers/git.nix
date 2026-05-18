@@ -10,6 +10,10 @@ let
       source = "git/config";
       target = ".config/git/config";
     }
+    {
+      source = "git/ignore";
+      target = ".config/git/ignore";
+    }
     # Bundled here too so [include] path = ../delta/config resolves within
     # this wrapper's own output. Otherwise the include silently misses and
     # delta.* keys aren't visible via `git config`.
@@ -27,7 +31,8 @@ let
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
       wrapProgram $out/bin/git \
-        --set GIT_CONFIG_GLOBAL "$out/.config/git/config"
+        --set GIT_CONFIG_GLOBAL "$out/.config/git/config" \
+        --add-flags "-c core.excludesFile=$out/.config/git/ignore"
     '';
     passthru.tests.smoke = tests.smoke {
       name = "git";
