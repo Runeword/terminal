@@ -4,6 +4,18 @@
 // on stdout. Any internal error (malformed input, unparseable shell) maps to a
 // deny, so the hook fails closed: a hook that cannot enforce policy must not
 // let the tool call through.
+//
+// The allowlist can be extended at runtime via a TOML config file whose path
+// is supplied through the CLAUDE_GIT_ALLOWLIST_CONFIG environment variable
+// (the claude wrapper points it at config/claude/git-allowlist.toml in the
+// repo). Schema:
+//
+//	allow = ["push", "fetch", "tag"]
+//
+// Entries are merged with the built-in defaults — additions do not require a
+// rebuild when running in dev mode (the path resolves to a symlink into the
+// working tree). An unset variable or missing file means no extras; a parse
+// error is logged to stderr and also treated as no extras.
 package main
 
 import (
@@ -11,15 +23,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"strings"
 
+	"github.com/BurntSushi/toml"
 	"mvdan.cc/sh/v3/syntax"
 )
 
+// envConfigPath is the environment variable holding the path to the user's
+// TOML allowlist extension file. See the package doc.
+const envConfigPath = "CLAUDE_GIT_ALLOWLIST_CONFIG"
+
 var (
-	allowedSubcommands = map[string]struct{}{
+	defaultAllowedSubcommands = map[string]struct{}{
 		"status": {}, "diff": {}, "log": {}, "show": {}, "branch": {},
 		"rev-parse": {}, "config": {}, "remote": {}, "ls-files": {}, "blame": {},
 	}
@@ -314,7 +332,7 @@ func checkGitCall(args []*syntax.Word) error {
 	if !ok {
 		return errors.New("cannot statically resolve git subcommand")
 	}
-	if _, allowed := allowedSubcommands[sub]; !allowed {
+	if !isAllowedSubcommand(sub) {
 		return fmt.Errorf("%q is not in the allowlist", "git "+sub)
 	}
 	rest := args[i+1:]
@@ -549,6 +567,45 @@ func wordLiteral(w *syntax.Word) (string, bool) {
 		}
 	}
 	return b.String(), true
+}
+
+// isAllowedSubcommand reports whether sub is in the built-in allowlist or in
+// the user's TOML config (see package doc). The config file is read on every
+// call; the hook is a one-shot process so the cost is trivial, and avoiding
+// global init state keeps tests straightforward.
+func isAllowedSubcommand(sub string) bool {
+	if _, ok := defaultAllowedSubcommands[sub]; ok {
+		return true
+	}
+	for _, name := range loadConfigExtras() {
+		if name == sub {
+			return true
+		}
+	}
+	return false
+}
+
+type allowlistConfig struct {
+	Allow []string `toml:"allow"`
+}
+
+// loadConfigExtras returns the user-supplied subcommand additions, or nil if
+// the env var is unset or the file is absent or unparseable. Parse errors are
+// logged to stderr so the user notices a broken config, but the hook still
+// falls back to defaults rather than denying every git invocation.
+func loadConfigExtras() []string {
+	path := os.Getenv(envConfigPath)
+	if path == "" {
+		return nil
+	}
+	var c allowlistConfig
+	if _, err := toml.DecodeFile(path, &c); err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			fmt.Fprintf(os.Stderr, "git-allowlist: %s: %v\n", path, err)
+		}
+		return nil
+	}
+	return c.Allow
 }
 
 func isGit(name string) bool { return path.Base(name) == "git" }
