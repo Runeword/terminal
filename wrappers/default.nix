@@ -8,7 +8,7 @@ let
     rootPath = configPath;
   };
   tests = import ../lib/tests.nix { inherit pkgs; };
-  claude = import ./claude {
+  claude = import ./claude.nix {
     inherit
       pkgs
       files
