@@ -52,6 +52,10 @@ let
       target = ".claude/settings.json";
     }
     {
+      source = "claude/git-allowlist.toml";
+      target = ".claude/git-allowlist.toml";
+    }
+    {
       source = "claude/hooks/format.sh";
       target = "bin/claude-format";
     }
@@ -73,6 +77,7 @@ let
         --prefix PATH : "$out/bin:${pkgs.lib.makeBinPath tools}" \
         --add-flags "--settings $out/.claude/settings.json --setting-sources project,local --add-dir $out" \
         --set-default CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD 1 \
+        --set CLAUDE_GIT_ALLOWLIST_CONFIG $out/.claude/git-allowlist.toml \
         --set RTK_TELEMETRY_DISABLED 1 \
         --unset TMUX
     '';
