@@ -5,6 +5,8 @@
   line-numbers = true
   width = variable
   diff-highlight = true
+  hyperlinks = true
+  hyperlinks-file-link-format = "nvim://file/{path}:{line}"
 
   # labels
   file-added-label = +
