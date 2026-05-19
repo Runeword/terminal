@@ -3,11 +3,14 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestCheckCommand(t *testing.T) {
+	t.Setenv(envConfigPath, "")
 	tests := []struct {
 		name    string
 		cmd     string
@@ -201,6 +204,47 @@ func TestDecide(t *testing.T) {
 			}
 			if out != nil {
 				t.Fatalf("decide: want allow, got deny: %+v", out)
+			}
+		})
+	}
+}
+
+func TestConfigAllowExtra(t *testing.T) {
+	tests := []struct {
+		name    string
+		toml    string // file contents; empty means env var is unset
+		cmd     string
+		wantErr bool
+	}{
+		{"unset env still denies push", "", "git push", true},
+		{"allow push", `allow = ["push"]`, "git push", false},
+		{"allow multiple", `allow = ["push", "fetch"]`, "git fetch", false},
+		{"empty list still denies", `allow = []`, "git push", true},
+		{"unknown still denied", `allow = ["push"]`, "git rebase main", true},
+		{"forbidden flag still wins", `allow = ["push"]`, "git push --force", true},
+		{"defaults still allowed", `allow = ["push"]`, "git status", false},
+		{"applies via bash -c", `allow = ["push"]`, `bash -c "git push"`, false},
+		{"applies via xargs", `allow = ["push"]`, `xargs git push`, false},
+		{"malformed toml falls back to defaults", `allow = [`, "git push", true},
+		{"malformed toml does not break defaults", `allow = [`, "git status", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(envConfigPath, "")
+			if tt.toml != "" {
+				path := filepath.Join(t.TempDir(), "git-allowlist.toml")
+				if err := os.WriteFile(path, []byte(tt.toml), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				t.Setenv(envConfigPath, path)
+			}
+			err := checkCommand(tt.cmd)
+			if tt.wantErr && err == nil {
+				t.Fatalf("checkCommand(%q) with toml=%q: want deny, got allow", tt.cmd, tt.toml)
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("checkCommand(%q) with toml=%q: want allow, got deny: %v", tt.cmd, tt.toml, err)
 			}
 		})
 	}
