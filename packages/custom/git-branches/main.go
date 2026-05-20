@@ -11,7 +11,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: git-branches <worktree|switch|merge|cherry-pick|diff-branches|worktree-remove|stash-apply>")
+		fmt.Fprintln(os.Stderr, "usage: git-branches <worktree|worktree-add|switch|merge|cherry-pick|diff-branches|worktree-remove|stash-apply>")
 		os.Exit(1)
 	}
 
@@ -27,6 +27,8 @@ func main() {
 		err = cherryPick()
 	case "diff-branches":
 		err = diffBranches()
+	case "worktree-add":
+		err = worktreeAdd()
 	case "worktree-remove":
 		err = worktreeRemove()
 	case "stash-apply":
@@ -424,6 +426,89 @@ func diffBranches() error {
 	}
 
 	fmt.Printf("%s %s", editor, strings.Join(quoted, " "))
+	return nil
+}
+
+func worktreeAdd() error {
+	var info *branchInfo
+	var currentCommit string
+	var wtLines []string
+	var infoErr, commitErr, wtErr error
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		info, infoErr = fetchBranches(false, true)
+	}()
+	go func() {
+		defer wg.Done()
+		currentCommit, commitErr = gitLine("rev-parse", "--short", "HEAD")
+	}()
+	go func() {
+		defer wg.Done()
+		wtLines, wtErr = gitLines("worktree", "list")
+	}()
+	wg.Wait()
+
+	if infoErr != nil {
+		return infoErr
+	}
+	if commitErr != nil {
+		return commitErr
+	}
+	if wtErr != nil {
+		return wtErr
+	}
+	if len(wtLines) == 0 {
+		return nil
+	}
+
+	var available []string
+	for _, b := range info.branches {
+		if _, ok := info.worktrees[b]; !ok {
+			available = append(available, b)
+		}
+	}
+	if len(available) == 0 {
+		return nil
+	}
+
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	header := fmt.Sprintf("%s\t%s\t[%s]", filepath.Base(currentDir), currentCommit, info.current)
+
+	fzfArgs := []string{
+		fmt.Sprintf("--header=%s", header),
+		fmt.Sprintf("--preview=echo {}; git diff --color=always %s..{} | %s",
+			shellQuote(info.current), info.pager),
+		"--preview-window=right,75%,border-none,wrap,~1",
+	}
+	fzfArgs = append(fzfArgs, os.Args[2:]...)
+
+	selected, err := runFzf(available, fzfArgs...)
+	if err != nil {
+		return err
+	}
+	if selected == "" {
+		return nil
+	}
+
+	repoName := filepath.Base(strings.Fields(wtLines[0])[0])
+	n := 1
+	for {
+		stat, err := os.Stat(fmt.Sprintf("../%s_%d", repoName, n))
+		if err != nil || !stat.IsDir() {
+			break
+		}
+		n++
+	}
+	worktreePath := fmt.Sprintf("../%s_%d", repoName, n)
+
+	fmt.Printf("git worktree add %s %s && builtin cd %s ",
+		shellQuote(worktreePath), shellQuote(selected), shellQuote(worktreePath))
 	return nil
 }
 
