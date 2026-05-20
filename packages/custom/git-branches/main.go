@@ -226,7 +226,7 @@ func switchBranch() error {
 	args := []string{
 		"--delimiter=\t",
 		"--with-nth=1,2",
-		fmt.Sprintf("--preview=echo {}; git diff --color=always %s..{1} | %s", info.current, info.pager),
+		fmt.Sprintf("--preview=echo {}; git diff --color=always %s..{1} | %s", shellQuote(info.current), info.pager),
 		"--preview-window=right,65%,border-none,wrap,~1",
 	}
 	args = append(args, os.Args[2:]...)
@@ -265,7 +265,7 @@ func mergeBranch() error {
 	args := []string{
 		fmt.Sprintf("--header=merge into %s", info.current),
 		"--bind=tab:down,btab:up",
-		fmt.Sprintf("--preview=echo {}; git diff --color=always %s...{} | %s", info.current, info.pager),
+		fmt.Sprintf("--preview=echo {}; git diff --color=always %s...{} | %s", shellQuote(info.current), info.pager),
 		"--preview-window=right,75%,border-none,wrap,~1",
 	}
 	args = append(args, os.Args[2:]...)
@@ -398,7 +398,7 @@ func diffBranches() error {
 		"--multi",
 		"--bind=ctrl-a:select-all",
 		fmt.Sprintf("--preview=echo {}; cd %s && git diff --color=always %s %s -- {} | %s",
-			shellQuote(repoRoot), branch1, branch2, info.pager),
+			shellQuote(repoRoot), shellQuote(branch1), shellQuote(branch2), info.pager),
 		"--preview-window=right,75%,border-none,wrap,~1",
 	}
 	fileArgs = append(fileArgs, os.Args[2:]...)
@@ -504,7 +504,7 @@ func worktreeRemove() error {
 		"--with-nth=1,2,3",
 		"--delimiter=\t",
 		fmt.Sprintf("--preview=echo {1} {2} {3}; git diff --color=always %s..$(echo {3} | tr -d '[]') | %s",
-			currentBranch, pager),
+			shellQuote(currentBranch), pager),
 		"--preview-window=right,75%,border-none,wrap,~1",
 	}
 	fzfArgs = append(fzfArgs, os.Args[2:]...)
