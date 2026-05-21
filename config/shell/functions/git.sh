@@ -3,6 +3,13 @@
 # shellcheck disable=SC2016,SC3043
 _GIT_PAGER='$(git config core.pager || echo cat)'
 
+# POSIX-safe single-quote escape: wraps $1 in single quotes and replaces any
+# embedded ' with '\''. Use when interpolating a value into a string that will
+# later be evaluated by another shell (e.g. fzf --preview).
+__shell_quote() {
+  printf "'%s'" "$(printf %s "$1" | sed "s/'/'\\\\''/g")"
+}
+
 __git_clone() {
   local repo_url="${2:-$(wl-paste)}" # Use clipboard content if no URL is provided
   local base_dir="${HOME}/${1}"
@@ -44,26 +51,29 @@ _GIT_FZF_PREVIEW_CMD="echo {};"
 _GIT_FZF_PREVIEW="--preview-window 'right,75%,border-none,wrap,~1'"
 
 __git_diff_tracked() {
-  local root
+  local root quoted
   root="$(git rev-parse --show-toplevel)"
-  local check="cd \"$root\" && git ls-files --error-unmatch {} > /dev/null 2>&1"
-  local diff="git diff --ignore-space-change --color=always -- {} | $_GIT_PAGER"
+  quoted="$(__shell_quote "$root")"
+  local check="git -C $quoted ls-files --error-unmatch {} > /dev/null 2>&1"
+  local diff="git -C $quoted diff --ignore-space-change --color=always -- {} | $_GIT_PAGER"
   printf '{ %s && %s; }' "$check" "$diff"
 }
 
 __git_diff_untracked() {
-  local root
+  local root quoted
   root="$(git rev-parse --show-toplevel)"
-  local link="cd \"$root\" && test -L {} && readlink {}"
-  local diff="cd \"$root\" && ! test -L {} && git diff --ignore-space-change --no-index --color=always /dev/null {} | $_GIT_PAGER"
+  quoted="$(__shell_quote "$root")"
+  local link="cd $quoted && test -L {} && readlink {}"
+  local diff="cd $quoted && ! test -L {} && git diff --ignore-space-change --no-index --color=always /dev/null {} | $_GIT_PAGER"
   printf '{ %s || %s; }' "$link" "$diff"
 }
 
 __git_diff_staged() {
-  local root
+  local root quoted
   root="$(git rev-parse --show-toplevel)"
-  local check="cd \"$root\" && git diff --cached --name-only -- {} | grep -q ."
-  local diff="git diff --ignore-space-change --cached --color=always -- {} | $_GIT_PAGER"
+  quoted="$(__shell_quote "$root")"
+  local check="git -C $quoted diff --cached --name-only -- {} | grep -q ."
+  local diff="git -C $quoted diff --ignore-space-change --cached --color=always -- {} | $_GIT_PAGER"
   printf '{ %s && %s; }' "$check" "$diff"
 }
 
@@ -152,21 +162,22 @@ __git_ignore() {
   local cmd
 
   case "$action" in
-    open)
-      cmd="$EDITOR"
-      ;;
-    remove | rm)
-      cmd="rm --"
-      ;;
-    *)
-      echo "Usage: __git_ignore [open|remove]"
-      return 1
-      ;;
+  open)
+    cmd="$EDITOR"
+    ;;
+  remove | rm)
+    cmd="rm --"
+    ;;
+  *)
+    echo "Usage: __git_ignore [open|remove]"
+    return 1
+    ;;
   esac
 
-  local repo_root
+  local repo_root quoted_repo_root
   repo_root="$(git rev-parse --show-toplevel)"
-  local preview="--preview '$_GIT_FZF_PREVIEW_CMD cd \"$repo_root\" && ls -la -- {}' $_GIT_FZF_PREVIEW"
+  quoted_repo_root="$(__shell_quote "$repo_root")"
+  local preview="--preview '$_GIT_FZF_PREVIEW_CMD cd $quoted_repo_root && ls -la -- {}' $_GIT_FZF_PREVIEW"
   local args
   args=$(__git_fzf_select "git status --ignored --porcelain | grep '^!!' | cut -c4-" "$preview")
   [ "$args" != "" ] && echo "$cmd $args"
@@ -179,18 +190,18 @@ __git_diff() {
   repo_cdup="$(git rev-parse --show-cdup)"
 
   case "${1:-all}" in
-    staged)
-      list_cmd="git diff --name-only --cached"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
-      ;;
-    unstaged)
-      list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
-      ;;
-    *)
-      list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
-      ;;
+  staged)
+    list_cmd="git diff --name-only --cached"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
+    ;;
+  unstaged)
+    list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+    ;;
+  *)
+    list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+    ;;
   esac
 
   local args
@@ -307,8 +318,8 @@ __git_lefthook_pre_commit() {
     grep -A 100 "^pre-commit:" "$file" | grep "^    [a-z-]*:" | sed 's/://;s/^    //'
     grep "^ *- " "$file" | sed 's/^ *- //' | while read -r ext_file; do
       case "$ext_file" in
-        /*) __lefthook_collect_commands "$ext_file" ;;
-        *) __lefthook_collect_commands "$repo_root/$ext_file" ;;
+      /*) __lefthook_collect_commands "$ext_file" ;;
+      *) __lefthook_collect_commands "$repo_root/$ext_file" ;;
       esac
     done
   }
