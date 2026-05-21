@@ -249,9 +249,9 @@ func switchBranch() error {
 	}
 
 	if worktreePath == "" {
-		fmt.Printf("git checkout %s ", branch)
+		fmt.Printf("git checkout %s ", shellQuote(branch))
 	} else {
-		fmt.Printf("builtin cd '%s' ", worktreePath)
+		fmt.Printf("builtin cd %s ", shellQuote(worktreePath))
 	}
 
 	return nil
@@ -280,7 +280,7 @@ func mergeBranch() error {
 		return nil
 	}
 
-	fmt.Printf("git merge %s ", selected)
+	fmt.Printf("git merge %s ", shellQuote(selected))
 	return nil
 }
 
@@ -341,7 +341,11 @@ func cherryPick() error {
 	}
 
 	if len(hashes) > 0 {
-		fmt.Printf("git cherry-pick %s", strings.Join(hashes, " "))
+		quoted := make([]string, len(hashes))
+		for i, h := range hashes {
+			quoted[i] = shellQuote(h)
+		}
+		fmt.Printf("git cherry-pick %s", strings.Join(quoted, " "))
 	}
 	return nil
 }
@@ -714,6 +718,6 @@ func stashApply() error {
 		}
 	}
 
-	fmt.Printf("git restore --source=%s -- %s && git status", stashName, strings.Join(quoted, " "))
+	fmt.Printf("git restore --source=%s -- %s && git status", shellQuote(stashName), strings.Join(quoted, " "))
 	return nil
 }
