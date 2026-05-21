@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -643,16 +644,29 @@ func worktreeAdd() error {
 		return nil
 	}
 
+	// Pick a fresh sibling-of-main-worktree directory name. Anchoring to the
+	// main worktree (rather than CWD) means `gwa` invoked from inside an
+	// existing sibling worktree still proposes the right slot — using `..` from
+	// CWD would otherwise resolve to a different parent and could collide with
+	// the main checkout or an unrelated directory.
+	baseDir := filepath.Dir(worktrees[0].path)
 	repoName := filepath.Base(worktrees[0].path)
-	n := 1
-	for {
-		stat, err := os.Stat(fmt.Sprintf("../%s_%d", repoName, n))
-		if err != nil || !stat.IsDir() {
+	const maxAttempts = 1000
+	var worktreePath string
+	for n := 1; n <= maxAttempts; n++ {
+		candidate := filepath.Join(baseDir, fmt.Sprintf("%s_%d", repoName, n))
+		_, err := os.Stat(candidate)
+		if errors.Is(err, fs.ErrNotExist) {
+			worktreePath = candidate
 			break
 		}
-		n++
+		// Any other state (exists as dir/file/symlink, EACCES, EIO, ...) means
+		// we can't safely use this name. Skip rather than breaking the loop,
+		// which would have reused a directory that happened to be unreadable.
 	}
-	worktreePath := fmt.Sprintf("../%s_%d", repoName, n)
+	if worktreePath == "" {
+		return fmt.Errorf("worktree-add: no free directory name under %s within %d tries", baseDir, maxAttempts)
+	}
 
 	fmt.Printf("git worktree add %s %s && builtin cd %s ",
 		shellQuote(worktreePath), shellQuote(selected), shellQuote(worktreePath))
