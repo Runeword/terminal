@@ -10,6 +10,13 @@ __shell_quote() {
   printf "'%s'" "$(printf %s "$1" | sed "s/'/'\\\\''/g")"
 }
 
+# Return non-zero (with git's own "fatal: not a git repository" message on
+# stderr) when not inside a work tree. Used at the top of every function that
+# reads repo state via `git rev-parse` or emits commands assuming repo context.
+__git_require_repo() {
+  git rev-parse --is-inside-work-tree >/dev/null || return 1
+}
+
 __git_clone() {
   local repo_url="${2:-$(wl-paste)}" # Use clipboard content if no URL is provided
   local base_dir="${HOME}/${1}"
@@ -19,6 +26,8 @@ __git_clone() {
 }
 
 __git_open_url() {
+  __git_require_repo || return 1
+
   # Step 1: Get the remote URL
   local REMOTE_URL
   REMOTE_URL=$(git remote get-url origin)
@@ -96,6 +105,8 @@ __git_fzf_select() {
 }
 
 __git_add() {
+  __git_require_repo || return 1
+
   local repo_cdup
   repo_cdup="$(git rev-parse --show-cdup)"
   local preview
@@ -106,6 +117,8 @@ __git_add() {
 }
 
 __git_commit() {
+  __git_require_repo || return 1
+
   local repo_cdup
   repo_cdup="$(git rev-parse --show-cdup)"
   local preview
@@ -116,6 +129,8 @@ __git_commit() {
 }
 
 __git_unstage() {
+  __git_require_repo || return 1
+
   local repo_cdup
   repo_cdup="$(git rev-parse --show-cdup)"
   local preview
@@ -126,6 +141,8 @@ __git_unstage() {
 }
 
 __git_discard() {
+  __git_require_repo || return 1
+
   local repo_cdup
   repo_cdup="$(git rev-parse --show-cdup)"
   local preview
@@ -136,6 +153,8 @@ __git_discard() {
 }
 
 __git_untrack() {
+  __git_require_repo || return 1
+
   local repo_cdup
   repo_cdup="$(git rev-parse --show-cdup)"
   local preview
@@ -146,6 +165,8 @@ __git_untrack() {
 }
 
 __git_rm_untracked() {
+  __git_require_repo || return 1
+
   local repo_cdup
   repo_cdup="$(git rev-parse --show-cdup)"
   local preview
@@ -156,22 +177,22 @@ __git_rm_untracked() {
 }
 
 __git_ignore() {
-  git rev-parse --is-inside-work-tree >/dev/null || return 1
+  __git_require_repo || return 1
 
   local action="${1:-open}"
   local cmd
 
   case "$action" in
-    open)
-      cmd="$EDITOR"
-      ;;
-    remove | rm)
-      cmd="rm --"
-      ;;
-    *)
-      echo "Usage: __git_ignore [open|remove]"
-      return 1
-      ;;
+  open)
+    cmd="$EDITOR"
+    ;;
+  remove | rm)
+    cmd="rm --"
+    ;;
+  *)
+    echo "Usage: __git_ignore [open|remove]"
+    return 1
+    ;;
   esac
 
   local repo_root quoted_repo_root
@@ -184,24 +205,24 @@ __git_ignore() {
 }
 
 __git_diff() {
-  git rev-parse --is-inside-work-tree >/dev/null || return 1
+  __git_require_repo || return 1
 
   local repo_cdup list_cmd preview
   repo_cdup="$(git rev-parse --show-cdup)"
 
   case "${1:-all}" in
-    staged)
-      list_cmd="git diff --name-only --cached"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
-      ;;
-    unstaged)
-      list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
-      ;;
-    *)
-      list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
-      ;;
+  staged)
+    list_cmd="git diff --name-only --cached"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
+    ;;
+  unstaged)
+    list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+    ;;
+  *)
+    list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+    ;;
   esac
 
   local args
@@ -214,6 +235,8 @@ __git_diff_branches() {
 }
 
 __git_reset_soft() {
+  __git_require_repo || return 1
+
   local list_commits="git log --oneline --first-parent"
   local preview="--preview '$_GIT_FZF_PREVIEW_CMD git show --color=always --decorate {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local fzf_args="$_GIT_FZF_BASE"
@@ -228,6 +251,8 @@ __git_reset_soft() {
 }
 
 __git_log() {
+  __git_require_repo || return 1
+
   local preview="--preview '$_GIT_FZF_PREVIEW_CMD git show --color=always --decorate {1} | $_GIT_PAGER' $_GIT_FZF_PREVIEW"
   local fzf_args="$_GIT_FZF_BASE"
   local commit
@@ -307,7 +332,7 @@ __git_branch_switch() {
 }
 
 __git_lefthook_pre_commit() {
-  git rev-parse --is-inside-work-tree >/dev/null || return 1
+  __git_require_repo || return 1
 
   local repo_root
   repo_root=$(git rev-parse --show-toplevel)
@@ -318,8 +343,8 @@ __git_lefthook_pre_commit() {
     grep -A 100 "^pre-commit:" "$file" | grep "^    [a-z-]*:" | sed 's/://;s/^    //'
     grep "^ *- " "$file" | sed 's/^ *- //' | while read -r ext_file; do
       case "$ext_file" in
-        /*) __lefthook_collect_commands "$ext_file" ;;
-        *) __lefthook_collect_commands "$repo_root/$ext_file" ;;
+      /*) __lefthook_collect_commands "$ext_file" ;;
+      *) __lefthook_collect_commands "$repo_root/$ext_file" ;;
       esac
     done
   }
@@ -354,7 +379,7 @@ __git_cherry_pick() {
 }
 
 __git_stash_push() {
-  git rev-parse --is-inside-work-tree >/dev/null || return 1
+  __git_require_repo || return 1
 
   local list_files="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
   local repo_root
