@@ -73,6 +73,57 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
+type worktree struct {
+	path     string
+	head     string // full sha
+	branch   string // refs/heads/foo, "" if detached or bare
+	detached bool
+	bare     bool
+	locked   bool
+}
+
+// listWorktrees parses `git worktree list --porcelain`. The first entry is the
+// main worktree. Robust against paths with spaces and detached/bare/locked
+// worktrees, unlike the plain whitespace-delimited format.
+func listWorktrees() ([]worktree, error) {
+	out, err := exec.Command("git", "worktree", "list", "--porcelain").Output()
+	if err != nil {
+		return nil, err
+	}
+	var worktrees []worktree
+	var cur *worktree
+	for _, line := range strings.Split(string(out), "\n") {
+		if line == "" {
+			if cur != nil {
+				worktrees = append(worktrees, *cur)
+				cur = nil
+			}
+			continue
+		}
+		if cur == nil {
+			cur = &worktree{}
+		}
+		switch {
+		case strings.HasPrefix(line, "worktree "):
+			cur.path = line[len("worktree "):]
+		case strings.HasPrefix(line, "HEAD "):
+			cur.head = line[len("HEAD "):]
+		case strings.HasPrefix(line, "branch "):
+			cur.branch = line[len("branch "):]
+		case line == "detached":
+			cur.detached = true
+		case line == "bare":
+			cur.bare = true
+		case line == "locked", strings.HasPrefix(line, "locked "):
+			cur.locked = true
+		}
+	}
+	if cur != nil {
+		worktrees = append(worktrees, *cur)
+	}
+	return worktrees, nil
+}
+
 type branchInfo struct {
 	current   string
 	branches  []string
@@ -436,7 +487,7 @@ func diffBranches() error {
 func worktreeAdd() error {
 	var info *branchInfo
 	var currentCommit string
-	var wtLines []string
+	var worktrees []worktree
 	var infoErr, commitErr, wtErr error
 
 	var wg sync.WaitGroup
@@ -451,7 +502,7 @@ func worktreeAdd() error {
 	}()
 	go func() {
 		defer wg.Done()
-		wtLines, wtErr = gitLines("worktree", "list")
+		worktrees, wtErr = listWorktrees()
 	}()
 	wg.Wait()
 
@@ -464,7 +515,7 @@ func worktreeAdd() error {
 	if wtErr != nil {
 		return wtErr
 	}
-	if len(wtLines) == 0 {
+	if len(worktrees) == 0 {
 		return nil
 	}
 
@@ -500,7 +551,7 @@ func worktreeAdd() error {
 		return nil
 	}
 
-	repoName := filepath.Base(strings.Fields(wtLines[0])[0])
+	repoName := filepath.Base(worktrees[0].path)
 	n := 1
 	for {
 		stat, err := os.Stat(fmt.Sprintf("../%s_%d", repoName, n))
@@ -519,7 +570,7 @@ func worktreeAdd() error {
 // worktreeRemove picks worktrees to remove and outputs the shell commands to execute.
 func worktreeRemove() error {
 	var currentBranch, currentCommit string
-	var wtLines []string
+	var worktrees []worktree
 	var pager string
 	var branchErr, commitErr, wtErr error
 
@@ -535,7 +586,7 @@ func worktreeRemove() error {
 	}()
 	go func() {
 		defer wg.Done()
-		wtLines, wtErr = gitLines("worktree", "list")
+		worktrees, wtErr = listWorktrees()
 	}()
 	go func() {
 		defer wg.Done()
@@ -552,11 +603,11 @@ func worktreeRemove() error {
 	if wtErr != nil {
 		return wtErr
 	}
-	if len(wtLines) < 2 {
+	if len(worktrees) < 2 {
 		return nil
 	}
 
-	mainWorktree := strings.Fields(wtLines[0])[0]
+	mainWorktree := worktrees[0].path
 	currentDir, err := os.Getwd()
 	if err != nil {
 		return err
@@ -565,22 +616,31 @@ func worktreeRemove() error {
 	dirName := filepath.Base(currentDir)
 	header := fmt.Sprintf("%s\t%s\t[%s]", dirName, currentCommit, currentBranch)
 
-	// Parse non-main worktrees into tab-delimited display lines:
-	//   dir \t commit \t [branch] \t fullpath
+	// Tab-delimited display lines for fzf:
+	//   dir \t commit \t [branch] \t fullpath \t shell-quoted diff target
+	// Columns 1-3 are shown; column 4 is the path used for removal; column 5
+	// is a pre-quoted ref (branch name or sha for detached) used in --preview.
 	var displayLines []string
-	for _, line := range wtLines[1:] {
-		fields := strings.Fields(line)
-		if len(fields) < 3 {
+	for _, wt := range worktrees[1:] {
+		if wt.bare {
 			continue
 		}
-		wtPath := fields[0]
-		commit := fields[1]
-		branch := ""
-		if start, end := strings.Index(line, "["), strings.Index(line, "]"); start != -1 && end != -1 {
-			branch = line[start : end+1]
+		short := wt.head
+		if len(short) > 7 {
+			short = short[:7]
+		}
+		var displayBranch, diffTarget string
+		if wt.detached || wt.branch == "" {
+			displayBranch = "(detached)"
+			diffTarget = wt.head
+		} else {
+			name := strings.TrimPrefix(wt.branch, "refs/heads/")
+			displayBranch = "[" + name + "]"
+			diffTarget = name
 		}
 		displayLines = append(displayLines,
-			fmt.Sprintf("%s\t%s\t%s\t%s", filepath.Base(wtPath), commit, branch, wtPath))
+			fmt.Sprintf("%s\t%s\t%s\t%s\t%s",
+				filepath.Base(wt.path), short, displayBranch, wt.path, shellQuote(diffTarget)))
 	}
 	if len(displayLines) == 0 {
 		return nil
@@ -592,7 +652,7 @@ func worktreeRemove() error {
 		fmt.Sprintf("--header=%s", header),
 		"--with-nth=1,2,3",
 		"--delimiter=\t",
-		fmt.Sprintf("--preview=echo {1} {2} {3}; git diff --color=always %s..$(echo {3} | tr -d '[]') | %s",
+		fmt.Sprintf("--preview=echo {1} {2} {3}; git diff --color=always %s..{5} | %s",
 			shellQuote(currentBranch), pager),
 		"--preview-window=right,75%,border-none,wrap,~1",
 	}
@@ -609,7 +669,7 @@ func worktreeRemove() error {
 	var selectedPaths []string
 	needsCd := false
 	for _, line := range strings.Split(selected, "\n") {
-		parts := strings.SplitN(line, "\t", 4)
+		parts := strings.SplitN(line, "\t", 5)
 		if len(parts) < 4 {
 			continue
 		}
