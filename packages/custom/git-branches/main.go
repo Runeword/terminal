@@ -153,10 +153,28 @@ func listWorktrees() ([]worktree, error) {
 }
 
 type branchInfo struct {
-	current   string
+	current   string // attached: short branch name; detached: short commit sha
+	detached  bool
 	branches  []string
 	worktrees map[string]string // branch → worktree path
 	pager     string
+}
+
+// detectHead returns the short branch name when HEAD points at a branch, or
+// the abbreviated commit sha when HEAD is detached. The bool is true iff
+// detached. Using `symbolic-ref -q --short` (quiet on failure) avoids the
+// `git rev-parse --abbrev-ref HEAD` quirk that returns the literal string
+// "HEAD" in detached mode — which then poisons every header and diff range
+// that interpolates it.
+func detectHead() (string, bool, error) {
+	if name, err := gitLine("symbolic-ref", "-q", "--short", "HEAD"); err == nil && name != "" {
+		return name, false, nil
+	}
+	sha, err := gitLine("rev-parse", "--short", "HEAD")
+	if err != nil {
+		return "", false, err
+	}
+	return sha, true, nil
 }
 
 // fetchBranches concurrently fetches the current branch, the local and
@@ -170,6 +188,7 @@ type branchInfo struct {
 // before falling back to `origin`).
 func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 	var current, pager string
+	var detached bool
 	var refRaw, remotes []string
 	var currentErr, refErr error
 
@@ -177,7 +196,7 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 	wg.Add(4)
 	go func() {
 		defer wg.Done()
-		current, currentErr = gitLine("rev-parse", "--abbrev-ref", "HEAD")
+		current, detached, currentErr = detectHead()
 	}()
 	go func() {
 		defer wg.Done()
@@ -266,6 +285,7 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 
 	return &branchInfo{
 		current:   current,
+		detached:  detached,
 		branches:  all,
 		worktrees: worktrees,
 		pager:     pager,
@@ -376,6 +396,9 @@ func mergeBranch() error {
 	if err != nil {
 		return err
 	}
+	if info.detached {
+		return fmt.Errorf("merge: HEAD is detached (at %s); check out a branch first", info.current)
+	}
 
 	args := []string{
 		fmt.Sprintf("--header=merge into %s", info.current),
@@ -402,6 +425,9 @@ func cherryPick() error {
 	info, err := fetchBranches(true, true)
 	if err != nil {
 		return err
+	}
+	if info.detached {
+		return fmt.Errorf("cherry-pick: HEAD is detached (at %s); check out a branch first", info.current)
 	}
 
 	// Step 1: pick a branch.
@@ -595,7 +621,11 @@ func worktreeAdd() error {
 	if err != nil {
 		return err
 	}
-	header := fmt.Sprintf("%s\t%s\t[%s]", filepath.Base(currentDir), currentCommit, info.current)
+	branchLabel := "[" + info.current + "]"
+	if info.detached {
+		branchLabel = "(detached)"
+	}
+	header := fmt.Sprintf("%s\t%s\t%s", filepath.Base(currentDir), currentCommit, branchLabel)
 
 	fzfArgs := []string{
 		fmt.Sprintf("--header=%s", header),
@@ -632,6 +662,7 @@ func worktreeAdd() error {
 // worktreeRemove picks worktrees to remove and outputs the shell commands to execute.
 func worktreeRemove() error {
 	var currentBranch, currentCommit string
+	var detached bool
 	var worktrees []worktree
 	var pager string
 	var branchErr, commitErr, wtErr error
@@ -640,7 +671,7 @@ func worktreeRemove() error {
 	wg.Add(4)
 	go func() {
 		defer wg.Done()
-		currentBranch, branchErr = gitLine("rev-parse", "--abbrev-ref", "HEAD")
+		currentBranch, detached, branchErr = detectHead()
 	}()
 	go func() {
 		defer wg.Done()
@@ -676,7 +707,11 @@ func worktreeRemove() error {
 	}
 
 	dirName := filepath.Base(currentDir)
-	header := fmt.Sprintf("%s\t%s\t[%s]", dirName, currentCommit, currentBranch)
+	branchLabel := "[" + currentBranch + "]"
+	if detached {
+		branchLabel = "(detached)"
+	}
+	header := fmt.Sprintf("%s\t%s\t%s", dirName, currentCommit, branchLabel)
 
 	// Tab-delimited display lines for fzf:
 	//   dir \t commit \t [branch] \t fullpath \t shell-quoted diff target
