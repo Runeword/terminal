@@ -159,23 +159,36 @@ type branchInfo struct {
 	pager     string
 }
 
-// fetchBranches concurrently fetches the current branch, a filtered branch
-// list, and the configured pager. It removes HEAD, symrefs, and (when
-// dedupRemote is true) remote branches that have a local counterpart.
+// fetchBranches concurrently fetches the current branch, the local and
+// remote-tracking branches (with their worktree paths), the list of configured
+// remotes, and the pager. Locals and remotes are queried separately via
+// for-each-ref so a local branch like `feature/foo` is never mistaken for a
+// `feature/foo` remote-tracking ref. When dedupRemote is true, a remote-
+// tracking branch is hidden iff a local branch with the same logical name
+// exists; "logical name" is computed by stripping a known remote prefix
+// (longest match wins, so a remote literally named `origin/mirror` is handled
+// before falling back to `origin`).
 func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 	var current, pager string
-	var raw []string
-	var currentErr, rawErr error
+	var refRaw, remotes []string
+	var currentErr, refErr error
 
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(4)
 	go func() {
 		defer wg.Done()
 		current, currentErr = gitLine("rev-parse", "--abbrev-ref", "HEAD")
 	}()
 	go func() {
 		defer wg.Done()
-		raw, rawErr = gitLines("branch", "--all", "--format=%(refname:short)%09%(worktreepath)%09%(symref)")
+		refRaw, refErr = gitLines("for-each-ref",
+			"--format=%(refname)%09%(worktreepath)%09%(symref)",
+			"refs/heads", "refs/remotes")
+	}()
+	go func() {
+		defer wg.Done()
+		// A repo can legitimately have zero remotes; ignore errors.
+		remotes, _ = gitLines("remote")
 	}()
 	go func() {
 		defer wg.Done()
@@ -186,54 +199,74 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 	if currentErr != nil {
 		return nil, currentErr
 	}
-	if rawErr != nil {
-		return nil, rawErr
+	if refErr != nil {
+		return nil, refErr
 	}
 
-	local := map[string]bool{}
+	localSet := map[string]bool{}
 	worktrees := map[string]string{}
-	var all []string
-	for _, line := range raw {
+	var locals []string
+
+	type remoteBranch struct {
+		display string // e.g. "origin/main" or "upstream/feature/foo"
+		logical string // e.g. "main" or "feature/foo" — used for dedupe vs local
+	}
+	var remoteList []remoteBranch
+
+	for _, line := range refRaw {
 		parts := strings.SplitN(line, "\t", 3)
-		branch := parts[0]
-		worktree := ""
-		symref := ""
+		ref := parts[0]
+		var worktreePath, symref string
 		if len(parts) >= 2 {
-			worktree = parts[1]
+			worktreePath = parts[1]
 		}
 		if len(parts) >= 3 {
 			symref = parts[2]
 		}
-		if branch == "" || strings.HasPrefix(branch, "HEAD") || symref != "" {
+		if ref == "" || symref != "" {
 			continue
 		}
-		if !strings.Contains(branch, "/") {
-			local[branch] = true
-		}
-		if worktree != "" {
-			worktrees[branch] = worktree
-		}
-		all = append(all, branch)
-	}
-
-	var filtered []string
-	for _, b := range all {
-		if excludeCurrent && b == current {
-			continue
-		}
-		if dedupRemote {
-			if idx := strings.Index(b, "/"); idx != -1 {
-				if local[b[idx+1:]] {
-					continue
+		switch {
+		case strings.HasPrefix(ref, "refs/heads/"):
+			name := strings.TrimPrefix(ref, "refs/heads/")
+			localSet[name] = true
+			locals = append(locals, name)
+			if worktreePath != "" {
+				worktrees[name] = worktreePath
+			}
+		case strings.HasPrefix(ref, "refs/remotes/"):
+			short := strings.TrimPrefix(ref, "refs/remotes/")
+			bestRemote := ""
+			for _, r := range remotes {
+				if r != "" && strings.HasPrefix(short, r+"/") && len(r) > len(bestRemote) {
+					bestRemote = r
 				}
 			}
+			logical := short
+			if bestRemote != "" {
+				logical = short[len(bestRemote)+1:]
+			}
+			remoteList = append(remoteList, remoteBranch{display: short, logical: logical})
 		}
-		filtered = append(filtered, b)
+	}
+
+	var all []string
+	for _, name := range locals {
+		if excludeCurrent && name == current {
+			continue
+		}
+		all = append(all, name)
+	}
+	for _, rb := range remoteList {
+		if dedupRemote && localSet[rb.logical] {
+			continue
+		}
+		all = append(all, rb.display)
 	}
 
 	return &branchInfo{
 		current:   current,
-		branches:  filtered,
+		branches:  all,
 		worktrees: worktrees,
 		pager:     pager,
 	}, nil
