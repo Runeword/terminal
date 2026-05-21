@@ -889,6 +889,9 @@ func stashApply() error {
 		}
 	}
 
-	fmt.Printf("git restore --source=%s -- %s && git status", shellQuote(stashName), strings.Join(quoted, " "))
+	// Use the resolved sha (not stash@{N}) so the command stays correct even if
+	// another stash is pushed/popped between selection and execution — stash
+	// reflog indices shift, but the sha doesn't move.
+	fmt.Printf("git restore --source=%s -- %s && git status", shellQuote(stashRef), strings.Join(quoted, " "))
 	return nil
 }
