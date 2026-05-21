@@ -184,16 +184,16 @@ __git_ignore() {
   local cmd
 
   case "$action" in
-    open)
-      cmd="$EDITOR"
-      ;;
-    remove | rm)
-      cmd="rm --"
-      ;;
-    *)
-      echo "Usage: __git_ignore [open|remove]"
-      return 1
-      ;;
+  open)
+    cmd="$EDITOR"
+    ;;
+  remove | rm)
+    cmd="rm --"
+    ;;
+  *)
+    echo "Usage: __git_ignore [open|remove]"
+    return 1
+    ;;
   esac
 
   local repo_root quoted_repo_root
@@ -212,18 +212,18 @@ __git_diff() {
   repo_cdup="$(git rev-parse --show-cdup)"
 
   case "${1:-all}" in
-    staged)
-      list_cmd="git diff --name-only --cached"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
-      ;;
-    unstaged)
-      list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
-      ;;
-    *)
-      list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
-      ;;
+  staged)
+    list_cmd="git diff --name-only --cached"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
+    ;;
+  unstaged)
+    list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+    ;;
+  *)
+    list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+    ;;
   esac
 
   local args
@@ -267,7 +267,7 @@ __git_log() {
   local repo_cdup
   repo_cdup="$(git rev-parse --show-cdup)"
   local args
-  args=$(git diff-tree --root --no-commit-id --name-only -r "$commit" | sh -c "fzf --print0 $file_fzf_args $file_preview" | tr '\0' '\n' | sed 's/ /\\ /g' | tr '\n' ' ')
+  args=$(git diff-tree --root --no-commit-id --name-only -r "$commit" | sh -c "fzf --print0 $file_fzf_args $file_preview" | tr '\0' '\n' | sed "s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' ')
   [ "$args" != "" ] && echo "$EDITOR ${repo_cdup:+$repo_cdup}$args"
 }
 
@@ -351,8 +351,8 @@ __lefthook_collect_commands() {
     in_extends && /^[ \t]+- / { print }
   ' "$file" | sed 's/^ *- //' | while read -r ext_file; do
     case "$ext_file" in
-      /*) __lefthook_collect_commands "$ext_file" "$repo_root" ;;
-      *) __lefthook_collect_commands "$repo_root/$ext_file" "$repo_root" ;;
+    /*) __lefthook_collect_commands "$ext_file" "$repo_root" ;;
+    *) __lefthook_collect_commands "$repo_root/$ext_file" "$repo_root" ;;
     esac
   done
 }
@@ -407,7 +407,7 @@ __git_stash_push() {
   if [ "$selected_files" != "" ]; then
     local files
     files=$(printf '%s' "$selected_files" | tr '\0' '\n' |
-      sed 's/ /\\ /g; s/^/  /; s/$/ \\/')
+      sed "s/'/'\\\\''/g; s/.*/  '&' \\\\/")
     local git_root
     git_root=$(git rev-parse --show-cdup)
     echo "git -C ${git_root:-.} stash push --include-untracked -- \\"
