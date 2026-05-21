@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -8,6 +9,10 @@ import (
 	"strings"
 	"sync"
 )
+
+// errFzfCancel signals that the user dismissed fzf (Esc / Ctrl-C). main()
+// translates it to a clean exit so deferred cleanup in callers still runs.
+var errFzfCancel = errors.New("fzf canceled")
 
 func main() {
 	if len(os.Args) < 2 {
@@ -39,6 +44,9 @@ func main() {
 	}
 
 	if err != nil {
+		if errors.Is(err, errFzfCancel) {
+			return
+		}
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -212,7 +220,8 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 }
 
 // runFzf pipes lines into fzf with the given args and returns the selection.
-// Returns empty string on no match. Exits the process on user cancel (Esc/Ctrl-C).
+// Returns "" on no match, and errFzfCancel when the user dismisses fzf
+// (Esc/Ctrl-C) so callers can unwind cleanly.
 func runFzf(lines []string, args ...string) (string, error) {
 	fzf := exec.Command("fzf", args...)
 	fzf.Stderr = os.Stderr
@@ -233,7 +242,7 @@ func runFzf(lines []string, args ...string) (string, error) {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			switch exitErr.ExitCode() {
 			case 130:
-				os.Exit(0)
+				return "", errFzfCancel
 			case 1:
 				return "", nil
 			}
