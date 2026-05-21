@@ -20,6 +20,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Every subcommand needs a work tree. Exit silently when invoked outside
+	// one so leader-key chords stay quiet in unrelated directories.
+	if err := exec.Command("git", "rev-parse", "--is-inside-work-tree").Run(); err != nil {
+		return
+	}
+
 	var err error
 	switch os.Args[1] {
 	case "worktree":
@@ -52,8 +58,22 @@ func main() {
 	}
 }
 
-func gitLines(args ...string) ([]string, error) {
+// runGit invokes git and returns its stdout. On a non-zero exit, the returned
+// error includes git's stderr instead of the opaque "exit status N" that
+// *exec.ExitError formats to by default.
+func runGit(args ...string) ([]byte, error) {
 	out, err := exec.Command("git", args...).Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && len(exitErr.Stderr) > 0 {
+			return out, fmt.Errorf("git %s: %s", strings.Join(args, " "), strings.TrimSpace(string(exitErr.Stderr)))
+		}
+		return out, err
+	}
+	return out, nil
+}
+
+func gitLines(args ...string) ([]string, error) {
+	out, err := runGit(args...)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +85,7 @@ func gitLines(args ...string) ([]string, error) {
 }
 
 func gitLine(args ...string) (string, error) {
-	out, err := exec.Command("git", args...).Output()
+	out, err := runGit(args...)
 	return strings.TrimRight(string(out), "\n"), err
 }
 
@@ -94,7 +114,7 @@ type worktree struct {
 // main worktree. Robust against paths with spaces and detached/bare/locked
 // worktrees, unlike the plain whitespace-delimited format.
 func listWorktrees() ([]worktree, error) {
-	out, err := exec.Command("git", "worktree", "list", "--porcelain").Output()
+	out, err := runGit("worktree", "list", "--porcelain")
 	if err != nil {
 		return nil, err
 	}
