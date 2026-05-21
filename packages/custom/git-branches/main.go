@@ -362,7 +362,7 @@ func switchBranch() error {
 	args := []string{
 		"--delimiter=\t",
 		"--with-nth=1,2",
-		fmt.Sprintf("--preview=echo {}; git diff --color=always %s..{1} | %s", shellQuote(info.current), info.pager),
+		fmt.Sprintf("--preview=echo {}; git diff --color=always --end-of-options %s..{1} | %s", shellQuote(info.current), info.pager),
 		"--preview-window=right,65%,border-none,wrap,~1",
 	}
 	args = append(args, os.Args[2:]...)
@@ -383,7 +383,7 @@ func switchBranch() error {
 	}
 
 	if worktreePath == "" {
-		fmt.Printf("git checkout %s ", shellQuote(branch))
+		fmt.Printf("git checkout --end-of-options %s ", shellQuote(branch))
 	} else {
 		fmt.Printf("builtin cd %s ", shellQuote(worktreePath))
 	}
@@ -404,7 +404,7 @@ func mergeBranch() error {
 	args := []string{
 		fmt.Sprintf("--header=merge into %s", info.current),
 		"--bind=tab:down,btab:up",
-		fmt.Sprintf("--preview=echo {}; git diff --color=always %s...{} | %s", shellQuote(info.current), info.pager),
+		fmt.Sprintf("--preview=echo {}; git diff --color=always --end-of-options %s...{} | %s", shellQuote(info.current), info.pager),
 		"--preview-window=right,75%,border-none,wrap,~1",
 	}
 	args = append(args, os.Args[2:]...)
@@ -417,7 +417,7 @@ func mergeBranch() error {
 		return nil
 	}
 
-	fmt.Printf("git merge %s ", shellQuote(selected))
+	fmt.Printf("git merge --end-of-options %s ", shellQuote(selected))
 	return nil
 }
 
@@ -434,7 +434,7 @@ func cherryPick() error {
 	// Step 1: pick a branch.
 	branchArgs := []string{
 		fmt.Sprintf("--header=cherry-pick into %s", info.current),
-		fmt.Sprintf("--preview=echo {}; git log --oneline --color=always {}"),
+		fmt.Sprintf("--preview=echo {}; git log --oneline --color=always --end-of-options {}"),
 		"--preview-window=right,75%,border-none,wrap,~1",
 	}
 	branchArgs = append(branchArgs, os.Args[2:]...)
@@ -500,7 +500,7 @@ func diffBranches() error {
 	// Step 1: pick 1 or 2 branches.
 	branchArgs := []string{
 		"--multi",
-		fmt.Sprintf("--preview=echo {}; git log --oneline --color=always {}"),
+		fmt.Sprintf("--preview=echo {}; git log --oneline --color=always --end-of-options {}"),
 		"--preview-window=right,75%,border-none,wrap,~1",
 	}
 	branchArgs = append(branchArgs, os.Args[2:]...)
@@ -543,7 +543,7 @@ func diffBranches() error {
 	fileArgs := []string{
 		"--multi",
 		"--bind=ctrl-a:select-all",
-		fmt.Sprintf("--preview=echo {}; cd %s && git diff --color=always %s %s -- {} | %s",
+		fmt.Sprintf("--preview=echo {}; cd %s && git diff --color=always --end-of-options %s %s -- {} | %s",
 			shellQuote(repoRoot), shellQuote(branch1), shellQuote(branch2), info.pager),
 		"--preview-window=right,75%,border-none,wrap,~1",
 	}
@@ -630,7 +630,7 @@ func worktreeAdd() error {
 
 	fzfArgs := []string{
 		fmt.Sprintf("--header=%s", header),
-		fmt.Sprintf("--preview=echo {}; git diff --color=always %s..{} | %s",
+		fmt.Sprintf("--preview=echo {}; git diff --color=always --end-of-options %s..{} | %s",
 			shellQuote(info.current), info.pager),
 		"--preview-window=right,75%,border-none,wrap,~1",
 	}
@@ -668,7 +668,7 @@ func worktreeAdd() error {
 		return fmt.Errorf("worktree-add: no free directory name under %s within %d tries", baseDir, maxAttempts)
 	}
 
-	fmt.Printf("git worktree add %s %s && builtin cd %s ",
+	fmt.Printf("git worktree add --end-of-options %s %s && builtin cd %s ",
 		shellQuote(worktreePath), shellQuote(selected), shellQuote(worktreePath))
 	return nil
 }
@@ -763,7 +763,7 @@ func worktreeRemove() error {
 		fmt.Sprintf("--header=%s", header),
 		"--with-nth=1,2,3",
 		"--delimiter=\t",
-		fmt.Sprintf("--preview=echo {1} {2} {3}; git diff --color=always %s..{5} | %s",
+		fmt.Sprintf("--preview=echo {1} {2} {3}; git diff --color=always --end-of-options %s..{5} | %s",
 			shellQuote(currentBranch), pager),
 		"--preview-window=right,75%,border-none,wrap,~1",
 	}
