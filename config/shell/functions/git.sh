@@ -36,9 +36,10 @@ __git_open_url() {
   local REPO_URL
   REPO_URL=$(echo "$REMOTE_URL" | sed -E 's#git@[^:]+:([^/]+)/([^.]+)\.git#https://github.com/\1/\2#')
 
-  # Step 3: Get the current branch name
+  # Step 3: Get the current branch name (or full sha when detached, since
+  # GitHub treats the literal string "HEAD" in URLs as a branch name and 404s).
   local BRANCH
-  BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  BRANCH=$(git symbolic-ref -q --short HEAD || git rev-parse HEAD)
 
   # Step 4: Construct the final URL to the branch page
   local FINAL_URL
@@ -183,16 +184,16 @@ __git_ignore() {
   local cmd
 
   case "$action" in
-    open)
-      cmd="$EDITOR"
-      ;;
-    remove | rm)
-      cmd="rm --"
-      ;;
-    *)
-      echo "Usage: __git_ignore [open|remove]"
-      return 1
-      ;;
+  open)
+    cmd="$EDITOR"
+    ;;
+  remove | rm)
+    cmd="rm --"
+    ;;
+  *)
+    echo "Usage: __git_ignore [open|remove]"
+    return 1
+    ;;
   esac
 
   local repo_root quoted_repo_root
@@ -211,18 +212,18 @@ __git_diff() {
   repo_cdup="$(git rev-parse --show-cdup)"
 
   case "${1:-all}" in
-    staged)
-      list_cmd="git diff --name-only --cached"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
-      ;;
-    unstaged)
-      list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
-      ;;
-    *)
-      list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
-      ;;
+  staged)
+    list_cmd="git diff --name-only --cached"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
+    ;;
+  unstaged)
+    list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+    ;;
+  *)
+    list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+    ;;
   esac
 
   local args
@@ -343,8 +344,8 @@ __git_lefthook_pre_commit() {
     grep -A 100 "^pre-commit:" "$file" | grep "^    [a-z-]*:" | sed 's/://;s/^    //'
     grep "^ *- " "$file" | sed 's/^ *- //' | while read -r ext_file; do
       case "$ext_file" in
-        /*) __lefthook_collect_commands "$ext_file" ;;
-        *) __lefthook_collect_commands "$repo_root/$ext_file" ;;
+      /*) __lefthook_collect_commands "$ext_file" ;;
+      *) __lefthook_collect_commands "$repo_root/$ext_file" ;;
       esac
     done
   }
