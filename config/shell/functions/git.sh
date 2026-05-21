@@ -152,16 +152,16 @@ __git_ignore() {
   local cmd
 
   case "$action" in
-    open)
-      cmd="$EDITOR"
-      ;;
-    remove | rm)
-      cmd="rm --"
-      ;;
-    *)
-      echo "Usage: __git_ignore [open|remove]"
-      return 1
-      ;;
+  open)
+    cmd="$EDITOR"
+    ;;
+  remove | rm)
+    cmd="rm --"
+    ;;
+  *)
+    echo "Usage: __git_ignore [open|remove]"
+    return 1
+    ;;
   esac
 
   local repo_root
@@ -179,18 +179,18 @@ __git_diff() {
   repo_cdup="$(git rev-parse --show-cdup)"
 
   case "${1:-all}" in
-    staged)
-      list_cmd="git diff --name-only --cached"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
-      ;;
-    unstaged)
-      list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
-      ;;
-    *)
-      list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
-      ;;
+  staged)
+    list_cmd="git diff --name-only --cached"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
+    ;;
+  unstaged)
+    list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+    ;;
+  *)
+    list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+    ;;
   esac
 
   local args
@@ -284,9 +284,7 @@ __git_worktree_add() {
 }
 
 __git_worktree_remove() {
-  local cmd
-  cmd=$(eval "git-branches worktree-remove $_GIT_FZF_BASE")
-  [ "$cmd" != "" ] && eval "$cmd"
+  eval "git-branches worktree-remove $_GIT_FZF_BASE"
 }
 
 __git_merge() {
@@ -309,8 +307,8 @@ __git_lefthook_pre_commit() {
     grep -A 100 "^pre-commit:" "$file" | grep "^    [a-z-]*:" | sed 's/://;s/^    //'
     grep "^ *- " "$file" | sed 's/^ *- //' | while read -r ext_file; do
       case "$ext_file" in
-        /*) __lefthook_collect_commands "$ext_file" ;;
-        *) __lefthook_collect_commands "$repo_root/$ext_file" ;;
+      /*) __lefthook_collect_commands "$ext_file" ;;
+      *) __lefthook_collect_commands "$repo_root/$ext_file" ;;
       esac
     done
   }
