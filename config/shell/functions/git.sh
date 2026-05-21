@@ -28,22 +28,31 @@ __git_clone() {
 __git_open_url() {
   __git_require_repo || return 1
 
-  # Step 1: Get the remote URL
   local REMOTE_URL
-  REMOTE_URL=$(git remote get-url origin)
+  REMOTE_URL=$(git remote get-url origin) || return 1
 
-  # Step 2: Convert SSH URL to HTTPS URL
+  # Normalize any git remote URL form to https://host/owner/repo. Covers:
+  #   git@host:owner/repo[.git]                  (scp-like SSH)
+  #   ssh://[git@]host[:port]/owner/repo[.git]   (SSH protocol, with optional port)
+  #   git://host/owner/repo[.git]                (git protocol)
+  #   http(s)://host/owner/repo[.git]            (HTTPS/HTTP)
+  # The previous single regex hardcoded `github.com` in the output and only
+  # matched the scp-like SSH form, so HTTPS clones or any non-GitHub remote
+  # produced a wrong URL.
   local REPO_URL
-  REPO_URL=$(echo "$REMOTE_URL" | sed -E 's#git@[^:]+:([^/]+)/([^.]+)\.git#https://github.com/\1/\2#')
+  REPO_URL=$(printf '%s\n' "$REMOTE_URL" | sed -E \
+    -e 's#^git@([^:]+):#https://\1/#' \
+    -e 's#^ssh://(git@)?([^/:]+)(:[0-9]+)?/#https://\2/#' \
+    -e 's#^git://([^/]+)/#https://\1/#' \
+    -e 's#^http://#https://#' \
+    -e 's#\.git$##')
 
-  # Step 3: Get the current branch name (or full sha when detached, since
-  # GitHub treats the literal string "HEAD" in URLs as a branch name and 404s).
+  # Branch name when attached, or full sha when detached (GitHub treats the
+  # literal string "HEAD" in URLs as a branch name and 404s).
   local BRANCH
   BRANCH=$(git symbolic-ref -q --short HEAD || git rev-parse HEAD)
 
-  # Step 4: Construct the final URL to the branch page
-  local FINAL_URL
-  FINAL_URL="${REPO_URL}/${1:-tree}/${BRANCH}"
+  local FINAL_URL="${REPO_URL}/${1:-tree}/${BRANCH}"
 
   if command -v xdg-open >/dev/null 2>&1; then
     (nohup xdg-open "$FINAL_URL" >/dev/null 2>&1 &)
@@ -184,16 +193,16 @@ __git_ignore() {
   local cmd
 
   case "$action" in
-    open)
-      cmd="$EDITOR"
-      ;;
-    remove | rm)
-      cmd="rm --"
-      ;;
-    *)
-      echo "Usage: __git_ignore [open|remove]"
-      return 1
-      ;;
+  open)
+    cmd="$EDITOR"
+    ;;
+  remove | rm)
+    cmd="rm --"
+    ;;
+  *)
+    echo "Usage: __git_ignore [open|remove]"
+    return 1
+    ;;
   esac
 
   local repo_root quoted_repo_root
@@ -212,18 +221,18 @@ __git_diff() {
   repo_cdup="$(git rev-parse --show-cdup)"
 
   case "${1:-all}" in
-    staged)
-      list_cmd="git diff --name-only --cached"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
-      ;;
-    unstaged)
-      list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
-      ;;
-    *)
-      list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
-      ;;
+  staged)
+    list_cmd="git diff --name-only --cached"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
+    ;;
+  unstaged)
+    list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+    ;;
+  *)
+    list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+    ;;
   esac
 
   local args
@@ -351,8 +360,8 @@ __lefthook_collect_commands() {
     in_extends && /^[ \t]+- / { print }
   ' "$file" | sed 's/^ *- //' | while read -r ext_file; do
     case "$ext_file" in
-      /*) __lefthook_collect_commands "$ext_file" "$repo_root" ;;
-      *) __lefthook_collect_commands "$repo_root/$ext_file" "$repo_root" ;;
+    /*) __lefthook_collect_commands "$ext_file" "$repo_root" ;;
+    *) __lefthook_collect_commands "$repo_root/$ext_file" "$repo_root" ;;
     esac
   done
 }
