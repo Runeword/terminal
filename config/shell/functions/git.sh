@@ -184,16 +184,16 @@ __git_ignore() {
   local cmd
 
   case "$action" in
-    open)
-      cmd="$EDITOR"
-      ;;
-    remove | rm)
-      cmd="rm --"
-      ;;
-    *)
-      echo "Usage: __git_ignore [open|remove]"
-      return 1
-      ;;
+  open)
+    cmd="$EDITOR"
+    ;;
+  remove | rm)
+    cmd="rm --"
+    ;;
+  *)
+    echo "Usage: __git_ignore [open|remove]"
+    return 1
+    ;;
   esac
 
   local repo_root quoted_repo_root
@@ -212,18 +212,18 @@ __git_diff() {
   repo_cdup="$(git rev-parse --show-cdup)"
 
   case "${1:-all}" in
-    staged)
-      list_cmd="git diff --name-only --cached"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
-      ;;
-    unstaged)
-      list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
-      ;;
-    *)
-      list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
-      preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
-      ;;
+  staged)
+    list_cmd="git diff --name-only --cached"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)' $_GIT_FZF_PREVIEW"
+    ;;
+  unstaged)
+    list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+    ;;
+  *)
+    list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
+    preview="--preview '$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)' $_GIT_FZF_PREVIEW"
+    ;;
   esac
 
   local args
@@ -332,26 +332,39 @@ __git_branch_switch() {
   eval "git-branches switch $_GIT_FZF_BASE --header='switch to branch'"
 }
 
+# Emit each pre-commit command name from a lefthook YAML, one per line, and
+# recurse into files listed under a top-level `extends:` key. The recursion is
+# scoped to that key only — without it, any YAML list item anywhere in the
+# file (a command's `tags:` list, a file glob, …) would be treated as an
+# include path. Defined at top level so it doesn't leak into the global
+# namespace as a side effect of running __git_lefthook_pre_commit.
+__lefthook_collect_commands() {
+  local file="$1"
+  local repo_root="$2"
+  [ -f "$file" ] || return
+
+  grep -A 100 "^pre-commit:" "$file" | grep "^    [a-z-]*:" | sed 's/://;s/^    //'
+
+  awk '
+    /^extends:/ { in_extends = 1; next }
+    in_extends && /^[^ #\t]/ { in_extends = 0 }
+    in_extends && /^[ \t]+- / { print }
+  ' "$file" | sed 's/^ *- //' | while read -r ext_file; do
+    case "$ext_file" in
+    /*) __lefthook_collect_commands "$ext_file" "$repo_root" ;;
+    *) __lefthook_collect_commands "$repo_root/$ext_file" "$repo_root" ;;
+    esac
+  done
+}
+
 __git_lefthook_pre_commit() {
   __git_require_repo || return 1
 
   local repo_root
   repo_root=$(git rev-parse --show-toplevel)
 
-  __lefthook_collect_commands() {
-    local file="$1"
-    [ -f "$file" ] || return
-    grep -A 100 "^pre-commit:" "$file" | grep "^    [a-z-]*:" | sed 's/://;s/^    //'
-    grep "^ *- " "$file" | sed 's/^ *- //' | while read -r ext_file; do
-      case "$ext_file" in
-        /*) __lefthook_collect_commands "$ext_file" ;;
-        *) __lefthook_collect_commands "$repo_root/$ext_file" ;;
-      esac
-    done
-  }
-
   local commands_list
-  commands_list=$(__lefthook_collect_commands "$repo_root/lefthook.yml" | sort -u)
+  commands_list=$(__lefthook_collect_commands "$repo_root/lefthook.yml" "$repo_root" | sort -u)
 
   if [ "$commands_list" = "" ]; then
     echo "No pre-commit commands found in lefthook config"
