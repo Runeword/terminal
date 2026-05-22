@@ -21,6 +21,7 @@ Other useful commands:
 - `nix flake check` / `nix flake show` — validate or inspect outputs.
 - `nix build .#default` / `nix build .#tools` — build the terminal or the tools env.
 - `lefthook run pre-commit` — run git hooks locally (hooks live in `lefthook.local.yml`, which is a symlink into the Nix store).
+- `infra <args>` — OpenTofu wrapper (from `devshells/infra.nix`); always runs against `./infra` and supplies `GITHUB_TOKEN` from `gh auth token`. See `infra/README.md`.
 
 ## Architecture
 
@@ -42,7 +43,7 @@ Outputs:
 - `lib.mkTerminal` / `lib.mkTools` — reusable builders for downstream flakes. Both take `{ system, configPath ? ./config }` (not `pkgs`); they call `mkPkgs system` internally so consumers can't accidentally pull stale versions of version-sensitive tools through their own `nixpkgs` lock.
 - `homeModules.default` — home-manager integration (see `modules/terminal.nix`, options under `programs.terminal`).
 
-`devShells.default` is composed via `inputsFrom` from four sub-shells: `devshells/terminal.nix` (the `dev`/`bdl`/`tools`/`smoke`/`h` helpers above), `devshells/languages.nix`, `claude.devShells.${system}.ast-grep` (from the `claude` flake input), and `devshells/lefthook.nix`.
+`devShells.default` is composed via `inputsFrom` from five sub-shells: `devshells/terminal.nix` (the `dev`/`bdl`/`tools`/`smoke`/`h` helpers above), `devshells/languages.nix`, `devshells/infra.nix` (the `infra` wrapper), `claude.devShells.${system}.ast-grep` (from the `claude` flake input), and `devshells/lefthook.nix`.
 
 ### The `files.mkConfig` abstraction (`lib/files.nix`)
 
@@ -66,6 +67,10 @@ Three overlays are applied: one pins `awscli2` to nixpkgs-24.05; one source-pins
 ### Config tree (`config/`)
 
 Per-tool configuration (alacritty, zsh, bash, tmux, bat, starship, delta, direnv, ignore, navi, nvim-fzf, readline, ripgrep, shell). Each wrapper references its subdirectory via `files.mkConfig`. `config/claude/` holds Claude Code settings, hooks, and rules.
+
+### Infrastructure (`infra/`)
+
+OpenTofu config managing GitHub repository settings (visibility, Actions permissions, branch protection, security analysis) via the `integrations/github` provider. State is local (`*.tfstate` gitignored) — bootstrap is import-based, not greenfield apply, since the repository already exists. The `tf` devshell helper runs `tofu` against this directory; see `infra/README.md` for the import sequence.
 
 ## Conventions
 
