@@ -98,8 +98,12 @@
           inputsFrom = [
             (import ./devshells/terminal.nix { inherit pkgs; })
             (import ./devshells/languages.nix { inherit pkgs; })
+            (import ./devshells/infra.nix { inherit pkgs; })
             inputs.claude.devShells.${system}.ast-grep
-            (import ./devshells/lefthook.nix { inherit inputs system; })
+            (import ./devshells/lefthook.nix {
+              inherit pkgs;
+              inherit (inputs) lefthook;
+            })
           ];
         };
 
