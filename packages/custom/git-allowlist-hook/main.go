@@ -1,9 +1,26 @@
 // Command git-allowlist-hook is a Claude Code PreToolUse hook that denies any
-// shell command which invokes git with a subcommand outside a small read-only
-// allowlist. It emits a structured PreToolUse permissionDecision JSON document
-// on stdout. Any internal error (malformed input, unparseable shell) maps to a
-// deny, so the hook fails closed: a hook that cannot enforce policy must not
-// let the tool call through.
+// Bash-tool command which directly invokes git with a subcommand outside a
+// small read-only allowlist. It emits a structured PreToolUse
+// permissionDecision JSON document on stdout. Any internal error (malformed
+// input, unparseable shell) maps to a deny, so the hook fails closed on
+// parsing errors.
+//
+// # Policy
+//
+// Subcommand-only and direct: the bash AST is walked, every direct `git` call
+// (literal "git" or any path basename "git") has its subcommand checked
+// against defaultAllowedSubcommands (or the CLAUDE_GIT_ALLOWLIST_CONFIG TOML
+// extension), and that is it. The hook does *not* recurse into `bash -c
+// '...'`, `eval '...'`, heredoc bodies, or prefix wrappers like `xargs git X`
+// / `env FOO=x git X` / `nice git X` — those forms pass through this hook
+// untouched. The PATH-based git shim in packages/custom/git-shim is the layer
+// that catches them, at exec time, by virtue of being installed first on PATH.
+//
+// This hook's unique value over the shim is catching absolute-path git calls
+// (`/usr/bin/git push`) that appear as direct bash command words — the shim
+// is bypassed by absolute paths because PATH lookup is skipped.
+//
+// # Runtime allowlist extension
 //
 // The allowlist can be extended at runtime via a TOML config file whose path
 // is supplied through the CLAUDE_GIT_ALLOWLIST_CONFIG environment variable
@@ -32,8 +49,6 @@ import (
 	"mvdan.cc/sh/v3/syntax"
 )
 
-// envConfigPath is the environment variable holding the path to the user's
-// TOML allowlist extension file. See the package doc.
 const envConfigPath = "CLAUDE_GIT_ALLOWLIST_CONFIG"
 
 var (
@@ -41,135 +56,13 @@ var (
 		"status": {}, "diff": {}, "log": {}, "show": {}, "branch": {},
 		"rev-parse": {}, "config": {}, "remote": {}, "ls-files": {}, "blame": {},
 	}
-	forbiddenFlags = map[string]struct{}{
-		"--no-verify": {}, "--force": {}, "-f": {},
-	}
-	// Global git flags that consume the next argument as their value.
+	// Global git flags that consume the next argument as their value. We skip
+	// past these to find the subcommand; we do not inspect their values.
 	globalFlagsWithArg = map[string]struct{}{
 		"-C": {}, "-c": {}, "--git-dir": {}, "--work-tree": {},
 		"--namespace": {}, "--config-env": {},
 	}
-	// Global flags that are always denied: they let the caller substitute
-	// an arbitrary git binary or otherwise bypass the allowlist machinery.
-	alwaysDeniedGlobalFlags = map[string]struct{}{
-		"--exec-path": {},
-	}
-	// Config keys (lowercased) that, if injected via -c / --config-env, cause
-	// git to execute arbitrary commands during otherwise-allowed subcommands
-	// (pager, fsmonitor, signing helpers, etc.).
-	dangerousConfigKeys = map[string]struct{}{
-		"core.pager":          {},
-		"core.fsmonitor":      {},
-		"core.editor":         {},
-		"core.sshcommand":     {},
-		"core.askpass":        {},
-		"core.hookspath":      {},
-		"core.gitproxy":       {},
-		"gpg.program":         {},
-		"gpg.openpgp.program": {},
-		"gpg.x509.program":    {},
-		"gpg.ssh.program":     {},
-		"diff.external":       {},
-		"merge.tool":          {},
-		"http.proxy":          {},
-		"init.templatedir":    {},
-		"safe.directory":      {},
-	}
-	dangerousConfigKeyPrefixes = []string{
-		"alias.",      // !shell aliases
-		"filter.",     // filter.<name>.{clean,smudge,process}
-		"difftool.",   // difftool.<name>.cmd
-		"mergetool.",  // mergetool.<name>.cmd
-		"pager.",      // pager.<cmd>
-		"url.",        // url rewriting -> SSRF / redirect
-		"credential.", // credential helpers
-		"protocol.",   // protocol allow/deny
-	}
-	// `git config` flags that mutate config — denied so the allowlist itself
-	// can't be undermined (e.g. by writing a `!shell` alias).
-	configWriteFlags = map[string]struct{}{
-		"--add":            {},
-		"--unset":          {},
-		"--unset-all":      {},
-		"--replace-all":    {},
-		"--rename-section": {},
-		"--remove-section": {},
-		"--edit":           {},
-		"-e":               {},
-	}
-	// `git config` flags that explicitly indicate a read; their presence
-	// suppresses the positional-count heuristic, which would otherwise flag
-	// e.g. `--get-regexp pat val` as a write.
-	configReadFlags = map[string]struct{}{
-		"--get":           {},
-		"--get-all":       {},
-		"--get-regexp":    {},
-		"--get-urlmatch":  {},
-		"--get-color":     {},
-		"--get-colorbool": {},
-		"--list":          {},
-		"-l":              {},
-	}
-	// `git config` flags whose value lives in the next argv (`--type int`).
-	// Tracked so we don't miscount the value as a positional.
-	configFlagsWithArg = map[string]struct{}{
-		"-f":        {},
-		"--file":    {},
-		"--blob":    {},
-		"-t":        {},
-		"--type":    {},
-		"--default": {},
-		"--comment": {},
-		"--value":   {},
-	}
-	// Shells whose `-c <script>` argument we recursively parse.
-	shellRunners = map[string]struct{}{
-		"bash": {}, "sh": {}, "zsh": {}, "dash": {}, "ash": {},
-	}
-	// Command-prefix wrappers (xargs, env, ...) — programs that consume
-	// some leading flags and then exec a child command. We strip the
-	// wrapper's own flags and recursively check the inner command.
-	prefixCommands = map[string]prefixSpec{
-		"xargs": {
-			flagsWithArg: map[string]struct{}{
-				"-I": {}, "-J": {}, "-L": {}, "-n": {}, "-P": {},
-				"-s": {}, "-d": {}, "-E": {}, "-e": {}, "-a": {},
-				"--max-args": {}, "--max-procs": {}, "--max-chars": {},
-				"--max-lines": {}, "--replace": {}, "--delimiter": {},
-				"--eof": {}, "--arg-file": {},
-			},
-		},
-		"env": {
-			flagsWithArg: map[string]struct{}{
-				"-u": {}, "--unset": {}, "-S": {}, "--split-string": {},
-				"-C": {}, "--chdir": {},
-			},
-			skipKeyValue: true,
-		},
-		"nice": {
-			flagsWithArg: map[string]struct{}{"-n": {}, "--adjustment": {}},
-		},
-		"timeout": {
-			flagsWithArg: map[string]struct{}{
-				"-s": {}, "--signal": {}, "-k": {}, "--kill-after": {},
-			},
-			skipPositionals: 1,
-		},
-		"command": {},
-		"exec": {
-			flagsWithArg: map[string]struct{}{"-a": {}},
-		},
-		"stdbuf": {
-			flagsWithArg: map[string]struct{}{"-i": {}, "-o": {}, "-e": {}},
-		},
-	}
 )
-
-type prefixSpec struct {
-	flagsWithArg    map[string]struct{}
-	skipPositionals int
-	skipKeyValue    bool
-}
 
 type hookInput struct {
 	ToolName  string `json:"tool_name"`
@@ -194,7 +87,6 @@ func main() {
 		return
 	}
 	if err := json.NewEncoder(os.Stdout).Encode(out); err != nil {
-		// stdout write failed; fall back to exit-code blocking so the call is denied.
 		fmt.Fprintln(os.Stderr, "git-allowlist:", err)
 		os.Exit(2)
 	}
@@ -245,12 +137,8 @@ func checkCommand(cmd string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse command: %w", err)
 	}
-	return walkAndCheck(file)
-}
-
-func walkAndCheck(node syntax.Node) error {
 	var policyErr error
-	syntax.Walk(node, func(n syntax.Node) bool {
+	syntax.Walk(file, func(n syntax.Node) bool {
 		if policyErr != nil {
 			return false
 		}
@@ -259,10 +147,10 @@ func walkAndCheck(node syntax.Node) error {
 			return true
 		}
 		first, ok := wordLiteral(call.Args[0])
-		if !ok {
+		if !ok || !isGit(first) {
 			return true
 		}
-		if err := checkCall(first, call.Args[1:]); err != nil {
+		if err := checkGitCall(call.Args[1:]); err != nil {
 			policyErr = err
 			return false
 		}
@@ -271,27 +159,9 @@ func walkAndCheck(node syntax.Node) error {
 	return policyErr
 }
 
-// checkCall dispatches a single command invocation by leading binary name.
-// Unknown commands pass through; this is policy by allowlist of git, not by
-// denylist of everything else.
-func checkCall(name string, args []*syntax.Word) error {
-	switch {
-	case isGit(name):
-		return checkGitCall(args)
-	case isShellRunner(name):
-		for _, script := range extractShellScripts(args) {
-			if err := checkCommand(script); err != nil {
-				return err
-			}
-		}
-	case isEval(name):
-		return checkEvalCall(args)
-	case isPrefixCommand(name):
-		return checkPrefixCall(name, args)
-	}
-	return nil
-}
-
+// checkGitCall finds the subcommand past any leading global flags and verifies
+// it against the allowlist. No flag or config-value inspection — once the
+// subcommand is allowed, the rest of argv is git's problem.
 func checkGitCall(args []*syntax.Word) error {
 	i := 0
 	for i < len(args) {
@@ -299,28 +169,9 @@ func checkGitCall(args []*syntax.Word) error {
 		if !ok || !strings.HasPrefix(tok, "-") {
 			break
 		}
-		flag, value, hasValue := splitFlag(tok)
-		if _, denied := alwaysDeniedGlobalFlags[flag]; denied {
-			return fmt.Errorf("forbidden global flag %s", flag)
-		}
-		if _, takesArg := globalFlagsWithArg[flag]; takesArg {
-			if !hasValue {
-				if i+1 >= len(args) {
-					return fmt.Errorf("global flag %s missing argument", flag)
-				}
-				if v, vok := wordLiteral(args[i+1]); vok {
-					value = v
-					hasValue = true
-				}
-				i += 2
-			} else {
-				i++
-			}
-			if hasValue && (flag == "-c" || flag == "--config-env") {
-				if err := checkConfigOverride(value); err != nil {
-					return err
-				}
-			}
+		flag, _, hasValue := splitFlag(tok)
+		if _, takesArg := globalFlagsWithArg[flag]; takesArg && !hasValue {
+			i += 2
 			continue
 		}
 		i++
@@ -335,202 +186,7 @@ func checkGitCall(args []*syntax.Word) error {
 	if !isAllowedSubcommand(sub) {
 		return fmt.Errorf("%q is not in the allowlist", "git "+sub)
 	}
-	rest := args[i+1:]
-	if err := checkForbiddenFlags(rest); err != nil {
-		return err
-	}
-	if sub == "config" {
-		if err := checkConfigSubcommand(rest); err != nil {
-			return err
-		}
-	}
 	return nil
-}
-
-func checkForbiddenFlags(args []*syntax.Word) error {
-	for _, w := range args {
-		tok, ok := wordLiteral(w)
-		if !ok {
-			continue
-		}
-		if tok == "--" {
-			break
-		}
-		flag, _, _ := splitFlag(tok)
-		if _, bad := forbiddenFlags[flag]; bad {
-			return fmt.Errorf("forbidden flag %s", flag)
-		}
-	}
-	return nil
-}
-
-// checkConfigOverride inspects a `-c key=value` (or `--config-env=key=envvar`)
-// argument and rejects keys that cause git to execute commands.
-func checkConfigOverride(kv string) error {
-	key := kv
-	if eq := strings.IndexByte(kv, '='); eq >= 0 {
-		key = kv[:eq]
-	}
-	key = strings.ToLower(key)
-	if _, dangerous := dangerousConfigKeys[key]; dangerous {
-		return fmt.Errorf("forbidden config override %s", key)
-	}
-	for _, prefix := range dangerousConfigKeyPrefixes {
-		if strings.HasPrefix(key, prefix) {
-			return fmt.Errorf("forbidden config override %s", key)
-		}
-	}
-	return nil
-}
-
-// checkConfigSubcommand rejects `git config` invocations that mutate config.
-// Either an explicit write flag (--add, --unset, ...) or two-or-more
-// positionals without a read flag indicates a write.
-func checkConfigSubcommand(args []*syntax.Word) error {
-	var positionals int
-	var hasReadFlag bool
-	skipNext := false
-	for i := 0; i < len(args); i++ {
-		if skipNext {
-			skipNext = false
-			continue
-		}
-		tok, ok := wordLiteral(args[i])
-		if !ok {
-			continue
-		}
-		if tok == "--" {
-			for _, rest := range args[i+1:] {
-				if _, ok := wordLiteral(rest); ok {
-					positionals++
-				}
-			}
-			break
-		}
-		if !strings.HasPrefix(tok, "-") {
-			positionals++
-			continue
-		}
-		flag, _, hasEq := splitFlag(tok)
-		if _, write := configWriteFlags[flag]; write {
-			return fmt.Errorf("forbidden git config flag %s (writes config)", flag)
-		}
-		if _, read := configReadFlags[flag]; read {
-			hasReadFlag = true
-		}
-		if !hasEq {
-			if _, takesArg := configFlagsWithArg[flag]; takesArg {
-				skipNext = true
-			}
-		}
-	}
-	if !hasReadFlag && positionals >= 2 {
-		return errors.New("git config with 2+ positional args is a write")
-	}
-	return nil
-}
-
-// checkEvalCall reconstructs eval's command string and recursively checks it.
-// Eval with any non-literal argument cannot be statically analysed, so it is
-// denied (consistent with how `git $sub` is treated).
-func checkEvalCall(args []*syntax.Word) error {
-	if len(args) == 0 {
-		return nil
-	}
-	parts := make([]string, 0, len(args))
-	for _, w := range args {
-		s, ok := wordLiteral(w)
-		if !ok {
-			return errors.New("eval with non-literal argument")
-		}
-		parts = append(parts, s)
-	}
-	return checkCommand(strings.Join(parts, " "))
-}
-
-// checkPrefixCall handles command-prefix wrappers (xargs, env, nice, timeout,
-// command, exec, stdbuf): strip the wrapper's own flags, then dispatch the
-// inner command back through checkCall.
-func checkPrefixCall(name string, args []*syntax.Word) error {
-	spec := prefixCommands[path.Base(name)]
-	inner := stripPrefixFlags(spec, args)
-	if len(inner) == 0 {
-		return nil
-	}
-	innerName, ok := wordLiteral(inner[0])
-	if !ok {
-		return nil
-	}
-	return checkCall(innerName, inner[1:])
-}
-
-func stripPrefixFlags(spec prefixSpec, args []*syntax.Word) []*syntax.Word {
-	i := 0
-	for i < len(args) {
-		tok, ok := wordLiteral(args[i])
-		if !ok {
-			return nil
-		}
-		if tok == "--" {
-			i++
-			break
-		}
-		if !strings.HasPrefix(tok, "-") {
-			if spec.skipKeyValue && strings.Contains(tok, "=") {
-				i++
-				continue
-			}
-			break
-		}
-		if strings.Contains(tok, "=") {
-			i++
-			continue
-		}
-		if _, takesArg := spec.flagsWithArg[tok]; takesArg {
-			i += 2
-			continue
-		}
-		i++
-	}
-	for k := 0; k < spec.skipPositionals && i < len(args); k++ {
-		i++
-	}
-	if i >= len(args) {
-		return nil
-	}
-	return args[i:]
-}
-
-// extractShellScripts returns the script strings passed to a shell via -c-style
-// flags. Handles bare `-c`, combined-short-flag bundles ending in c (-ec, -uec,
-// ...), and multiple -c flags in the same invocation.
-func extractShellScripts(args []*syntax.Word) []string {
-	var scripts []string
-	for i := 0; i < len(args)-1; i++ {
-		tok, ok := wordLiteral(args[i])
-		if !ok {
-			continue
-		}
-		if !looksLikeDashC(tok) {
-			continue
-		}
-		if next, ok := wordLiteral(args[i+1]); ok {
-			scripts = append(scripts, next)
-		}
-	}
-	return scripts
-}
-
-// looksLikeDashC reports whether tok is `-c` or a combined-short-flag bundle
-// ending in c (e.g. `-ec`, `-uec`). Long --options are excluded.
-func looksLikeDashC(tok string) bool {
-	if len(tok) < 2 || !strings.HasPrefix(tok, "-") {
-		return false
-	}
-	if strings.HasPrefix(tok, "--") {
-		return false
-	}
-	return strings.HasSuffix(tok, "c")
 }
 
 // splitFlag splits a flag token of the form `--name=value` (or `-c=value`)
@@ -543,9 +199,10 @@ func splitFlag(tok string) (name, value string, hasValue bool) {
 }
 
 // wordLiteral returns the static string value of a Word when every part is a
-// literal (raw, single-quoted, or double-quoted with no expansions). It returns
-// false if the word contains any parameter, command, or arithmetic expansion --
-// in which case the value cannot be known without executing the shell.
+// literal (raw, single-quoted, or double-quoted with no expansions). It
+// returns false if the word contains any parameter, command, or arithmetic
+// expansion — in which case the value cannot be known without executing the
+// shell.
 func wordLiteral(w *syntax.Word) (string, bool) {
 	var b strings.Builder
 	for _, part := range w.Parts {
@@ -569,10 +226,6 @@ func wordLiteral(w *syntax.Word) (string, bool) {
 	return b.String(), true
 }
 
-// isAllowedSubcommand reports whether sub is in the built-in allowlist or in
-// the user's TOML config (see package doc). The config file is read on every
-// call; the hook is a one-shot process so the cost is trivial, and avoiding
-// global init state keeps tests straightforward.
 func isAllowedSubcommand(sub string) bool {
 	if _, ok := defaultAllowedSubcommands[sub]; ok {
 		return true
@@ -609,15 +262,3 @@ func loadConfigExtras() []string {
 }
 
 func isGit(name string) bool { return path.Base(name) == "git" }
-
-func isShellRunner(name string) bool {
-	_, ok := shellRunners[path.Base(name)]
-	return ok
-}
-
-func isEval(name string) bool { return path.Base(name) == "eval" }
-
-func isPrefixCommand(name string) bool {
-	_, ok := prefixCommands[path.Base(name)]
-	return ok
-}
