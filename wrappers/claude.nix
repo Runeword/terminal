@@ -7,6 +7,7 @@
 let
   claudeStatusline = import ../packages/custom/claude-statusline { inherit pkgs; };
   gitAllowlistHook = import ../packages/custom/git-allowlist-hook { inherit pkgs; };
+  gitShim = import ../packages/custom/git-shim { inherit pkgs; };
   firefoxMcpPkg = import ../packages/custom/firefox-mcp.nix { inherit pkgs; };
   mobileMcpPkg = import ../packages/custom/mobile-mcp.nix { inherit pkgs; };
 
@@ -70,6 +71,12 @@ let
     paths = [
       pkgs.claude-code
       config
+      # gitShim ships a binary named `git`. Because $out/bin is prepended
+      # first on PATH below, any PATH-resolved `git` invocation Claude makes
+      # (from bash, Python subprocess, Make, etc.) hits the shim before
+      # finding the real binary. The shim enforces the same allowlist policy
+      # as git-allowlist-hook, then exec's the real git.
+      gitShim
     ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
