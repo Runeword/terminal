@@ -31,8 +31,8 @@ stty -ixon
 [ -f "$NIX_OUT_SHELL/.config/shell/aliases.sh" ] && source "$NIX_OUT_SHELL/.config/shell/aliases.sh"
 
 if [ -d "$NIX_OUT_SHELL/.config/shell/functions" ]; then
-  for file in "$NIX_OUT_SHELL/.config/shell/functions"/*.sh; do
-    . "$file"
+  for file in "$NIX_OUT_SHELL/.config/shell/functions"/*.{sh,bash}; do
+    [ -f "$file" ] && . "$file"
   done
 fi
 
