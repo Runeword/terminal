@@ -8,7 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // errFzfCancel signals that the user dismissed fzf (Esc / Ctrl-C). main()
@@ -191,36 +192,31 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 	var current, pager string
 	var detached bool
 	var refRaw, remotes []string
-	var currentErr, refErr error
 
-	var wg sync.WaitGroup
-	wg.Add(4)
-	go func() {
-		defer wg.Done()
-		current, detached, currentErr = detectHead()
-	}()
-	go func() {
-		defer wg.Done()
-		refRaw, refErr = gitLines("for-each-ref",
+	var g errgroup.Group
+	g.Go(func() error {
+		var err error
+		current, detached, err = detectHead()
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		refRaw, err = gitLines("for-each-ref",
 			"--format=%(refname)%09%(worktreepath)%09%(symref)",
 			"refs/heads", "refs/remotes")
-	}()
-	go func() {
-		defer wg.Done()
+		return err
+	})
+	g.Go(func() error {
 		// A repo can legitimately have zero remotes; ignore errors.
 		remotes, _ = gitLines("remote")
-	}()
-	go func() {
-		defer wg.Done()
+		return nil
+	})
+	g.Go(func() error {
 		pager = getPager()
-	}()
-	wg.Wait()
-
-	if currentErr != nil {
-		return nil, currentErr
-	}
-	if refErr != nil {
-		return nil, refErr
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
 	localSet := map[string]bool{}
@@ -306,8 +302,13 @@ func runFzf(lines []string, args ...string) (string, error) {
 	}
 	go func() {
 		defer stdin.Close()
+		// Bail on the first write error (EPIPE when fzf exits quickly on a
+		// long list) — keeping the loop running would just queue more dead
+		// writes against a closed pipe.
 		for _, line := range lines {
-			fmt.Fprintln(stdin, line)
+			if _, err := fmt.Fprintln(stdin, line); err != nil {
+				return
+			}
 		}
 	}()
 
@@ -383,7 +384,7 @@ func switchBranch() error {
 	}
 
 	if worktreePath == "" {
-		fmt.Printf("git checkout --end-of-options %s ", shellQuote(branch))
+		fmt.Printf("git switch --end-of-options %s ", shellQuote(branch))
 	} else {
 		fmt.Printf("builtin cd %s ", shellQuote(worktreePath))
 	}
@@ -434,7 +435,7 @@ func cherryPick() error {
 	// Step 1: pick a branch.
 	branchArgs := []string{
 		fmt.Sprintf("--header=cherry-pick into %s", info.current),
-		fmt.Sprintf("--preview=echo {}; git log --oneline --color=always --end-of-options {}"),
+		"--preview=echo {}; git log --oneline --color=always --end-of-options {}",
 		"--preview-window=right,75%,border-none,wrap,~1",
 	}
 	branchArgs = append(branchArgs, os.Args[2:]...)
@@ -500,7 +501,7 @@ func diffBranches() error {
 	// Step 1: pick 1 or 2 branches.
 	branchArgs := []string{
 		"--multi",
-		fmt.Sprintf("--preview=echo {}; git log --oneline --color=always --end-of-options {}"),
+		"--preview=echo {}; git log --oneline --color=always --end-of-options {}",
 		"--preview-window=right,75%,border-none,wrap,~1",
 	}
 	branchArgs = append(branchArgs, os.Args[2:]...)
@@ -577,32 +578,25 @@ func worktreeAdd() error {
 	var info *branchInfo
 	var currentCommit string
 	var worktrees []worktree
-	var infoErr, commitErr, wtErr error
 
-	var wg sync.WaitGroup
-	wg.Add(3)
-	go func() {
-		defer wg.Done()
-		info, infoErr = fetchBranches(false, true)
-	}()
-	go func() {
-		defer wg.Done()
-		currentCommit, commitErr = gitLine("rev-parse", "--short", "HEAD")
-	}()
-	go func() {
-		defer wg.Done()
-		worktrees, wtErr = listWorktrees()
-	}()
-	wg.Wait()
-
-	if infoErr != nil {
-		return infoErr
-	}
-	if commitErr != nil {
-		return commitErr
-	}
-	if wtErr != nil {
-		return wtErr
+	var g errgroup.Group
+	g.Go(func() error {
+		var err error
+		info, err = fetchBranches(false, true)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		currentCommit, err = gitLine("rev-parse", "--short", "HEAD")
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		worktrees, err = listWorktrees()
+		return err
+	})
+	if err := g.Wait(); err != nil {
+		return err
 	}
 	if len(worktrees) == 0 {
 		return nil
@@ -655,7 +649,10 @@ func worktreeAdd() error {
 	var worktreePath string
 	for n := 1; n <= maxAttempts; n++ {
 		candidate := filepath.Join(baseDir, fmt.Sprintf("%s_%d", repoName, n))
-		_, err := os.Stat(candidate)
+		// Lstat (not Stat) so a dangling symlink at the candidate path is
+		// treated as "exists" rather than ErrNotExist — otherwise we'd hand
+		// `git worktree add` a path it would either reject or write through.
+		_, err := os.Lstat(candidate)
 		if errors.Is(err, fs.ErrNotExist) {
 			worktreePath = candidate
 			break
@@ -675,40 +672,32 @@ func worktreeAdd() error {
 
 // worktreeRemove picks worktrees to remove and outputs the shell commands to execute.
 func worktreeRemove() error {
-	var currentBranch, currentCommit string
+	var currentBranch, currentCommit, pager string
 	var detached bool
 	var worktrees []worktree
-	var pager string
-	var branchErr, commitErr, wtErr error
 
-	var wg sync.WaitGroup
-	wg.Add(4)
-	go func() {
-		defer wg.Done()
-		currentBranch, detached, branchErr = detectHead()
-	}()
-	go func() {
-		defer wg.Done()
-		currentCommit, commitErr = gitLine("rev-parse", "--short", "HEAD")
-	}()
-	go func() {
-		defer wg.Done()
-		worktrees, wtErr = listWorktrees()
-	}()
-	go func() {
-		defer wg.Done()
+	var g errgroup.Group
+	g.Go(func() error {
+		var err error
+		currentBranch, detached, err = detectHead()
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		currentCommit, err = gitLine("rev-parse", "--short", "HEAD")
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		worktrees, err = listWorktrees()
+		return err
+	})
+	g.Go(func() error {
 		pager = getPager()
-	}()
-	wg.Wait()
-
-	if branchErr != nil {
-		return branchErr
-	}
-	if commitErr != nil {
-		return commitErr
-	}
-	if wtErr != nil {
-		return wtErr
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return err
 	}
 	if len(worktrees) < 2 {
 		return nil
@@ -728,9 +717,11 @@ func worktreeRemove() error {
 	header := fmt.Sprintf("%s\t%s\t%s", dirName, currentCommit, branchLabel)
 
 	// Tab-delimited display lines for fzf:
-	//   dir \t commit \t [branch] \t fullpath \t shell-quoted diff target
+	//   dir \t commit \t [branch] \t fullpath \t diff target
 	// Columns 1-3 are shown; column 4 is the path used for removal; column 5
-	// is a pre-quoted ref (branch name or sha for detached) used in --preview.
+	// is the raw ref (branch name or sha for detached) used in --preview.
+	// Do not pre-shell-quote column 5 — fzf single-quotes every {N} during
+	// interpolation, so the literal quotes would survive into the git arg.
 	var displayLines []string
 	for _, wt := range worktrees[1:] {
 		if wt.bare {
@@ -751,7 +742,7 @@ func worktreeRemove() error {
 		}
 		displayLines = append(displayLines,
 			fmt.Sprintf("%s\t%s\t%s\t%s\t%s",
-				filepath.Base(wt.path), short, displayBranch, wt.path, shellQuote(diffTarget)))
+				filepath.Base(wt.path), short, displayBranch, wt.path, diffTarget))
 	}
 	if len(displayLines) == 0 {
 		return nil
@@ -799,7 +790,7 @@ func worktreeRemove() error {
 		cmds = append(cmds, fmt.Sprintf("builtin cd %s", shellQuote(mainWorktree)))
 	}
 	for _, p := range selectedPaths {
-		cmds = append(cmds, fmt.Sprintf("git worktree remove %s", shellQuote(p)))
+		cmds = append(cmds, fmt.Sprintf("git worktree remove --end-of-options %s", shellQuote(p)))
 	}
 	cmds = append(cmds, "ls")
 
@@ -811,22 +802,19 @@ func worktreeRemove() error {
 func stashApply() error {
 	var stashes []string
 	var pager string
-	var stashErr error
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		stashes, stashErr = gitLines("stash", "list")
-	}()
-	go func() {
-		defer wg.Done()
+	var g errgroup.Group
+	g.Go(func() error {
+		var err error
+		stashes, err = gitLines("stash", "list")
+		return err
+	})
+	g.Go(func() error {
 		pager = getPager()
-	}()
-	wg.Wait()
-
-	if stashErr != nil {
-		return stashErr
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return err
 	}
 	if len(stashes) == 0 {
 		return nil
@@ -856,7 +844,9 @@ func stashApply() error {
 		return err
 	}
 
-	// Step 2: pick files from that stash.
+	// Step 2: pick files from that stash. Paths are repo-root-relative;
+	// `cd` the preview into the root, and prefix the emitted command's
+	// pathspecs with cdup so they resolve from the user's CWD.
 	files, err := gitLines("stash", "show", "--name-only", stashRef)
 	if err != nil {
 		return err
@@ -865,11 +855,15 @@ func stashApply() error {
 		return nil
 	}
 
+	repoRoot, _ := gitLine("rev-parse", "--show-toplevel")
+	cdup, _ := gitLine("rev-parse", "--show-cdup")
+
 	fileArgs := []string{
 		"--multi",
 		"--bind=ctrl-a:select-all",
 		"--header=select files to apply (ctrl-a: all)",
-		fmt.Sprintf("--preview=echo {}; git diff --color=always %s^ %s -- {} | %s", stashRef, stashRef, pager),
+		fmt.Sprintf("--preview=echo {}; cd %s && git diff --color=always %s^ %s -- {} | %s",
+			shellQuote(repoRoot), stashRef, stashRef, pager),
 		"--preview-window=right,75%,border-none,wrap,~1",
 	}
 	fileArgs = append(fileArgs, os.Args[2:]...)
@@ -885,7 +879,7 @@ func stashApply() error {
 	var quoted []string
 	for _, f := range strings.Split(selectedFiles, "\n") {
 		if f != "" {
-			quoted = append(quoted, shellQuote(f))
+			quoted = append(quoted, shellQuote(cdup+f))
 		}
 	}
 
