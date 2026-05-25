@@ -5,12 +5,7 @@
 }:
 
 let
-  config = files.mkConfig "bat-config" [
-    {
-      source = ".config/bat";
-      target = ".config/bat";
-    }
-  ];
+  config = files.mkConfig "bat-config" [ ".config/bat" ];
   self = pkgs.symlinkJoin {
     name = "bat-with-config";
     paths = [
