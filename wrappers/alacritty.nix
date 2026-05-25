@@ -10,12 +10,7 @@ let
     rootPath = configPath;
   };
 
-  config = files.mkConfig "alacritty-config" [
-    {
-      source = ".config/alacritty";
-      target = ".config/alacritty";
-    }
-  ];
+  config = files.mkConfig "alacritty-config" [ ".config/alacritty" ];
 
   fonts = pkgs.lib.optionals (!pkgs.stdenv.isDarwin) [
     pkgs.nerd-fonts.sauce-code-pro
