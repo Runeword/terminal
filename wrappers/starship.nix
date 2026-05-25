@@ -5,12 +5,7 @@
 }:
 
 let
-  config = files.mkConfig "starship-config" [
-    {
-      source = ".config/starship/starship.toml";
-      target = ".config/starship/starship.toml";
-    }
-  ];
+  config = files.mkConfig "starship-config" [ ".config/starship/starship.toml" ];
   self = pkgs.symlinkJoin {
     name = "starship-with-config";
     paths = [
