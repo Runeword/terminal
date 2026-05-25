@@ -5,12 +5,7 @@
 }:
 
 let
-  config = files.mkConfig "delta-config" [
-    {
-      source = ".config/delta/config";
-      target = ".config/delta/config";
-    }
-  ];
+  config = files.mkConfig "delta-config" [ ".config/delta/config" ];
   self = pkgs.symlinkJoin {
     name = "delta-with-config";
     paths = [
