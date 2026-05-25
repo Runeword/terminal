@@ -47,22 +47,13 @@ let
   ];
 
   config = files.mkConfig "claude-config" [
-    {
-      source = ".claude/rules";
-      target = ".claude/rules";
-    }
-    {
-      source = ".claude/plugins";
-      target = ".claude/plugins";
-    }
-    {
-      source = ".claude/settings.json";
-      target = ".claude/settings.json";
-    }
-    {
-      source = ".claude/git-allowlist.toml";
-      target = ".claude/git-allowlist.toml";
-    }
+    ".claude/rules"
+    ".claude/plugins"
+    ".claude/settings.json"
+    ".claude/git-allowlist.toml"
+
+    # Renamed and installed under bin/ so they're PATH-resolvable from
+    # settings.json hooks (which invoke them as `claude-format` / `claude-docs-guard`).
     {
       source = ".claude/hooks/format.sh";
       target = "bin/claude-format";
