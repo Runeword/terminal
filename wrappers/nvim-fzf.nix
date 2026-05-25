@@ -56,12 +56,7 @@ let
     };
   };
 
-  config = files.mkConfig "nvim-fzf-config" [
-    {
-      source = ".config/nvim-fzf/init.lua";
-      target = ".config/nvim-fzf/init.lua";
-    }
-  ];
+  config = files.mkConfig "nvim-fzf-config" [ ".config/nvim-fzf/init.lua" ];
 
   self = pkgs.symlinkJoin {
     name = "nvim-fzf";
