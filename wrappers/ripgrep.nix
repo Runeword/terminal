@@ -6,14 +6,8 @@
 
 let
   config = files.mkConfig "ripgrep-config" [
-    {
-      source = ".config/ignore";
-      target = ".config/ignore";
-    }
-    {
-      source = ".config/ripgrep/ripgreprc";
-      target = ".config/ripgrep/ripgreprc";
-    }
+    ".config/ignore"
+    ".config/ripgrep/ripgreprc"
   ];
   self = pkgs.symlinkJoin {
     name = "ripgrep-with-config";
