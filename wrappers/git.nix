@@ -6,21 +6,12 @@
 
 let
   config = files.mkConfig "git-config" [
-    {
-      source = ".config/git/config";
-      target = ".config/git/config";
-    }
-    {
-      source = ".config/git/ignore";
-      target = ".config/git/ignore";
-    }
+    ".config/git/config"
+    ".config/git/ignore"
     # Bundled here too so [include] path = ../delta/config resolves within
     # this wrapper's own output. Otherwise the include silently misses and
     # delta.* keys aren't visible via `git config`.
-    {
-      source = ".config/delta/config";
-      target = ".config/delta/config";
-    }
+    ".config/delta/config"
   ];
   self = pkgs.symlinkJoin {
     name = "git-with-config";
