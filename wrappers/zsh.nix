@@ -7,22 +7,10 @@
 
 let
   config = files.mkConfig "zsh-config" [
-    {
-      source = ".config/zsh";
-      target = ".config/zsh";
-    }
-    {
-      source = ".config/shell";
-      target = ".config/shell";
-    }
-    {
-      source = ".config/readline";
-      target = ".config/readline";
-    }
-    {
-      source = ".config/direnv";
-      target = ".config/direnv";
-    }
+    ".config/zsh"
+    ".config/shell"
+    ".config/readline"
+    ".config/direnv"
   ];
   self = pkgs.symlinkJoin {
     name = "zsh-with-config";
