@@ -5,12 +5,7 @@
 }:
 
 let
-  config = files.mkConfig "fd-config" [
-    {
-      source = ".config/ignore";
-      target = ".config/ignore";
-    }
-  ];
+  config = files.mkConfig "fd-config" [ ".config/ignore" ];
   self = pkgs.symlinkJoin {
     name = "fd-with-config";
     paths = [
