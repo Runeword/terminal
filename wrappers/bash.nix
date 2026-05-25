@@ -6,22 +6,10 @@
 
 let
   config = files.mkConfig "bash-config" [
-    {
-      source = ".config/bash";
-      target = ".config/bash";
-    }
-    {
-      source = ".config/shell";
-      target = ".config/shell";
-    }
-    {
-      source = ".config/readline";
-      target = ".config/readline";
-    }
-    {
-      source = ".config/direnv";
-      target = ".config/direnv";
-    }
+    ".config/bash"
+    ".config/shell"
+    ".config/readline"
+    ".config/direnv"
   ];
   self = pkgs.symlinkJoin {
     name = "bash-with-config";
