@@ -7,18 +7,9 @@
 
 let
   config = files.mkConfig "tmux-config" [
-    {
-      source = ".config/tmux/tmux.conf";
-      target = ".config/tmux/tmux.conf";
-    }
-    {
-      source = ".config/tmux/scripts/toggle-pane.sh";
-      target = ".config/tmux/scripts/toggle-pane.sh";
-    }
-    {
-      source = ".config/shell/functions/tmux.sh";
-      target = ".config/shell/functions/tmux.sh";
-    }
+    ".config/tmux/tmux.conf"
+    ".config/tmux/scripts/toggle-pane.sh"
+    ".config/shell/functions/tmux.sh"
     # tmux-resurrect plugin tree, supplied by nixpkgs instead of vendored
     # or fetched at runtime via TPM. tmux.conf references its scripts via
     # $NIX_OUT_TMUX/.config/tmux/plugins/resurrect/...
