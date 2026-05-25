@@ -47,7 +47,7 @@
       let
         pkgs = mkPkgs system;
 
-        configPath = ./config;
+        configPath = ./sources;
         wrappers = mkWrappers pkgs configPath;
         tools = mkTools pkgs wrappers;
         terminal = mkTerminal pkgs configPath tools;
@@ -132,7 +132,7 @@
       lib.mkTerminal =
         {
           system,
-          configPath ? ./config,
+          configPath ? ./sources,
         }:
         let
           pkgs = mkPkgs system;
@@ -142,7 +142,7 @@
       lib.mkTools =
         {
           system,
-          configPath ? ./config,
+          configPath ? ./sources,
         }:
         let
           pkgs = mkPkgs system;

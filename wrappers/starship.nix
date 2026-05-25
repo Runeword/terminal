@@ -7,7 +7,7 @@
 let
   config = files.mkConfig "starship-config" [
     {
-      source = "starship/starship.toml";
+      source = ".config/starship/starship.toml";
       target = ".config/starship/starship.toml";
     }
   ];

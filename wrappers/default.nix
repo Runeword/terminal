@@ -8,11 +8,13 @@ let
     rootPath = configPath;
   };
   tests = import ../lib/tests.nix { inherit pkgs; };
+  git = import ./git.nix { inherit pkgs files tests; };
   claude = import ./claude.nix {
     inherit
       pkgs
       files
       tests
+      git
       ;
   };
   zsh = import ./zsh.nix {
@@ -25,7 +27,7 @@ let
   };
 in
 {
-  inherit zsh claude;
+  inherit zsh claude git;
   tmux = import ./tmux.nix {
     inherit
       pkgs
@@ -40,7 +42,6 @@ in
   bash = import ./bash.nix { inherit pkgs files tests; };
   starship = import ./starship.nix { inherit pkgs files tests; };
   delta = import ./delta.nix { inherit pkgs files tests; };
-  git = import ./git.nix { inherit pkgs files tests; };
   navi = import ./navi.nix { inherit pkgs files tests; };
   nvim-fzf = import ./nvim-fzf.nix { inherit pkgs files tests; };
 }

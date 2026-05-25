@@ -7,7 +7,7 @@
 let
   config = files.mkConfig "bat-config" [
     {
-      source = "bat";
+      source = ".config/bat";
       target = ".config/bat";
     }
   ];

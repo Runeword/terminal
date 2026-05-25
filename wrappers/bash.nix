@@ -7,19 +7,19 @@
 let
   config = files.mkConfig "bash-config" [
     {
-      source = "bash";
+      source = ".config/bash";
       target = ".config/bash";
     }
     {
-      source = "shell";
+      source = ".config/shell";
       target = ".config/shell";
     }
     {
-      source = "readline";
+      source = ".config/readline";
       target = ".config/readline";
     }
     {
-      source = "direnv";
+      source = ".config/direnv";
       target = ".config/direnv";
     }
   ];

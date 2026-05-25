@@ -21,7 +21,7 @@ in
       type = lib.types.nullOr lib.types.path;
       default = null;
       description = "Path to terminal config directory. If null, uses bundled config.";
-      example = "\${config.home.homeDirectory}/terminal/config";
+      example = "\${config.home.homeDirectory}/terminal/sources";
     };
   };
 

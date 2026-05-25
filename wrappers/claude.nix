@@ -2,12 +2,19 @@
   pkgs,
   files,
   tests,
+  git,
 }:
 
 let
   claudeStatusline = import ../packages/custom/claude-statusline { inherit pkgs; };
   gitAllowlistHook = import ../packages/custom/git-allowlist-hook { inherit pkgs; };
-  gitShim = import ../packages/custom/git-shim { inherit pkgs; };
+  # Point the shim at the wrapped git so config (excludesFile, pager, includes,
+  # GIT_CONFIG_GLOBAL) applies whether git is invoked from claude or from the
+  # interactive shell. The allowlist check still runs first on the same argv.
+  gitShim = import ../packages/custom/git-shim {
+    inherit pkgs;
+    realGit = "${git}/bin/git";
+  };
   firefoxMcpPkg = import ../packages/custom/firefox-mcp.nix { inherit pkgs; };
   mobileMcpPkg = import ../packages/custom/mobile-mcp.nix { inherit pkgs; };
 
@@ -41,27 +48,27 @@ let
 
   config = files.mkConfig "claude-config" [
     {
-      source = "claude/rules";
+      source = ".claude/rules";
       target = ".claude/rules";
     }
     {
-      source = "claude/plugins";
+      source = ".claude/plugins";
       target = ".claude/plugins";
     }
     {
-      source = "claude/settings.json";
+      source = ".claude/settings.json";
       target = ".claude/settings.json";
     }
     {
-      source = "claude/git-allowlist.toml";
+      source = ".claude/git-allowlist.toml";
       target = ".claude/git-allowlist.toml";
     }
     {
-      source = "claude/hooks/format.sh";
+      source = ".claude/hooks/format.sh";
       target = "bin/claude-format";
     }
     {
-      source = "claude/hooks/docs-guard.sh";
+      source = ".claude/hooks/docs-guard.sh";
       target = "bin/claude-docs-guard";
     }
   ];
@@ -71,17 +78,17 @@ let
     paths = [
       pkgs.claude-code
       config
-      # gitShim ships a binary named `git`. Because $out/bin is prepended
-      # first on PATH below, any PATH-resolved `git` invocation Claude makes
-      # (from bash, Python subprocess, Make, etc.) hits the shim before
-      # finding the real binary. The shim enforces the same allowlist policy
-      # as git-allowlist-hook, then exec's the real git.
-      gitShim
     ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
+      # gitShim ships a binary named `git`. It is injected only into claude's
+      # own PATH (and inherited by its subprocesses: bash, Python, Make, …),
+      # not merged into $out/bin, so the user's interactive shell still sees
+      # the wrapped git. Prefixed first so it wins over git-with-config within
+      # claude's process tree. The shim enforces the same allowlist policy as
+      # git-allowlist-hook, then exec's the real git.
       wrapProgram $out/bin/claude \
-        --prefix PATH : "$out/bin:${pkgs.lib.makeBinPath tools}" \
+        --prefix PATH : "${gitShim}/bin:$out/bin:${pkgs.lib.makeBinPath tools}" \
         --add-flags "--settings $out/.claude/settings.json --setting-sources project,local --add-dir $out" \
         --set-default CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD 1 \
         --set CLAUDE_GIT_ALLOWLIST_CONFIG $out/.claude/git-allowlist.toml \

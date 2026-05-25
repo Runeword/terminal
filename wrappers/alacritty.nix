@@ -12,7 +12,7 @@ let
 
   config = files.mkConfig "alacritty-config" [
     {
-      source = "alacritty";
+      source = ".config/alacritty";
       target = ".config/alacritty";
     }
   ];

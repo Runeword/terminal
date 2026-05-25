@@ -7,7 +7,7 @@
 let
   config = files.mkConfig "navi-config" [
     {
-      source = "navi";
+      source = ".config/navi";
       target = ".config/navi";
     }
   ];

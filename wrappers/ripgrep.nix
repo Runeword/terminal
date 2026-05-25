@@ -7,11 +7,11 @@
 let
   config = files.mkConfig "ripgrep-config" [
     {
-      source = "ignore";
+      source = ".config/ignore";
       target = ".config/ignore";
     }
     {
-      source = "ripgrep/ripgreprc";
+      source = ".config/ripgrep/ripgreprc";
       target = ".config/ripgrep/ripgreprc";
     }
   ];

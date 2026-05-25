@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Nix flake that builds a reproducible Alacritty terminal, bundled with a curated set of CLI tools (zsh, tmux, bat, ripgrep, fd, starship, delta, navi, claude-code, …) each wrapped so they load their configuration from this repo's `config/` tree.
+A Nix flake that builds a reproducible Alacritty terminal, bundled with a curated set of CLI tools (zsh, tmux, bat, ripgrep, fd, starship, delta, navi, claude-code, …) each wrapped so they load their configuration from this repo's `sources/` tree.
 
 ## Common commands
 
 Enter the dev shell first (`nix develop` — direnv will do it automatically via `.envrc`). The shell provides these helpers (defined in `devshells/terminal.nix`):
 
-- `dev` — run Alacritty with configs **symlinked** from the working tree (`nix run .#dev --impure`, uses `TERMINAL_CONFIG_DIR=$PWD/config`). Config edits take effect immediately, no rebuild.
+- `dev` — run Alacritty with configs **symlinked** from the working tree (`nix run .#dev --impure`, uses `TERMINAL_CONFIG_DIR=$PWD/sources`). Config edits take effect immediately, no rebuild.
 - `bdl` — run Alacritty in **bundled** mode (`nix run .`). Config is copied into the Nix store; changes require a rebuild.
 - `tools <name> [args…]` — run any bundled CLI tool from the `packages.tools` env (e.g., `tools rg foo`).
 - `smoke` — run wrapper smoke tests (`nix flake check -L --keep-going -j auto`); these are the per-wrapper `passthru.tests.smoke` derivations exposed via the `checks` output.
@@ -36,11 +36,11 @@ Outputs:
 
 - `packages.default` — the wrapped Alacritty (see `wrappers/alacritty.nix`: `runCommand` + `makeWrapper`, preserves the process name `alacritty`, injects `FONTCONFIG_FILE` on Linux, points `--config-file` at the synced config).
 - `packages.tools` — a `buildEnv` of every tool. `pathsToLink = [ "/bin" ]` to avoid config-file collisions between wrappers (e.g. `fd` and `ripgrep` both ship a `.config/ignore`). The devshell `tools` helper runs binaries from it via `nix shell .#tools --command`.
-- `packages.firefox-mcp` / `packages.mobile-mcp` — standalone MCP server packages from `packages/custom/`. Other `packages/custom/` entries (`claude-statusline`, `git-allowlist-hook`, `git-branches`) are Go binaries built and consumed internally by the `claude` wrapper / `config/claude/settings.json` hooks — not exposed as flake outputs.
+- `packages.firefox-mcp` / `packages.mobile-mcp` — standalone MCP server packages from `packages/custom/`. Other `packages/custom/` entries (`claude-statusline`, `git-allowlist-hook`, `git-branches`) are Go binaries built and consumed internally by the `claude` wrapper / `sources/.claude/settings.json` hooks — not exposed as flake outputs.
 - `apps.default` / `apps.dev` — `nix run` targets for bundled / dev mode. `apps.dev` is conditionally added only when `TERMINAL_CONFIG_DIR` is set (via `getEnv` + `--impure`), so `nix flake check` stays clean in pure mode.
 - `checks.<wrapper>` — each wrapper's `passthru.tests.smoke` derivation, run by `nix flake check`.
 - `checks.unit-tests` — runs `lib/tests-unit.nix` invariants (e.g. "every wrapper has a smoke test") via `pkgs.lib.runTests` at flake-evaluation time. On failure, the derivation build emits the JSON failure list on stderr and exits 1 (failure is scoped to this check; unrelated flake outputs are unaffected). Failures are also exposed via `passthru.failures` for `nix eval` introspection.
-- `lib.mkTerminal` / `lib.mkTools` — reusable builders for downstream flakes. Both take `{ system, configPath ? ./config }` (not `pkgs`); they call `mkPkgs system` internally so consumers can't accidentally pull stale versions of version-sensitive tools through their own `nixpkgs` lock.
+- `lib.mkTerminal` / `lib.mkTools` — reusable builders for downstream flakes. Both take `{ system, configPath ? ./sources }` (not `pkgs`); they call `mkPkgs system` internally so consumers can't accidentally pull stale versions of version-sensitive tools through their own `nixpkgs` lock.
 - `homeModules.default` — home-manager integration (see `modules/terminal.nix`, options under `programs.terminal`).
 
 `devShells.default` is composed via `inputsFrom` from five sub-shells: `devshells/terminal.nix` (the `dev`/`bdl`/`tools`/`smoke`/`h` helpers above), `devshells/languages.nix`, `devshells/infra.nix` (the `infra` wrapper), `claude.devShells.${system}.ast-grep` (from the `claude` flake input), and `devshells/lefthook.nix`.
@@ -51,7 +51,7 @@ Outputs:
 
 `rootPath` is the dev/bundled mode switch:
 
-- A **Nix path** (`./config`) — bundled mode. Sub-paths are interpolated as proper store references and propagate into downstream closures.
+- A **Nix path** (`./sources`) — bundled mode. Sub-paths are interpolated as proper store references and propagate into downstream closures.
 - A **string** (`$TERMINAL_CONFIG_DIR`) — dev mode. Symlinks point at the live filesystem and `--impure` is required.
 
 ### Packages vs wrappers
@@ -64,9 +64,9 @@ Outputs:
 
 Three overlays are applied: one pins `awscli2` to nixpkgs-24.05; one source-pins `tmux` to 3.6a via `overrideAttrs` + `fetchFromGitHub` (so we don't carry a second nixpkgs input just to freeze the version); the third overrides `firebase-tools` to build against Node 20. All follow the `final: prev:` convention — `prev` is used when redefining existing attributes.
 
-### Config tree (`config/`)
+### Sources tree (`sources/`)
 
-Per-tool configuration (alacritty, zsh, bash, tmux, bat, starship, delta, direnv, ignore, navi, nvim-fzf, readline, ripgrep, shell). Each wrapper references its subdirectory via `files.mkConfig`. `config/claude/` holds Claude Code settings, hooks, and rules.
+The `sources/` tree mirrors what the wrapped tools see under `$HOME`: `sources/.config/` for XDG-style configs (alacritty, zsh, bash, tmux, bat, starship, delta, direnv, ignore, navi, nvim-fzf, readline, ripgrep, shell) and `sources/.claude/` for Claude Code settings, hooks, and rules. Each wrapper passes target paths to `files.mkConfig`, which symlinks `sources/<target>` to `$out/<target>`.
 
 ### Infrastructure (`infra/`)
 

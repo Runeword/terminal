@@ -7,7 +7,7 @@
 let
   config = files.mkConfig "fd-config" [
     {
-      source = "ignore";
+      source = ".config/ignore";
       target = ".config/ignore";
     }
   ];

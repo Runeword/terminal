@@ -7,7 +7,7 @@
 let
   config = files.mkConfig "delta-config" [
     {
-      source = "delta/config";
+      source = ".config/delta/config";
       target = ".config/delta/config";
     }
   ];

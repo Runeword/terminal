@@ -7,18 +7,18 @@
 let
   config = files.mkConfig "git-config" [
     {
-      source = "git/config";
+      source = ".config/git/config";
       target = ".config/git/config";
     }
     {
-      source = "git/ignore";
+      source = ".config/git/ignore";
       target = ".config/git/ignore";
     }
     # Bundled here too so [include] path = ../delta/config resolves within
     # this wrapper's own output. Otherwise the include silently misses and
     # delta.* keys aren't visible via `git config`.
     {
-      source = "delta/config";
+      source = ".config/delta/config";
       target = ".config/delta/config";
     }
   ];

@@ -3,14 +3,14 @@ pkgs.mkShell {
   packages = [
     (pkgs.writeShellScriptBin "h" ''
       printf '%-20s %s\n' \
-      'dev'                 'alacritty with configs symlinked from ./config (edit live, no rebuild)' \
+      'dev'                 'alacritty with configs symlinked from ./sources (edit live, no rebuild)' \
       'bdl'                 'alacritty with configs copied into the nix store (requires rebuild)' \
       'tools <name> [args]' 'run a CLI from the bundled tools env' \
       'smoke'               'run wrapper smoke tests' \
       'h'                   'show this help'
     '')
     (pkgs.writeShellScriptBin "dev" ''
-      TERMINAL_CONFIG_DIR="$PWD/config" nix run .#dev --impure -- "$@"
+      TERMINAL_CONFIG_DIR="$PWD/sources" nix run .#dev --impure -- "$@"
     '')
     (pkgs.writeShellScriptBin "bdl" ''
       nix run . -- "$@"

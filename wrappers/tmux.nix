@@ -8,15 +8,15 @@
 let
   config = files.mkConfig "tmux-config" [
     {
-      source = "tmux/tmux.conf";
+      source = ".config/tmux/tmux.conf";
       target = ".config/tmux/tmux.conf";
     }
     {
-      source = "tmux/scripts/toggle-pane.sh";
+      source = ".config/tmux/scripts/toggle-pane.sh";
       target = ".config/tmux/scripts/toggle-pane.sh";
     }
     {
-      source = "shell/functions/tmux.sh";
+      source = ".config/shell/functions/tmux.sh";
       target = ".config/shell/functions/tmux.sh";
     }
     # tmux-resurrect plugin tree, supplied by nixpkgs instead of vendored

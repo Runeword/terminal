@@ -58,7 +58,7 @@ let
 
   config = files.mkConfig "nvim-fzf-config" [
     {
-      source = "nvim-fzf/init.lua";
+      source = ".config/nvim-fzf/init.lua";
       target = ".config/nvim-fzf/init.lua";
     }
   ];

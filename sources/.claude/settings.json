@@ -17,11 +17,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "git-allowlist-hook",
-            "timeout": 5
-          },
-          {
-            "type": "command",
             "command": "rtk hook claude",
             "timeout": 5
           }

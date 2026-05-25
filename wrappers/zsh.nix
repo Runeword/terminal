@@ -8,19 +8,19 @@
 let
   config = files.mkConfig "zsh-config" [
     {
-      source = "zsh";
+      source = ".config/zsh";
       target = ".config/zsh";
     }
     {
-      source = "shell";
+      source = ".config/shell";
       target = ".config/shell";
     }
     {
-      source = "readline";
+      source = ".config/readline";
       target = ".config/readline";
     }
     {
-      source = "direnv";
+      source = ".config/direnv";
       target = ".config/direnv";
     }
   ];

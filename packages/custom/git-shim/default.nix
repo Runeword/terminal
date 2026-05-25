@@ -1,4 +1,11 @@
-{ pkgs }:
+{
+  pkgs,
+  # Path the shim exec's after the allowlist check. Defaults to raw nixpkgs git
+  # for standalone use; callers (notably wrappers/claude.nix) can override with
+  # the wrapped git so config (excludesFile, pager, includes) is consistent
+  # whether git is invoked inside or outside a claude session.
+  realGit ? "${pkgs.git}/bin/git",
+}:
 
 pkgs.buildGoModule {
   pname = "git-shim";
@@ -9,7 +16,7 @@ pkgs.buildGoModule {
     "-s"
     "-w"
     "-X"
-    "main.realGit=${pkgs.git}/bin/git"
+    "main.realGit=${realGit}"
   ];
   # The Go binary is built from the module name (git-shim). Rename to "git"
   # so that, when this derivation is added first to PATH in the claude
