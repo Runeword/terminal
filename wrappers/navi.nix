@@ -5,12 +5,7 @@
 }:
 
 let
-  config = files.mkConfig "navi-config" [
-    {
-      source = ".config/navi";
-      target = ".config/navi";
-    }
-  ];
+  config = files.mkConfig "navi-config" [ ".config/navi" ];
   self = pkgs.symlinkJoin {
     name = "navi-with-config";
     paths = [
