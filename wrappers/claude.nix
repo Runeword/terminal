@@ -26,7 +26,6 @@ let
     pkgs.go
     pkgs.taplo
     pkgs.rtk
-    # Plugin binaries — referenced by bare name from config/claude/plugins/*.mcp.json
     pkgs.nil
     pkgs.typescript-language-server
     pkgs.firefox-devedition
