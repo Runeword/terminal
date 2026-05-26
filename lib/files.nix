@@ -34,9 +34,12 @@
             target = entry;
           }
         else if builtins.isAttrs entry then
-          entry
+          if builtins.hasAttr "source" entry && builtins.hasAttr "target" entry then
+            entry
+          else
+            throw "mkConfig: each entry must be a string or { source, target } attrset; got attrset with fields [${toString (builtins.attrNames entry)}]"
         else
-          throw "mkConfig: entry must be a string or { source, target } attrset, got ${builtins.typeOf entry}";
+          throw "mkConfig: each entry must be a string or { source, target } attrset; got ${builtins.typeOf entry}";
 
       resolveSource =
         entry:
