@@ -26,36 +26,37 @@
   mkConfig =
     name: entries:
     let
-      normalize =
-        entry:
-        if builtins.isString entry then
-          {
-            source = entry;
-            target = entry;
-          }
-        else if builtins.isAttrs entry then
-          if builtins.hasAttr "source" entry && builtins.hasAttr "target" entry then
-            entry
-          else
-            throw "mkConfig: each entry must be a string or { source, target } attrset; got attrset with fields [${toString (builtins.attrNames entry)}]"
-        else
-          throw "mkConfig: each entry must be a string or { source, target } attrset; got ${builtins.typeOf entry}";
-
-      resolveSource =
-        entry:
-        if builtins.isPath entry.source then
-          throw "mkConfig: `source` must be a string, not a Nix path (target=${entry.target})"
-        else if pkgs.lib.hasPrefix "/" entry.source then
-          entry.source
+      resolvePath =
+        source:
+        # source is an absolute path
+        if pkgs.lib.hasPrefix "/" source then
+          source
+        # rootPath is a Nix path literal (bundled mode)
         else if builtins.isPath rootPath then
-          rootPath + "/${entry.source}"
+          rootPath + "/${source}"
+        # rootPath is a string (dev mode)
         else
-          "${rootPath}/${entry.source}";
+          "${rootPath}/${source}";
+
+      toLinkFarmEntry =
+        rawEntry:
+        if builtins.isString rawEntry then
+          {
+            name = rawEntry;
+            path = resolvePath rawEntry;
+          }
+        else if
+          rawEntry ? source
+          && rawEntry ? target
+          && builtins.isString rawEntry.source
+          && builtins.isString rawEntry.target
+        then
+          {
+            name = rawEntry.target;
+            path = resolvePath rawEntry.source;
+          }
+        else
+          throw "mkConfig: each entry must be a string or { source, target } attrset; got ${builtins.typeOf rawEntry}";
     in
-    pkgs.linkFarm name (
-      map (entry: {
-        name = entry.target;
-        path = resolveSource entry;
-      }) (map normalize entries)
-    );
+    pkgs.linkFarm name (map toLinkFarmEntry entries);
 }
