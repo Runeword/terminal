@@ -286,6 +286,41 @@ __git_diff_branches() {
   git-branches diff-branches "${_GIT_FZF_BASE[@]}"
 }
 
+__git_diff_revs() {
+  __git_require_repo || return 1
+
+  local repo_cdup
+  repo_cdup="$(git rev-parse --show-cdup)"
+
+  local -a rev_preview=(
+    --preview "$_GIT_FZF_PREVIEW_CMD git show --color=always --stat {1} | $_GIT_PAGER"
+    --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
+  )
+
+  local rev_a rev_b file_a file_b
+  rev_a=$(git log --oneline --all | fzf "${_GIT_FZF_BASE[@]}" "${rev_preview[@]}" \
+    --header='side A: pick rev' | awk '{print $1}')
+  [ "$rev_a" = "" ] && return
+
+  file_a=$(git ls-tree -r --name-only "$rev_a" | fzf "${_GIT_FZF_BASE[@]}" \
+    --preview "$_GIT_FZF_PREVIEW_CMD git show --color=always $rev_a:{} | $_GIT_PAGER" \
+    --preview-window="$_GIT_FZF_PREVIEW_WINDOW" \
+    --header="side A: pick file in $rev_a")
+  [ "$file_a" = "" ] && return
+
+  rev_b=$(git log --oneline --all | fzf "${_GIT_FZF_BASE[@]}" "${rev_preview[@]}" \
+    --header='side B: pick rev' | awk '{print $1}')
+  [ "$rev_b" = "" ] && return
+
+  file_b=$(git ls-tree -r --name-only "$rev_b" | fzf "${_GIT_FZF_BASE[@]}" \
+    --preview "$_GIT_FZF_PREVIEW_CMD git show --color=always $rev_b:{} | $_GIT_PAGER" \
+    --preview-window="$_GIT_FZF_PREVIEW_WINDOW" \
+    --header="side B: pick file in $rev_b")
+  [ "$file_b" = "" ] && return
+
+  echo "git -C ${repo_cdup:-.} diff $(__shell_quote "$rev_a:$file_a") $(__shell_quote "$rev_b:$file_b")"
+}
+
 __git_reset_soft() {
   __git_require_repo || return 1
 
