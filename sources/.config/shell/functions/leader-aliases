@@ -114,6 +114,7 @@ gda 	__git_diff                                 	git                 Show staged
 gdc  	__git_diff staged                          	git                 Show staged changes	e
 gdd  	__git_diff unstaged                        	git                 Show unstaged changes	e
 gdb  	__git_diff_branches                        	git                 Show diff between 2 branches	e
+gdv  	__git_diff_revs                            	git                 Diff 2 files across 2 revs	e
 gwa 	__git_worktree_add                         	git                 worktree                  add	e
 gwr 	__git_worktree_remove                      	git                 worktree                  remove	e
 gog	go get                                       	go
