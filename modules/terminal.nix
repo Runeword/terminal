@@ -26,6 +26,12 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        assertion = cfg.configPath == null || builtins.pathExists cfg.configPath;
+        message = "programs.terminal.configPath '${toString cfg.configPath}' does not exist.";
+      }
+    ];
     programs.terminal.package = lib.mkDefault (
       if cfg.configPath != null then
         flake.lib.mkTerminal {
