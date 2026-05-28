@@ -10,7 +10,8 @@ pkgs.mkShell {
       'h'                   'show this help'
     '')
     (pkgs.writeShellScriptBin "dev" ''
-      TERMINAL_CONFIG_DIR="$PWD/sources" nix run .#dev --impure -- "$@"
+      root=$(git rev-parse --show-toplevel) || exit 1
+      TERMINAL_CONFIG_DIR="$root/sources" nix run "$root#dev" --impure -- "$@"
     '')
     (pkgs.writeShellScriptBin "bdl" ''
       nix run . -- "$@"
