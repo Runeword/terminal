@@ -3,15 +3,15 @@ pkgs.mkShell {
   packages = [
     (pkgs.writeShellScriptBin "h" ''
       printf '%-20s %s\n' \
-      'dev'                 'alacritty with configs symlinked from ./sources (edit live, no rebuild)' \
-      'bdl'                 'alacritty with configs copied into the nix store (requires rebuild)' \
+      'dev'                 'alacritty with PERMEANCE_ROOT=./sources (live config from working tree)' \
+      'bdl'                 'alacritty with bundled config (the default mode)' \
       'tools <name> [args]' 'run a CLI from the bundled tools env' \
       'smoke'               'run wrapper smoke tests' \
       'h'                   'show this help'
     '')
     (pkgs.writeShellScriptBin "dev" ''
       root=$(git rev-parse --show-toplevel) || exit 1
-      TERMINAL_CONFIG_DIR="$root/sources" nix run "$root#dev" --impure -- "$@"
+      PERMEANCE_ROOT="$root/sources" nix run "$root" -- "$@"
     '')
     (pkgs.writeShellScriptBin "bdl" ''
       nix run . -- "$@"
