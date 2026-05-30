@@ -8,7 +8,7 @@
   #     names both (e.g. ".config/git/config" lives at sources/.config/git/config
   #     and lands at $out/.config/git/config).
   #   - an attrset { source, target } for entries where source and target
-  #     differ — e.g. an absolute source (tmux-resurrect from nixpkgs) or a
+  #     differ - e.g. an absolute source (tmux-resurrect from nixpkgs) or a
   #     renamed target (claude hooks installed under bin/).
   #
   # In both forms:
@@ -16,27 +16,22 @@
   #            external sources (e.g. "${pkgs.tmuxPlugins.resurrect}/share/...")
   #   target - path under $out (e.g. ".config/zsh")
   #
-  # rootPath may be a Nix path (bundled mode - sub-paths interpolate as proper
-  # store references so the source propagates into downstream closures) or a
-  # plain string (dev mode - symlinks point at the live filesystem; --impure
-  # required).
-  #
-  # Nix path literals (e.g. ./foo) are rejected: `toString` of a path produces
-  # an absolute string, which would silently bypass the dev-mode rootPath swap.
+  # rootPath MUST be a Nix path literal. Sub-paths interpolate as proper store
+  # references so the bundled config propagates into downstream closures. The
+  # bundled tree is the only thing baked into the derivation; live editing is
+  # handled by the `permeance` flake input's launcher pattern at runtime, not
+  # by swapping rootPath at evaluation time - so no --impure is required.
   mkConfig =
     name: entries:
     let
       resolvePath =
         source:
-        # source is an absolute path
         if pkgs.lib.hasPrefix "/" source then
           source
-        # rootPath is a Nix path literal (bundled mode)
         else if builtins.isPath rootPath then
           rootPath + "/${source}"
-        # rootPath is a string (dev mode)
         else
-          "${rootPath}/${source}";
+          throw "mkConfig: rootPath must be a Nix path literal, got ${builtins.typeOf rootPath}";
 
       toLinkFarmEntry =
         rawEntry:
