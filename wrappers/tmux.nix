@@ -1,6 +1,7 @@
 {
   pkgs,
   files,
+  permeance,
   tests,
   zsh,
 }:
@@ -24,16 +25,20 @@ let
       pkgs.tmux
       config
     ];
-    nativeBuildInputs = [ pkgs.makeWrapper ];
-    postBuild = ''
-      wrapProgram $out/bin/tmux \
-        --set TMUX_SHELL ${zsh}/bin/zsh \
-        --set NIX_OUT_TMUX "$out" \
-        --add-flags "-f $out/.config/tmux/tmux.conf"
-    '';
+    postBuild = permeance.installLauncher {
+      binName = "tmux";
+      staticEnv = {
+        TMUX_SHELL = "${zsh}/bin/zsh";
+        NIX_OUT_TMUX = "@OUT@";
+      };
+      flags = [
+        "-f"
+        "$PERMEANCE_ROOT/.config/tmux/tmux.conf"
+      ];
+    };
     passthru.tests.smoke = tests.smoke {
       name = "tmux";
-      description = "Verify tmux config syntax is valid and uses the zsh wrapper";
+      description = "Verify tmux config syntax is valid, uses the zsh wrapper, and the launcher resolves PERMEANCE_ROOT";
       script = ''
         if ${self}/bin/tmux -f ${self}/.config/tmux/tmux.conf start-server \; kill-server 2>/dev/null; then
           ok "config syntax valid"
@@ -46,6 +51,13 @@ let
           ok "default-shell is zsh wrapper"
         else
           fail "default-shell is '$tmux_shell', expected '${zsh}/bin/zsh'"
+        fi
+
+        if grep -q PERMEANCE_ROOT ${self}/bin/tmux \
+           && grep -qF '/.config/tmux/tmux.conf' ${self}/bin/tmux; then
+          ok "launcher passes -f from PERMEANCE_ROOT"
+        else
+          fail "launcher missing PERMEANCE_ROOT resolution for -f"
         fi
       '';
     };
