@@ -1,6 +1,7 @@
 {
   pkgs,
   files,
+  permeance,
   tests,
 }:
 
@@ -19,15 +20,19 @@ let
       pkgs.git
       config
     ];
-    nativeBuildInputs = [ pkgs.makeWrapper ];
-    postBuild = ''
-      wrapProgram $out/bin/git \
-        --set GIT_CONFIG_GLOBAL "$out/.config/git/config" \
-        --add-flags "-c core.excludesFile=$out/.config/git/ignore"
-    '';
+    postBuild = permeance.installLauncher {
+      binName = "git";
+      configEnv = {
+        GIT_CONFIG_GLOBAL = ".config/git/config";
+      };
+      flags = [
+        "-c"
+        "core.excludesFile=$PERMEANCE_ROOT/.config/git/ignore"
+      ];
+    };
     passthru.tests.smoke = tests.smoke {
       name = "git";
-      description = "Verify git wrapper loads its bundled global config";
+      description = "Verify git loads bundled global config and the launcher resolves PERMEANCE_ROOT";
       script = ''
         moved=$(${self}/bin/git config --global --get diff.colorMoved 2>/dev/null)
         if [ "$moved" = "zebra" ]; then
@@ -52,6 +57,15 @@ let
           ok "delta.* keys reachable via [include] path = ../delta/config"
         else
           fail "delta.syntax-theme is '$theme', expected 'none' via include"
+        fi
+
+        if grep -q PERMEANCE_ROOT ${self}/bin/git \
+           && grep -qF '/.config/git/config' ${self}/bin/git \
+           && grep -qF 'core.excludesFile=' ${self}/bin/git \
+           && grep -qF '/.config/git/ignore' ${self}/bin/git; then
+          ok "launcher resolves GIT_CONFIG_GLOBAL and excludesFile from PERMEANCE_ROOT"
+        else
+          fail "launcher missing PERMEANCE_ROOT resolution"
         fi
       '';
     };
