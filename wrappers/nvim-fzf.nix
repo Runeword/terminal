@@ -1,6 +1,7 @@
 {
   pkgs,
   files,
+  permeance,
   tests,
 }:
 
@@ -58,6 +59,17 @@ let
 
   config = files.mkConfig "nvim-fzf-config" [ ".config/nvim-fzf/init.lua" ];
 
+  # Custom launcher: nvim-fzf doesn't forward CLI args to nvim. It captures
+  # them into NVIM_FZF_ARGS via $*, which init.lua reads to drive fzf, then
+  # execs nvim with no positional args. mkLauncher's "prepend flags then $@"
+  # shape doesn't fit, so this is hand-rolled.
+  launcher = pkgs.writeText "nvim-fzf-permeance-launcher" ''
+    #!${pkgs.runtimeShell}
+    export PERMEANCE_ROOT="''${PERMEANCE_ROOT:-@OUT@}"
+    export NVIM_FZF_ARGS="$*"
+    exec -a "$0" "@OUT@/bin/.nvim-fzf-inner" -u "$PERMEANCE_ROOT/.config/nvim-fzf/init.lua"
+  '';
+
   self = pkgs.symlinkJoin {
     name = "nvim-fzf";
     paths = [
@@ -67,9 +79,12 @@ let
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
       mv $out/bin/nvim $out/bin/.nvim-fzf-wrapped
+
+      # Inner: makeWrapper handles the bundled bits (PATH, plugin pack dir,
+      # --clean). The -u flag is owned by the outer launcher so init.lua can
+      # be redirected by PERMEANCE_ROOT.
       makeWrapper $out/bin/.nvim-fzf-wrapped $out/bin/.nvim-fzf-inner \
         --add-flags "--clean" \
-        --add-flags "-u $out/.config/nvim-fzf/init.lua" \
         --set NVIM_FZF_PACK_PATH "${plugins}" \
         --prefix PATH : "${
           pkgs.lib.makeBinPath [
@@ -79,22 +94,25 @@ let
           ]
         }"
 
-      cat > $out/bin/nvim-fzf <<EOF
-      #!/bin/sh
-      export NVIM_FZF_ARGS="\$*"
-      exec $out/bin/.nvim-fzf-inner
-      EOF
-      chmod +x $out/bin/nvim-fzf
+      install -m755 ${launcher} $out/bin/nvim-fzf
+      substituteInPlace $out/bin/nvim-fzf --replace-fail '@OUT@' "$out"
     '';
     passthru.tests.smoke = tests.smoke {
       name = "nvim-fzf";
-      description = "Verify nvim-fzf launches headless with its config";
+      description = "Verify nvim-fzf launches headless with init.lua and the launcher resolves PERMEANCE_ROOT";
       script = ''
-        # Launch nvim headless, run a no-op, then quit. This loads init.lua.
-        if NVIM_FZF_ARGS="" ${self}/bin/.nvim-fzf-inner --headless +qa > /dev/null 2>&1; then
-          ok "launches with config"
+        # Smoke: call .nvim-fzf-inner with explicit -u (the outer launcher owns
+        # -u now, so the inner needs it spelled out for the headless probe).
+        if NVIM_FZF_ARGS="" ${self}/bin/.nvim-fzf-inner -u ${self}/.config/nvim-fzf/init.lua --headless +qa > /dev/null 2>&1; then
+          ok "launches with bundled init.lua"
         else
-          fail "failed to launch with config"
+          fail "failed to launch with init.lua"
+        fi
+
+        if grep -q '"$PERMEANCE_ROOT/.config/nvim-fzf/init.lua"' ${self}/bin/nvim-fzf; then
+          ok "launcher resolves -u from PERMEANCE_ROOT"
+        else
+          fail "launcher missing PERMEANCE_ROOT resolution for -u"
         fi
       '';
     };
