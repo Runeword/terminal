@@ -12,12 +12,21 @@
   inputs.lefthook.url = "github:Runeword/lefthook";
   inputs.lefthook.inputs.nixpkgs.follows = "nixpkgs";
 
+  inputs.permeance.url = "github:Runeword/permeance";
+
   # inputs.hello-flake.url = "github:sbellem/hello-flake";
 
   outputs =
     inputs@{ self, ... }:
     let
-      mkWrappers = pkgs: configPath: import ./wrappers { inherit pkgs configPath; };
+      mkPermeance = pkgs: inputs.permeance.lib pkgs;
+
+      mkWrappers =
+        pkgs: configPath:
+        import ./wrappers {
+          inherit pkgs configPath;
+          permeance = mkPermeance pkgs;
+        };
 
       mkTools = pkgs: wrappers: import ./packages { inherit pkgs; } ++ builtins.attrValues wrappers;
 
@@ -25,6 +34,7 @@
         pkgs: configPath: tools:
         import ./wrappers/alacritty.nix {
           inherit pkgs configPath tools;
+          permeance = mkPermeance pkgs;
         };
 
       mkPkgs =
@@ -69,30 +79,11 @@
           pathsToLink = [ "/bin" ];
         };
 
-        apps =
-          let
-            devConfigPath = builtins.getEnv "TERMINAL_CONFIG_DIR";
-          in
-          {
-            default = {
-              type = "app";
-              program = "${terminal}/bin/alacritty";
-              meta.description = "Alacritty terminal with bundled config";
-            };
-          }
-          # apps.dev requires TERMINAL_CONFIG_DIR; omitted in pure mode (getEnv → "")
-          # so `nix flake check` stays clean.
-          // pkgs.lib.optionalAttrs (devConfigPath != "") {
-            dev =
-              let
-                devWrappers = mkWrappers pkgs devConfigPath;
-                devTools = mkTools pkgs devWrappers;
-              in
-              {
-                type = "app";
-                program = "${mkTerminal pkgs devConfigPath devTools}/bin/alacritty";
-              };
-          };
+        apps.default = {
+          type = "app";
+          program = "${terminal}/bin/alacritty";
+          meta.description = "Alacritty terminal (set $PERMEANCE_ROOT to a sources tree for live config)";
+        };
 
         devShells.default = pkgs.mkShell {
           inputsFrom = [
