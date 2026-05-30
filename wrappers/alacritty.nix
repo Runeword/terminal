@@ -2,9 +2,9 @@
   pkgs,
   tools,
   configPath,
+  permeance,
 }:
 let
-
   files = import ../lib/files.nix {
     inherit pkgs;
     rootPath = configPath;
@@ -18,24 +18,24 @@ let
     pkgs.nerd-fonts.caskaydia-mono
   ];
 in
-pkgs.runCommand "alacritty"
-  {
-    nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
-  }
-  ''
-    mkdir -p $out
-    ln -s ${config}/.config $out/.config
+pkgs.runCommand "alacritty" { } ''
+  mkdir -p $out
+  ln -s ${config}/.config $out/.config
 
-    # makeBinaryWrapper compiles a tiny C launcher (no bash indirection per launch).
-    # Bare make*Wrapper instead of wrapProgram to preserve the original process name 'alacritty'.
-    mkdir -p $out/bin
-    makeBinaryWrapper ${pkgs.alacritty}/bin/alacritty $out/bin/alacritty \
-      --unset TMUX \
-      --unset TMUX_PANE \
-      --prefix PATH : ${pkgs.lib.makeBinPath tools} \
-      ${
-        pkgs.lib.optionalString (fonts != [ ])
-          "--set FONTCONFIG_FILE ${pkgs.makeFontsConf { fontDirectories = fonts; }}"
-      } \
-      --add-flags "--config-file $out/.config/alacritty/alacritty.toml"
-  ''
+  ${permeance.installLauncher {
+    binName = "alacritty";
+    realBin = "${pkgs.alacritty}/bin/alacritty";
+    unsetEnv = [
+      "TMUX"
+      "TMUX_PANE"
+    ];
+    pathPrefix = [ (pkgs.lib.makeBinPath tools) ];
+    staticEnv = pkgs.lib.optionalAttrs (fonts != [ ]) {
+      FONTCONFIG_FILE = "${pkgs.makeFontsConf { fontDirectories = fonts; }}";
+    };
+    flags = [
+      "--config-file"
+      "$PERMEANCE_ROOT/.config/alacritty/alacritty.toml"
+    ];
+  }}
+''
