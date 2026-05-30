@@ -1,4 +1,4 @@
-# Pure-eval invariants for the flake outputs.
+# Pure-eval invariants for the terminal flake's wrappers.
 #
 # Each attribute is `{ expr = ...; expected = ...; }` and is consumed by
 # `pkgs.lib.runTests`, surfaced as `checks.<system>.unit-tests`. Only
