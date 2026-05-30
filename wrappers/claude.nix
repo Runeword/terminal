@@ -1,6 +1,7 @@
 {
   pkgs,
   files,
+  permeance,
   tests,
   git,
 }:
@@ -69,25 +70,41 @@ let
       pkgs.claude-code
       config
     ];
-    nativeBuildInputs = [ pkgs.makeWrapper ];
-    postBuild = ''
+    postBuild = permeance.installLauncher {
+      binName = "claude";
       # gitShim ships a binary named `git`. It is injected only into claude's
       # own PATH (and inherited by its subprocesses: bash, Python, Make, …),
       # not merged into $out/bin, so the user's interactive shell still sees
       # the wrapped git. Prefixed first so it wins over git-with-config within
       # claude's process tree. The shim enforces the same allowlist policy as
       # git-allowlist-hook, then exec's the real git.
-      wrapProgram $out/bin/claude \
-        --prefix PATH : "${gitShim}/bin:$out/bin:${pkgs.lib.makeBinPath tools}" \
-        --add-flags "--settings $out/.claude/settings.json --setting-sources project,local --add-dir $out" \
-        --set-default CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD 1 \
-        --set CLAUDE_GIT_ALLOWLIST_CONFIG $out/.claude/git-allowlist.toml \
-        --set RTK_TELEMETRY_DISABLED 1 \
-        --unset TMUX
-    '';
+      pathPrefix = [
+        "${gitShim}/bin"
+        "@OUT@/bin"
+        "${pkgs.lib.makeBinPath tools}"
+      ];
+      configEnv = {
+        CLAUDE_GIT_ALLOWLIST_CONFIG = ".claude/git-allowlist.toml";
+      };
+      staticEnv = {
+        RTK_TELEMETRY_DISABLED = "1";
+      };
+      defaultEnv = {
+        CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD = "1";
+      };
+      unsetEnv = [ "TMUX" ];
+      flags = [
+        "--settings"
+        "$PERMEANCE_ROOT/.claude/settings.json"
+        "--setting-sources"
+        "project,local"
+        "--add-dir"
+        "$PERMEANCE_ROOT"
+      ];
+    };
     passthru.tests.smoke = tests.smoke {
       name = "claude";
-      description = "Verify claude binary executes (no behavioral config probe available without auth/network)";
+      description = "Verify claude binary executes and the launcher resolves PERMEANCE_ROOT";
       script = ''
         # claude-code does not expose a config-loading probe that works in a
         # sandbox without auth/network. This test only verifies the wrapper's
@@ -96,6 +113,14 @@ let
           ok "binary executes"
         else
           fail "binary failed to execute"
+        fi
+
+        if grep -q PERMEANCE_ROOT ${self}/bin/claude \
+           && grep -qF '/.claude/settings.json' ${self}/bin/claude \
+           && grep -qF '/.claude/git-allowlist.toml' ${self}/bin/claude; then
+          ok "launcher resolves --settings and CLAUDE_GIT_ALLOWLIST_CONFIG from PERMEANCE_ROOT"
+        else
+          fail "launcher missing PERMEANCE_ROOT resolution"
         fi
       '';
     };
