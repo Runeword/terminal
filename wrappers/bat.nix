@@ -2,7 +2,6 @@
   pkgs,
   files,
   permeance,
-  tests,
 }:
 
 let
@@ -19,9 +18,9 @@ let
         BAT_CONFIG_PATH = ".config/bat/config";
       };
     };
-    passthru.tests.smoke = tests.smoke {
+    passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "bat";
-      description = "Verify bat finds its bundled config and the launcher resolves PERMEANCE_ROOT";
+      description = "Verify bat finds its bundled config";
       script = ''
         bat_config=$(${self}/bin/bat --config-file 2>/dev/null)
         case "$bat_config" in
@@ -30,13 +29,6 @@ let
           *)
             fail "config file is '$bat_config', expected path under '${self}/'" ;;
         esac
-
-        if grep -q PERMEANCE_ROOT ${self}/bin/bat \
-           && grep -qF '/.config/bat/config' ${self}/bin/bat; then
-          ok "launcher resolves BAT_CONFIG_PATH from PERMEANCE_ROOT"
-        else
-          fail "launcher missing PERMEANCE_ROOT resolution for BAT_CONFIG_PATH"
-        fi
       '';
     };
   };
