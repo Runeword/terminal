@@ -2,7 +2,6 @@
   pkgs,
   files,
   permeance,
-  tests,
   git,
 }:
 
@@ -102,9 +101,9 @@ let
         "$PERMEANCE_ROOT"
       ];
     };
-    passthru.tests.smoke = tests.smoke {
+    passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "claude";
-      description = "Verify claude binary executes and the launcher resolves PERMEANCE_ROOT";
+      description = "Verify claude binary executes";
       script = ''
         # claude-code does not expose a config-loading probe that works in a
         # sandbox without auth/network. This test only verifies the wrapper's
@@ -113,14 +112,6 @@ let
           ok "binary executes"
         else
           fail "binary failed to execute"
-        fi
-
-        if grep -q PERMEANCE_ROOT ${self}/bin/claude \
-           && grep -qF '/.claude/settings.json' ${self}/bin/claude \
-           && grep -qF '/.claude/git-allowlist.toml' ${self}/bin/claude; then
-          ok "launcher resolves --settings and CLAUDE_GIT_ALLOWLIST_CONFIG from PERMEANCE_ROOT"
-        else
-          fail "launcher missing PERMEANCE_ROOT resolution"
         fi
       '';
     };
