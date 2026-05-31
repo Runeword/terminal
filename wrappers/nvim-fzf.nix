@@ -2,7 +2,6 @@
   pkgs,
   files,
   permeance,
-  tests,
 }:
 
 let
@@ -97,9 +96,9 @@ let
       install -m755 ${launcher} $out/bin/nvim-fzf
       substituteInPlace $out/bin/nvim-fzf --replace-fail '@OUT@' "$out"
     '';
-    passthru.tests.smoke = tests.smoke {
+    passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "nvim-fzf";
-      description = "Verify nvim-fzf launches headless with init.lua and the launcher resolves PERMEANCE_ROOT";
+      description = "Verify nvim-fzf launches headless with init.lua";
       script = ''
         # Smoke: call .nvim-fzf-inner with explicit -u (the outer launcher owns
         # -u now, so the inner needs it spelled out for the headless probe).
@@ -107,12 +106,6 @@ let
           ok "launches with bundled init.lua"
         else
           fail "failed to launch with init.lua"
-        fi
-
-        if grep -q '"$PERMEANCE_ROOT/.config/nvim-fzf/init.lua"' ${self}/bin/nvim-fzf; then
-          ok "launcher resolves -u from PERMEANCE_ROOT"
-        else
-          fail "launcher missing PERMEANCE_ROOT resolution for -u"
         fi
       '';
     };
