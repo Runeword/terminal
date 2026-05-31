@@ -2,7 +2,6 @@
   pkgs,
   files,
   permeance,
-  tests,
   claude,
 }:
 
@@ -37,7 +36,7 @@ let
         flags = [ "--no-global-rcs" ];
       }}
     '';
-    passthru.tests.smoke = tests.smoke {
+    passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
       description = "Verify zsh wrapper resolves config bundled and via PERMEANCE_ROOT";
       script = ''
