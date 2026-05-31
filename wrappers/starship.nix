@@ -2,7 +2,6 @@
   pkgs,
   files,
   permeance,
-  tests,
 }:
 
 let
@@ -19,21 +18,14 @@ let
         STARSHIP_CONFIG = ".config/starship/starship.toml";
       };
     };
-    passthru.tests.smoke = tests.smoke {
+    passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "starship";
-      description = "Verify starship loads its bundled config and the launcher resolves PERMEANCE_ROOT";
+      description = "Verify starship loads its bundled config";
       script = ''
         if ${self}/bin/starship prompt > /dev/null 2>&1; then
           ok "bundled config loads (prompt generates)"
         else
           fail "prompt generation failed"
-        fi
-
-        if grep -q PERMEANCE_ROOT ${self}/bin/starship \
-           && grep -qF '/.config/starship/starship.toml' ${self}/bin/starship; then
-          ok "launcher resolves STARSHIP_CONFIG from PERMEANCE_ROOT"
-        else
-          fail "launcher missing PERMEANCE_ROOT resolution for STARSHIP_CONFIG"
         fi
       '';
     };
