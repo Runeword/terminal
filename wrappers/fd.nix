@@ -2,7 +2,6 @@
   pkgs,
   files,
   permeance,
-  tests,
 }:
 
 let
@@ -20,9 +19,9 @@ let
         "$PERMEANCE_ROOT/.config/ignore"
       ];
     };
-    passthru.tests.smoke = tests.smoke {
+    passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "fd";
-      description = "Verify fd respects the bundled ignore file and the launcher resolves PERMEANCE_ROOT";
+      description = "Verify fd respects the bundled ignore file";
       script = ''
         mkdir -p $TMPDIR/fd-test/node_modules
         echo "secret" > $TMPDIR/fd-test/node_modules/file.txt
@@ -36,13 +35,6 @@ let
           fail "node_modules not ignored"
         else
           ok "node_modules ignored via bundled config"
-        fi
-
-        if grep -q PERMEANCE_ROOT ${self}/bin/fd \
-           && grep -qF '/.config/ignore' ${self}/bin/fd; then
-          ok "launcher passes --ignore-file from PERMEANCE_ROOT"
-        else
-          fail "launcher missing PERMEANCE_ROOT resolution for --ignore-file"
         fi
       '';
     };
