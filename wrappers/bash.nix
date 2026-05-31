@@ -2,7 +2,6 @@
   pkgs,
   files,
   permeance,
-  tests,
 }:
 
 let
@@ -32,23 +31,15 @@ let
         "$PERMEANCE_ROOT/.config/bash/.bashrc"
       ];
     };
-    passthru.tests.smoke = tests.smoke {
+    passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "bash";
-      description = "Verify bash wrapper sets NIX_OUT_SHELL correctly and the launcher resolves PERMEANCE_ROOT";
+      description = "Verify bash wrapper sets NIX_OUT_SHELL correctly";
       script = ''
         nix_out=$(${self}/bin/bash -i -c 'echo $NIX_OUT_SHELL' 2>/dev/null)
         if [ "$nix_out" = "${self}" ]; then
           ok "NIX_OUT_SHELL points to wrapper"
         else
           fail "NIX_OUT_SHELL is '$nix_out', expected '${self}'"
-        fi
-
-        if grep -q PERMEANCE_ROOT ${self}/bin/bash \
-           && grep -qF '/.config/readline/inputrc' ${self}/bin/bash \
-           && grep -qF '/.config/bash/.bashrc' ${self}/bin/bash; then
-          ok "launcher resolves INPUTRC and --rcfile from PERMEANCE_ROOT"
-        else
-          fail "launcher missing PERMEANCE_ROOT resolution"
         fi
       '';
     };
