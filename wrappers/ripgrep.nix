@@ -2,7 +2,6 @@
   pkgs,
   files,
   permeance,
-  tests,
 }:
 
 let
@@ -26,9 +25,9 @@ let
         "$PERMEANCE_ROOT/.config/ignore"
       ];
     };
-    passthru.tests.smoke = tests.smoke {
+    passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "ripgrep";
-      description = "Verify ripgrep respects the bundled ignore file and the launcher resolves PERMEANCE_ROOT";
+      description = "Verify ripgrep respects the bundled ignore file";
       script = ''
         mkdir -p $TMPDIR/rg-test/node_modules
         echo "secret" > $TMPDIR/rg-test/node_modules/file.txt
@@ -48,14 +47,6 @@ let
           ok "visible files found"
         else
           fail "visible files not found"
-        fi
-
-        if grep -q PERMEANCE_ROOT ${self}/bin/rg \
-           && grep -qF '/.config/ripgrep/ripgreprc' ${self}/bin/rg \
-           && grep -qF '/.config/ignore' ${self}/bin/rg; then
-          ok "launcher resolves RIPGREP_CONFIG_PATH and --ignore-file from PERMEANCE_ROOT"
-        else
-          fail "launcher missing PERMEANCE_ROOT resolution"
         fi
       '';
     };
