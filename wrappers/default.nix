@@ -8,13 +8,11 @@ let
     inherit pkgs;
     rootPath = configPath;
   };
-  tests = import ../lib/tests.nix { inherit pkgs; };
   git = import ./git.nix {
     inherit
       pkgs
       files
       permeance
-      tests
       ;
   };
   claude = import ./claude.nix {
@@ -22,7 +20,6 @@ let
       pkgs
       files
       permeance
-      tests
       git
       ;
   };
@@ -31,7 +28,6 @@ let
       pkgs
       files
       permeance
-      tests
       claude
       ;
   };
@@ -43,7 +39,6 @@ in
       pkgs
       files
       permeance
-      tests
       zsh
       ;
   };
@@ -52,7 +47,6 @@ in
       pkgs
       files
       permeance
-      tests
       ;
   };
   fd = import ./fd.nix {
@@ -60,7 +54,6 @@ in
       pkgs
       files
       permeance
-      tests
       ;
   };
   ripgrep = import ./ripgrep.nix {
@@ -68,7 +61,6 @@ in
       pkgs
       files
       permeance
-      tests
       ;
   };
   bash = import ./bash.nix {
@@ -76,7 +68,6 @@ in
       pkgs
       files
       permeance
-      tests
       ;
   };
   starship = import ./starship.nix {
@@ -84,7 +75,6 @@ in
       pkgs
       files
       permeance
-      tests
       ;
   };
   delta = import ./delta.nix {
@@ -92,7 +82,6 @@ in
       pkgs
       files
       permeance
-      tests
       ;
   };
   navi = import ./navi.nix {
@@ -100,7 +89,6 @@ in
       pkgs
       files
       permeance
-      tests
       ;
   };
   nvim-fzf = import ./nvim-fzf.nix {
@@ -108,7 +96,6 @@ in
       pkgs
       files
       permeance
-      tests
       ;
   };
 }
