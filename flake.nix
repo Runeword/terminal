@@ -13,6 +13,7 @@
   inputs.lefthook.inputs.nixpkgs.follows = "nixpkgs";
 
   inputs.permeance.url = "github:Runeword/permeance";
+  inputs.permeance.inputs.nixpkgs.follows = "nixpkgs";
 
   # inputs.hello-flake.url = "github:sbellem/hello-flake";
 
