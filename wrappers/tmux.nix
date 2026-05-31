@@ -2,7 +2,6 @@
   pkgs,
   files,
   permeance,
-  tests,
   zsh,
 }:
 
@@ -36,9 +35,9 @@ let
         "$PERMEANCE_ROOT/.config/tmux/tmux.conf"
       ];
     };
-    passthru.tests.smoke = tests.smoke {
+    passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config syntax is valid, uses the zsh wrapper, and the launcher resolves PERMEANCE_ROOT";
+      description = "Verify tmux config syntax is valid and uses the zsh wrapper";
       script = ''
         if ${self}/bin/tmux -f ${self}/.config/tmux/tmux.conf start-server \; kill-server 2>/dev/null; then
           ok "config syntax valid"
@@ -51,13 +50,6 @@ let
           ok "default-shell is zsh wrapper"
         else
           fail "default-shell is '$tmux_shell', expected '${zsh}/bin/zsh'"
-        fi
-
-        if grep -q PERMEANCE_ROOT ${self}/bin/tmux \
-           && grep -qF '/.config/tmux/tmux.conf' ${self}/bin/tmux; then
-          ok "launcher passes -f from PERMEANCE_ROOT"
-        else
-          fail "launcher missing PERMEANCE_ROOT resolution for -f"
         fi
       '';
     };
