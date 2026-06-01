@@ -1,5 +1,5 @@
-[ -f "$NIX_OUT_SHELL/.config/shell/xdg.sh" ] && source "$NIX_OUT_SHELL/.config/shell/xdg.sh"
-[ -f "$NIX_OUT_SHELL/.config/shell/variables.sh" ] && source "$NIX_OUT_SHELL/.config/shell/variables.sh"
+[ -f "$PERMEANCE_ROOT/.config/shell/xdg.sh" ] && source "$PERMEANCE_ROOT/.config/shell/xdg.sh"
+[ -f "$PERMEANCE_ROOT/.config/shell/variables.sh" ] && source "$PERMEANCE_ROOT/.config/shell/variables.sh"
 
 # disable bold in the ls command output
 # LS_COLORS=${LS_COLORS//01;/00;}
@@ -10,7 +10,7 @@ export HISTFILE="${XDG_STATE_HOME}"/bash/history
 HISTSIZE=100000
 HISTFILESIZE=100000
 
-# source "$NIX_OUT_SHELL/.config/shell/scripts/ssh-agent.sh"
+# source "$PERMEANCE_ROOT/.config/shell/scripts/ssh-agent.sh"
 
 # # Show completion options on first Tab, cycle through on second Tab
 # bind 'set show-all-if-ambiguous on'
@@ -28,10 +28,10 @@ for i in "-" {0..9}; do bind -r "\e$i"; done
 # unbind ctrl-s and ctrl-q (terminal scroll lock)
 stty -ixon
 
-[ -f "$NIX_OUT_SHELL/.config/shell/aliases.sh" ] && source "$NIX_OUT_SHELL/.config/shell/aliases.sh"
+[ -f "$PERMEANCE_ROOT/.config/shell/aliases.sh" ] && source "$PERMEANCE_ROOT/.config/shell/aliases.sh"
 
-if [ -d "$NIX_OUT_SHELL/.config/shell/functions" ]; then
-  for file in "$NIX_OUT_SHELL/.config/shell/functions"/*.{sh,bash}; do
+if [ -d "$PERMEANCE_ROOT/.config/shell/functions" ]; then
+  for file in "$PERMEANCE_ROOT/.config/shell/functions"/*.{sh,bash}; do
     [ -f "$file" ] && . "$file"
   done
 fi
