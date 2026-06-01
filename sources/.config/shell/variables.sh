@@ -108,7 +108,7 @@ export _ZO_FZF_OPTS="$FZF_DEFAULT_OPTS
 --tabstop=1 \
 --exit-0 \
 --select-1 \
---preview='\$NIX_OUT_SHELL/.config/shell/scripts/zoxide_preview.sh {2..}' \
+--preview='\$PERMEANCE_ROOT/.config/shell/scripts/zoxide_preview.sh {2..}' \
 --preview-window=down,40%,border-top \
 "
 
