@@ -64,6 +64,25 @@ __tmux_switch_window() {
     >/dev/null
 }
 
+__tmux_switch_or_create_window() {
+  local target_index="$1"
+  local current_index
+  current_index=$(tmux display-message -p '#{window_index}')
+
+  if [ "$current_index" = "$target_index" ]; then
+    tmux last-window
+    return
+  fi
+
+  if tmux list-windows -F '#{window_index}' | grep -qx "$target_index"; then
+    tmux select-window -t "$target_index"
+  else
+    local current_path
+    current_path=$(tmux display-message -p '#{pane_current_path}')
+    tmux new-window -t ":$target_index" -c "$current_path"
+  fi
+}
+
 __tmux_new_session() {
   local max_session session_name
   max_session=$(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep -E '^[0-9]+$' | sort -n | tail -1)
