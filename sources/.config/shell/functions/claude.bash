@@ -50,7 +50,7 @@ __claude_init_fzf() {
 __claude_run() {
   local size="${1:-15}"
   if [ -n "$TMUX" ]; then
-    local script="$NIX_OUT_TMUX/.config/tmux/scripts/toggle-pane.sh"
+    local script="$PERMEANCE_ROOT/.config/tmux/scripts/toggle-pane.sh"
     tmux run-shell "sh $script $size $__CLAUDE_CMD"
   else
     eval "$__CLAUDE_CMD"
@@ -73,7 +73,7 @@ __claude_debug() {
   local file="/tmp/claude-debug.log"
   touch "$file"
   if [ -n "$TMUX" ]; then
-    local script="$NIX_OUT_TMUX/.config/tmux/scripts/toggle-pane.sh"
+    local script="$PERMEANCE_ROOT/.config/tmux/scripts/toggle-pane.sh"
     tmux run-shell "sh $script 50 tail -f $file"
     tmux swap-pane -U \; select-pane -D
   fi
