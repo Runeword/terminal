@@ -99,11 +99,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1779786838,
-        "narHash": "sha256-0geHoGiR5f8qiXg+gO4rSF6Up6Var+kKqiOv9AO/uUc=",
+        "lastModified": 1780365719,
+        "narHash": "sha256-QfWfccTN+70ZQ4m2qlU9PiKfz2Yppq94058iJyARNwc=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "f44f7788c891fbe5542177df78374f8cdab10e8f",
+        "rev": "ffa10e26ae11d676b2db836259889f1f571cb14f",
         "type": "github"
       },
       "original": {
@@ -136,17 +136,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1780256858,
-        "narHash": "sha256-0lzJyk+o64y1vGMxrzvs+kyNHhZAliXELbqeh4VTrn0=",
-        "owner": "Runeword",
-        "repo": "permeance",
-        "rev": "8f7650e31de7bf0a5cbf5d9607c969156b4ba953",
-        "type": "github"
+        "lastModified": 1780696588,
+        "narHash": "sha256-MGeT7t59dy9sj8cMF3lqEGFldm3xKQGPdz7cBS0oLpY=",
+        "ref": "refs/heads/main",
+        "rev": "3416ebd21c48f5dc868d7c29bc0138e548861f38",
+        "revCount": 4,
+        "type": "git",
+        "url": "ssh://git@github.com/Runeword/permeance.git"
       },
       "original": {
-        "owner": "Runeword",
-        "repo": "permeance",
-        "type": "github"
+        "type": "git",
+        "url": "ssh://git@github.com/Runeword/permeance.git"
       }
     },
     "root": {
