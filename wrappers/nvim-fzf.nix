@@ -58,17 +58,6 @@ let
 
   config = files.mkConfig "nvim-fzf-config" [ ".config/nvim-fzf/init.lua" ];
 
-  # Custom launcher: nvim-fzf doesn't forward CLI args to nvim. It captures
-  # them into NVIM_FZF_ARGS via $*, which init.lua reads to drive fzf, then
-  # execs nvim with no positional args. mkLauncher's "prepend flags then $@"
-  # shape doesn't fit, so this is hand-rolled.
-  launcher = pkgs.writeText "nvim-fzf-permeance-launcher" ''
-    #!${pkgs.runtimeShell}
-    export PERMEANCE_ROOT="''${PERMEANCE_ROOT:-@OUT@}"
-    export NVIM_FZF_ARGS="$*"
-    exec -a "$0" "@OUT@/bin/.nvim-fzf-inner" -u "$PERMEANCE_ROOT/.config/nvim-fzf/init.lua"
-  '';
-
   self = pkgs.symlinkJoin {
     name = "nvim-fzf";
     paths = [
@@ -93,8 +82,19 @@ let
           ]
         }"
 
-      install -m755 ${launcher} $out/bin/nvim-fzf
-      substituteInPlace $out/bin/nvim-fzf --replace-fail '@OUT@' "$out"
+      # nvim-fzf captures CLI args into NVIM_FZF_ARGS for init.lua to read,
+      # then execs nvim with only -u (no positional args). preExecLines does
+      # the $* capture; forwardArgs=false drops "$@" from the exec line.
+      ${permeance.installLauncher {
+        binName = "nvim-fzf";
+        realBin = "@OUT@/bin/.nvim-fzf-inner";
+        flags = [
+          "-u"
+          "$PERMEANCE_ROOT/.config/nvim-fzf/init.lua"
+        ];
+        preExecLines = [ ''export NVIM_FZF_ARGS="$*"'' ];
+        forwardArgs = false;
+      }}
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "nvim-fzf";
