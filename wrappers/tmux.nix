@@ -39,13 +39,15 @@ let
       name = "tmux";
       description = "Verify tmux config syntax is valid and uses the zsh wrapper";
       script = ''
-        if ${self}/bin/tmux -f ${self}/.config/tmux/tmux.conf start-server \; kill-server 2>/dev/null; then
-          ok "config syntax valid"
+        # No explicit -f — let the launcher's flags = [ "-f" "$PERMEANCE_ROOT/.config/tmux/tmux.conf" ]
+        # provide it, so the smoke exercises the launcher's flag routing.
+        if ${self}/bin/tmux start-server \; kill-server 2>/dev/null; then
+          ok "config syntax valid (via launcher -f routing)"
         else
           fail "config syntax error"
         fi
 
-        tmux_shell=$(${self}/bin/tmux -f ${self}/.config/tmux/tmux.conf start-server \; show-option -gv default-shell \; kill-server 2>/dev/null)
+        tmux_shell=$(${self}/bin/tmux start-server \; show-option -gv default-shell \; kill-server 2>/dev/null)
         if [ "$tmux_shell" = "${zsh}/bin/zsh" ]; then
           ok "default-shell is zsh wrapper"
         else
