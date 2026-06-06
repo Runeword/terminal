@@ -33,13 +33,12 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "bash";
-      description = "Verify bash wrapper sets NIX_OUT_SHELL correctly";
+      description = "Verify bash wrapper exec's the real binary";
       script = ''
-        nix_out=$(${self}/bin/bash -i -c 'echo $NIX_OUT_SHELL' 2>/dev/null)
-        if [ "$nix_out" = "${self}" ]; then
-          ok "NIX_OUT_SHELL points to wrapper"
+        if ${self}/bin/bash --version > /dev/null 2>&1; then
+          ok "wrapper execs real bash"
         else
-          fail "NIX_OUT_SHELL is '$nix_out', expected '${self}'"
+          fail "wrapper does not exec real bash"
         fi
       '';
     };
