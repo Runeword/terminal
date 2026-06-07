@@ -48,10 +48,8 @@ __claude_init_fzf() {
 }
 
 __claude_run() {
-  local size="${1:-15}"
   if [ -n "$TMUX" ]; then
-    local script="$PERMEANCE_ROOT/.config/tmux/scripts/toggle-pane.sh"
-    tmux run-shell "sh $script $size $__CLAUDE_CMD"
+    tmux new-window -a -c "#{pane_current_path}" "$__CLAUDE_CMD"
   else
     eval "$__CLAUDE_CMD"
   fi
@@ -59,12 +57,12 @@ __claude_run() {
 
 __claude() {
   __claude_init "$@" || return 0
-  __claude_run 15
+  __claude_run
 }
 
 __claude_plugins() {
   __claude_init_fzf "$@" || return 0
-  __claude_run 15
+  __claude_run
 }
 
 __claude_debug() {
