@@ -7,6 +7,7 @@
 
 let
   claudeStatusline = import ../packages/custom/claude-statusline { inherit pkgs; };
+  claudeDocsGuard = import ../packages/custom/claude-docs-guard { inherit pkgs; };
   gitAllowlistHook = import ../packages/custom/git-allowlist-hook { inherit pkgs; };
   # Point the shim at the wrapped git so config (excludesFile, pager, includes,
   # GIT_CONFIG_GLOBAL) applies whether git is invoked from claude or from the
@@ -20,6 +21,7 @@ let
 
   tools = [
     claudeStatusline
+    claudeDocsGuard
     gitAllowlistHook
     pkgs.nixfmt
     pkgs.shfmt
@@ -51,15 +53,11 @@ let
     ".claude/settings.json"
     ".claude/git-allowlist.toml"
 
-    # Renamed and installed under bin/ so they're PATH-resolvable from
-    # settings.json hooks (which invoke them as `claude-format` / `claude-docs-guard`).
+    # Renamed and installed under bin/ so it's PATH-resolvable from
+    # settings.json hooks (which invoke it as `claude-format`).
     {
       source = ".claude/hooks/format.sh";
       target = "bin/claude-format";
-    }
-    {
-      source = ".claude/hooks/docs-guard.sh";
-      target = "bin/claude-docs-guard";
     }
   ];
 
