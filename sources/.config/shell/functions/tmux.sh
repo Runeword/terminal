@@ -83,6 +83,27 @@ __tmux_switch_or_create_window() {
   fi
 }
 
+__tmux_swap_or_create_window() {
+  local target_index="$1"
+  local current_index
+  current_index=$(tmux display-message -p '#{window_index}')
+
+  if [ "$current_index" = "$target_index" ]; then
+    local last_index
+    last_index=$(tmux display-message -t '{last}' -p '#{window_index}' 2>/dev/null)
+    [ "$last_index" = "" ] && return 0
+    tmux swap-window -t "$last_index" \; select-window -t "$last_index"
+  elif tmux list-windows -F '#{window_index}' | grep -qx "$target_index"; then
+    tmux swap-window -t "$target_index" \; select-window -t "$target_index"
+  else
+    local current_path
+    current_path=$(tmux display-message -p '#{pane_current_path}')
+    tmux new-window -t ":$target_index" -c "$current_path"
+  fi
+
+  __tmux_flash_current_window
+}
+
 __tmux_new_session() {
   local max_session session_name
   max_session=$(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep -E '^[0-9]+$' | sort -n | tail -1)
@@ -354,4 +375,10 @@ __tmux_reopen_window() {
     tmux new-window -a
     tmux display-message "Restored (path invalid)"
   fi
+}
+
+__tmux_flash_current_window() {
+  tmux set -g window-status-current-format "#[fg=#ffffff,bold]#I #W"
+  sleep 0.25
+  tmux set -g window-status-current-format "#[fg=#ffffff]#I #W"
 }
