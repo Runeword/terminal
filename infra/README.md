@@ -41,17 +41,24 @@ If `plan` shows diffs after import, decide per field whether to codify the
 drift into the `.tf` or apply the `.tf` over it. Don't reflexively `apply` —
 that would clobber settings that drifted intentionally via the UI.
 
-## Actions secrets
+## Actions & Dependabot secrets
 
-`github_actions_secret.permeance_token` provisions `PERMEANCE_TOKEN`. Create
-the fine-grained PAT in the GitHub UI (browser-only — GitHub doesn't expose
-PAT creation via API), then feed it to OpenTofu via env:
+`secrets.tf` provisions `PERMEANCE_TOKEN` twice — once as a
+`github_actions_secret` (for push/PR runs) and once as a
+`github_dependabot_secret` (for runs triggered by Dependabot PRs, which run
+with a separate secret namespace). Both pull the value from
+`var.permeance_token`. Create the PAT in the GitHub UI (browser-only — GitHub
+doesn't expose PAT creation via API), then feed it to OpenTofu via env:
 
 ```sh
 TF_VAR_permeance_token='<pat>' infra apply
 ```
 
-The PAT should be scoped to `Runeword/permeance` only, with **Contents: Read**.
+The PAT needs read access to public repos (for nixpkgs / flake-utils fetches)
+**and** to `Runeword/permeance`. A **classic PAT with `repo` scope** satisfies
+both; a fine-grained PAT scoped only to `Runeword/permeance` would 401 on
+public fetches because the `access-tokens` per-path scoping isn't reliable in
+the Nix version shipped by `cachix/install-nix-action@v31` (Nix 2.34.7).
 
 The plaintext value lands in local `terraform.tfstate` (gitignored). If the
 secret already exists in GitHub (e.g. you ran `gh secret set` first), import
