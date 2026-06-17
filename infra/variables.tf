@@ -9,3 +9,9 @@ variable "repository_name" {
   default     = "terminal"
   description = "Repository to manage."
 }
+
+variable "permeance_token" {
+  type        = string
+  sensitive   = true
+  description = "Fine-grained PAT with Contents:read on Runeword/permeance. Set via TF_VAR_permeance_token; CI consumes it as the PERMEANCE_TOKEN secret."
+}
