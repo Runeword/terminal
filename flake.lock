@@ -136,17 +136,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1780696588,
-        "narHash": "sha256-MGeT7t59dy9sj8cMF3lqEGFldm3xKQGPdz7cBS0oLpY=",
-        "ref": "refs/heads/main",
-        "rev": "3416ebd21c48f5dc868d7c29bc0138e548861f38",
-        "revCount": 4,
-        "type": "git",
-        "url": "ssh://git@github.com/Runeword/permeance.git"
+        "lastModified": 1781041905,
+        "narHash": "sha256-9jNZ8Zf7gD4R1PZr3RCLPQuSOBBvHHuIwEhRqtitPCY=",
+        "owner": "Runeword",
+        "repo": "permeance",
+        "rev": "f93573875a0ee59813cf4904c73ad62cf370f42e",
+        "type": "github"
       },
       "original": {
-        "type": "git",
-        "url": "ssh://git@github.com/Runeword/permeance.git"
+        "owner": "Runeword",
+        "repo": "permeance",
+        "type": "github"
       }
     },
     "root": {
