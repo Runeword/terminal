@@ -7,6 +7,7 @@ GitHub repository settings managed with OpenTofu.
 - Repository visibility, features, security analysis (`repository.tf`)
 - Actions permissions: allowed actions, SHA pinning, default token scope (`actions.tf`)
 - Branch protection on `main` (`branch-protection.tf`)
+- Actions secrets (`secrets.tf`) — currently `PERMEANCE_TOKEN`, used by `.github/workflows/ci.yml` to fetch the private `Runeword/permeance` flake input
 
 ## Usage
 
@@ -39,6 +40,24 @@ infra plan           # expect "no changes" — confirms config matches reality
 If `plan` shows diffs after import, decide per field whether to codify the
 drift into the `.tf` or apply the `.tf` over it. Don't reflexively `apply` —
 that would clobber settings that drifted intentionally via the UI.
+
+## Actions secrets
+
+`github_actions_secret.permeance_token` provisions `PERMEANCE_TOKEN`. Create
+the fine-grained PAT in the GitHub UI (browser-only — GitHub doesn't expose
+PAT creation via API), then feed it to OpenTofu via env:
+
+```sh
+TF_VAR_permeance_token='<pat>' infra apply
+```
+
+The PAT should be scoped to `Runeword/permeance` only, with **Contents: Read**.
+
+The plaintext value lands in local `terraform.tfstate` (gitignored). If the
+secret already exists in GitHub (e.g. you ran `gh secret set` first), import
+before applying: `infra import github_actions_secret.permeance_token
+terminal/PERMEANCE_TOKEN`. Import only restores metadata — the next `apply`
+will overwrite the value with whatever `TF_VAR_permeance_token` resolves to.
 
 ## State
 
