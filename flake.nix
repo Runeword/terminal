@@ -12,7 +12,7 @@
   inputs.lefthook.url = "github:Runeword/lefthook";
   inputs.lefthook.inputs.nixpkgs.follows = "nixpkgs";
 
-  inputs.permeance.url = "git+ssh://git@github.com/Runeword/permeance.git";
+  inputs.permeance.url = "github:Runeword/permeance";
   inputs.permeance.inputs.nixpkgs.follows = "nixpkgs";
 
   # inputs.hello-flake.url = "github:sbellem/hello-flake";
