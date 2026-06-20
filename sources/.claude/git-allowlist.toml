@@ -1,8 +1,18 @@
-# Extends the git-allowlist-hook with additional subcommands. The hook always
-# permits the built-in read-only set (status, diff, log, show, branch,
-# rev-parse, config, remote, ls-files, blame) plus anything listed here.
+# Extends the git-allowlist-hook AND the git-shim with additional subcommands.
+# Both layers always permit a built-in read-only set (status, diff, log, show,
+# branch, rev-parse, config, remote, ls-files, blame) plus anything listed
+# here, and deny every other subcommand.
 #
-# Forbidden flags (--force, --no-verify, -f) and dangerous -c overrides still
-# apply on top — adding "push" here does not let "git push --force" through.
+# Enforced on top of the subcommand check (both layers):
+#   - `-c`, `--config-env`, `--exec-path` are rejected — they inject arbitrary
+#     execution, e.g. `git -c core.fsmonitor=<cmd> status`.
+#   - exec-capable git env vars (GIT_EXTERNAL_DIFF, GIT_SSH_COMMAND, GIT_PAGER,
+#     GIT_CONFIG_*, …) are stripped by the shim / denied by the hook.
+#   - `git config` is read-only; write/edit forms are denied.
+#
+# NOT enforced: subcommand-specific flags are not inspected. Adding a subcommand
+# here trusts ALL of its flags — allowing "push" also allows "git push --force"
+# and "git push --receive-pack=<cmd>". Only add subcommands whose every flag you
+# are willing to permit.
 
 allow = ["add"]
