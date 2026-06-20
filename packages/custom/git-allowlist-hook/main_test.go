@@ -33,12 +33,41 @@ func TestCheckCommand(t *testing.T) {
 		{"git show", "git show HEAD", false},
 		{"git branch", "git branch -a", false},
 
-		// Global flags are skipped to find the subcommand.
+		// Safe global flags are skipped to find the subcommand.
 		{"git -C path status", "git -C /tmp status", false},
-		{"git -c kv log", "git -c color.ui=always log", false},
 		{"git --git-dir=path log", "git --git-dir=/tmp/.git log", false},
 		{"git --work-tree=path status", "git --work-tree=/tmp status", false},
-		{"git -c then -C", "git -c color.ui=always -C /tmp log", false},
+
+		// Exec-injecting global flags are denied (RCE through allowed subcommands).
+		{"git -c fsmonitor RCE denied", "git -c core.fsmonitor='touch x' status", true},
+		{"git -c pager RCE denied", "git -c core.pager='!sh' log", true},
+		{"git -c cosmetic also denied", "git -c color.ui=always log", true},
+		{"git --config-env denied", "git --config-env=core.pager=EVIL log", true},
+		{"git --exec-path denied", "git --exec-path=/tmp status", true},
+		{"git -c then -C denied", "git -c color.ui=always -C /tmp log", true},
+
+		// Absolute-path git (shim-bypassing) gets the same flag/config checks.
+		{"abs path -c denied", "/usr/bin/git -c core.pager=x log", true},
+
+		// Exec-capable env assignment on a direct git call is denied — the shim
+		// strips these for PATH git but cannot for absolute-path git.
+		{"env GIT_EXTERNAL_DIFF denied", "GIT_EXTERNAL_DIFF=evil git diff", true},
+		{"env GIT_PAGER denied", "GIT_PAGER=evil git log", true},
+		{"env GIT_SSH_COMMAND denied", "GIT_SSH_COMMAND=evil git status", true},
+		{"env GIT_CONFIG_COUNT denied", "GIT_CONFIG_COUNT=1 git status", true},
+		{"env GIT_CONFIG_KEY_0 denied", "GIT_CONFIG_KEY_0=core.pager git log", true},
+		{"env on abs-path git denied", "GIT_EXTERNAL_DIFF=evil /usr/bin/git diff", true},
+		{"benign env assignment allowed", "FOO=bar git status", false},
+
+		// config: reads allowed, writes/edits denied.
+		{"config --get read", "git config --get user.email", false},
+		{"config --list read", "git config --list", false},
+		{"config get subcommand read", "git config get user.email", false},
+		{"config write denied", "git config user.email a@b", true},
+		{"config global write denied", "git config --global core.pager '!sh'", true},
+		{"config unset denied", "git config --unset core.pager", true},
+		{"config set subcommand denied", "git config set core.pager x", true},
+		{"config edit denied", "git config --edit", true},
 
 		// Absolute path: hook normalizes via path.Base. This is the case the
 		// PATH shim cannot see, so it is the hook's main reason to exist.
@@ -88,7 +117,7 @@ func TestCheckCommand(t *testing.T) {
 		{"bash -ec passes through", `bash -ec 'git push'`, false},
 		{"eval passes through", `eval 'git push'`, false},
 		{"xargs passes through", `xargs git push`, false},
-		{"env prefix passes through", `env GIT_PAGER=cat git push`, false},
+		{"env binary prefix passes through", `env GIT_PAGER=cat git push`, false},
 		{"nice passes through", `nice git push`, false},
 		{"timeout passes through", `timeout 5 git push`, false},
 		{"heredoc passes through", "bash <<'EOF'\ngit push\nEOF\n", false},
@@ -164,6 +193,8 @@ func TestConfigAllowExtra(t *testing.T) {
 		{"defaults still allowed", `allow = ["push"]`, "git status", false},
 		{"malformed toml falls back to defaults", `allow = [`, "git push", true},
 		{"malformed toml does not break defaults", `allow = [`, "git status", false},
+		// An allowlisted subcommand still cannot smuggle a config-injection flag.
+		{"allowlisted push still rejects -c", `allow = ["push"]`, "git -c core.pager=!sh push", true},
 	}
 
 	for _, tt := range tests {
