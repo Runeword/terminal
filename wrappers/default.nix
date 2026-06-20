@@ -47,6 +47,7 @@ in
       pkgs
       files
       permeance
+      configPath
       ;
   };
   fd = import ./fd.nix {
