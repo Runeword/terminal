@@ -8,17 +8,30 @@
 // # Policy
 //
 // Subcommand-only and direct: the bash AST is walked, every direct `git` call
-// (literal "git" or any path basename "git") has its subcommand checked
-// against defaultAllowedSubcommands (or the CLAUDE_GIT_ALLOWLIST_CONFIG TOML
-// extension), and that is it. The hook does *not* recurse into `bash -c
-// '...'`, `eval '...'`, heredoc bodies, or prefix wrappers like `xargs git X`
-// / `env FOO=x git X` / `nice git X` — those forms pass through this hook
-// untouched. The PATH-based git shim in packages/custom/git-shim is the layer
-// that catches them, at exec time, by virtue of being installed first on PATH.
+// (literal "git" or any path basename "git") is checked. The check verifies
+// the subcommand against defaultAllowedSubcommands (or the
+// CLAUDE_GIT_ALLOWLIST_CONFIG TOML extension), and additionally denies the
+// avenues that turn an allowed read subcommand into code execution:
+//
+//   - the global flags `-c key=value`, `--config-env` and `--exec-path`, which
+//     inject config (e.g. core.fsmonitor=<cmd>) or redirect git's helper path;
+//   - an exec-capable environment assignment on the call itself
+//     (`GIT_EXTERNAL_DIFF=cmd git diff`, `GIT_PAGER=cmd /usr/bin/git log`); and
+//   - `git config` write/edit forms (only reads are allowed).
+//
+// Subcommand-specific flags past the subcommand are NOT inspected: allowlisting
+// a subcommand trusts all of its flags. The hook does *not* recurse into
+// `bash -c '...'`, `eval '...'`, heredoc bodies, or prefix wrappers like
+// `xargs git X` / `env FOO=x git X` / `nice git X` — those forms pass through
+// this hook untouched. The PATH-based git shim in packages/custom/git-shim is
+// the layer that catches them, at exec time, by virtue of being installed first
+// on PATH (and it also strips the exec-capable environment).
 //
 // This hook's unique value over the shim is catching absolute-path git calls
-// (`/usr/bin/git push`) that appear as direct bash command words — the shim
-// is bypassed by absolute paths because PATH lookup is skipped.
+// (`/usr/bin/git push`) that appear as direct bash command words — the shim is
+// bypassed by absolute paths because PATH lookup is skipped. For the same
+// reason the hook (not the shim) is what denies exec-capable env assignments on
+// an absolute-path git call: the shim never runs, so it cannot strip them.
 //
 // # Runtime allowlist extension
 //
@@ -56,13 +69,62 @@ var (
 		"status": {}, "diff": {}, "log": {}, "show": {}, "branch": {},
 		"rev-parse": {}, "config": {}, "remote": {}, "ls-files": {}, "blame": {},
 	}
-	// Global git flags that consume the next argument as their value. We skip
-	// past these to find the subcommand; we do not inspect their values.
+	// Global git flags that consume the next argument as their value but are
+	// safe (they relocate the repo/cwd). We skip past these to find the
+	// subcommand; we do not inspect their values.
 	globalFlagsWithArg = map[string]struct{}{
-		"-C": {}, "-c": {}, "--git-dir": {}, "--work-tree": {},
-		"--namespace": {}, "--config-env": {},
+		"-C": {}, "--git-dir": {}, "--work-tree": {}, "--namespace": {},
+	}
+	// Global flags that can inject command execution (config keys or helper
+	// path) and are therefore denied outright. See git-shim for the rationale.
+	execInjectingFlags = map[string]struct{}{
+		"-c": {}, "--config-env": {}, "--exec-path": {},
 	}
 )
+
+// git config read/write classification (see gitConfigIsWrite).
+var (
+	gitConfigWriteSubcommands = map[string]struct{}{
+		"set": {}, "unset": {}, "unset-all": {}, "add": {}, "replace-all": {},
+		"rename-section": {}, "remove-section": {}, "edit": {},
+	}
+	gitConfigReadSubcommands = map[string]struct{}{
+		"get": {}, "get-all": {}, "get-regexp": {}, "get-urlmatch": {}, "list": {},
+	}
+	gitConfigWriteFlags = map[string]struct{}{
+		"--add": {}, "--replace-all": {}, "--unset": {}, "--unset-all": {},
+		"--rename-section": {}, "--remove-section": {}, "--edit": {}, "-e": {},
+	}
+	gitConfigValueFlags = map[string]struct{}{
+		"--file": {}, "-f": {}, "--blob": {}, "--default": {}, "--type": {}, "-t": {},
+	}
+)
+
+// dangerousGitEnv are environment variable names that let git execute arbitrary
+// commands or inject config. As an assignment prefix on a direct git call they
+// are denied (the shim strips them for PATH git, but cannot for absolute-path
+// git, which never reaches the shim).
+var dangerousGitEnv = map[string]struct{}{
+	"GIT_EXTERNAL_DIFF":     {},
+	"GIT_SSH":               {},
+	"GIT_SSH_COMMAND":       {},
+	"GIT_PROXY_COMMAND":     {},
+	"GIT_ASKPASS":           {},
+	"GIT_EDITOR":            {},
+	"GIT_SEQUENCE_EDITOR":   {},
+	"GIT_PAGER":             {},
+	"PAGER":                 {},
+	"GIT_CONFIG":            {},
+	"GIT_CONFIG_GLOBAL":     {},
+	"GIT_CONFIG_SYSTEM":     {},
+	"GIT_CONFIG_COUNT":      {},
+	"GIT_CONFIG_PARAMETERS": {},
+}
+
+var dangerousGitEnvPrefixes = []string{
+	"GIT_CONFIG_KEY_",
+	"GIT_CONFIG_VALUE_",
+}
 
 type hookInput struct {
 	ToolName  string `json:"tool_name"`
@@ -150,7 +212,7 @@ func checkCommand(cmd string) error {
 		if !ok || !isGit(first) {
 			return true
 		}
-		if err := checkGitCall(call.Args[1:]); err != nil {
+		if err := checkGitCall(call); err != nil {
 			policyErr = err
 			return false
 		}
@@ -159,18 +221,32 @@ func checkCommand(cmd string) error {
 	return policyErr
 }
 
-// checkGitCall finds the subcommand past any leading global flags and verifies
-// it against the allowlist. No flag or config-value inspection — once the
-// subcommand is allowed, the rest of argv is git's problem.
-func checkGitCall(args []*syntax.Word) error {
+// checkGitCall verifies a direct git CallExpr: it rejects exec-capable
+// environment assignments and global flags, finds the subcommand past any
+// leading global flags, and verifies it against the allowlist (read-only for
+// `config`).
+func checkGitCall(call *syntax.CallExpr) error {
+	// Exec-capable env assignments on the call itself, e.g.
+	// `GIT_EXTERNAL_DIFF=cmd git diff`. The shim strips these for PATH-resolved
+	// git, but an absolute-path git never reaches the shim, so deny here.
+	for _, a := range call.Assigns {
+		if a.Name != nil && isDangerousGitEnv(a.Name.Value) {
+			return fmt.Errorf("environment assignment %q can inject command execution into git", a.Name.Value)
+		}
+	}
+
+	args := call.Args[1:]
 	i := 0
 	for i < len(args) {
 		tok, ok := wordLiteral(args[i])
 		if !ok || !strings.HasPrefix(tok, "-") {
 			break
 		}
-		flag, _, hasValue := splitFlag(tok)
-		if _, takesArg := globalFlagsWithArg[flag]; takesArg && !hasValue {
+		name, _, hasValue := splitFlag(tok)
+		if _, bad := execInjectingFlags[name]; bad {
+			return fmt.Errorf("global flag %q can inject command execution and is not allowed", name)
+		}
+		if _, takesArg := globalFlagsWithArg[name]; takesArg && !hasValue {
 			i += 2
 			continue
 		}
@@ -186,7 +262,27 @@ func checkGitCall(args []*syntax.Word) error {
 	if !isAllowedSubcommand(sub) {
 		return fmt.Errorf("%q is not in the allowlist", "git "+sub)
 	}
+	if sub == "config" {
+		rest, ok := literalArgs(args[i+1:])
+		if !ok || gitConfigIsWrite(rest) {
+			return errors.New(`"git config" write/edit forms are not allowed (read-only config only)`)
+		}
+	}
 	return nil
+}
+
+// isDangerousGitEnv reports whether an environment variable name is one of the
+// exec-capable / config-injecting git variables.
+func isDangerousGitEnv(name string) bool {
+	if _, ok := dangerousGitEnv[name]; ok {
+		return true
+	}
+	for _, p := range dangerousGitEnvPrefixes {
+		if strings.HasPrefix(name, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // splitFlag splits a flag token of the form `--name=value` (or `-c=value`)
@@ -196,6 +292,55 @@ func splitFlag(tok string) (name, value string, hasValue bool) {
 		return tok[:eq], tok[eq+1:], true
 	}
 	return tok, "", false
+}
+
+// literalArgs resolves a slice of words to their literal string values. ok is
+// false if any word contains an expansion (so its value cannot be statically
+// known) — callers treat that as a reason to fail closed.
+func literalArgs(words []*syntax.Word) ([]string, bool) {
+	out := make([]string, 0, len(words))
+	for _, w := range words {
+		s, ok := wordLiteral(w)
+		if !ok {
+			return nil, false
+		}
+		out = append(out, s)
+	}
+	return out, true
+}
+
+// gitConfigIsWrite reports whether a `git config` invocation (args are the
+// tokens after "config") would create, change, delete, or open-in-editor any
+// configuration — i.e. anything other than a pure read. Classification errs
+// toward "write" when ambiguous, since a write is the dangerous case.
+func gitConfigIsWrite(args []string) bool {
+	positionals := 0
+	firstPositional := ""
+	for i := 0; i < len(args); i++ {
+		tok := args[i]
+		if strings.HasPrefix(tok, "-") {
+			name, _, hasValue := splitFlag(tok)
+			if _, ok := gitConfigWriteFlags[name]; ok {
+				return true
+			}
+			if _, ok := gitConfigValueFlags[name]; ok && !hasValue {
+				i++ // skip the value so it is not counted as a positional
+			}
+			continue
+		}
+		if positionals == 0 {
+			firstPositional = tok
+		}
+		positionals++
+	}
+	if _, ok := gitConfigWriteSubcommands[firstPositional]; ok {
+		return true
+	}
+	if _, ok := gitConfigReadSubcommands[firstPositional]; ok {
+		return false
+	}
+	// Classic form: `git config <name>` reads, `git config <name> <value>` writes.
+	return positionals >= 2
 }
 
 // wordLiteral returns the static string value of a Word when every part is a
