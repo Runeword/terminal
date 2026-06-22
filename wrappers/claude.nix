@@ -7,6 +7,7 @@
 
 let
   claudeStatusline = import ../packages/custom/claude-statusline { inherit pkgs; };
+  claudeSessionStatus = import ../packages/custom/claude-session-status { inherit pkgs; };
   claudeDocsGuard = import ../packages/custom/claude-docs-guard { inherit pkgs; };
   gitAllowlistHook = import ../packages/custom/git-allowlist-hook { inherit pkgs; };
   # Point the shim at the wrapped git so config (excludesFile, pager, includes,
@@ -21,6 +22,7 @@ let
 
   tools = [
     claudeStatusline
+    claudeSessionStatus
     claudeDocsGuard
     gitAllowlistHook
     pkgs.nixfmt
@@ -86,17 +88,12 @@ let
       staticEnv = {
         RTK_TELEMETRY_DISABLED = "1";
       };
-      defaultEnv = {
-        CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD = "1";
-      };
       unsetEnv = [ "TMUX" ];
       flags = [
         "--settings"
         "$PERMEANCE_ROOT/.claude/settings.json"
         "--setting-sources"
-        "project,local"
-        "--add-dir"
-        "$PERMEANCE_ROOT"
+        "user,project,local"
       ];
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
