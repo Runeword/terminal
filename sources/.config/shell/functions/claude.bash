@@ -12,6 +12,19 @@ __claude_build_cmd() {
   __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-8 $args"
 }
 
+# Make sources/ own each profile's user-level config: path-scoped rules and bundled
+# settings load via the `user` setting source (which the claude wrapper must enable),
+# while per-profile state (auth, sessions) stays separate. rules/ is a symlink;
+# settings.json is a refreshed copy so Claude's writes can't pollute sources/ or a read-only store.
+__claude_provision_config() {
+  [ -n "$PERMEANCE_ROOT" ] || return 0
+  [ -d "$PERMEANCE_ROOT/.claude" ] || return 0
+  local dir="$HOME/.claude-$__claude_instance"
+  mkdir -p "$dir"
+  [ -d "$PERMEANCE_ROOT/.claude/rules" ] && ln -sfn "$PERMEANCE_ROOT/.claude/rules" "$dir/rules"
+  [ -f "$PERMEANCE_ROOT/.claude/settings.json" ] && install -m644 "$PERMEANCE_ROOT/.claude/settings.json" "$dir/settings.json"
+}
+
 __claude_init() {
   __claude_instance=1
   if [ "$1" != "" ] && [ "$1" -eq "$1" ] 2>/dev/null; then
@@ -26,6 +39,7 @@ __claude_init() {
     [ -d "$plugins_dir/$p" ] && __claude_plugins="$__claude_plugins --plugin-dir $plugins_dir/$p"
   done
 
+  __claude_provision_config
   __claude_build_cmd
 }
 
@@ -44,6 +58,7 @@ __claude_init_fzf() {
     [ "$p" != "" ] && printf ' --plugin-dir %s/%s' "$plugins_dir" "$p"
   done)
 
+  __claude_provision_config
   __claude_build_cmd
 }
 
