@@ -10,7 +10,7 @@ p=$(tmux show-option -wqv @claude_pane)
 
 # A tracked pane exists: if it's still alive, close it (toggle off). If the
 # handle is stale (pane already gone), drop it and fall through to recreate.
-if [ -n "$p" ]; then
+if [ "$p" != "" ]; then
   if tmux display-message -t "$p" -p '#{pane_id}' >/dev/null 2>&1; then
     tmux kill-pane -t "$p"
     tmux set-option -wu @claude_pane
