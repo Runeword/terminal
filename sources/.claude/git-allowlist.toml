@@ -15,4 +15,4 @@
 # and "git push --receive-pack=<cmd>". Only add subcommands whose every flag you
 # are willing to permit.
 
-allow = ["add"]
+allow = ["add", "cat-file"]
