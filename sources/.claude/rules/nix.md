@@ -7,7 +7,7 @@ paths:
 
 ## Nix Code Quality Rules
 
-When writing, reviewing, or modifying Nix code, enforce the following rules derived from nix.dev best practices, the nixpkgs coding conventions, and community-established patterns. Point out violations and suggest corrections.
+When writing, reviewing, or modifying Nix code, enforce the following rules derived from [nix.dev best practices](https://nix.dev/guides/best-practices.html), the [nixpkgs coding conventions](https://nixos.org/manual/nixpkgs/stable/#chap-conventions), and community-established patterns. Point out violations and suggest corrections.
 
 ---
 
