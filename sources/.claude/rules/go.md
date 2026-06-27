@@ -7,7 +7,7 @@ paths:
 
 ## Go Code Quality Rules
 
-When writing, reviewing, or modifying Go code, enforce the following rules derived from "100 Go Mistakes and How to Avoid Them" (Harsanyi, 2022). Point out violations and suggest corrections.
+When writing, reviewing, or modifying Go code, enforce the following rules derived from ["100 Go Mistakes and How to Avoid Them"](https://100go.co/) (Harsanyi, 2022). Point out violations and suggest corrections.
 
 ---
 
