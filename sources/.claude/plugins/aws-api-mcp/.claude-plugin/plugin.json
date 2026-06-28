@@ -1,0 +1,5 @@
+{
+  "name": "aws-api-mcp",
+  "description": "AWS API MCP server (read-only by default)",
+  "version": "1.0.0"
+}
