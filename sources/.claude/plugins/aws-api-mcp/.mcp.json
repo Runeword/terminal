@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "aws-api-mcp": {
+      "command": "awslabs.aws-api-mcp-server",
+      "env": {
+        "READ_OPERATIONS_ONLY": "true"
+      }
+    }
+  }
+}
