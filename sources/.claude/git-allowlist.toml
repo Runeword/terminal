@@ -27,4 +27,7 @@ allow = [
   "check-ignore",
   "init",
   "path-id",
+  "grep",
+  "checkout",
+  "config",
 ]
