@@ -20,6 +20,7 @@ let
   firefoxMcpPkg = import ../packages/custom/firefox-mcp.nix { inherit pkgs; };
   mobileMcpPkg = import ../packages/custom/mobile-mcp.nix { inherit pkgs; };
   awsApiMcpPkg = import ../packages/custom/aws-api-mcp.nix { inherit pkgs; };
+  googleWorkspaceMcpPkg = import ../packages/custom/google-workspace-mcp.nix { inherit pkgs; };
 
   tools = [
     claudeStatusline
@@ -37,6 +38,7 @@ let
     firefoxMcpPkg
     mobileMcpPkg
     awsApiMcpPkg
+    googleWorkspaceMcpPkg
   ]
   # mcp-nixos: nixpkgs eval breaks transitively on Darwin
   # (lupa→luajit_2_0 on aarch64-darwin; arrow-cpp on x86_64-darwin, see utensils/mcp-nixos#137).
