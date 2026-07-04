@@ -20,6 +20,19 @@ __git_require_repo() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 }
 
+__git_cmd_prefix() {
+  local toplevel git_dir cdup
+  toplevel="$(git rev-parse --show-toplevel)" || return 1
+  git_dir="$(git rev-parse --absolute-git-dir)"
+  cdup="$(git rev-parse --show-cdup)"
+  if [ "$git_dir" = "$toplevel/.git" ]; then
+    printf 'git -C %s' "${cdup:-.}"
+  else
+    printf 'git --git-dir=%s --work-tree=%s -C %s' \
+      "$(__shell_quote "$git_dir")" "$(__shell_quote "$toplevel")" "$(__shell_quote "$toplevel")"
+  fi
+}
+
 __git_clone() {
   local repo_url="${2:-$(wl-paste)}" # Use clipboard content if no URL is provided
   local base_dir="${HOME}/${1}"
@@ -120,14 +133,22 @@ __git_diff_staged() {
 # space-joined argv suitable for interpolating into a `git ... -- $args` line.
 # fzf is invoked directly (no `sh -c`) so caller-supplied args can be quoted
 # correctly via array splat.
+# GIT_DIR/GIT_WORK_TREE are exported in the subshell so the list command and
+# fzf preview commands still resolve the repo when its git dir isn't
+# discoverable from the toplevel (e.g. ~/.dotfiles with core.worktree=$HOME).
 __git_fzf_select() {
   local list_cmd="$1"
   shift
-  local repo_root
+  local repo_root git_dir
   repo_root="$(git rev-parse --show-toplevel)"
+  git_dir="$(git rev-parse --absolute-git-dir)"
 
   local result
-  result=$( (builtin cd "$repo_root" && sh -c "$list_cmd") | fzf --print0 "${_GIT_FZF_DEFAULT[@]}" "$@")
+  result=$(
+    builtin cd "$repo_root" || exit 1
+    export GIT_DIR="$git_dir" GIT_WORK_TREE="$repo_root"
+    sh -c "$list_cmd" | fzf --print0 "${_GIT_FZF_DEFAULT[@]}" "$@"
+  )
   [ "$result" = "" ] && return 1
   printf '%s' "$result" | tr '\0' '\n' | sed "s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' '
 }
@@ -135,8 +156,8 @@ __git_fzf_select() {
 __git_add() {
   __git_require_repo || return 1
 
-  local repo_cdup
-  repo_cdup="$(git rev-parse --show-cdup)"
+  local git_cmd
+  git_cmd="$(__git_cmd_prefix)"
   local -a preview=(
     --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)"
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
@@ -145,14 +166,14 @@ __git_add() {
   args=$(__git_fzf_select \
     "{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq" \
     "${preview[@]}")
-  [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} add -- $args"
+  [ "$args" != "" ] && echo "$git_cmd add -- $args"
 }
 
 __git_commit() {
   __git_require_repo || return 1
 
-  local repo_cdup
-  repo_cdup="$(git rev-parse --show-cdup)"
+  local git_cmd
+  git_cmd="$(__git_cmd_prefix)"
   local -a preview=(
     --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)"
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
@@ -161,63 +182,66 @@ __git_commit() {
   args=$(__git_fzf_select \
     "{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq" \
     "${preview[@]}")
-  [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} add -- $args && git commit "
+  [ "$args" != "" ] && echo "$git_cmd add -- $args && $git_cmd commit "
 }
 
 __git_unstage() {
   __git_require_repo || return 1
 
-  local repo_cdup
-  repo_cdup="$(git rev-parse --show-cdup)"
+  local git_cmd
+  git_cmd="$(__git_cmd_prefix)"
   local -a preview=(
     --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)"
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
   local args
   args=$(__git_fzf_select "git diff --name-only --cached" "${preview[@]}")
-  [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} restore --staged -- $args"
+  # `restore --staged` restores from HEAD; before the first commit use `rm --cached`
+  local unstage="restore --staged"
+  git rev-parse --verify --quiet HEAD >/dev/null || unstage="rm --cached"
+  [ "$args" != "" ] && echo "$git_cmd $unstage -- $args"
 }
 
 __git_discard() {
   __git_require_repo || return 1
 
-  local repo_cdup
-  repo_cdup="$(git rev-parse --show-cdup)"
+  local git_cmd
+  git_cmd="$(__git_cmd_prefix)"
   local -a preview=(
     --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked)"
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
   local args
   args=$(__git_fzf_select "git diff --name-only" "${preview[@]}")
-  [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} checkout -- $args"
+  [ "$args" != "" ] && echo "$git_cmd checkout -- $args"
 }
 
 __git_untrack() {
   __git_require_repo || return 1
 
-  local repo_cdup
-  repo_cdup="$(git rev-parse --show-cdup)"
+  local git_cmd
+  git_cmd="$(__git_cmd_prefix)"
   local -a preview=(
     --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)"
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
   local args
   args=$(__git_fzf_select "git diff --name-only --cached" "${preview[@]}")
-  [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} rm --cached -- $args"
+  [ "$args" != "" ] && echo "$git_cmd rm --cached -- $args"
 }
 
 __git_rm_untracked() {
   __git_require_repo || return 1
 
-  local repo_cdup
-  repo_cdup="$(git rev-parse --show-cdup)"
+  local git_cmd
+  git_cmd="$(__git_cmd_prefix)"
   local -a preview=(
     --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_untracked)"
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
   local args
   args=$(__git_fzf_select "git ls-files --others --exclude-standard" "${preview[@]}")
-  [ "$args" != "" ] && echo "git -C ${repo_cdup:-.} clean -f -- $args"
+  [ "$args" != "" ] && echo "$git_cmd clean -f -- $args"
 }
 
 __git_ignore() {
@@ -289,8 +313,8 @@ __git_diff_branches() {
 __git_diff_revs() {
   __git_require_repo || return 1
 
-  local repo_cdup
-  repo_cdup="$(git rev-parse --show-cdup)"
+  local git_cmd
+  git_cmd="$(__git_cmd_prefix)"
 
   local -a rev_preview=(
     --preview "$_GIT_FZF_PREVIEW_CMD git show --color=always --stat {1} | $_GIT_PAGER"
@@ -318,7 +342,7 @@ __git_diff_revs() {
     --header="side B: pick file in $rev_b")
   [ "$file_b" = "" ] && return
 
-  echo "git -C ${repo_cdup:-.} diff $(__shell_quote "$rev_a:$file_a") $(__shell_quote "$rev_b:$file_b")"
+  echo "$git_cmd diff $(__shell_quote "$rev_a:$file_a") $(__shell_quote "$rev_b:$file_b")"
 }
 
 __git_reset_soft() {
@@ -352,7 +376,9 @@ __git_log() {
 
   local -a file_preview=(
     --header='select files to open'
-    --preview "$_GIT_FZF_PREVIEW_CMD git show --color=always $commit -- {} | $_GIT_PAGER"
+    # `:/` anchors the pathspec to the repo root; the listed paths are
+    # root-relative but this fzf runs from the invocation cwd.
+    --preview "$_GIT_FZF_PREVIEW_CMD git show --color=always $commit -- :/{} | $_GIT_PAGER"
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
 
@@ -509,9 +535,9 @@ __git_stash_push() {
   selected_files=$(__git_fzf_select "$list_files" "${preview[@]}")
 
   if [ "$selected_files" != "" ]; then
-    local git_root
-    git_root=$(git rev-parse --show-cdup)
-    echo "git -C ${git_root:-.} stash push --include-untracked -- $selected_files"
+    local git_cmd
+    git_cmd="$(__git_cmd_prefix)"
+    echo "$git_cmd stash push --include-untracked -- $selected_files"
   fi
 }
 
