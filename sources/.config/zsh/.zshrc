@@ -597,6 +597,8 @@ bindkey "${KEYS[SHIFT_ESCAPE]}" __ls_or_shift_escape
 # zle -N __git_widget
 # bindkey 'g' __git_widget
 
+[[ -r "${HOME}/.config/zsh/local.zsh" ]] && source "${HOME}/.config/zsh/local.zsh"
+
 # Display zsh load time
 if (( PROFILE_ZSH )); then
   printf "Total: %.0fms\n" $(( SECONDS * 1000 ))
