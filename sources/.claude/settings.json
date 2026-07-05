@@ -106,5 +106,6 @@
   "statusLine": {
     "type": "command",
     "command": "claude-statusline"
-  }
+  },
+  "disableClaudeAiConnectors": true
 }
