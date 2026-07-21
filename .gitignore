@@ -1,1 +1,4 @@
 .claude/skills/ast-grep
+.direnv/
+lefthook.local.yml
+.lefthook-generated.yml
