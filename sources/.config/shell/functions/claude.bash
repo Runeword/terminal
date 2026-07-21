@@ -17,12 +17,12 @@ __claude_build_cmd() {
 # while per-profile state (auth, sessions) stays separate. rules/ is a symlink;
 # settings.json is a refreshed copy so Claude's writes can't pollute sources/ or a read-only store.
 __claude_provision_config() {
-  [ -n "$PERMEANCE_ROOT" ] || return 0
-  [ -d "$PERMEANCE_ROOT/.claude" ] || return 0
+  [ -n "$PERMEANCE_TREE" ] || return 0
+  [ -d "$PERMEANCE_TREE/.claude" ] || return 0
   local dir="$HOME/.claude-$__claude_instance"
   mkdir -p "$dir"
-  [ -d "$PERMEANCE_ROOT/.claude/rules" ] && ln -sfn "$PERMEANCE_ROOT/.claude/rules" "$dir/rules"
-  [ -f "$PERMEANCE_ROOT/.claude/settings.json" ] && install -m644 "$PERMEANCE_ROOT/.claude/settings.json" "$dir/settings.json"
+  [ -d "$PERMEANCE_TREE/.claude/rules" ] && ln -sfn "$PERMEANCE_TREE/.claude/rules" "$dir/rules"
+  [ -f "$PERMEANCE_TREE/.claude/settings.json" ] && install -m644 "$PERMEANCE_TREE/.claude/settings.json" "$dir/settings.json"
 }
 
 __claude_init() {
@@ -86,7 +86,7 @@ __claude_debug() {
   local file="/tmp/claude-debug.log"
   touch "$file"
   if [ -n "$TMUX" ]; then
-    local script="$PERMEANCE_ROOT/.config/tmux/scripts/toggle-pane.sh"
+    local script="$PERMEANCE_TREE/.config/tmux/scripts/toggle-pane.sh"
     tmux run-shell "sh $script 50 tail -f $file"
     tmux swap-pane -U \; select-pane -D
   fi
