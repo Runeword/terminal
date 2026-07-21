@@ -2,6 +2,10 @@
 # Exit if not interactive shell
 [[ -o interactive ]] || { echo "Not an interactive shell"; return; }
 
+# Config paths below resolve via $PERMEANCE_TREE — permeance's exported
+# resolved-root alias: the live tree when a root override is set, else this
+# wrapper's own bundled $out. ($NIX_OUT_* stays for store-baked assets.)
+
 typeset -g PROFILE_ZSH="${PROFILE_ZSH:-0}"
 # typeset -g PROFILE_ZSH=1
 
@@ -89,7 +93,7 @@ _profile "keys: %.0fms\n" $(( (__TK2 - __TK1) * 1000 ))
 # Force emacs keymap regardless of $EDITOR (nvim would otherwise auto-select viins)
 bindkey -e
 
-for f in "$PERMEANCE_ROOT"/.config/zsh/plugins/*/*.plugin.zsh; do
+for f in "$PERMEANCE_TREE"/.config/zsh/plugins/*/*.plugin.zsh; do
   source "$f"
 done
 
@@ -114,13 +118,13 @@ _profile "hooks+newline: %.0fms\n" $(( (__TH2 - __TH1) * 1000 ))
 
 # ------------------------------------ ENV variables
 typeset -F __TE1="$SECONDS"
-if [ -f "$PERMEANCE_ROOT/.config/shell/xdg.sh" ]; then
-  source "$PERMEANCE_ROOT/.config/shell/xdg.sh"
+if [ -f "$PERMEANCE_TREE/.config/shell/xdg.sh" ]; then
+  source "$PERMEANCE_TREE/.config/shell/xdg.sh"
   # Background the directory creation with disown to prevent job notifications
   { __create_xdg_dirs } >/dev/null 2>&1 &!
 fi
 typeset -F __TE2="$SECONDS"
-[ -f "$PERMEANCE_ROOT/.config/shell/variables.sh" ] && source "$PERMEANCE_ROOT/.config/shell/variables.sh"
+[ -f "$PERMEANCE_TREE/.config/shell/variables.sh" ] && source "$PERMEANCE_TREE/.config/shell/variables.sh"
 typeset -F __TE3="$SECONDS"
 
 # Cache dircolors output for faster loading
@@ -153,7 +157,7 @@ export HISTORY_IGNORE="(! *)"
 typeset -F __T12="$SECONDS"
 _profile "history: %.0fms\n" $(( (__T12 - __T11) * 1000 ))
 
-# source "$PERMEANCE_ROOT/.config/shell/scripts/ssh-agent.sh"
+# source "$PERMEANCE_TREE/.config/shell/scripts/ssh-agent.sh"
 # source "$NIX_OUT_SHELL"/zsh-autosuggestions/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 typeset -F __TA1="$SECONDS"
 source "$NIX_OUT_SHELL"/share/zsh-autosuggestions/zsh-autosuggestions.zsh
@@ -286,7 +290,7 @@ __autosuggest_accept() {
 # bindkey -M menuselect ' ' undo
 
 typeset -F __TAL1="$SECONDS"
-[ -f "$PERMEANCE_ROOT/.config/shell/aliases.sh" ] && source "$PERMEANCE_ROOT/.config/shell/aliases.sh"
+[ -f "$PERMEANCE_TREE/.config/shell/aliases.sh" ] && source "$PERMEANCE_TREE/.config/shell/aliases.sh"
 typeset -F __TAL2="$SECONDS"
 _profile "aliases: %.0fms\n" $(( (__TAL2 - __TAL1) * 1000 ))
 
@@ -303,8 +307,8 @@ _profile "nvm: %.0fms\n" $(( (__T4 - __T3) * 1000 ))
 
 # ------------------------------------ Functions
 __source_functions() {
-  if [ -d "$PERMEANCE_ROOT/.config/shell/functions" ]; then
-    for file in "$PERMEANCE_ROOT/.config/shell/functions"/*.{sh,bash}; do
+  if [ -d "$PERMEANCE_TREE/.config/shell/functions" ]; then
+    for file in "$PERMEANCE_TREE/.config/shell/functions"/*.{sh,bash}; do
       . "$file"
     done
   fi
@@ -380,7 +384,7 @@ _zsh_autosuggest_strategy_custom() {
 
 __aliases_() {
     local output
-    output=$(aliases-fzf -f "$PERMEANCE_ROOT/.config/shell/functions/leader-aliases" 2>/dev/null)
+    output=$(aliases-fzf -f "$PERMEANCE_TREE/.config/shell/functions/leader-aliases" 2>/dev/null)
     if [[ -n $output ]]; then
         if [[ $output == *$'\n' ]]; then
             BUFFER=$output
@@ -395,12 +399,12 @@ __aliases_() {
     fi
 }
 
-__aliases_or_space() { __on_empty_buffer "__aliases --prefix ' ' --file $PERMEANCE_ROOT/.config/shell/functions/leader-aliases" "LBUFFER+=' '; zle autosuggest-fetch"; }
+__aliases_or_space() { __on_empty_buffer "__aliases --prefix ' ' --file $PERMEANCE_TREE/.config/shell/functions/leader-aliases" "LBUFFER+=' '; zle autosuggest-fetch"; }
 # __aliases_or_space() { __aliases_; }
 zle -N __aliases_or_space
 bindkey "${KEYS[SPACE]}" __aliases_or_space
 
-__aliases_or_enter() { __on_empty_buffer "__aliases --prefix '^M' --file $PERMEANCE_ROOT/.config/shell/functions/leader-aliases" 'zle accept-line'; }
+__aliases_or_enter() { __on_empty_buffer "__aliases --prefix '^M' --file $PERMEANCE_TREE/.config/shell/functions/leader-aliases" 'zle accept-line'; }
 zle -N __aliases_or_enter
 bindkey "${KEYS[ENTER]}" __aliases_or_enter
 
@@ -592,7 +596,7 @@ bindkey "${KEYS[SHIFT_ESCAPE]}" __ls_or_shift_escape
 # zle -N __yazi
 # bindkey '^[' __yazi
 
-# __git_widget() { __on_empty_buffer "__aliases --prefix g --file $PERMEANCE_ROOT/.config/shell/functions/git-aliases" 'LBUFFER+=g; zle reset-prompt; zle autosuggest-fetch'; }
+# __git_widget() { __on_empty_buffer "__aliases --prefix g --file $PERMEANCE_TREE/.config/shell/functions/git-aliases" 'LBUFFER+=g; zle reset-prompt; zle autosuggest-fetch'; }
 
 # zle -N __git_widget
 # bindkey 'g' __git_widget
