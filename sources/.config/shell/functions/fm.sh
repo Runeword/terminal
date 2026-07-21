@@ -137,7 +137,7 @@ __open_recent() {
     while IFS= read -r file; do
       # Skip man pages and non-existent files
       case "$file" in
-      man:*) continue ;;
+        man:*) continue ;;
       esac
       [ -f "$file" ] && printf '%s\n' "$file"
     done | sort | uniq |
