@@ -24,7 +24,7 @@ __open_file() {
         --ansi \
         --header-first \
         --header=''\''exact !not [!]^prefix [!]suffix$' \
-        --preview "$PERMEANCE_ROOT/.config/shell/scripts/fm_preview.sh {}" \
+        --preview "$PERMEANCE_TREE/.config/shell/scripts/fm_preview.sh {}" \
         --preview-window right,55%,border-none,~2 \
         --bind='ctrl-a:select-all' \
         --bind='ctrl-o:execute(nohup setsid cursor {} > /dev/null 2>&1 &)'
@@ -99,7 +99,7 @@ __ripgrep() {
         --no-separator \
         --header-first \
         --header='exact !not [!]^prefix [!]suffix$' \
-        --preview "$PERMEANCE_ROOT/.config/shell/scripts/fm_preview.sh {1}" \
+        --preview "$PERMEANCE_TREE/.config/shell/scripts/fm_preview.sh {1}" \
         --preview-window right,55%,border-none,~2
   )
 
