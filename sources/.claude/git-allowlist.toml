@@ -16,6 +16,7 @@
 # are willing to permit.
 
 allow = [
+  "hash-object",
   "add",
   "fetch",
   "merge-base",
