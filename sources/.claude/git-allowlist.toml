@@ -17,6 +17,7 @@
 
 allow = [
   "hash-object",
+  "rev-list",
   "add",
   "fetch",
   "merge-base",
