@@ -439,6 +439,7 @@ __git_install_lefthook() {
 }
 
 __git_info() {
+  __git_require_repo || return 1
   printf "\033[3mgit config user.name\033[23m\n"
   git config user.name
   echo
@@ -447,6 +448,16 @@ __git_info() {
   echo
   printf "\033[3mgit remote -v\033[23m\n"
   git remote -v
+  echo
+  printf "\033[3mgit --no-pager log --oneline --decorate -n 5\033[23m\n"
+  git --no-pager log --oneline --decorate -n 5
+  echo
+  printf "\033[3mgit --no-pager log --oneline --decorate -n 5 @{upstream}\033[23m\n"
+  printf '⟳ fetching origin…\n'
+  GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=3' \
+    git fetch --quiet >/dev/null 2>&1
+  printf '\033[1A\r\033[J'
+  git --no-pager log --oneline --decorate -n 5 '@{upstream}' 2>/dev/null || echo '(current branch has no upstream)'
 }
 
 __git_set_user() {
