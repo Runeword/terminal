@@ -7,31 +7,43 @@
 //
 // # Policy
 //
-// Subcommand-only and direct: the bash AST is walked, every direct `git` call
-// (literal "git" or any path basename "git") is checked. The check verifies
-// the subcommand against defaultAllowedSubcommands (or the
-// CLAUDE_GIT_ALLOWLIST_CONFIG TOML extension), and additionally denies the
-// avenues that turn an allowed read subcommand into code execution:
+// The bash AST is walked and every command invocation is classified:
 //
-//   - the global flags `-c key=value`, `--config-env` and `--exec-path`, which
-//     inject config (e.g. core.fsmonitor=<cmd>) or redirect git's helper path;
-//   - an exec-capable environment assignment on the call itself
-//     (`GIT_EXTERNAL_DIFF=cmd git diff`, `GIT_PAGER=cmd /usr/bin/git log`); and
-//   - `git config` write/edit forms (only reads are allowed).
+//   - A direct git call — Args[0] is "git" or any path whose basename is "git"
+//     (e.g. "/usr/bin/git") — is checked: its subcommand must be in
+//     defaultAllowedSubcommands (or the CLAUDE_GIT_ALLOWLIST_CONFIG TOML
+//     extension), and the avenues that turn an allowed read into code execution
+//     are denied — the global flags `-c key=value`, `--config-env`,
+//     `--exec-path`; an exec-capable environment assignment on the call
+//     (`GIT_EXTERNAL_DIFF=cmd git diff`); and `git config` write/edit forms.
 //
-// Subcommand-specific flags past the subcommand are NOT inspected: allowlisting
-// a subcommand trusts all of its flags. The hook does *not* recurse into
-// `bash -c '...'`, `eval '...'`, heredoc bodies, or prefix wrappers like
-// `xargs git X` / `env FOO=x git X` / `nice git X` — those forms pass through
-// this hook untouched. The PATH-based git shim in packages/custom/git-shim is
-// the layer that catches them, at exec time, by virtue of being installed first
-// on PATH (and it also strips the exec-capable environment).
+//   - A git call smuggled behind a command runner is denied. `env`, `sudo`,
+//     `doas` and `command` can run git under a reset or non-standard PATH
+//     (sudo's secure_path, `command -p`), so any git argument — bare or a
+//     slashed path — is denied. PATH-preserving runners (`xargs`, `nice`,
+//     `timeout`, `nohup`, `flock`, …) still resolve a bare `git` through the
+//     PATH shim, so for them only a *slashed* git path (which skips the shim)
+//     is denied — a bare `git` word (e.g. as a grep pattern) is left alone.
 //
-// This hook's unique value over the shim is catching absolute-path git calls
-// (`/usr/bin/git push`) that appear as direct bash command words — the shim is
-// bypassed by absolute paths because PATH lookup is skipped. For the same
-// reason the hook (not the shim) is what denies exec-capable env assignments on
-// an absolute-path git call: the shim never runs, so it cannot strip them.
+//   - A command string passed to a shell with -c (`bash -c "/usr/bin/git
+//     push"`) or to `eval` is re-parsed and re-checked under the same policy.
+//
+// Subcommand-specific flags past an allowed subcommand are NOT inspected:
+// allowlisting a subcommand trusts all of its flags.
+//
+// # Relationship to the PATH git shim
+//
+// This hook and the PATH-based git shim (packages/custom/git-shim) are
+// complementary. The shim catches git resolved through PATH and strips
+// exec-capable git environment variables at exec time, by virtue of being
+// installed first on PATH. The hook catches what the shim cannot see: git
+// invoked by an absolute/slashed path (PATH lookup is skipped, so the shim
+// never runs), including such a path smuggled behind a wrapper or a `-c`
+// string. A bare `git` run by a PATH-preserving wrapper stays the shim's
+// responsibility; the hook does not duplicate it (and cannot, without
+// re-implementing each wrapper's argument grammar). Not inspected by this hook:
+// heredoc bodies, script files (`bash script.sh`), deeper wrapper/shell
+// nestings, and dynamic strings whose value is not statically known.
 //
 // # Runtime allowlist extension
 //
@@ -79,6 +91,35 @@ var (
 	// path) and are therefore denied outright. See git-shim for the rationale.
 	execInjectingFlags = map[string]struct{}{
 		"-c": {}, "--config-env": {}, "--exec-path": {},
+	}
+)
+
+// Command runners that can hide a git invocation from the Args[0] check. See
+// the package doc "Policy" section for how each class is treated.
+var (
+	// shimBypassRunners can execute git under a reset or non-standard PATH
+	// (sudo's secure_path, `command -p`, `env PATH=…`), so even a bare `git`
+	// argument can dodge the PATH shim. Any git argument — bare or slashed — is
+	// denied.
+	shimBypassRunners = map[string]struct{}{
+		"sudo": {}, "doas": {}, "command": {}, "env": {},
+	}
+	// pathRunners exec their target through a normal PATH lookup, so a bare
+	// `git` still resolves to the PATH shim and is caught at exec time. Only a
+	// git given as a slashed path (which skips the shim) is denied here; a bare
+	// `git` word (e.g. `timeout 5 grep git`) is not a git invocation for them.
+	pathRunners = map[string]struct{}{
+		"xargs": {}, "nice": {}, "nohup": {}, "timeout": {}, "stdbuf": {},
+		"setsid": {}, "ionice": {}, "taskset": {}, "chrt": {}, "flock": {},
+		"watch": {}, "time": {}, "exec": {}, "strace": {}, "ltrace": {},
+		"unbuffer": {},
+	}
+	// shellRunners run a command string given with -c. That string is opaque to
+	// the outer parser, so it is re-parsed and re-checked (this is what catches
+	// `bash -c "/usr/bin/git push"`). `eval` is handled likewise in checkCall.
+	shellRunners = map[string]struct{}{
+		"sh": {}, "bash": {}, "dash": {}, "zsh": {}, "ksh": {},
+		"mksh": {}, "ash": {},
 	}
 )
 
@@ -208,17 +249,113 @@ func checkCommand(cmd string) error {
 		if !ok || len(call.Args) == 0 {
 			return true
 		}
-		first, ok := wordLiteral(call.Args[0])
-		if !ok || !isGit(first) {
-			return true
-		}
-		if err := checkGitCall(call); err != nil {
+		if err := checkCall(call); err != nil {
 			policyErr = err
 			return false
 		}
 		return true
 	})
 	return policyErr
+}
+
+// checkCall classifies and checks a single command invocation. A direct git
+// call is policy-checked; a git call smuggled behind a command runner (`env`,
+// `sudo`, `xargs`, …) or inside a shell `-c` / `eval` string — forms that would
+// otherwise slip past the Args[0] check, and, when the git path is slashed,
+// past the PATH shim too — is denied or recursively re-checked.
+func checkCall(call *syntax.CallExpr) error {
+	exe, ok := wordLiteral(call.Args[0])
+	if !ok {
+		// Dynamic executable (e.g. `$tool push`): nothing to classify
+		// statically. Left to the PATH shim, as before.
+		return nil
+	}
+	switch base := path.Base(exe); {
+	case base == "git":
+		return checkGitCall(call)
+	case inSet(shimBypassRunners, base):
+		return denyWrappedGit(call, base, false)
+	case inSet(pathRunners, base):
+		return denyWrappedGit(call, base, true)
+	case base == "eval":
+		return checkEvalCall(call)
+	case inSet(shellRunners, base):
+		return checkShellCall(call)
+	}
+	return nil
+}
+
+// denyWrappedGit denies a command runner that carries a git invocation among
+// its arguments. When slashedOnly is set the runner preserves PATH, so a bare
+// `git` still reaches the PATH shim and only a slashed git path (which skips
+// the shim) is treated as a bypass; otherwise any git argument is denied.
+func denyWrappedGit(call *syntax.CallExpr, runner string, slashedOnly bool) error {
+	for _, arg := range call.Args[1:] {
+		tok, ok := wordLiteral(arg)
+		if !ok {
+			continue
+		}
+		if path.Base(tok) != "git" {
+			continue
+		}
+		if slashedOnly && !strings.ContainsRune(tok, '/') {
+			continue
+		}
+		return fmt.Errorf("git invoked via %q bypasses the subcommand allowlist and is not allowed", runner)
+	}
+	return nil
+}
+
+// checkEvalCall re-checks the command that `eval` would run: its arguments
+// joined by spaces, re-parsed under the same policy. A dynamic argument makes
+// the result unknowable, so it is left to the shim (unchanged behaviour).
+func checkEvalCall(call *syntax.CallExpr) error {
+	parts, ok := literalArgs(call.Args[1:])
+	if !ok {
+		return nil
+	}
+	return checkCommand(strings.Join(parts, " "))
+}
+
+// checkShellCall re-checks the command string passed to a shell via -c (e.g.
+// `bash -c "/usr/bin/git push"`), re-parsing it under the same policy. Only a
+// statically literal string is inspected; a dynamic one is left to the shim.
+func checkShellCall(call *syntax.CallExpr) error {
+	args := call.Args[1:]
+	for i, arg := range args {
+		tok, ok := wordLiteral(arg)
+		if !ok {
+			continue
+		}
+		if !isDashC(tok) {
+			continue
+		}
+		if i+1 >= len(args) {
+			return nil
+		}
+		script, ok := wordLiteral(args[i+1])
+		if !ok {
+			return nil
+		}
+		return checkCommand(script)
+	}
+	return nil
+}
+
+// isDashC reports whether tok is a short-option cluster that contains `c`
+// (`-c`, `-lc`, `-ec`, …) — the shell flag whose next argument is a command
+// string to execute.
+func isDashC(tok string) bool {
+	if len(tok) < 2 || tok[0] != '-' || tok[1] == '-' {
+		return false
+	}
+	return strings.ContainsRune(tok[1:], 'c')
+}
+
+// inSet reports whether k is a member of set.
+func inSet(set map[string]struct{}, k string) bool {
+	_, ok := set[k]
+	return ok
 }
 
 // checkGitCall verifies a direct git CallExpr: it rejects exec-capable
@@ -405,5 +542,3 @@ func loadConfigExtras() []string {
 	}
 	return c.Allow
 }
-
-func isGit(name string) bool { return path.Base(name) == "git" }
