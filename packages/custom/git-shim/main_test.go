@@ -85,6 +85,70 @@ func TestCheck(t *testing.T) {
 	}
 }
 
+func TestExecCapableFlags(t *testing.T) {
+	// Allowlist the transport/write subcommands whose exec-capable flags are the
+	// point of the test, so each case reaches the flag check rather than being
+	// denied earlier for an out-of-allowlist subcommand.
+	cfg := filepath.Join(t.TempDir(), "git-allowlist.toml")
+	if err := os.WriteFile(cfg, []byte(`allow = ["fetch", "rebase", "grep", "push"]`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(envConfigPath, cfg)
+
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr bool
+	}{
+		// fetch --upload-pack runs an arbitrary command locally.
+		{"fetch upload-pack eq", []string{"fetch", "--upload-pack=evil", "origin"}, true},
+		{"fetch upload-pack spaced", []string{"fetch", "--upload-pack", "evil", "."}, true},
+		{"fetch plain allowed", []string{"fetch", "origin"}, false},
+		{"fetch --depth allowed", []string{"fetch", "--depth=1", "origin", "main"}, false},
+
+		// rebase --exec / -x run a command per commit; -i opens the editor.
+		{"rebase --exec", []string{"rebase", "--exec", "touch x", "HEAD~2"}, true},
+		{"rebase -x", []string{"rebase", "-x", "touch x", "HEAD~2"}, true},
+		{"rebase -i", []string{"rebase", "-i", "HEAD~3"}, true},
+		{"rebase --interactive", []string{"rebase", "--interactive", "HEAD~3"}, true},
+		{"rebase -ix bundled", []string{"rebase", "-ix", "touch x", "HEAD~2"}, true},
+		{"rebase plain allowed", []string{"rebase", "main"}, false},
+		{"rebase --onto allowed", []string{"rebase", "--onto", "main", "topic~1", "topic"}, false},
+		{"rebase --continue allowed", []string{"rebase", "--continue"}, false},
+
+		// grep -O / --open-files-in-pager run a pager command on matches.
+		{"grep -O attached", []string{"grep", "-Otouch x", "foo"}, true},
+		{"grep -O spaced", []string{"grep", "-O", "touch x", "foo"}, true},
+		{"grep --open-files-in-pager", []string{"grep", "--open-files-in-pager=touch x", "foo"}, true},
+		{"grep -i case-insensitive allowed", []string{"grep", "-i", "pattern"}, false},
+		{"grep -l allowed", []string{"grep", "-l", "pattern"}, false},
+
+		// push (transport): --receive-pack and its --exec alias.
+		{"push --receive-pack", []string{"push", "--receive-pack=evil", "origin"}, true},
+		{"push --exec alias", []string{"push", "--exec=evil", "origin"}, true},
+		{"push plain allowed", []string{"push", "origin", "main"}, false},
+
+		// The same short letters are benign for other subcommands: -O is an
+		// orderfile for diff/log, -i is interactive-add for add.
+		{"log -O orderfile allowed", []string{"log", "-O/tmp/order"}, false},
+		{"diff -O orderfile allowed", []string{"diff", "-O", "/tmp/order"}, false},
+
+		// A literal "--" ends option scanning: a pathspec named -O is not a flag.
+		{"grep after -- is a pathspec", []string{"grep", "--", "-O"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := check(tt.args)
+			if tt.wantErr && err == nil {
+				t.Fatalf("check(%v): want deny, got allow", tt.args)
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("check(%v): want allow, got deny: %v", tt.args, err)
+			}
+		})
+	}
+}
+
 func TestSanitizeEnv(t *testing.T) {
 	in := []string{
 		"PATH=/bin",
