@@ -109,17 +109,53 @@ func TestCheckCommand(t *testing.T) {
 		{"unterminated quote", "git status 'unterminated", true},
 		{"unterminated subst", "git status $(echo", true},
 
-		// Cases the hook deliberately PASSES THROUGH (no recursion). The PATH
-		// shim catches the inner git invocation at exec time. These are tested
-		// for "allow" to document the intentional contract.
-		{"bash -c passes through", `bash -c "git push"`, false},
-		{"sh -c passes through", `sh -c 'git push'`, false},
-		{"bash -ec passes through", `bash -ec 'git push'`, false},
-		{"eval passes through", `eval 'git push'`, false},
-		{"xargs passes through", `xargs git push`, false},
-		{"env binary prefix passes through", `env GIT_PAGER=cat git push`, false},
-		{"nice passes through", `nice git push`, false},
-		{"timeout passes through", `timeout 5 git push`, false},
+		// git smuggled behind a runner that can bypass the PATH shim
+		// (sudo/doas/command reset or ignore PATH; env can too): any git
+		// argument is denied, bare or slashed.
+		{"env abs-path git denied", "env /usr/bin/git push", true},
+		{"env bare git denied", "env GIT_PAGER=cat git push", true},
+		{"env wrapped read denied (fail closed)", "env FOO=bar git status", true},
+		{"command -p bare git denied", "command -p git push", true},
+		{"command bare git denied", "command git push", true},
+		{"command -v git denied (fail closed)", "command -v git", true},
+		{"sudo bare git denied", "sudo git push", true},
+		{"sudo abs-path git denied", "sudo /usr/bin/git push", true},
+
+		// git behind a PATH-preserving runner: a bare `git` still resolves to
+		// the shim (left alone here), but a slashed path skips the shim and is
+		// denied.
+		{"xargs bare git left to shim", "xargs git push", false},
+		{"xargs abs-path git denied", "xargs /usr/bin/git push", true},
+		{"nice bare git left to shim", "nice git push", false},
+		{"nice abs-path git denied", "nice /usr/bin/git push", true},
+		{"timeout bare git left to shim", "timeout 5 git push", false},
+		{"timeout abs-path git denied", "timeout 5 /usr/bin/git push", true},
+		{"exec abs-path git denied", "exec /usr/bin/git push", true},
+
+		// A bare `git` word that is an argument to some other command (not the
+		// runner's target) must not be mistaken for a git invocation.
+		{"timeout grep for git allowed", "timeout 5 grep git file", false},
+		{"xargs grep for git allowed", "xargs grep git", false},
+
+		// A slashed git path as a plain (non-runner) argument is data, not
+		// execution — reading the git binary or a dir named git is allowed.
+		{"ls of git binary path allowed", "ls -l /usr/bin/git", false},
+		{"ls of dir named git allowed", "ls internal/git", false},
+
+		// Shell -c / eval strings are re-parsed and re-checked under the policy.
+		{"bash -c abs-path git denied", `bash -c "/usr/bin/git push"`, true},
+		{"bash -c bare git denied", `bash -c "git push"`, true},
+		{"sh -c git denied", `sh -c 'git push'`, true},
+		{"bash -ec git denied", `bash -ec 'git push'`, true},
+		{"bash -lc git denied", `bash -lc 'git commit -m x'`, true},
+		{"eval git denied", `eval 'git push'`, true},
+		{"eval abs-path git denied", `eval "/usr/bin/git push"`, true},
+		{"nested shell+wrapper git denied", `bash -c "env /usr/bin/git push"`, true},
+		{"bash -c read-only git allowed", `bash -c "git status"`, false},
+		{"bash -c non-git allowed", `bash -c "grep git file"`, false},
+
+		// Forms this hook still passes through to the PATH shim (documented
+		// limits): heredoc bodies and scripts piped on stdin.
 		{"heredoc passes through", "bash <<'EOF'\ngit push\nEOF\n", false},
 		{"pipe to bash passes through", "echo 'git push' | bash", false},
 	}
