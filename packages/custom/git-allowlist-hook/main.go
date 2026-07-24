@@ -12,10 +12,12 @@
 //   - A direct git call — Args[0] is "git" or any path whose basename is "git"
 //     (e.g. "/usr/bin/git") — is checked: its subcommand must be in
 //     defaultAllowedSubcommands (or the CLAUDE_GIT_ALLOWLIST_CONFIG TOML
-//     extension), and the avenues that turn an allowed read into code execution
-//     are denied — the global flags `-c key=value`, `--config-env`,
-//     `--exec-path`; an exec-capable environment assignment on the call
-//     (`GIT_EXTERNAL_DIFF=cmd git diff`); and `git config` write/edit forms.
+//     extension), and the avenues that turn an allowed subcommand into code
+//     execution are denied — the global flags `-c key=value`, `--config-env`,
+//     `--exec-path`; subcommand-local flags that run a command (`--upload-pack`,
+//     `--receive-pack`, `--exec`; rebase `-x`/`-i`; grep `-O`); an exec-capable
+//     environment assignment on the call (`GIT_EXTERNAL_DIFF=cmd git diff`); and
+//     `git config` write/edit forms.
 //
 //   - A git call smuggled behind a command runner is denied. `env`, `sudo`,
 //     `doas` and `command` can run git under a reset or non-standard PATH
@@ -91,6 +93,25 @@ var (
 	// path) and are therefore denied outright. See git-shim for the rationale.
 	execInjectingFlags = map[string]struct{}{
 		"-c": {}, "--config-env": {}, "--exec-path": {},
+	}
+	// Subcommand-local flags that run an arbitrary command under every
+	// subcommand that accepts them, so they are denied after any allowed
+	// subcommand: --upload-pack/--receive-pack name the program that "serves" a
+	// fetch/push (git fetch --upload-pack=<cmd> runs <cmd> locally); --exec is
+	// rebase's per-commit exec and push's --receive-pack alias.
+	execFlagNames = map[string]struct{}{
+		"--upload-pack": {}, "--receive-pack": {}, "--exec": {},
+	}
+	// Flags that are exec-capable only for a specific subcommand and benign
+	// elsewhere (grep -i is case-insensitive, diff -O is an orderfile), matched
+	// per subcommand. Letters match inside a short-flag cluster (-ix, -Ocmd).
+	execFlagNamesBySub = map[string]map[string]struct{}{
+		"rebase": {"--interactive": {}},
+		"grep":   {"--open-files-in-pager": {}},
+	}
+	execFlagLettersBySub = map[string]string{
+		"rebase": "xi", // -x runs a command per commit; -i opens the editor
+		"grep":   "O",  // -O opens matches in an arbitrary pager command
 	}
 )
 
@@ -399,6 +420,9 @@ func checkGitCall(call *syntax.CallExpr) error {
 	if !isAllowedSubcommand(sub) {
 		return fmt.Errorf("%q is not in the allowlist", "git "+sub)
 	}
+	if flag, bad := execCapableFlag(sub, args[i+1:]); bad {
+		return fmt.Errorf("git %s flag %q runs an arbitrary command and is not allowed", sub, flag)
+	}
 	if sub == "config" {
 		rest, ok := literalArgs(args[i+1:])
 		if !ok || gitConfigIsWrite(rest) {
@@ -406,6 +430,64 @@ func checkGitCall(call *syntax.CallExpr) error {
 		}
 	}
 	return nil
+}
+
+// execCapableFlag reports the first subcommand-local flag that would turn an
+// (already-allowlisted) subcommand into arbitrary command execution — the
+// surface the global -c/--exec-path check does not cover. It is why an
+// otherwise-useful subcommand on the allowlist (fetch's --upload-pack, rebase's
+// --exec, grep's -O) does not hand back the execution the allowlist removes.
+// A standalone "--" ends option scanning; the rest are operands.
+func execCapableFlag(sub string, args []*syntax.Word) (string, bool) {
+	names := execFlagNamesBySub[sub]
+	letters := execFlagLettersBySub[sub]
+	for _, w := range args {
+		name, ok := wordFlagName(w)
+		if !ok {
+			continue
+		}
+		if name == "--" {
+			break
+		}
+		if _, bad := execFlagNames[name]; bad {
+			return name, true
+		}
+		if _, bad := names[name]; bad {
+			return name, true
+		}
+		if letters != "" && isShortCluster(name) && strings.ContainsAny(name[1:], letters) {
+			return name, true
+		}
+	}
+	return "", false
+}
+
+// wordFlagName returns the flag name of a word when it begins with a literal
+// dash — the part before any `=`. It handles fully literal words (including
+// quoted forms like "--upload-pack=x") and words whose value is an expansion
+// (`--upload-pack=$x`), so a flag cannot hide its name behind quoting or a
+// variable. ok is false when the word does not begin with a literal `-`.
+func wordFlagName(w *syntax.Word) (string, bool) {
+	if s, ok := wordLiteral(w); ok {
+		if !strings.HasPrefix(s, "-") {
+			return "", false
+		}
+		name, _, _ := splitFlag(s)
+		return name, true
+	}
+	if len(w.Parts) > 0 {
+		if lit, ok := w.Parts[0].(*syntax.Lit); ok && strings.HasPrefix(lit.Value, "-") {
+			name, _, _ := splitFlag(lit.Value)
+			return name, true
+		}
+	}
+	return "", false
+}
+
+// isShortCluster reports whether name is a short-flag token (`-x`, `-ix`) as
+// opposed to a long flag (`--foo`) or a non-flag.
+func isShortCluster(name string) bool {
+	return len(name) >= 2 && name[0] == '-' && name[1] != '-'
 }
 
 // isDangerousGitEnv reports whether an environment variable name is one of the
