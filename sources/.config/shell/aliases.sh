@@ -64,7 +64,7 @@ alias audit='lynis audit system'
 
 alias nr='nix run --verbose'
 alias nb='nix build'
-alias nd='read -p "nix develop $HOME#" devShellName && nix develop $HOME#$devShellName'
+alias nd='printf "nix develop %s#" "$HOME"; read -r devShellName && nix develop "$HOME#$devShellName"'
 
 # ______________________________________ DIRECTORIES
 
