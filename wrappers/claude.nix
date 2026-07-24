@@ -40,8 +40,9 @@ let
     awsApiMcpPkg
     googleWorkspaceMcpPkg
   ]
-  # mcp-nixos: nixpkgs eval breaks transitively on Darwin
-  # (lupa→luajit_2_0 on aarch64-darwin; arrow-cpp on x86_64-darwin, see utensils/mcp-nixos#137).
+  # mcp-nixos: nixpkgs eval breaks transitively on aarch64-darwin
+  # (lupa→luajit_2_0, see utensils/mcp-nixos#137). x86_64-darwin is dropped
+  # flake-wide (see flake.nix), so Linux-only covers the remaining Darwin case.
   ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
     pkgs.mcp-nixos
   ]
