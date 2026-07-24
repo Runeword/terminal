@@ -68,19 +68,20 @@ will overwrite the value with whatever `TF_VAR_permeance_token` resolves to.
 
 ## State
 
-State is local (`infra/terraform.tfstate`) and gitignored. It contains no
-secrets for the resources currently managed here. Losing it means redoing the
-import workflow above — not a disaster, but tedious. Back it up somewhere
-recoverable, e.g.:
+State is local (`infra/terraform.tfstate`) and gitignored. It **contains a
+secret in plaintext**: OpenTofu records every managed resource's attributes, so
+the `PERMEANCE_TOKEN` value is stored in `terraform.tfstate` (and in
+`terraform.tfstate.backup`). Keep both owner-only — `chmod 600
+infra/terraform.tfstate*` — and never copy them anywhere unencrypted.
 
-```sh
-cp infra/terraform.tfstate ~/Backups/terminal-tfstate.$(date +%F)
-# or attach to a password-manager entry / encrypted USB
-```
+Losing the state means redoing the import workflow above — tedious, not a
+disaster. If you must back it up, encrypt it (`age`, `gpg`, or a
+password-manager attachment) — never a plaintext `cp` to disk or USB.
 
 To graduate to a remote backend (S3, HCP Terraform, etc.), add a `backend`
 block to `versions.tf` and run `infra init -migrate-state`. A remote backend
-is also the prerequisite for any scheduled drift-detection job (see below).
+keeps the secret out of the working tree and is the prerequisite for any
+scheduled drift-detection job (see below).
 
 ## `prevent_destroy` semantics
 
