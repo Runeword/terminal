@@ -77,7 +77,7 @@ __chezmoi_status() {
 }
 
 __chezmoi_cd() {
-  cd "$(chezmoi source-path)" || exit
+  cd "$(chezmoi source-path)" || return 1
 }
 
 __chezmoi_managed() {
