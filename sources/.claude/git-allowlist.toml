@@ -16,6 +16,7 @@
 # are willing to permit.
 
 allow = [
+  "version",
   "hash-object",
   "rev-list",
   "add",
