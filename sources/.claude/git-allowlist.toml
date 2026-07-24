@@ -9,11 +9,14 @@
 #   - exec-capable git env vars (GIT_EXTERNAL_DIFF, GIT_SSH_COMMAND, GIT_PAGER,
 #     GIT_CONFIG_*, …) are stripped by the shim / denied by the hook.
 #   - `git config` is read-only; write/edit forms are denied.
+#   - subcommand flags that run a command are rejected even for an allowlisted
+#     subcommand: --upload-pack / --receive-pack / --exec (any subcommand, e.g.
+#     `git fetch --upload-pack=<cmd>`), rebase -x / -i / --interactive, and
+#     grep -O / --open-files-in-pager.
 #
-# NOT enforced: subcommand-specific flags are not inspected. Adding a subcommand
-# here trusts ALL of its flags — allowing "push" also allows "git push --force"
-# and "git push --receive-pack=<cmd>". Only add subcommands whose every flag you
-# are willing to permit.
+# Mostly NOT enforced otherwise: other subcommand-specific flags are trusted.
+# Adding a subcommand here trusts the rest of its flags — allowing "push" also
+# allows "git push --force". Only add subcommands whose flags you will permit.
 
 allow = [
   "version",
