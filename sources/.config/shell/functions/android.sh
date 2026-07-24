@@ -26,7 +26,8 @@ __emu() {
       fi
 
       # Prompt name
-      read -p "Enter emulator name : " AVD_NAME
+      printf "Enter emulator name : "
+      read -r AVD_NAME
       printf "\033[1A\033[2K"
 
       if [ "$AVD_NAME" = "" ]; then
