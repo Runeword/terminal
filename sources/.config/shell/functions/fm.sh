@@ -110,7 +110,7 @@ __ripgrep() {
 }
 
 __mkdir_cd() {
-  mkdir --parents --verbose "$1" && cd "$1" || exit
+  mkdir --parents --verbose "$1" && cd "$1" || return 1
 }
 
 # __open_recent() {
