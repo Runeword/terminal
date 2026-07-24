@@ -53,75 +53,80 @@
           overlays = import ./overlays { inherit pkgs-24-05; };
         };
     in
-    inputs.flake-utils.lib.eachDefaultSystem (
-      system:
-      let
-        pkgs = mkPkgs system;
+    inputs.flake-utils.lib.eachSystem
+      # nixpkgs-unstable (26.11) dropped x86_64-darwin support entirely, so it
+      # can no longer be imported for that system — every output would throw at
+      # evaluation. Expose the remaining default systems only.
+      (builtins.filter (s: s != "x86_64-darwin") inputs.flake-utils.lib.defaultSystems)
+      (
+        system:
+        let
+          pkgs = mkPkgs system;
 
-        configPath = ./sources;
-        wrappers = mkWrappers pkgs configPath;
-        tools = mkTools pkgs wrappers;
-        terminal = mkTerminal pkgs configPath tools;
+          configPath = ./sources;
+          wrappers = mkWrappers pkgs configPath;
+          tools = mkTools pkgs wrappers;
+          terminal = mkTerminal pkgs configPath tools;
 
-        unitTests = import ./lib/tests-unit.nix {
-          inherit (pkgs) lib;
-          inherit wrappers;
-        };
-      in
-      {
-        packages.default = terminal;
-        packages.firefox-mcp = import ./packages/custom/firefox-mcp.nix { inherit pkgs; };
-        packages.mobile-mcp = import ./packages/custom/mobile-mcp.nix { inherit pkgs; };
-        packages.aws-api-mcp = import ./packages/custom/aws-api-mcp.nix { inherit pkgs; };
-        packages.google-workspace-mcp = import ./packages/custom/google-workspace-mcp.nix { inherit pkgs; };
-        packages.tools = pkgs.buildEnv {
-          name = "tools";
-          paths = tools;
-          # Restrict to /bin so wrappers that share config files (e.g. fd and
-          # ripgrep both ship .config/ignore) don't conflict in the merged env.
-          pathsToLink = [ "/bin" ];
-        };
+          unitTests = import ./lib/tests-unit.nix {
+            inherit (pkgs) lib;
+            inherit wrappers;
+          };
+        in
+        {
+          packages.default = terminal;
+          packages.firefox-mcp = import ./packages/custom/firefox-mcp.nix { inherit pkgs; };
+          packages.mobile-mcp = import ./packages/custom/mobile-mcp.nix { inherit pkgs; };
+          packages.aws-api-mcp = import ./packages/custom/aws-api-mcp.nix { inherit pkgs; };
+          packages.google-workspace-mcp = import ./packages/custom/google-workspace-mcp.nix { inherit pkgs; };
+          packages.tools = pkgs.buildEnv {
+            name = "tools";
+            paths = tools;
+            # Restrict to /bin so wrappers that share config files (e.g. fd and
+            # ripgrep both ship .config/ignore) don't conflict in the merged env.
+            pathsToLink = [ "/bin" ];
+          };
 
-        apps.default = {
-          type = "app";
-          program = "${terminal}/bin/alacritty";
-          meta.description = "Alacritty terminal (set $PERMEANCE_ROOT to a sources tree for live config)";
-        };
+          apps.default = {
+            type = "app";
+            program = "${terminal}/bin/alacritty";
+            meta.description = "Alacritty terminal (set $PERMEANCE_ROOT to a sources tree for live config)";
+          };
 
-        devShells.default = pkgs.mkShell {
-          inputsFrom = [
-            (import ./devshells/terminal.nix { inherit pkgs; })
-            (import ./devshells/languages.nix { inherit pkgs; })
-            (import ./devshells/infra.nix { inherit pkgs; })
-            inputs.claude.devShells.${system}.ast-grep
-            (import ./devshells/lefthook.nix {
-              inherit pkgs;
-              inherit (inputs) lefthook;
-            })
-          ];
-        };
+          devShells.default = pkgs.mkShell {
+            inputsFrom = [
+              (import ./devshells/terminal.nix { inherit pkgs; })
+              (import ./devshells/languages.nix { inherit pkgs; })
+              (import ./devshells/infra.nix { inherit pkgs; })
+              inputs.claude.devShells.${system}.ast-grep
+              (import ./devshells/lefthook.nix {
+                inherit pkgs;
+                inherit (inputs) lefthook;
+              })
+            ];
+          };
 
-        checks = (pkgs.lib.mapAttrs (_: drv: drv.passthru.tests.smoke) wrappers) // {
-          unit-tests =
-            let
-              failures = pkgs.lib.runTests unitTests;
-            in
-            pkgs.runCommand "unit-tests"
-              {
-                passthru.failures = failures;
-              }
-              (
-                if failures == [ ] then
-                  "touch $out"
-                else
-                  ''
-                    echo ${pkgs.lib.escapeShellArg (builtins.toJSON failures)} >&2
-                    exit 1
-                  ''
-              );
-        };
-      }
-    )
+          checks = (pkgs.lib.mapAttrs (_: drv: drv.passthru.tests.smoke) wrappers) // {
+            unit-tests =
+              let
+                failures = pkgs.lib.runTests unitTests;
+              in
+              pkgs.runCommand "unit-tests"
+                {
+                  passthru.failures = failures;
+                }
+                (
+                  if failures == [ ] then
+                    "touch $out"
+                  else
+                    ''
+                      echo ${pkgs.lib.escapeShellArg (builtins.toJSON failures)} >&2
+                      exit 1
+                    ''
+                );
+          };
+        }
+      )
     // {
       lib.mkTerminal =
         {
