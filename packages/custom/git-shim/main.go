@@ -23,10 +23,13 @@
 //   - `git config` is permitted for reads only; any write/edit form is denied,
 //     since a single `git config core.pager '!cmd'` plants persistent code
 //     execution that fires on the next allowed read.
+//   - Subcommand-local flags that run a command are denied even for an allowed
+//     subcommand: --upload-pack/--receive-pack/--exec (any subcommand, e.g.
+//     `git fetch --upload-pack=<cmd>` runs <cmd>), rebase `-x`/`-i`, grep `-O`.
 //
-// Subcommand-specific flags past the subcommand are NOT inspected: allowlisting
-// a subcommand trusts all of its flags (e.g. allowing `push` allows
-// `push --force`). Residual, out of scope here: an attacker who can already
+// Other subcommand-specific flags past the subcommand are NOT inspected:
+// allowlisting a subcommand trusts the rest of its flags (e.g. allowing `push`
+// allows `push --force`). Residual, out of scope here: an attacker who can already
 // write files can plant exec-capable keys in a repo's own .git/config, or
 // invoke an absolute-path git through a wrapper the shim never sees
 // (`env … /usr/bin/git …`); those require a separate write/exec primitive.
@@ -67,6 +70,25 @@ var (
 	// read-only allowlist, so any of them is a deny.
 	execInjectingFlags = map[string]struct{}{
 		"-c": {}, "--config-env": {}, "--exec-path": {},
+	}
+	// Subcommand-local flags that run an arbitrary command under every
+	// subcommand that accepts them, denied after any allowed subcommand:
+	// --upload-pack/--receive-pack name the program that "serves" a fetch/push
+	// (git fetch --upload-pack=<cmd> runs <cmd> locally); --exec is rebase's
+	// per-commit exec and push's --receive-pack alias.
+	execFlagNames = map[string]struct{}{
+		"--upload-pack": {}, "--receive-pack": {}, "--exec": {},
+	}
+	// Flags that are exec-capable only for a specific subcommand and benign
+	// elsewhere (grep -i is case-insensitive, diff -O is an orderfile), matched
+	// per subcommand. Letters match inside a short-flag cluster (-ix, -Ocmd).
+	execFlagNamesBySub = map[string]map[string]struct{}{
+		"rebase": {"--interactive": {}},
+		"grep":   {"--open-files-in-pager": {}},
+	}
+	execFlagLettersBySub = map[string]string{
+		"rebase": "xi", // -x runs a command per commit; -i opens the editor
+		"grep":   "O",  // -O opens matches in an arbitrary pager command
 	}
 )
 
@@ -163,10 +185,49 @@ func check(args []string) error {
 	if !isAllowed(sub) {
 		return fmt.Errorf("%q is not in the allowlist", "git "+sub)
 	}
+	if flag, bad := execCapableFlag(sub, args[i+1:]); bad {
+		return fmt.Errorf("git %s flag %q runs an arbitrary command and is not allowed", sub, flag)
+	}
 	if sub == "config" && gitConfigIsWrite(args[i+1:]) {
 		return errors.New(`"git config" write/edit forms are not allowed (read-only config only)`)
 	}
 	return nil
+}
+
+// execCapableFlag reports the first subcommand-local flag that would turn an
+// (already-allowlisted) subcommand into arbitrary command execution — the
+// surface the global -c/--exec-path check does not cover. It is why an
+// otherwise-useful subcommand on the allowlist (fetch's --upload-pack, rebase's
+// --exec, grep's -O) does not hand back the execution the allowlist removes.
+// A standalone "--" ends option scanning; the rest are operands.
+func execCapableFlag(sub string, args []string) (string, bool) {
+	names := execFlagNamesBySub[sub]
+	letters := execFlagLettersBySub[sub]
+	for _, tok := range args {
+		if !strings.HasPrefix(tok, "-") {
+			continue
+		}
+		name, _, _ := splitFlag(tok)
+		if name == "--" {
+			break
+		}
+		if _, bad := execFlagNames[name]; bad {
+			return name, true
+		}
+		if _, bad := names[name]; bad {
+			return name, true
+		}
+		if letters != "" && isShortCluster(name) && strings.ContainsAny(name[1:], letters) {
+			return name, true
+		}
+	}
+	return "", false
+}
+
+// isShortCluster reports whether name is a short-flag token (`-x`, `-ix`) as
+// opposed to a long flag (`--foo`) or a non-flag.
+func isShortCluster(name string) bool {
+	return len(name) >= 2 && name[0] == '-' && name[1] != '-'
 }
 
 // splitFlag splits a flag token of the form `--name=value` (or `-c=value`)
