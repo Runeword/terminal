@@ -46,7 +46,7 @@ jf	__paste | jq '.' | tee >(__copy)                 	json/string     to json	x
 jk	jq --raw-output 'keys[]' FILE.json               	json            to keys
 jp	__paste | jq --raw-output '.' | jq --color-output '.'	json            pretty print	x
 g   	lazygit                                    	git                 tui	x
-g   	onefetch                                   	git                 repo                info	x
+g   	onefetch --include-hidden                  	git                 repo                info	x
 g   	__git_set_user                             	git                 config              set user	x
 gi  	__git_info                                 	git                 repo                info	x
 # gia 	git log --format="%h %an %ae" master..HEAD	git                 authors             info	x
