@@ -9,6 +9,11 @@ let
   config = files.mkConfig "tmux-config" [
     ".config/tmux/tmux.conf"
     ".config/tmux/scripts/toggle-pane.sh"
+    # Bound in tmux.conf (claude-sessions.sh on M-s; watch-build.sh on a
+    # currently-commented M-b) — bundle both so the bindings resolve in
+    # bundled mode, not just under $PERMEANCE_ROOT.
+    ".config/tmux/scripts/claude-sessions.sh"
+    ".config/tmux/scripts/watch-build.sh"
     ".config/shell/functions/tmux.sh"
     # tmux-resurrect plugin tree, supplied by nixpkgs instead of vendored
     # or fetched at runtime via TPM. tmux.conf references its scripts via
