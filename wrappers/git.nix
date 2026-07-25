@@ -19,16 +19,29 @@ let
       pkgs.git
       config
     ];
-    postBuild = permeance.installLauncher {
-      binName = "git";
-      configEnv = {
-        GIT_CONFIG_GLOBAL = ".config/git/config";
-      };
-      flags = [
-        "-c"
-        "core.excludesFile=$PERMEANCE_ROOT/.config/git/ignore"
-      ];
-    };
+    postBuild =
+      permeance.installLauncher {
+        binName = "git";
+        configEnv = {
+          GIT_CONFIG_GLOBAL = ".config/git/config";
+        };
+        flags = [
+          "-c"
+          "core.excludesFile=$PERMEANCE_ROOT/.config/git/ignore"
+        ];
+      }
+      # git-upload-pack / -receive-pack / -upload-archive ship as relative
+      # symlinks to `git`, which now resolves to the launcher. The launcher's
+      # `-c core.excludesFile=…` prefix then reaches these plumbing commands,
+      # which reject `-c` ("unknown switch `c'"), breaking ssh-served
+      # fetch/push. Repoint every dashed-builtin symlink at the real git.
+      + ''
+        for l in "$out"/bin/*; do
+          if [ -L "$l" ] && [ "$(readlink "$l")" = "git" ]; then
+            ln -sf .git-real "$l"
+          fi
+        done
+      '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "git";
       description = "Verify git loads bundled global config";
@@ -56,6 +69,14 @@ let
           ok "delta.* keys reachable via [include] path = ../delta/config"
         else
           fail "delta.syntax-theme is '$theme', expected 'none' via include"
+        fi
+
+        # Dashed builtins must bypass the launcher — its `-c` prefix would
+        # break them, and ssh-served fetch/push with them.
+        if ${self}/bin/git-upload-pack -h 2>&1 | grep -q "unknown switch"; then
+          fail "git-upload-pack hits the launcher -c prefix"
+        else
+          ok "git-upload-pack bypasses the launcher"
         fi
       '';
     };
