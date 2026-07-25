@@ -322,6 +322,46 @@ func TestExecCapableFlags(t *testing.T) {
 	}
 }
 
+func TestGitRemote(t *testing.T) {
+	t.Setenv(envConfigPath, "")
+	tests := []struct {
+		name    string
+		cmd     string
+		wantErr bool
+	}{
+		// Reads: list forms, show, get-url.
+		{"remote list", "git remote", false},
+		{"remote -v", "git remote -v", false},
+		{"remote --verbose", "git remote --verbose", false},
+		{"remote show", "git remote show", false},
+		{"remote show origin", "git remote show origin", false},
+		{"remote get-url", "git remote get-url origin", false},
+
+		// Writes: repoint/create/delete/prune/update are denied.
+		{"remote add denied", "git remote add origin https://x", true},
+		{"remote set-url denied", "git remote set-url origin https://attacker/repo", true},
+		{"remote remove denied", "git remote remove origin", true},
+		{"remote rm denied", "git remote rm origin", true},
+		{"remote rename denied", "git remote rename a b", true},
+		{"remote set-head denied", "git remote set-head origin -a", true},
+		{"remote set-branches denied", "git remote set-branches origin main", true},
+		{"remote prune denied", "git remote prune origin", true},
+		{"remote update denied", "git remote update", true},
+		{"remote unknown subcmd denied (fail closed)", "git remote frobnicate", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := checkCommand(tt.cmd)
+			if tt.wantErr && err == nil {
+				t.Fatalf("checkCommand(%q): want deny, got allow", tt.cmd)
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("checkCommand(%q): want allow, got deny: %v", tt.cmd, err)
+			}
+		})
+	}
+}
+
 func TestEmittedJSONShape(t *testing.T) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(denyOutput("test reason")); err != nil {
