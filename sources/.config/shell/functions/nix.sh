@@ -50,7 +50,7 @@ __use_flake_template() {
   command mkdir -p nix
   (builtin cd nix && nix flake init --template "$flake_path"/#"$selected_template")
 
-  printf "use flake ./nix" >>.envrc
+  grep -qxF "use flake ./nix" .envrc 2>/dev/null || printf 'use flake ./nix\n' >>.envrc
   # echo "use flake \"$flake_path/$selected_template\"" >>.envrc
   if ! grep "^\.direnv/$" .gitignore >/dev/null 2>&1; then
     echo ".direnv/" >>.gitignore
@@ -186,12 +186,12 @@ __nix_package() {
   [ -z "$selected" ] && return 1
 
   case "$1" in
-    run)
-      shift
-      echo "nix run nixpkgs#${selected}${1:+ -- $*} "
-      ;;
-    shell) echo "nix shell $(echo "$selected" | sed 's/^/nixpkgs#/' | xargs) " ;;
-    *) echo "$selected" | xargs ;;
+  run)
+    shift
+    echo "nix run nixpkgs#${selected}${1:+ -- $*} "
+    ;;
+  shell) echo "nix shell $(echo "$selected" | sed 's/^/nixpkgs#/' | xargs) " ;;
+  *) echo "$selected" | xargs ;;
   esac
 }
 
