@@ -248,55 +248,6 @@ __tmux_move_window_to_session() {
   tmux switch-client -t "$target_session"
 }
 
-__tmux_toggle_pane() {
-  local min_size="${1:-0}"
-
-  # Single call: get pair pane ID, current pane, zoom state, and window height
-  local pair current_pane zoomed window_height
-  set -- "$(tmux display-message -p '#{@toggle_pane} #{pane_id} #{window_zoomed_flag} #{window_height}')"
-  pair=$1 current_pane=$2 zoomed=$3 window_height=$4
-  [ "$pair" = "" ] && return
-
-  # Single call: get pair pane height (doubles as existence check)
-  local pane_height
-  pane_height=$(tmux display-message -t "$pair" -p '#{pane_height}' 2>/dev/null)
-  if [ "$pane_height" = "" ]; then
-    tmux set-option -wu @toggle_pane
-    return
-  fi
-
-  if [ "$min_size" -eq 0 ]; then
-    if [ "$zoomed" = "1" ]; then
-      tmux resize-pane -Z \; select-pane -t "$pair"
-    elif [ "$current_pane" = "$pair" ]; then
-      tmux select-pane -t :.+ \; resize-pane -Z
-    else
-      tmux resize-pane -Z
-    fi
-    return
-  fi
-
-  if [ "$((pane_height * 100 / window_height))" -le "$((min_size + 5))" ]; then
-    if [ "$zoomed" = "1" ]; then
-      tmux resize-pane -Z \; resize-pane -t "$pair" -y 50% \; select-pane -t "$pair"
-    else
-      tmux resize-pane -t "$pair" -y 50% \; select-pane -t "$pair"
-    fi
-  elif [ "$current_pane" = "$pair" ]; then
-    if [ "$zoomed" = "1" ]; then
-      tmux resize-pane -Z \; select-pane -t :.+ \; resize-pane -t "$pair" -y "${min_size}%"
-    else
-      tmux select-pane -t :.+ \; resize-pane -t "$pair" -y "${min_size}%"
-    fi
-  else
-    if [ "$zoomed" = "1" ]; then
-      tmux resize-pane -Z \; resize-pane -t "$pair" -y "${min_size}%"
-    else
-      tmux resize-pane -t "$pair" -y "${min_size}%"
-    fi
-  fi
-}
-
 __tmux_open_url() {
   if ! command -v tmux >/dev/null 2>&1 || [ "$TMUX" = "" ]; then
     return 1
