@@ -31,7 +31,7 @@ __pass_rm() {
     --preview '[ -f {} ] && bat --style=plain --color=always {}' \
     --preview-window right,70%,noborder) || return 0
 
-  for i in "$(echo "$selected_files" | xargs)"; do
+  echo "$selected_files" | while IFS= read -r i; do
     pass rm "$i"
   done
 }
