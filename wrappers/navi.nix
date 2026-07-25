@@ -23,11 +23,15 @@ let
       name = "navi";
       description = "Verify navi loads its bundled config";
       script = ''
-        # navi info config-path shows the active config path; fails on bad config.
-        if ${self}/bin/navi info config-path > /dev/null 2>&1; then
-          ok "bundled config loads"
+        # navi exits 0 (and silently falls back to a default config) when it
+        # can't parse the bundled one — it only warns on stderr — so an exit
+        # check can't see a broken config. Assert navi read the config with no
+        # parse error on stderr.
+        err=$(${self}/bin/navi info config-path 2>&1 >/dev/null)
+        if printf '%s' "$err" | grep -qiE "error parsing config|parse error"; then
+          fail "navi reported a config parse error: $err"
         else
-          fail "bundled config failed to load"
+          ok "bundled config parses (no parse error on stderr)"
         fi
       '';
     };
