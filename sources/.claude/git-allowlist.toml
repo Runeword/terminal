@@ -8,7 +8,8 @@
 #     execution, e.g. `git -c core.fsmonitor=<cmd> status`.
 #   - exec-capable git env vars (GIT_EXTERNAL_DIFF, GIT_SSH_COMMAND, GIT_PAGER,
 #     GIT_CONFIG_*, …) are stripped by the shim / denied by the hook.
-#   - `git config` is read-only; write/edit forms are denied.
+#   - `git config` and `git remote` are read-only; their write forms are denied
+#     (config set/unset/…, remote add/set-url/remove/rename/prune/update/…).
 #   - subcommand flags that run a command are rejected even for an allowlisted
 #     subcommand: --upload-pack / --receive-pack / --exec (any subcommand, e.g.
 #     `git fetch --upload-pack=<cmd>`), rebase -x / -i / --interactive, and
