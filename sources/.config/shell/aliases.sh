@@ -28,7 +28,9 @@ alias f='fzf --reverse --cycle --prompt=" " --height 70% --no-separator --info=i
 alias ss='systemctl --type=service --state=running | fzf --reverse --cycle --prompt=" " --height 70% --no-separator --info=inline:"" --header-lines=1'
 alias me='__open_device'
 alias bu='__bitwarden_unlock'
-alias env='env | f'
+# `env` alone pretty-prints the environment through the pager; with arguments it
+# must fall through to the real env so `env VAR=value cmd` still works.
+env() { if [ "$#" -eq 0 ]; then command env | f; else command env "$@"; fi; }
 alias k='__kill_processes'
 alias y='__yazi_cd < $TTY'
 
