@@ -149,6 +149,38 @@ func TestExecCapableFlags(t *testing.T) {
 	}
 }
 
+func TestGitRemote(t *testing.T) {
+	t.Setenv(envConfigPath, "")
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr bool
+	}{
+		{"list", []string{"remote"}, false},
+		{"-v", []string{"remote", "-v"}, false},
+		{"show origin", []string{"remote", "show", "origin"}, false},
+		{"get-url", []string{"remote", "get-url", "origin"}, false},
+		{"add denied", []string{"remote", "add", "origin", "https://x"}, true},
+		{"set-url denied", []string{"remote", "set-url", "origin", "https://attacker/repo"}, true},
+		{"remove denied", []string{"remote", "remove", "origin"}, true},
+		{"rename denied", []string{"remote", "rename", "a", "b"}, true},
+		{"prune denied", []string{"remote", "prune", "origin"}, true},
+		{"update denied", []string{"remote", "update"}, true},
+		{"unknown denied (fail closed)", []string{"remote", "frobnicate"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := check(tt.args)
+			if tt.wantErr && err == nil {
+				t.Fatalf("check(%v): want deny, got allow", tt.args)
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("check(%v): want allow, got deny: %v", tt.args, err)
+			}
+		})
+	}
+}
+
 func TestSanitizeEnv(t *testing.T) {
 	in := []string{
 		"PATH=/bin",
