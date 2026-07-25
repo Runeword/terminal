@@ -341,10 +341,26 @@ func formatLine(st State, now int64) string {
 	}
 	age := formatAge(now - st.Updated)
 	return fmt.Sprintf("%s%s %-14s%s %s%-7s%s %-22s %s%4s%s",
-		color, glyph, truncate(proj, 14), reset,
-		dim, truncate(model, 7), reset,
-		truncate(text, 22),
+		color, glyph, truncate(clean(proj), 14), reset,
+		dim, truncate(clean(model), 7), reset,
+		truncate(clean(text), 22),
 		dim, age, reset)
+}
+
+// clean strips C0 and C1 control bytes (including ESC, which begins ANSI/OSC
+// sequences) and DEL from model- or filesystem-derived text. Detail carries a
+// truncated Bash command and proj a cwd basename — both attacker-influenceable
+// — and they are printed straight to whoever runs `watch`, so an unstripped
+// escape could spoof the terminal title, drive the cursor, or write the
+// clipboard via OSC 52. Our own colour codes are added separately in
+// formatLine, so stripping here never touches intended formatting.
+func clean(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) {
+			return -1
+		}
+		return r
+	}, s)
 }
 
 func formatAge(secs int64) string {
