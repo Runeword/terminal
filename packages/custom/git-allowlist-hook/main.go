@@ -162,6 +162,14 @@ var (
 	}
 )
 
+// gitRemoteReadSubcommands are the `git remote` subcommands that only read.
+// Everything else (add/remove/rename/set-url/set-head/set-branches/prune/
+// update, or anything unrecognised) mutates a remote or refs — see
+// gitRemoteIsWrite.
+var gitRemoteReadSubcommands = map[string]struct{}{
+	"show": {}, "get-url": {},
+}
+
 // dangerousGitEnv are environment variable names that let git execute arbitrary
 // commands or inject config. As an assignment prefix on a direct git call they
 // are denied (the shim strips them for PATH git, but cannot for absolute-path
@@ -429,6 +437,12 @@ func checkGitCall(call *syntax.CallExpr) error {
 			return errors.New(`"git config" write/edit forms are not allowed (read-only config only)`)
 		}
 	}
+	if sub == "remote" {
+		rest, ok := literalArgs(args[i+1:])
+		if !ok || gitRemoteIsWrite(rest) {
+			return errors.New(`"git remote" write forms (add/remove/rename/set-url/…) are not allowed (read-only remote only)`)
+		}
+	}
 	return nil
 }
 
@@ -560,6 +574,23 @@ func gitConfigIsWrite(args []string) bool {
 	}
 	// Classic form: `git config <name>` reads, `git config <name> <value>` writes.
 	return positionals >= 2
+}
+
+// gitRemoteIsWrite reports whether a `git remote` invocation (args are the
+// tokens after "remote") would create, delete, rename, or repoint a remote (or
+// prune/update refs). `git remote` and `git remote -v` list; `show` and
+// `get-url` read; every other first positional — add, remove, rm, rename,
+// set-url, set-head, set-branches, prune, update, or anything unrecognised — is
+// treated as a write (fail closed).
+func gitRemoteIsWrite(args []string) bool {
+	for _, tok := range args {
+		if strings.HasPrefix(tok, "-") {
+			continue // -v / --verbose and other list flags
+		}
+		_, read := gitRemoteReadSubcommands[tok]
+		return !read // first positional decides
+	}
+	return false // no subcommand → lists remotes, read-only
 }
 
 // wordLiteral returns the static string value of a Word when every part is a
