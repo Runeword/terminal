@@ -93,7 +93,7 @@ _profile "keys: %.0fms\n" $(( (__TK2 - __TK1) * 1000 ))
 # Force emacs keymap regardless of $EDITOR (nvim would otherwise auto-select viins)
 bindkey -e
 
-for f in "$PERMEANCE_TREE"/.config/zsh/plugins/*/*.plugin.zsh; do
+for f in "$PERMEANCE_TREE"/.config/zsh/plugins/*/*.plugin.zsh(N); do
   source "$f"
 done
 
