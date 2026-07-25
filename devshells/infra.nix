@@ -18,8 +18,10 @@ pkgs.mkShell {
           exit 1
         fi
       fi
-      # Pass the token via `env` rather than `export` so it stays scoped to
-      # tofu's process and isn't picked up by anything tofu shells out to.
+      # Hand the token to tofu (and the git/provider subprocesses it spawns,
+      # which also need it) via its environment. Using `exec env …` means the
+      # interactive devshell is never touched — this launcher process is
+      # replaced by tofu.
       exec ${pkgs.coreutils}/bin/env GITHUB_TOKEN="$GITHUB_TOKEN" ${pkgs.opentofu}/bin/tofu "$@"
     '')
   ];
