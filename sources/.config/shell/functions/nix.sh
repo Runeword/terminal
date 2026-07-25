@@ -186,12 +186,12 @@ __nix_package() {
   [ -z "$selected" ] && return 1
 
   case "$1" in
-  run)
-    shift
-    echo "nix run nixpkgs#${selected}${1:+ -- $*} "
-    ;;
-  shell) echo "nix shell $(echo "$selected" | sed 's/^/nixpkgs#/' | xargs) " ;;
-  *) echo "$selected" | xargs ;;
+    run)
+      shift
+      echo "nix run nixpkgs#${selected}${1:+ -- $*} "
+      ;;
+    shell) echo "nix shell $(echo "$selected" | sed 's/^/nixpkgs#/' | xargs) " ;;
+    *) echo "$selected" | xargs ;;
   esac
 }
 
