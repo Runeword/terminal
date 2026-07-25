@@ -22,10 +22,17 @@ let
       name = "starship";
       description = "Verify starship loads its bundled config";
       script = ''
-        if ${self}/bin/starship prompt > /dev/null 2>&1; then
-          ok "bundled config loads (prompt generates)"
+        # starship exits 0 even when it can't parse the config — it prints an
+        # error to stderr and falls back to defaults — so an exit check can't see
+        # a broken config. Assert the prompt renders and no parse error surfaced.
+        err=$(${self}/bin/starship prompt 2>&1 >/dev/null)
+        prompt=$(${self}/bin/starship prompt 2>/dev/null)
+        if printf '%s' "$err" | grep -qiE "parse error|unable to parse|error parsing"; then
+          fail "starship reported a config parse error: $err"
+        elif [ -n "$prompt" ]; then
+          ok "bundled config parses and prompt renders"
         else
-          fail "prompt generation failed"
+          fail "prompt was empty"
         fi
       '';
     };
