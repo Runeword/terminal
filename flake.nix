@@ -70,7 +70,7 @@
 
           unitTests = import ./lib/tests-unit.nix {
             inherit (pkgs) lib;
-            inherit wrappers;
+            inherit wrappers terminal;
           };
         in
         {
@@ -107,6 +107,7 @@
           };
 
           checks = (pkgs.lib.mapAttrs (_: drv: drv.passthru.tests.smoke) wrappers) // {
+            alacritty = terminal.passthru.tests.smoke;
             unit-tests =
               let
                 failures = pkgs.lib.runTests unitTests;
