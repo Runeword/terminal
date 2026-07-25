@@ -21,7 +21,7 @@ Other useful commands:
 - `nix flake check` / `nix flake show` — validate or inspect outputs.
 - `nix build .#default` / `nix build .#tools` — build the terminal or the tools env.
 - `nix build .#checks.x86_64-linux.<wrapper>` (e.g., `.#checks.x86_64-linux.zsh`) — build/run a single wrapper's smoke test for fast iteration.
-- `lefthook run pre-commit` — run git hooks locally (hooks live in `lefthook.local.yml`, a regular file in the repo root).
+- `lefthook run pre-commit` — run git hooks locally (hooks live in `lefthook-generated.yml`, a committed file rendered by the lefthook flake input). Not a dry run: the `auto-commit` job commits whatever is staged.
 - `infra <args>` — OpenTofu wrapper (from `devshells/infra.nix`); always runs against `./infra` and supplies `GITHUB_TOKEN` from `gh auth token`. See `infra/README.md`.
 
 ## Architecture
