@@ -153,6 +153,18 @@ __git_fzf_select() {
   printf '%s' "$result" | tr '\0' '\n' | sed "s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' '
 }
 
+# __git_prefix_paths rewrites the shell-quoted, space-joined path list produced
+# by the fzf helpers ('a' 'b/c' …) so each token is prefixed with $1, a cd-up
+# path like "../". git prints paths relative to the repo root, but $EDITOR opens
+# them from the invocation cwd, so every element — not just the first — needs the
+# prefix. An empty prefix (already at the repo root) leaves the list unchanged.
+__git_prefix_paths() {
+  local cdup="$1" list="$2" q="'"
+  [ -z "$cdup" ] && { printf '%s' "$list"; return; }
+  list="${list/#$q/$q$cdup}"
+  printf '%s' "${list// $q/ $q$cdup}"
+}
+
 __git_add() {
   __git_require_repo || return 1
 
@@ -303,7 +315,7 @@ __git_diff() {
 
   local args
   args=$(__git_fzf_select "$list_cmd" "${preview[@]}")
-  [ "$args" != "" ] && echo "$EDITOR ${repo_cdup:+$repo_cdup}$args"
+  [ "$args" != "" ] && echo "$EDITOR $(__git_prefix_paths "$repo_cdup" "$args")"
 }
 
 __git_diff_branches() {
@@ -388,7 +400,7 @@ __git_log() {
   args=$(git diff-tree --root --no-commit-id --name-only -r "$commit" |
     fzf --print0 "${_GIT_FZF_DEFAULT[@]}" "${file_preview[@]}" |
     tr '\0' '\n' | sed "s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' ')
-  [ "$args" != "" ] && echo "$EDITOR ${repo_cdup:+$repo_cdup}$args"
+  [ "$args" != "" ] && echo "$EDITOR $(__git_prefix_paths "$repo_cdup" "$args")"
 }
 
 __git_install_lefthook() {
