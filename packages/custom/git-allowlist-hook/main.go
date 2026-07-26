@@ -404,14 +404,19 @@ func checkGitCall(call *syntax.CallExpr) error {
 	args := call.Args[1:]
 	i := 0
 	for i < len(args) {
-		tok, ok := wordLiteral(args[i])
-		if !ok || !strings.HasPrefix(tok, "-") {
-			break
+		name, hasValue, ok := wordFlag(args[i])
+		if !ok {
+			break // not a statically-known flag → subcommand position
 		}
-		name, _, hasValue := splitFlag(tok)
 		if _, bad := execInjectingFlags[name]; bad {
 			return fmt.Errorf("global flag %q can inject command execution and is not allowed", name)
 		}
+		// A safe global flag with a *separate* value (`--git-dir DIR`) consumes
+		// the next token too. An attached value — `--git-dir=X`, or a dynamic
+		// one embedded in the same word (`--git-dir="$D"`) — consumes only this
+		// token. Reading the name from the leading literal is what lets a safe
+		// flag with a variable value be skipped without stalling subcommand
+		// resolution, while an exec-injecting flag is still caught by name above.
 		if _, takesArg := globalFlagsWithArg[name]; takesArg && !hasValue {
 			i += 2
 			continue
@@ -476,26 +481,37 @@ func execCapableFlag(sub string, args []*syntax.Word) (string, bool) {
 	return "", false
 }
 
-// wordFlagName returns the flag name of a word when it begins with a literal
-// dash — the part before any `=`. It handles fully literal words (including
-// quoted forms like "--upload-pack=x") and words whose value is an expansion
-// (`--upload-pack=$x`), so a flag cannot hide its name behind quoting or a
-// variable. ok is false when the word does not begin with a literal `-`.
-func wordFlagName(w *syntax.Word) (string, bool) {
-	if s, ok := wordLiteral(w); ok {
+// wordFlag inspects a word that begins with a literal dash and returns the flag
+// name (the part before any `=`) and whether it carries an attached value. It
+// handles fully literal words (including quoted `--flag=x`) and words whose
+// value is an expansion (`--upload-pack=$x`, `--git-dir="$D"`, `-C"$D"`): the
+// name is read from the leading literal, and a value expansion inside the same
+// word counts as attached. So a flag cannot hide its name behind quoting or a
+// variable, and a safe global flag with a dynamic value can be skipped without
+// stalling subcommand resolution. ok is false when the word does not begin with
+// a literal `-`.
+func wordFlag(w *syntax.Word) (name string, hasValue, ok bool) {
+	if s, lit := wordLiteral(w); lit {
 		if !strings.HasPrefix(s, "-") {
-			return "", false
+			return "", false, false
 		}
-		name, _, _ := splitFlag(s)
-		return name, true
+		n, _, hv := splitFlag(s)
+		return n, hv, true
 	}
 	if len(w.Parts) > 0 {
-		if lit, ok := w.Parts[0].(*syntax.Lit); ok && strings.HasPrefix(lit.Value, "-") {
-			name, _, _ := splitFlag(lit.Value)
-			return name, true
+		if lit, isLit := w.Parts[0].(*syntax.Lit); isLit && strings.HasPrefix(lit.Value, "-") {
+			// The value expansion lives inside this same word, so it is attached.
+			n, _, _ := splitFlag(lit.Value)
+			return n, true, true
 		}
 	}
-	return "", false
+	return "", false, false
+}
+
+// wordFlagName returns just the flag name from wordFlag.
+func wordFlagName(w *syntax.Word) (string, bool) {
+	name, _, ok := wordFlag(w)
+	return name, ok
 }
 
 // isShortCluster reports whether name is a short-flag token (`-x`, `-ix`) as
