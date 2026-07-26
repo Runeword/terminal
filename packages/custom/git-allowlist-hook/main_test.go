@@ -362,6 +362,46 @@ func TestGitRemote(t *testing.T) {
 	}
 }
 
+func TestGlobalFlagDynamicValue(t *testing.T) {
+	t.Setenv(envConfigPath, "")
+	tests := []struct {
+		name    string
+		cmd     string
+		wantErr bool
+	}{
+		// Safe global flags with a variable value no longer stall subcommand
+		// resolution — the dotfiles bare-repo pattern.
+		{"git-dir dynamic + status", `git --git-dir="$D" status`, false},
+		{"git-dir + work-tree dynamic + status", `git --git-dir="$D" --work-tree="$HOME" status`, false},
+		{"git-dir dynamic + log flags", `git --git-dir="$D" log --oneline -n 5`, false},
+		{"attached -C dynamic + status", `git -C"$D" status`, false},
+		{"separate -C dynamic + status", `git -C "$D" status`, false},
+		{"separate git-dir dynamic + status", `git --git-dir "$D" status`, false},
+		{"literal git-dir + status", "git --git-dir=/srv/.dotfiles status", false},
+
+		// The subcommand is still enforced past a dynamic flag value.
+		{"git-dir dynamic + push denied", `git --git-dir="$D" push`, true},
+		{"git-dir dynamic + commit denied", `git --git-dir="$D" commit -m x`, true},
+		{"git-dir dynamic + dynamic subcommand denied", `git --git-dir="$D" "$sub"`, true},
+
+		// Exec-injecting global flags are still caught by name, dynamic value or not.
+		{"-c dynamic value denied", `git -c core.pager="$X" status`, true},
+		{"--exec-path dynamic denied", `git --exec-path="$X" status`, true},
+		{"--config-env dynamic denied", `git --config-env="$X" log`, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := checkCommand(tt.cmd)
+			if tt.wantErr && err == nil {
+				t.Fatalf("checkCommand(%q): want deny, got allow", tt.cmd)
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("checkCommand(%q): want allow, got deny: %v", tt.cmd, err)
+			}
+		})
+	}
+}
+
 func TestEmittedJSONShape(t *testing.T) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(denyOutput("test reason")); err != nil {
