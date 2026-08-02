@@ -1,0 +1,20 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "network": {
+      "allowUnixSockets": ["/nix/var/nix/daemon-socket/socket"],
+      "allowedDomains": [
+        "github.com",
+        "*.github.com",
+        "raw.githubusercontent.com",
+        "codeload.github.com",
+        "cache.nixos.org",
+        "*.cachix.org"
+      ]
+    },
+    "filesystem": {
+      "allowWrite": ["~/.cache/nix", "~/.local/state/nix", "~/.cache/direnv"]
+    },
+    "excludedCommands": ["gh *", "tofu *", "terraform *"]
+  }
+}
