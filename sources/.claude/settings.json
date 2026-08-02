@@ -1,4 +1,11 @@
 {
+  "permissions": {
+    "ask": [
+      "Bash(gh *)",
+      "Bash(curl *)",
+      "Bash(wget *)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
