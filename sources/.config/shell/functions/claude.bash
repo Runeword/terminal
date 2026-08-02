@@ -4,12 +4,41 @@
 __CLAUDE_FZF="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path"
 __CLAUDE_DEFAULT_PLUGINS=(nix-mcp nix-lsp typescript-lsp)
 
+# Prefix that runs claude inside the bubblewrap boundary (scripts/claude-sandbox.bash):
+# whole-process filesystem isolation, which Claude Code's own /sandbox can't provide
+# here because its seccomp filter blocks AF_UNIX and kills the nix-daemon socket.
+# Set CLAUDE_SANDBOX=0 to launch unwrapped.
+# macOS gets an empty prefix: bwrap is Linux-only, and Claude Code's own /sandbox
+# applies there instead — Seatbelt supports sandbox.allowUnixSockets for the
+# nix-daemon socket, which Linux/seccomp cannot (see __claude_provision_darwin_sandbox).
+# On Linux the gate fails closed: a missing bwrap or launcher script aborts with a
+# message rather than silently starting an unsandboxed claude. bwrap resolves
+# against the *interactive* shell's PATH, so packages/linux.nix ships bubblewrap in
+# the tools env; CLAUDE_SANDBOX=0 is the explicit escape hatch, not a fallback.
+__claude_sandbox_prefix() {
+  [ "${CLAUDE_SANDBOX:-1}" = "0" ] && return 0
+  [ "$(uname -s)" = "Darwin" ] && return 0
+  local script="$PERMEANCE_TREE/.config/shell/scripts/claude-sandbox.bash"
+  if ! command -v bwrap >/dev/null 2>&1; then
+    echo "claude: bwrap not found on PATH; refusing to launch unsandboxed (CLAUDE_SANDBOX=0 to override)" >&2
+    return 1
+  fi
+  if [ ! -x "$script" ]; then
+    echo "claude: $script is missing or not executable; refusing to launch unsandboxed (CLAUDE_SANDBOX=0 to override)" >&2
+    return 1
+  fi
+  printf '%s ' "$script"
+}
+
 # Build __CLAUDE_CMD from __claude_instance, __claude_plugins, __claude_args.
+# Fails (and propagates through __claude_init) when the sandbox gate refuses to
+# launch, so callers abort after the gate's message instead of silently running.
 __claude_build_cmd() {
-  local args
+  local args prefix
+  prefix=$(__claude_sandbox_prefix) || return 1
   args=$(printf '%q ' "$__claude_args")
   # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
-  __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5 $args"
+  __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance ${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5 $args"
 }
 
 # Make sources/ own each profile's user-level config: path-scoped rules and bundled
@@ -23,6 +52,30 @@ __claude_provision_config() {
   mkdir -p "$dir"
   [ -d "$PERMEANCE_TREE/.claude/rules" ] && ln -sfn "$PERMEANCE_TREE/.claude/rules" "$dir/rules"
   [ -f "$PERMEANCE_TREE/.claude/settings.json" ] && install -m644 "$PERMEANCE_TREE/.claude/settings.json" "$dir/settings.json"
+  __claude_provision_darwin_sandbox "$dir"
+}
+
+# macOS gets Claude Code's built-in Seatbelt sandbox rather than the bubblewrap
+# launcher, because bubblewrap is Linux-only and, more importantly, Seatbelt can
+# allow the nix-daemon socket by path while the Linux seccomp filter cannot
+# (anthropics/claude-code#44180). So the Darwin boundary is expressed as settings
+# instead of a wrapper. Merged into the provisioned user settings so the shared
+# settings.json stays platform-neutral — Linux never sees these keys.
+__claude_provision_darwin_sandbox() {
+  local dir="$1"
+  [ "$(uname -s)" = "Darwin" ] || return 0
+  local overlay="$PERMEANCE_TREE/.claude/settings.darwin.json"
+  [ -f "$overlay" ] && [ -f "$dir/settings.json" ] || return 0
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "claude: jq not found; skipping darwin sandbox overlay" >&2
+    return 0
+  fi
+  local merged
+  merged=$(jq -s '.[0] * .[1]' "$dir/settings.json" "$overlay") || {
+    echo "claude: failed to merge darwin sandbox overlay" >&2
+    return 0
+  }
+  printf '%s\n' "$merged" >"$dir/settings.json"
 }
 
 __claude_init() {
