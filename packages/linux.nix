@@ -1,6 +1,6 @@
 { pkgs }:
 
-pkgs.lib.optionals (pkgs.stdenv.isLinux) (
+pkgs.lib.optionals pkgs.stdenv.isLinux (
   with pkgs;
   [
     xdg-utils
@@ -12,6 +12,9 @@ pkgs.lib.optionals (pkgs.stdenv.isLinux) (
     libinput # input device handling
     # ventoy-full # USB boot utility
     dmidecode
+    # claude-sandbox.bash launcher (.config/shell/functions/claude.bash gates on
+    # `command -v bwrap` in the interactive shell, not on claude's inner PATH)
+    bubblewrap
     cloneit
     xarchiver
     git-graph
