@@ -34,11 +34,17 @@ __claude_sandbox_prefix() {
 # Fails (and propagates through __claude_init) when the sandbox gate refuses to
 # launch, so callers abort after the gate's message instead of silently running.
 __claude_build_cmd() {
-  local args prefix
+  local args prefix unlock=""
   prefix=$(__claude_sandbox_prefix) || return 1
   args=$(printf '%q ' "$__claude_args")
+  # __claude_run launches via `tmux new-window`, which spawns from the tmux
+  # *server's* environment — so a prefix assignment on the caller
+  # (CLAUDE_SANDBOX_UNLOCK_CONFIG=1 __claude) is dropped before the sandbox
+  # script reads it. Carry it in the command string, like the vars below.
+  # CLAUDE_SANDBOX needs no such handling: its gate runs in the calling shell.
+  [ "${CLAUDE_SANDBOX_UNLOCK_CONFIG:-0}" = "1" ] && unlock="CLAUDE_SANDBOX_UNLOCK_CONFIG=1 "
   # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
-  __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance ${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5 $args"
+  __CLAUDE_CMD="${unlock}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance ${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5 $args"
 }
 
 # Make sources/ own each profile's user-level config: path-scoped rules and bundled
