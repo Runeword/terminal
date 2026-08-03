@@ -333,9 +333,6 @@ if [ -d "$HOME/.ssh" ]; then
   __cs_agent=$(ssh-add -L 2>/dev/null) || __cs_agent=""
   __cs_agent_n=0
   [ -n "$__cs_agent" ] && __cs_agent_n=$(printf '%s\n' "$__cs_agent" | grep -c .)
-  if [ "$__cs_agent_n" -eq 0 ]; then
-    echo "claude-sandbox: ssh-agent has no identities; ssh auth inside the sandbox will fail until ssh-add runs (private keys are never exposed to it)" >&2
-  fi
   if [ "${#__cs_cfgs[@]}" -gt 0 ]; then
     while IFS= read -r __cs_id; do
       [ -n "$__cs_id" ] || continue
@@ -371,6 +368,13 @@ if [ -d "$HOME/.ssh" ]; then
         else
           echo "claude-sandbox: no unambiguous agent key for $__cs_id (no .pub beside it, $__cs_agent_n agent keys); skipping" >&2
         fi
+      else
+        # No .pub beside the key and nothing in the agent to reconstruct one
+        # from: this identity gets no stub, so a later ssh-add cannot rescue it
+        # either. The only unfixable-mid-session case, hence the only warning —
+        # an empty agent alone is not one, since the stub makes ssh-add work at
+        # any point in the session.
+        echo "claude-sandbox: no public key for $__cs_id (no .pub beside it, agent empty); ssh with this identity cannot work this session — create the .pub or ssh-add before launching" >&2
       fi
     done < <(
       sed -nE 's/^[[:space:]]*[Ii][Dd][Ee][Nn][Tt][Ii][Tt][Yy][Ff][Ii][Ll][Ee][[:space:]=]+//p' \
