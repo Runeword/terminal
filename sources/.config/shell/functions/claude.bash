@@ -27,6 +27,16 @@ __claude_sandbox_prefix() {
     echo "claude: $script is missing or not executable; refusing to launch unsandboxed (CLAUDE_SANDBOX=0 to override)" >&2
     return 1
   fi
+  # The launcher refuses a cwd that contains $HOME (binding it read-write would be
+  # a no-op sandbox). Repeated here because __claude_run launches via
+  # `tmux new-window`: the launcher's message lands in a pane that clears on death,
+  # so the check has to run in the calling shell to be read at all.
+  case "$HOME/" in
+    "${PWD%/}/"*)
+      echo "claude: refusing to launch from $PWD — it contains \$HOME; cd to a project directory (or CLAUDE_SANDBOX=0 to launch unsandboxed)" >&2
+      return 1
+      ;;
+  esac
   printf '%s ' "$script"
 }
 
@@ -52,7 +62,7 @@ __claude_build_cmd() {
 # while per-profile state (auth, sessions) stays separate. rules/ is a symlink;
 # settings.json is a refreshed copy so Claude's writes can't pollute sources/ or a read-only store.
 __claude_provision_config() {
-  [ -n "$PERMEANCE_TREE" ] || return 0
+  [ "$PERMEANCE_TREE" != "" ] || return 0
   [ -d "$PERMEANCE_TREE/.claude" ] || return 0
   local dir="$HOME/.claude-$__claude_instance"
   mkdir -p "$dir"
@@ -122,7 +132,7 @@ __claude_init_fzf() {
 }
 
 __claude_run() {
-  if [ -n "$TMUX" ]; then
+  if [ "$TMUX" != "" ]; then
     tmux new-window -a -c "#{pane_current_path}" "$__CLAUDE_CMD"
   else
     eval "$__CLAUDE_CMD"
@@ -144,7 +154,7 @@ __claude_debug() {
 
   local file="/tmp/claude-debug.log"
   touch "$file"
-  if [ -n "$TMUX" ]; then
+  if [ "$TMUX" != "" ]; then
     local script="$PERMEANCE_TREE/.config/tmux/scripts/toggle-pane.sh"
     tmux run-shell "sh $script 50 tail -f $file"
     tmux swap-pane -U \; select-pane -D
