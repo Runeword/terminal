@@ -153,6 +153,8 @@ cr	__claude --resume                                              	claude       
 cpl	__claude_plugins                                               	claude            plugins	x
 cpr	__claude_plugins --resume                                      	claude            plugins      resume	x
 cd	__claude_debug                                                 	claude            debug	x
+cu	CLAUDE_SANDBOX_UNLOCK_CONFIG=1 __claude                        	claude            unlocked	x
+cur	CLAUDE_SANDBOX_UNLOCK_CONFIG=1 __claude --resume               	claude            unlocked     resume	x
 chd	chezmoi diff --reverse                                         	chezmoi	x
 chi	chezmoi ignored                                                	chezmoi	x
 chc	__chezmoi_cd                                                   	chezmoi	x
