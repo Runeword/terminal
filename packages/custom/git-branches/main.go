@@ -159,6 +159,7 @@ type branchInfo struct {
 	detached  bool
 	branches  []string
 	worktrees map[string]string // branch → worktree path
+	remote    map[string]bool   // branch → true iff it came from refs/remotes
 	pager     string
 }
 
@@ -187,7 +188,9 @@ func detectHead() (string, bool, error) {
 // tracking branch is hidden iff a local branch with the same logical name
 // exists; "logical name" is computed by stripping a known remote prefix
 // (longest match wins, so a remote literally named `origin/mirror` is handled
-// before falling back to `origin`).
+// before falling back to `origin`). Branches that survive from refs/remotes are
+// recorded in the returned `remote` set — `git switch` needs different flags
+// for those than for locals.
 func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 	var current, pager string
 	var detached bool
@@ -267,6 +270,7 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 	}
 
 	var all []string
+	remoteSet := map[string]bool{}
 	for _, name := range locals {
 		if excludeCurrent && name == current {
 			continue
@@ -278,6 +282,7 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 			continue
 		}
 		all = append(all, rb.display)
+		remoteSet[rb.display] = true
 	}
 
 	return &branchInfo{
@@ -285,6 +290,7 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 		detached:  detached,
 		branches:  all,
 		worktrees: worktrees,
+		remote:    remoteSet,
 		pager:     pager,
 	}, nil
 }
@@ -301,7 +307,11 @@ func runFzf(lines []string, args ...string) (string, error) {
 		return "", err
 	}
 	go func() {
-		defer stdin.Close()
+		// Ignored deliberately: fzf.Output() calls Wait(), which closes this pipe
+		// itself, so the close here races it and routinely returns os.ErrClosed.
+		// Nothing actionable reaches this goroutine either — a real failure to
+		// feed fzf surfaces as the error from fzf.Output() below.
+		defer func() { _ = stdin.Close() }()
 		// Bail on the first write error (EPIPE when fzf exits quickly on a
 		// long list) — keeping the loop running would just queue more dead
 		// writes against a closed pipe.
@@ -351,12 +361,20 @@ func switchBranch() error {
 		return err
 	}
 
+	// Fields 3 (worktree path) and 4 (remote marker) are hidden from fzf via
+	// --with-nth; they exist only to be parsed back out of the selection.
+	// Column 1 still shows the full `origin/foo`, so remote-only branches stay
+	// visually distinct in the list.
 	var lines []string
 	for _, b := range info.branches {
+		marker := ""
+		if info.remote[b] {
+			marker = "r"
+		}
 		if wt, ok := info.worktrees[b]; ok {
-			lines = append(lines, fmt.Sprintf("%s\t→ %s\t%s", b, filepath.Base(wt), wt))
+			lines = append(lines, fmt.Sprintf("%s\t→ %s\t%s\t%s", b, filepath.Base(wt), wt, marker))
 		} else {
-			lines = append(lines, fmt.Sprintf("%s\t\t", b))
+			lines = append(lines, fmt.Sprintf("%s\t\t\t%s", b, marker))
 		}
 	}
 
@@ -376,17 +394,26 @@ func switchBranch() error {
 		return nil
 	}
 
-	parts := strings.SplitN(selected, "\t", 3)
+	parts := strings.SplitN(selected, "\t", 4)
 	branch := strings.TrimSpace(parts[0])
 	worktreePath := ""
-	if len(parts) == 3 {
+	if len(parts) >= 3 {
 		worktreePath = strings.TrimSpace(parts[2])
 	}
+	isRemote := len(parts) >= 4 && strings.TrimSpace(parts[3]) == "r"
 
-	if worktreePath == "" {
-		fmt.Printf("git switch --end-of-options %s ", shellQuote(branch))
-	} else {
+	switch {
+	case worktreePath != "":
 		fmt.Printf("builtin cd %s ", shellQuote(worktreePath))
+	case isRemote:
+		// `git switch origin/foo` is refused ("a branch is expected, got
+		// remote branch"), and the --guess DWIM only fires for the bare short
+		// name. --track creates the local branch, deriving its name from the
+		// remote-tracking ref, and sets upstream — unambiguous even when the
+		// same name exists on several remotes.
+		fmt.Printf("git switch --track --end-of-options %s ", shellQuote(branch))
+	default:
+		fmt.Printf("git switch --end-of-options %s ", shellQuote(branch))
 	}
 
 	return nil
