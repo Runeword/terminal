@@ -84,11 +84,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1785622274,
-        "narHash": "sha256-2BK/fgx0kHQKlBE1gJk323g++H0830QyeVzY8MjocZg=",
+        "lastModified": 1785966511,
+        "narHash": "sha256-5+mfF/nUXVuwLjMRrhJKdVeF4t6RSPSNXbs3yuSw/p4=",
         "owner": "Runeword",
         "repo": "lefthook",
-        "rev": "b43d9075d1bded8841b30f59653b0c652ce46763",
+        "rev": "3b5eab1767ae1ea2112c44c9f99f10f38433bad2",
         "type": "github"
       },
       "original": {
