@@ -11,4 +11,8 @@
   # into claude's PATH via wrappers/claude.nix). Here so it lands in
   # packages.tools and is on the interactive/tmux PATH inside the terminal.
   (import ./claude-session-status { inherit pkgs; })
+  # Alt+Tab session switcher. tmux.conf reaches it by absolute path via
+  # $NIX_OUT_TMUX_SESSIONS (see wrappers/tmux.nix); it is also here so it can
+  # be run by name from a shell inside the terminal.
+  (import ./tmux-sessions { inherit pkgs; })
 ]
