@@ -6,6 +6,11 @@
 }:
 
 let
+  # Alt+Tab session switcher, bound in tmux.conf. Reached by absolute store
+  # path rather than PATH: the tmux server inherits its environment from
+  # whatever launched it, so a bare name would resolve only sometimes.
+  tmuxSessions = import ../packages/custom/tmux-sessions { inherit pkgs; };
+
   config = files.mkConfig "tmux-config" [
     ".config/tmux/tmux.conf"
     ".config/tmux/scripts/toggle-pane.sh"
@@ -34,6 +39,10 @@ let
       staticEnv = {
         TMUX_SHELL = "${zsh}/bin/zsh";
         NIX_OUT_TMUX = "@OUT@";
+        NIX_OUT_TMUX_SESSIONS = "${tmuxSessions}/bin/tmux-sessions";
+        # The switcher shells out to tmux; a popup inherits the server's PATH,
+        # which is not guaranteed to contain it.
+        TMUX_SESSIONS_TMUX = "@OUT@/bin/tmux";
       };
       flags = [
         "-f"
@@ -57,6 +66,21 @@ let
           ok "default-shell is zsh wrapper"
         else
           fail "default-shell is '$tmux_shell', expected '${zsh}/bin/zsh'"
+        fi
+
+        # The M-Tab popup binding resolves the switcher through this variable,
+        # so a broken path here silently turns Alt+Tab into a no-op.
+        switcher=$(${self}/bin/tmux start-server \; show-environment -g NIX_OUT_TMUX_SESSIONS \; kill-server 2>/dev/null | cut -d= -f2-)
+        if [ -x "$switcher" ]; then
+          ok "session switcher exported and executable"
+        else
+          fail "NIX_OUT_TMUX_SESSIONS is '$switcher', not an executable"
+        fi
+
+        if "$switcher" >/dev/null 2>&1; then
+          fail "switcher exited 0 with no tmux server running"
+        else
+          ok "switcher exits non-zero when there are no sessions"
         fi
       '';
     };
