@@ -27,16 +27,13 @@ __claude_sandbox_prefix() {
     echo "claude: $script is missing or not executable; refusing to launch unsandboxed (CLAUDE_SANDBOX=0 to override)" >&2
     return 1
   fi
-  # The launcher refuses a cwd that contains $HOME (binding it read-write would be
-  # a no-op sandbox). Repeated here because __claude_run launches via
-  # `tmux new-window`: the launcher's message lands in a pane that clears on death,
-  # so the check has to run in the calling shell to be read at all.
-  case "$HOME/" in
-    "${PWD%/}/"*)
-      echo "claude: refusing to launch from $PWD — it contains \$HOME; cd to a project directory (or CLAUDE_SANDBOX=0 to launch unsandboxed)" >&2
-      return 1
-      ;;
-  esac
+  # The launcher refuses a cwd that would bind $HOME, an XDG root, or a tree the
+  # desktop session executes from. Run the launcher's own gate rather than a copy
+  # of it: __claude_run launches via `tmux new-window`, and the launcher's message
+  # would land in a pane that clears on death, so the check has to run in the
+  # calling shell to be read at all. --check-cwd applies exactly that gate and
+  # exits without launching anything.
+  "$script" --check-cwd || return 1
   printf '%s ' "$script"
 }
 
@@ -52,7 +49,11 @@ __claude_build_cmd() {
   # (CLAUDE_SANDBOX_UNLOCK_CONFIG=1 __claude) is dropped before the sandbox
   # script reads it. Carry it in the command string, like the vars below.
   # CLAUDE_SANDBOX needs no such handling: its gate runs in the calling shell.
-  [ "${CLAUDE_SANDBOX_UNLOCK_CONFIG:-0}" = "1" ] && unlock="CLAUDE_SANDBOX_UNLOCK_CONFIG=1 "
+  # Every sandbox variable the launcher reads has to be listed here. ALLOW_GH was
+  # not, so the documented per-session opt-in did nothing on the normal launch
+  # path and the only thing that appeared to work was CLAUDE_SANDBOX=0.
+  [ "${CLAUDE_SANDBOX_UNLOCK_CONFIG:-0}" = "1" ] && unlock="${unlock}CLAUDE_SANDBOX_UNLOCK_CONFIG=1 "
+  [ "${CLAUDE_SANDBOX_ALLOW_GH:-0}" = "1" ] && unlock="${unlock}CLAUDE_SANDBOX_ALLOW_GH=1 "
   # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
   __CLAUDE_CMD="${unlock}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance ${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5 $args"
 }
@@ -66,7 +67,17 @@ __claude_provision_config() {
   [ -d "$PERMEANCE_TREE/.claude" ] || return 0
   local dir="$HOME/.claude-$__claude_instance"
   mkdir -p "$dir"
-  [ -d "$PERMEANCE_TREE/.claude/rules" ] && ln -sfn "$PERMEANCE_TREE/.claude/rules" "$dir/rules"
+  if [ -d "$PERMEANCE_TREE/.claude/rules" ]; then
+    # `ln -sfn` onto a *real directory* does not replace it — it creates the link
+    # inside it (rules/rules -> …) and exits 0. So a rules/ directory planted in
+    # a profile once survives every later re-provision, for every project, and
+    # keeps feeding its own instructions to the model. Anything that is not
+    # already a symlink is removed first.
+    if [ -e "$dir/rules" ] && [ ! -L "$dir/rules" ]; then
+      rm -rf "$dir/rules"
+    fi
+    ln -sfn "$PERMEANCE_TREE/.claude/rules" "$dir/rules"
+  fi
   [ -f "$PERMEANCE_TREE/.claude/settings.json" ] && install -m644 "$PERMEANCE_TREE/.claude/settings.json" "$dir/settings.json"
   __claude_provision_darwin_sandbox "$dir"
 }
