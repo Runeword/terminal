@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 __tmux_switch_session() {
   if [ "$(tmux list-sessions 2>/dev/null)" = "" ]; then
@@ -313,7 +313,31 @@ __tmux_reopen_window() {
 
   # Create new window with the saved path
   if [ "$last_path" != "" ] && [ -d "$last_path" ]; then
-    if [ "$last_command" != "" ] && [ "$last_command" != "zsh" ] && [ "$last_command" != "bash" ] && [ "$last_command" != "sh" ]; then
+    if [ "$last_command" = "claude" ]; then
+      # The saved name comes from pane_current_command, and the sandbox launcher
+      # deliberately execs into bwrap as "claude" so autorename and this
+      # save/restore flow see the payload name. Restoring it verbatim therefore
+      # runs the *binary* on PATH: no bubblewrap, and no CLAUDE_CONFIG_DIR, so it
+      # falls back to the ~/.claude profile whose credentials the sandbox exists
+      # to keep masked. Rebuild the real launch command instead, from the restored
+      # path, so the launcher's cwd gate judges the directory the window will
+      # actually open in.
+      local claude_cmd
+      # shellcheck disable=SC1091 # sourced from $PERMEANCE_TREE, resolved at runtime
+      claude_cmd=$(
+        cd "$last_path" &&
+          . "$PERMEANCE_TREE/.config/shell/functions/claude.bash" &&
+          __claude_init "" >/dev/null &&
+          printf '%s' "$__CLAUDE_CMD"
+      )
+      if [ "$claude_cmd" = "" ]; then
+        tmux new-window -a -c "$last_path"
+        tmux display-message "Restored: $last_path (shell - claude refused to launch here)"
+      else
+        tmux new-window -a -c "$last_path" "$claude_cmd"
+        tmux display-message "Restored: $last_path (claude)"
+      fi
+    elif [ "$last_command" != "" ] && [ "$last_command" != "zsh" ] && [ "$last_command" != "bash" ] && [ "$last_command" != "sh" ]; then
       # Create window and run the command
       tmux new-window -a -c "$last_path" "$last_command"
       tmux display-message "Restored: $last_path ($last_command)"
