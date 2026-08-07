@@ -23,7 +23,7 @@
 #     list, not a guarantee about the whole cwd: flake.nix and devshells/ stay
 #     writable because editing them is the point of the repo, so a poisoned
 #     shellHook re-evaluated by direnv remains a residual hole here.
-#     CLAUDE_SANDBOX_UNLOCK_CONFIG=1 lifts exactly one of these locks — the
+#     CLAUDE_SANDBOX_UNLOCK_SOURCES=1 lifts exactly one of these locks — the
 #     $PERMEANCE_TREE one, for sessions deliberately editing shell config. The
 #     rest ($PWD/.direnv, direnv's CAS, $PWD/.git/{hooks,config},
 #     lefthook*.yml) are never what such a session set out to edit, so they
@@ -295,7 +295,7 @@ fi
 if [ -d "$PWD/.git" ]; then
   mkdir -p "$PWD/.git/hooks"
 fi
-# Unconditional locks. CLAUDE_SANDBOX_UNLOCK_CONFIG does not reach these: a
+# Unconditional locks. CLAUDE_SANDBOX_UNLOCK_SOURCES does not reach these: a
 # session that sets it is editing shell config, never .git/hooks or lefthook.yml,
 # so lifting them together only widened the boundary for no gain — "edit a zsh
 # alias" also meant "the git hook path is writable until this session ends".
@@ -335,7 +335,7 @@ for __cs_lh in "$PWD/lefthook.yml" "$PWD/lefthook-generated.yml"; do
 done
 __cs_relock "${XDG_CACHE_HOME:-$HOME/.cache}/direnv/cas"
 
-# The single lock CLAUDE_SANDBOX_UNLOCK_CONFIG lifts, applied last so the
+# The single lock CLAUDE_SANDBOX_UNLOCK_SOURCES lifts, applied last so the
 # read-write bind wins over anything above it that happens to contain the tree.
 #
 # Bound read-write explicitly rather than just left unlocked. Omitting the lock
@@ -343,24 +343,24 @@ __cs_relock "${XDG_CACHE_HOME:-$HOME/.cache}/direnv/cas"
 # any other project was a silent no-op — the tree stayed read-only through the
 # root bind and the warning below claimed otherwise. An explicit bind makes the
 # flag mean the same thing from every directory.
-if [ "${CLAUDE_SANDBOX_UNLOCK_CONFIG:-0}" = "1" ]; then
+if [ "${CLAUDE_SANDBOX_UNLOCK_SOURCES:-0}" = "1" ]; then
   case "${PERMEANCE_TREE:-}" in
     "")
-      echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_CONFIG=1 has nothing to unlock — PERMEANCE_TREE is unset" >&2
+      echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_SOURCES=1 has nothing to unlock — PERMEANCE_TREE is unset" >&2
       ;;
     # Bundled mode resolves PERMEANCE_TREE to the wrapper's own store path, which
     # is root-owned and read-only however it is bound. Say so instead of emitting
     # a bind that cannot work: the tree the user means to edit is their working
     # copy, reachable only by launching with PERMEANCE_ROOT set to it.
     /nix/store/*)
-      echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_CONFIG=1 has nothing to unlock — PERMEANCE_TREE is a store path ($PERMEANCE_TREE); relaunch the terminal with PERMEANCE_ROOT pointing at your working tree" >&2
+      echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_SOURCES=1 has nothing to unlock — PERMEANCE_TREE is a store path ($PERMEANCE_TREE); relaunch the terminal with PERMEANCE_ROOT pointing at your working tree" >&2
       ;;
     *)
       if [ -d "$PERMEANCE_TREE" ]; then
         args+=(--bind "$PERMEANCE_TREE" "$PERMEANCE_TREE")
-        echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_CONFIG=1 — $PERMEANCE_TREE is writable; edits to it run on your host, outside this sandbox" >&2
+        echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_SOURCES=1 — $PERMEANCE_TREE is writable; edits to it run on your host, outside this sandbox" >&2
       else
-        echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_CONFIG=1 has nothing to unlock — PERMEANCE_TREE '$PERMEANCE_TREE' is not a directory" >&2
+        echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_SOURCES=1 has nothing to unlock — PERMEANCE_TREE '$PERMEANCE_TREE' is not a directory" >&2
       fi
       ;;
   esac
