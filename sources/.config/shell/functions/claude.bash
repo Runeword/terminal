@@ -46,13 +46,13 @@ __claude_build_cmd() {
   args=$(printf '%q ' "$__claude_args")
   # __claude_run launches via `tmux new-window`, which spawns from the tmux
   # *server's* environment — so a prefix assignment on the caller
-  # (CLAUDE_SANDBOX_UNLOCK_CONFIG=1 __claude) is dropped before the sandbox
+  # (CLAUDE_SANDBOX_UNLOCK_SOURCES=1 __claude) is dropped before the sandbox
   # script reads it. Carry it in the command string, like the vars below.
   # CLAUDE_SANDBOX needs no such handling: its gate runs in the calling shell.
   # Every sandbox variable the launcher reads has to be listed here. ALLOW_GH was
   # not, so the documented per-session opt-in did nothing on the normal launch
   # path and the only thing that appeared to work was CLAUDE_SANDBOX=0.
-  [ "${CLAUDE_SANDBOX_UNLOCK_CONFIG:-0}" = "1" ] && unlock="${unlock}CLAUDE_SANDBOX_UNLOCK_CONFIG=1 "
+  [ "${CLAUDE_SANDBOX_UNLOCK_SOURCES:-0}" = "1" ] && unlock="${unlock}CLAUDE_SANDBOX_UNLOCK_SOURCES=1 "
   [ "${CLAUDE_SANDBOX_ALLOW_GH:-0}" = "1" ] && unlock="${unlock}CLAUDE_SANDBOX_ALLOW_GH=1 "
   # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
   __CLAUDE_CMD="${unlock}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance ${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5 $args"
