@@ -66,8 +66,13 @@ __tmux_switch_window() {
 
 __tmux_goto_window() {
   local target_index="$1"
-  local current_index
+  local current_index max_index
   current_index=$(tmux display-message -p '#{window_index}')
+
+  # Clamp past-the-end presses onto the last window: C-9 in a 3-window session
+  # selects window 3 instead of doing nothing.
+  max_index=$(tmux list-windows -F '#{window_index}' | sort -n | tail -1)
+  [ "$max_index" != "" ] && [ "$target_index" -gt "$max_index" ] && target_index="$max_index"
 
   if [ "$current_index" = "$target_index" ]; then
     tmux last-window
