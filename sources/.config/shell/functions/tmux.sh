@@ -64,7 +64,7 @@ __tmux_switch_window() {
     >/dev/null
 }
 
-__tmux_switch_or_create_window() {
+__tmux_goto_window() {
   local target_index="$1"
   local current_index
   current_index=$(tmux display-message -p '#{window_index}')
@@ -76,10 +76,6 @@ __tmux_switch_or_create_window() {
 
   if tmux list-windows -F '#{window_index}' | grep -qx "$target_index"; then
     tmux select-window -t "$target_index"
-  else
-    local current_path
-    current_path=$(tmux display-message -p '#{pane_current_path}')
-    tmux new-window -t ":$target_index" -c "$current_path"
   fi
 }
 
