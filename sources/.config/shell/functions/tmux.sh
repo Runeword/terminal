@@ -5,7 +5,13 @@ __tmux_switch_session() {
     trap 'return' INT
     printf 'new session name : ' && read -r input
 
-    tmux new-session "${input:+-s"$input"}"
+    # An empty name would let tmux fall back to naming the session after its id,
+    # which starts at 0; __tmux_new_session numbers from 1 like base-index does.
+    if [ "$input" = "" ]; then
+      __tmux_new_session
+    else
+      tmux new-session -s "$input"
+    fi
 
     return 1
   fi
@@ -142,7 +148,7 @@ __tmux_attach_session() {
       tmux attach -t "=$session"
     fi
   else
-    tmux new-session
+    __tmux_new_session
   fi
 }
 
