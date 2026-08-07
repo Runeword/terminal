@@ -23,8 +23,16 @@
 #     list, not a guarantee about the whole cwd: flake.nix and devshells/ stay
 #     writable because editing them is the point of the repo, so a poisoned
 #     shellHook re-evaluated by direnv remains a residual hole here.
-#     CLAUDE_SANDBOX_UNLOCK_CONFIG=1 lifts the lock for sessions that are
-#     deliberately editing shell config; it is a conscious, per-session choice.
+#     CLAUDE_SANDBOX_UNLOCK_CONFIG=1 lifts exactly one of these locks — the
+#     $PERMEANCE_TREE one, for sessions deliberately editing shell config. The
+#     rest ($PWD/.direnv, direnv's CAS, $PWD/.git/{hooks,config},
+#     lefthook*.yml) are never what such a session set out to edit, so they
+#     hold unconditionally: one flag that dropped all five turned "edit a zsh
+#     alias" into "hand over the git hook path for the session".
+#     When the flag is set the tree is bound read-write explicitly rather than
+#     merely left unlocked, so it works from any cwd — the lock-only form was a
+#     silent no-op whenever $PERMEANCE_TREE lay outside the writable cwd, i.e.
+#     every launch from a project other than the one holding the tree.
 #   - a seccomp filter fails ioctl(TIOCSTI/TIOCLINUX) with EPERM. Without it the
 #     namespace can push characters into the launching terminal's input queue
 #     (CVE-2017-5226) and the host shell runs them once claude exits — bwrap's
@@ -287,48 +295,81 @@ fi
 if [ -d "$PWD/.git" ]; then
   mkdir -p "$PWD/.git/hooks"
 fi
+# Unconditional locks. CLAUDE_SANDBOX_UNLOCK_CONFIG does not reach these: a
+# session that sets it is editing shell config, never .git/hooks or lefthook.yml,
+# so lifting them together only widened the boundary for no gain — "edit a zsh
+# alias" also meant "the git hook path is writable until this session ends".
+#
+# Each lock is attempted only where the tool it protects is actually in play,
+# so a target recorded as absent below is a real anomaly rather than "this repo
+# does not use direnv" — otherwise the warning fires on every ordinary project
+# and is trained away within a day.
+if [ -e "$PWD/.envrc" ]; then
+  __cs_relock "$PWD/.direnv"
+fi
+# Host-executed files inside the writable cwd. git runs .git/hooks/* and honours
+# .git/config (core.hooksPath, `!`-aliases, clean/smudge filters) on the *host*
+# at the user's next git command; lefthook reads lefthook*.yml there too. None
+# of these are git subcommands, so the git-shim allowlist never sees the write —
+# a one-line append is unsandboxed host code execution. Relocking only .git/hooks
+# would be bypassable via core.hooksPath, so .git/config is relocked too (cost:
+# `git config`/`git remote` writes inside the sandbox are refused outright now
+# that no flag lifts this; reads, commits, staging, and checkout are unaffected).
+# flake.nix/flake.lock/devshells stay writable by necessity — editing this flake
+# is the repo's purpose — so a poisoned shellHook re-evaluated by direnv on the
+# next cd is a residual risk this lock does not cover (.envrc is self-guarding
+# via direnv's allow-hash; flake.nix is not).
+if [ -d "$PWD/.git" ]; then
+  __cs_relock "$PWD/.git/hooks"
+  __cs_relock "$PWD/.git/config"
+fi
+# Locked where lefthook is configured. Where it is not, a lefthook.yml the
+# sandbox creates sits inert: .git/hooks is already read-only above, so nothing
+# invokes lefthook unless the user runs it by hand in a repo that, until this
+# session, had no lefthook config — which `git status` shows as an untracked
+# file first.
+for __cs_lh in "$PWD/lefthook.yml" "$PWD/lefthook-generated.yml"; do
+  if [ -e "$__cs_lh" ]; then
+    __cs_relock "$__cs_lh"
+  fi
+done
+__cs_relock "${XDG_CACHE_HOME:-$HOME/.cache}/direnv/cas"
+
+# The single lock CLAUDE_SANDBOX_UNLOCK_CONFIG lifts, applied last so the
+# read-write bind wins over anything above it that happens to contain the tree.
+#
+# Bound read-write explicitly rather than just left unlocked. Omitting the lock
+# only helps where the tree already sits inside the writable cwd, so `cu` from
+# any other project was a silent no-op — the tree stayed read-only through the
+# root bind and the warning below claimed otherwise. An explicit bind makes the
+# flag mean the same thing from every directory.
 if [ "${CLAUDE_SANDBOX_UNLOCK_CONFIG:-0}" = "1" ]; then
-  echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_CONFIG=1 — shell config is writable; edits to it run on your host, outside this sandbox" >&2
+  case "${PERMEANCE_TREE:-}" in
+    "")
+      echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_CONFIG=1 has nothing to unlock — PERMEANCE_TREE is unset" >&2
+      ;;
+    # Bundled mode resolves PERMEANCE_TREE to the wrapper's own store path, which
+    # is root-owned and read-only however it is bound. Say so instead of emitting
+    # a bind that cannot work: the tree the user means to edit is their working
+    # copy, reachable only by launching with PERMEANCE_ROOT set to it.
+    /nix/store/*)
+      echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_CONFIG=1 has nothing to unlock — PERMEANCE_TREE is a store path ($PERMEANCE_TREE); relaunch the terminal with PERMEANCE_ROOT pointing at your working tree" >&2
+      ;;
+    *)
+      if [ -d "$PERMEANCE_TREE" ]; then
+        args+=(--bind "$PERMEANCE_TREE" "$PERMEANCE_TREE")
+        echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_CONFIG=1 — $PERMEANCE_TREE is writable; edits to it run on your host, outside this sandbox" >&2
+      else
+        echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_CONFIG=1 has nothing to unlock — PERMEANCE_TREE '$PERMEANCE_TREE' is not a directory" >&2
+      fi
+      ;;
+  esac
 else
   if [ -z "${PERMEANCE_TREE:-}" ]; then
     echo "claude-sandbox: WARNING — PERMEANCE_TREE is unset, so the shell config tree cannot be locked; anything written to it runs on your host" >&2
   fi
   __cs_relock "${PERMEANCE_TREE:-}"
-  # Each lock is attempted only where the tool it protects is actually in play,
-  # so a target recorded as absent below is a real anomaly rather than "this repo
-  # does not use direnv" — otherwise the warning fires on every ordinary project
-  # and is trained away within a day.
-  if [ -e "$PWD/.envrc" ]; then
-    __cs_relock "$PWD/.direnv"
-  fi
-  # Host-executed files inside the writable cwd. git runs .git/hooks/* and honours
-  # .git/config (core.hooksPath, `!`-aliases, clean/smudge filters) on the *host*
-  # at the user's next git command; lefthook reads lefthook*.yml there too. None
-  # of these are git subcommands, so the git-shim allowlist never sees the write —
-  # a one-line append is unsandboxed host code execution. Relocking only .git/hooks
-  # would be bypassable via core.hooksPath, so .git/config is relocked too (cost:
-  # `git config`/`git remote` writes inside the sandbox now need this flag; reads,
-  # commits, staging, and checkout are unaffected). flake.nix/flake.lock/devshells
-  # stay writable by necessity — editing this flake is the repo's purpose — so a
-  # poisoned shellHook re-evaluated by direnv on the next cd is a residual risk
-  # this lock does not cover (.envrc is self-guarding via direnv's allow-hash;
-  # flake.nix is not).
-  if [ -d "$PWD/.git" ]; then
-    __cs_relock "$PWD/.git/hooks"
-    __cs_relock "$PWD/.git/config"
-  fi
-  # Locked where lefthook is configured. Where it is not, a lefthook.yml the
-  # sandbox creates sits inert: .git/hooks is already read-only above, so nothing
-  # invokes lefthook unless the user runs it by hand in a repo that, until this
-  # session, had no lefthook config — which `git status` shows as an untracked
-  # file first.
-  for __cs_lh in "$PWD/lefthook.yml" "$PWD/lefthook-generated.yml"; do
-    if [ -e "$__cs_lh" ]; then
-      __cs_relock "$__cs_lh"
-    fi
-  done
 fi
-__cs_relock "${XDG_CACHE_HOME:-$HOME/.cache}/direnv/cas"
 if [ "${#__cs_unlocked[@]}" -gt 0 ]; then
   echo "claude-sandbox: absent, so not locked: ${__cs_unlocked[*]} — nothing stops the sandbox creating them, and your host runs what it finds there" >&2
 fi
