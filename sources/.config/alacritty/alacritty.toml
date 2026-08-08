@@ -69,6 +69,10 @@ command = "xdg-open"
 key  = "L"
 mods = "Alt"
 
+[hints.enabled.mouse]
+enabled = true
+mods    = "Control"
+
 [keyboard]
 bindings = [
   # { key = "C", mods = "Command", chars = "\u001bc" }, # Command+C as Alt+C
