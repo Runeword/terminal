@@ -34,6 +34,7 @@ let
     pkgs.rtk
     pkgs.nil
     pkgs.typescript-language-server
+    pkgs.gopls
     pkgs.firefox-devedition
     firefoxMcpPkg
     mobileMcpPkg
