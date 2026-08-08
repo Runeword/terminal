@@ -1,0 +1,9 @@
+{
+  "toml": {
+    "command": "taplo",
+    "args": ["lsp", "stdio"],
+    "extensionToLanguage": {
+      ".toml": "toml"
+    }
+  }
+}
