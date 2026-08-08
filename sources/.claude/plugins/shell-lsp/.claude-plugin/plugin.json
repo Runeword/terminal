@@ -1,0 +1,5 @@
+{
+  "name": "shell-lsp",
+  "description": "Shell (bash/sh) language server for enhanced code intelligence",
+  "version": "1.0.0"
+}
