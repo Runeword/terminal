@@ -114,5 +114,6 @@
     "type": "command",
     "command": "claude-statusline"
   },
-  "disableClaudeAiConnectors": true
+  "disableClaudeAiConnectors": true,
+  "disableArtifact": true
 }
