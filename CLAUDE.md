@@ -98,17 +98,17 @@ The header comment in the launcher is the authoritative description of the bound
 
 Do **not** hand-author patches for `sources/`. A hand-written diff can't be re-read (after handing it over, `sources/` on disk is unchanged, so the next `Read` returns pre-patch content and turn-2 edits are generated against stale state), can't be linted, and is a *prediction* about line numbers and context that is only validated when the user runs `git apply`. Work in a scratch copy instead, and hand over a generated diff:
 
-1. Copy once, at the start of the task: `cp -a sources/. "$SCRATCH/sources-edit/"` (`$SCRATCH` = the session scratchpad).
+1. Copy `cp -a sources/. "$SCRATCH/sources-edit/"` (`$SCRATCH` = the session scratchpad). Re-copy before **each** handover if `sources/` may have changed since the last copy — the user applied an earlier turn's patch, or a linter/auto-commit ran. A copy taken once at the start of a multi-turn task goes stale, and applying from it can revert or delete whatever `sources/` gained meanwhile.
 2. Edit `$SCRATCH/sources-edit/…` with the normal Edit/Write tools. Once the copy exists, read from the scratch tree rather than `sources/`, so re-reads reflect the edits.
 3. Validate in place: `bash -n` and `shellcheck` for shell files, `nix-instantiate --parse` for `.nix`. All three work inside the sandbox. `smoke` / `nix flake check` build from `./sources`, not the scratch tree, so they only mean anything *after* the user applies.
-4. Hand over both commands, with the absolute scratch path filled in, to run in a plain terminal:
+4. Hand over, with absolute paths filled in, to run in a plain terminal — review, then apply **only the files you changed**:
 
    ```
-   git diff --no-index sources/ <scratch>/sources-edit/      # review, delta-rendered
-   rsync -a --delete   <scratch>/sources-edit/ sources/      # apply
+   git diff --no-index sources/ <scratch>/sources-edit/     # review, delta-rendered
+   cp <scratch>/sources-edit/<path> sources/<path>          # apply, one line per changed file
    ```
 
-   `--delete` is correct because the copy was taken from `sources/` this session, so it propagates deletions. It also means a host-side edit made to `sources/` *after* the copy would be reverted — the diff in the first command shows exactly that, which is why it is read first.
+   Never `rsync -a --delete <scratch>/sources-edit/ sources/`. A whole-tree mirror from the scratch is drift-blind: anything `sources/` gained since the copy (plugin dirs, an earlier applied patch, linter output) is silently deleted or reverted, and the "read the diff first" habit does not reliably catch it — it didn't. Per-file `cp` touches nothing else. `sources/` is git-tracked and committed, so `git status` / `git diff` review the result and `git checkout -- sources` undoes a bad apply; if a change genuinely removes a file, `rm` it explicitly. For automatic drift detection — a conflict instead of a silent overwrite when `sources/` moved under a file you edited — apply a *generated* patch (not hand-authored, so in bounds) with `git apply --3way` instead of `cp`.
 
 The copy is safe because everything in the tree is resolved by the host through the absolute `$PERMEANCE_TREE` path, so a copy at any other path is never sourced, and `sources/` itself contains no `.envrc`, `lefthook*`, or `flake.nix`. This is also why a `git worktree` is **not** a substitute: a worktree reproduces `lefthook.yml`, `.envrc`, and `flake.nix` at paths none of the launcher's relocks cover (they pin `$PWD/lefthook.yml`, `$PWD/.git/config`, `$PWD/.direnv` by exact path), so running `lefthook` or `cd`-ing into it on the host would execute sandbox-written content.
 
