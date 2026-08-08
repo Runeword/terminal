@@ -2,7 +2,9 @@
   "go": {
     "command": "gopls",
     "extensionToLanguage": {
-      ".go": "go"
+      ".go": "go",
+      ".mod": "go.mod",
+      ".sum": "go.sum"
     }
   }
 }
