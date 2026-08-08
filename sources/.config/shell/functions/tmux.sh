@@ -125,6 +125,34 @@ __tmux_new_session() {
   fi
 }
 
+# Compact numerically-named sessions back to a gap-free 1..N -- the session-level
+# analogue of renumber-windows. Wired to the session-closed hook in tmux.conf, so
+# killing a middle session (2 of 1,2,3) closes the gap (-> 1,2) instead of leaving
+# 1,3, and an attached session simply follows its own rename. Renaming in
+# ascending order is collision-free: the k-th smallest numeric name is always >=
+# its target k, so the slot it renames into is never still occupied. Non-numeric
+# session names are left untouched.
+__tmux_renumber_sessions() {
+  local i=1 name client
+  tmux list-sessions -F '#{session_name}' 2>/dev/null |
+    grep -E '^[0-9]+$' |
+    sort -n |
+    while read -r name; do
+      [ "$name" != "$i" ] && tmux rename-session -t "=$name" "$i"
+      i=$((i + 1))
+    done
+
+  # Force every client's status line to redraw now. tmux only flags a status
+  # redraw for clients attached to the session that changed, but status-left
+  # lists all sessions (#{S:...}) on every bar -- so without this a client on
+  # another session keeps showing the killed/renamed sessions until the next
+  # status-interval tick (the window list has no such lag).
+  tmux list-clients -F '#{client_name}' 2>/dev/null |
+    while read -r client; do
+      tmux refresh-client -S -t "$client"
+    done
+}
+
 __tmux_kill_session() {
   tmux switch-client -n
   tmux kill-session -t "$(tmux display-message -p "#S")" || tmux kill-session
