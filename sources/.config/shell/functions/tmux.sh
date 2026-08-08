@@ -128,29 +128,37 @@ __tmux_new_session() {
 # Compact numerically-named sessions back to a gap-free 1..N -- the session-level
 # analogue of renumber-windows. Wired to the session-closed hook in tmux.conf, so
 # killing a middle session (2 of 1,2,3) closes the gap (-> 1,2) instead of leaving
-# 1,3, and an attached session simply follows its own rename. Renaming in
-# ascending order is collision-free: the k-th smallest numeric name is always >=
-# its target k, so the slot it renames into is never still occupied. Non-numeric
-# session names are left untouched.
+# 1,3, and an attached session simply follows its own rename. Non-numeric session
+# names are left untouched. Renaming the k-th smallest name to k (ascending) is
+# collision-free: the k-th smallest is always >= k, so its target slot is free.
+#
+# It also refreshes every client's status line: tmux only flags a redraw for
+# clients attached to the session that changed, but status-left lists all sessions
+# (#{S:...}) on every bar, so a client on another session would otherwise show the
+# killed/renamed sessions until the next status-interval tick (windows never lag).
+#
+# This runs on every session close and its latency is visible, so it is kept to
+# two tmux round-trips and a single awk pass: one call reads the session names and
+# the client list, awk emits the whole command batch (renames + a refresh per
+# client), and one 'source-file -' applies it. That is ~2x faster than looping
+# rename/refresh in the shell -- close to the fixed cost of the hook's own fork.
 __tmux_renumber_sessions() {
-  local i=1 name client
-  tmux list-sessions -F '#{session_name}' 2>/dev/null |
-    grep -E '^[0-9]+$' |
-    sort -n |
-    while read -r name; do
-      [ "$name" != "$i" ] && tmux rename-session -t "=$name" "$i"
-      i=$((i + 1))
-    done
-
-  # Force every client's status line to redraw now. tmux only flags a status
-  # redraw for clients attached to the session that changed, but status-left
-  # lists all sessions (#{S:...}) on every bar -- so without this a client on
-  # another session keeps showing the killed/renamed sessions until the next
-  # status-interval tick (the window list has no such lag).
-  tmux list-clients -F '#{client_name}' 2>/dev/null |
-    while read -r client; do
-      tmux refresh-client -S -t "$client"
-    done
+  tmux list-sessions -F 'S #{session_name}' ';' list-clients -F 'C #{client_name}' 2>/dev/null |
+    awk '
+      /^S [0-9]+$/ { s[++ns] = $2 }
+      /^C /        { c[++nc] = $2 }
+      END {
+        for (i = 2; i <= ns; i++) {   # numeric insertion sort (ns is tiny)
+          v = s[i]; j = i - 1
+          while (j >= 1 && s[j] > v) { s[j + 1] = s[j]; j-- }
+          s[j + 1] = v
+        }
+        for (i = 1; i <= ns; i++)     # rename k-th smallest -> k where they differ
+          if (s[i] != i) printf "rename-session -t =%s %d\n", s[i], i
+        for (i = 1; i <= nc; i++)     # force each client status line to redraw now
+          printf "refresh-client -S -t %s\n", c[i]
+      }' |
+    tmux source-file -
 }
 
 __tmux_kill_session() {
