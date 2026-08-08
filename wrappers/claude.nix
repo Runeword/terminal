@@ -35,6 +35,12 @@ let
     pkgs.nil
     pkgs.typescript-language-server
     pkgs.gopls
+    pkgs.bash-language-server
+    pkgs.yaml-language-server
+    pkgs.terraform-ls
+    pkgs.marksman
+    pkgs.vscode-langservers-extracted
+    pkgs.shellcheck
     pkgs.firefox-devedition
     firefoxMcpPkg
     mobileMcpPkg
