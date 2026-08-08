@@ -86,13 +86,33 @@ On Linux, `__claude` (in `sources/.config/shell/functions/claude.bash`) never ru
 
 What that means when working in this repo:
 
-- **`sources/` is read-only inside a sandboxed session.** It is `--ro-bind`ed on top of the writable cwd, because the shell sources it on every launch. Editing it needs `CLAUDE_SANDBOX_UNLOCK_SOURCES=1 __claude` (the `cu` alias) or a plain terminal — a write otherwise fails with `EROFS`. That flag lifts this one lock and nothing else: it binds `$PERMEANCE_TREE` read-write *explicitly*, so it works from any cwd, not only from the project that happens to contain the tree. `$PWD/.direnv`, `$PWD/.git/{hooks,config}`, `lefthook*.yml`, and direnv's `source_url` CAS are host-executed too, and stay re-pinned read-only unconditionally — a session editing shell config is never editing those, so no flag should trade them away together. (Cost: `git config`/`git remote` writes are refused inside the sandbox; reads, staging, and checkout are unaffected.) In bundled mode `$PERMEANCE_TREE` resolves to the wrapper's store path, so the flag has nothing to unlock and says so.
+- **`sources/` is read-only inside a sandboxed session.** It is `--ro-bind`ed on top of the writable cwd, because the shell sources it on every launch — a write fails with `EROFS`. The normal way to change it from inside the sandbox is the scratch-copy workflow below; `CLAUDE_SANDBOX_UNLOCK_SOURCES=1 __claude` (the `cu` alias) and a plain terminal remain the escape hatches, and `cu` is still the only route for `.claude/git-allowlist.toml`, which the git-shim re-reads on every git call. That flag lifts this one lock and nothing else: it binds `$PERMEANCE_TREE` read-write *explicitly*, so it works from any cwd, not only from the project that happens to contain the tree. `$PWD/.direnv`, `$PWD/.git/{hooks,config}`, `lefthook*.yml`, and direnv's `source_url` CAS are host-executed too, and stay re-pinned read-only unconditionally — a session editing shell config is never editing those, so no flag should trade them away together. (Cost: `git config`/`git remote` writes are refused inside the sandbox; reads, staging, and checkout are unaffected.) In bundled mode `$PERMEANCE_TREE` resolves to the wrapper's store path, so the flag has nothing to unlock and says so.
 - **The cwd is the writable region**, so the launcher refuses to start from `$HOME`, an ancestor of it, an XDG root, or inside a tree the desktop session executes at login. `--check-cwd` runs exactly that gate and exits, which is how `claude.bash` reports a refusal from the calling shell (a `tmux new-window` pane clears on death).
 - **`~/.cache/nix` is a private tmpfs inside the sandbox**, so nix's eval/fetcher caches start cold each session and cannot be poisoned for the host. `~/.ssh` is replaced by a sanitized copy (config, its `Include`s, `known_hosts`, and one `.pub` per `IdentityFile`); auth still works through the re-bound agent socket, but no private key enters the namespace.
 - **The network is deliberately not isolated** — bwrap offers no domain filtering — so this is a boundary against filesystem damage and credential reads, not against exfiltration. Nor is the nix-daemon socket: if the launching user is in nix's `trusted-users`, that socket is a root-equivalent hole and the launcher says so at startup.
 - macOS gets Claude Code's built-in Seatbelt sandbox instead (bubblewrap is Linux-only, and Seatbelt can allow the nix-daemon socket by path). It is expressed as `sources/.claude/settings.darwin.json`, merged into the provisioned profile by `__claude_provision_darwin_sandbox`.
 
 The header comment in the launcher is the authoritative description of the boundary, including what it deliberately does *not* cover.
+
+#### Editing `sources/` from inside a sandboxed session
+
+Do **not** hand-author patches for `sources/`. A hand-written diff can't be re-read (after handing it over, `sources/` on disk is unchanged, so the next `Read` returns pre-patch content and turn-2 edits are generated against stale state), can't be linted, and is a *prediction* about line numbers and context that is only validated when the user runs `git apply`. Work in a scratch copy instead, and hand over a generated diff:
+
+1. Copy once, at the start of the task: `cp -a sources/. "$SCRATCH/sources-edit/"` (`$SCRATCH` = the session scratchpad).
+2. Edit `$SCRATCH/sources-edit/…` with the normal Edit/Write tools. Once the copy exists, read from the scratch tree rather than `sources/`, so re-reads reflect the edits.
+3. Validate in place: `bash -n` and `shellcheck` for shell files, `nix-instantiate --parse` for `.nix`. All three work inside the sandbox. `smoke` / `nix flake check` build from `./sources`, not the scratch tree, so they only mean anything *after* the user applies.
+4. Hand over both commands, with the absolute scratch path filled in, to run in a plain terminal:
+
+   ```
+   git diff --no-index sources/ <scratch>/sources-edit/      # review, delta-rendered
+   rsync -a --delete   <scratch>/sources-edit/ sources/      # apply
+   ```
+
+   `--delete` is correct because the copy was taken from `sources/` this session, so it propagates deletions. It also means a host-side edit made to `sources/` *after* the copy would be reverted — the diff in the first command shows exactly that, which is why it is read first.
+
+The copy is safe because everything in the tree is resolved by the host through the absolute `$PERMEANCE_TREE` path, so a copy at any other path is never sourced, and `sources/` itself contains no `.envrc`, `lefthook*`, or `flake.nix`. This is also why a `git worktree` is **not** a substitute: a worktree reproduces `lefthook.yml`, `.envrc`, and `flake.nix` at paths none of the launcher's relocks cover (they pin `$PWD/lefthook.yml`, `$PWD/.git/config`, `$PWD/.direnv` by exact path), so running `lefthook` or `cd`-ing into it on the host would execute sandbox-written content.
+
+Only `sources/` needs this. The rest of the repo — `CLAUDE.md`, `flake.nix`, `wrappers/`, `packages/`, `lib/`, `devshells/`, `modules/`, `overlays/`, `infra/` — is directly writable. `.git/config`, `.git/hooks`, and `lefthook*.yml` are refused unconditionally and no workflow lifts them.
 
 ### Overlays (`overlays/default.nix`)
 
