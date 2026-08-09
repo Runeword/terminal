@@ -166,6 +166,7 @@ bindings = [
   { key = "Backspace", mods = "Control", chars = "\u001B[27;5;127~" },
   # { chars = "\u001B[127;5u", key = "Backspace", mods = "Control" },
   { key = "Space", mods = "Shift", chars = "\u001B[32;2u" },
+  { key = "Tab", mods = "Alt", chars = "\u001B\t" },
   { key = "Tab", mods = "Alt|Shift", chars = "\u001B\u001B[Z" },
   { key = "Tab", mods = "Shift", chars = "\u001B[Z" },
   { key = "Tab", mods = "Control", chars = "\u001B[9;5u" },
