@@ -216,15 +216,18 @@ __tmux_kill_pane() {
 
     tmux kill-window -t:"$current_window"
   elif [ "$session_count" -gt 1 ]; then
-    local current_session session_list current_index prev_index prev_session
+    local current_session session_list current_index next_index next_session
     current_session=$(tmux display-message -p '#S')
     session_list=$(tmux list-sessions -F '#{session_name}' | sort -V)
     current_index=$(echo "$session_list" | awk -v sess="$current_session" '{if ($1 == sess) print NR}')
 
-    [ "$current_index" -eq 1 ] && prev_index=$session_count || prev_index=$((current_index - 1))
+    # Focus the NEXT session (wrapping past the last back to the first), then kill
+    # the current one -- so killing session 2 of 1,2,3 lands on old-3 (which the
+    # session-closed renumber hook then renames to 2), not on session 1.
+    [ "$current_index" -eq "$session_count" ] && next_index=1 || next_index=$((current_index + 1))
 
-    prev_session=$(echo "$session_list" | sed -n "${prev_index}p")
-    tmux switch-client -t "$prev_session"
+    next_session=$(echo "$session_list" | sed -n "${next_index}p")
+    tmux switch-client -t "$next_session"
     tmux kill-session -t "$current_session"
   else
     tmux kill-pane
