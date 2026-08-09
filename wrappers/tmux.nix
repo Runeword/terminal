@@ -42,7 +42,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config syntax is valid and uses the zsh wrapper";
+      description = "Verify tmux config syntax is valid, uses the zsh wrapper, and enables resurrect pane-content capture";
       script = ''
         # No explicit -f — let the launcher's flags = [ "-f" "$PERMEANCE_ROOT/.config/tmux/tmux.conf" ]
         # provide it, so the smoke exercises the launcher's flag routing.
@@ -57,6 +57,13 @@ let
           ok "default-shell is zsh wrapper"
         else
           fail "default-shell is '$tmux_shell', expected '${zsh}/bin/zsh'"
+        fi
+
+        cap=$(${self}/bin/tmux start-server \; show-option -gqv @resurrect-capture-pane-contents \; kill-server 2>/dev/null)
+        if [ "$cap" = "on" ]; then
+          ok "resurrect pane-content capture enabled"
+        else
+          fail "@resurrect-capture-pane-contents is '$cap', expected 'on'"
         fi
       '';
     };
