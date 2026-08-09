@@ -9,6 +9,7 @@ let
   claudeStatusline = import ../packages/custom/claude-statusline { inherit pkgs; };
   claudeSessionStatus = import ../packages/custom/claude-session-status { inherit pkgs; };
   claudeDocsGuard = import ../packages/custom/claude-docs-guard { inherit pkgs; };
+  claudeContext = import ../packages/custom/claude-context { inherit pkgs; };
   gitAllowlistHook = import ../packages/custom/git-allowlist-hook { inherit pkgs; };
   # Point the shim at the wrapped git so config (excludesFile, pager, includes,
   # GIT_CONFIG_GLOBAL) applies whether git is invoked from claude or from the
@@ -26,6 +27,7 @@ let
     claudeStatusline
     claudeSessionStatus
     claudeDocsGuard
+    claudeContext
     gitAllowlistHook
     pkgs.nixfmt
     pkgs.shfmt
