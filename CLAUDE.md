@@ -130,6 +130,21 @@ OpenTofu config managing GitHub repository settings (visibility, Actions permiss
 
 `ci.yml` runs `nix flake check -L --keep-going` on ubuntu + macos, using the `runeword-terminal` cachix cache and a `PERMEANCE_TOKEN` secret to fetch the private `permeance` input. The matrix fans into a stable-named `check` aggregate job — that name is the required-status context in branch protection (managed by `infra/`), so don't rename it. `dependabot-auto-merge.yml` enables auto-merge (squash) on non-major Dependabot PRs; branch protection's required check gates the actual merge.
 
+## Testing
+
+New code ships with the test its layer uses, and `smoke` (`nix flake check -L --keep-going -j auto`) must pass before a change is done — a change without its test is not finished. `smoke` builds every `checks.*` derivation; the terminal's smoke test alone pulls every tool in via `makeBinPath tools` (see `wrappers/alacritty.nix`), so the whole graph — wrappers, terminal, and each custom binary's `go test` — is exercised transitively. Match the mechanism to what you added:
+
+- **A wrapper (`wrappers/*.nix`), new or changed** — attach `passthru.tests.smoke = permeance.tests.mkSmoke { name; description; script; }`. Presence is enforced: `lib/tests-unit.nix`'s `testAllWrappersHaveSmoke` fails the `unit-tests` check if any wrapper lacks one. Test **behaviourally** — invoke the wrapped binary and assert on an observable effect of the bundled config, not that a file exists — using the `ok`/`fail` helpers and isolated `$HOME` the harness provides (see `wrappers/fd.nix`: the bundled ignore hides `node_modules`; `wrappers/git.nix`: bundled global-config keys load). When a tool has no sandbox-friendly config probe (needs auth/network), a binary-executes check is the documented fallback (`wrappers/claude.nix`). Rewiring a wrapper's config means updating its smoke test to assert the new behaviour.
+
+- **A Go binary (`packages/custom/<name>/`)** — add `main_test.go` beside `main.go`. `pkgs.buildGoModule` runs `go test` in its check phase, so the test runs on every build with no extra flake wiring — the binary is a build dependency of the wrappers/terminal that the checks build. Follow the table-driven, stdlib-`testing` style in `git-shim`, `git-allowlist-hook`, `claude-docs-guard`, and `claude-session-status`. (`git-branches`, `claude-statusline`, and `nvim-fzf-tree` ship none today — add one when you touch their logic.)
+
+- **A pure-eval invariant or `lib/` helper** — add a `test*` attribute (`{ expr = …; expected = …; }`) to `lib/tests-unit.nix`; `pkgs.lib.runTests` runs it at eval time and `checks.unit-tests` fails the build (emitting the JSON failure list) on mismatch. Use this for structural facts about the flake, not for behaviour that needs a running binary.
+
+- **Shell or config under `sources/`** — no unit harness covers it directly; validate syntax (`bash -n` and `shellcheck` for shell, `nix-instantiate --parse` for `.nix`) and, when the change has an observable effect, extend the owning wrapper's smoke test to assert it (the config is loaded behaviourally through that wrapper — e.g. a zsh change is exercised by `wrappers/zsh.nix`'s test).
+
+Iterate on one check with `nix build .#checks.<system>.<name>` (e.g. `.#checks.x86_64-linux.fd`) before the full `smoke` run.
+
 ## Conventions
 
 - `flake.nix` stays thin — real logic lives in `packages/`, `wrappers/`, `lib/`, `modules/`, `overlays/`, `devshells/`.
+- New code ships with the test its layer uses, and `smoke` must pass before the change is done — see **Testing** above for which mechanism each layer uses.
