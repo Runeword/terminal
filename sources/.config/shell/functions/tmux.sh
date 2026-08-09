@@ -216,19 +216,25 @@ __tmux_kill_pane() {
 
     tmux kill-window -t:"$current_window"
   elif [ "$session_count" -gt 1 ]; then
-    local current_session session_list current_index next_index next_session
+    local current_session session_list current_index target
     current_session=$(tmux display-message -p '#S')
     session_list=$(tmux list-sessions -F '#{session_name}' | sort -V)
     current_index=$(echo "$session_list" | awk -v sess="$current_session" '{if ($1 == sess) print NR}')
 
-    # Focus the NEXT session (wrapping past the last back to the first), then kill
-    # the current one -- so killing session 2 of 1,2,3 lands on old-3 (which the
-    # session-closed renumber hook then renames to 2), not on session 1.
-    [ "$current_index" -eq "$session_count" ] && next_index=1 || next_index=$((current_index + 1))
-
-    next_session=$(echo "$session_list" | sed -n "${next_index}p")
-    tmux switch-client -t "$next_session"
-    tmux kill-session -t "$current_session"
+    if [ "$current_index" -eq "$session_count" ]; then
+      # Last session: focus the PREVIOUS one (the new last). Survivors are already
+      # 1..N-1, so no rename is needed -- and no flicker.
+      target=$(echo "$session_list" | sed -n "$((current_index - 1))p")
+      tmux switch-client -t "=$target" \; kill-session -t "=$current_session"
+    else
+      # Otherwise focus the NEXT session -- so killing 2 of 1,2,3 lands on old-3.
+      # Rename it to the killed number in the SAME command batch (tmux redraws once
+      # at the end), so the focused cell shows its final number instead of flashing
+      # the old name before the session-closed hook renames it. The hook still
+      # compacts any higher-numbered survivors.
+      target=$(echo "$session_list" | sed -n "$((current_index + 1))p")
+      tmux switch-client -t "=$target" \; kill-session -t "=$current_session" \; rename-session -t "=$target" "$current_session"
+    fi
   else
     tmux kill-pane
   fi
