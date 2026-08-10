@@ -160,7 +160,10 @@ __git_fzf_select() {
 # prefix. An empty prefix (already at the repo root) leaves the list unchanged.
 __git_prefix_paths() {
   local cdup="$1" list="$2" q="'"
-  [ -z "$cdup" ] && { printf '%s' "$list"; return; }
+  [ -z "$cdup" ] && {
+    printf '%s' "$list"
+    return
+  }
   list="${list/#$q/$q$cdup}"
   printf '%s' "${list// $q/ $q$cdup}"
 }
@@ -262,12 +265,12 @@ __git_ignore() {
   local action="${1:-open}"
   local cmd
   case "$action" in
-  open) cmd="$EDITOR" ;;
-  remove | rm) cmd="rm --" ;;
-  *)
-    echo "Usage: __git_ignore [open|remove]"
-    return 1
-    ;;
+    open) cmd="$EDITOR" ;;
+    remove | rm) cmd="rm --" ;;
+    *)
+      echo "Usage: __git_ignore [open|remove]"
+      return 1
+      ;;
   esac
 
   local repo_root quoted_repo_root
@@ -290,27 +293,27 @@ __git_diff() {
   local -a preview
 
   case "${1:-all}" in
-  staged)
-    list_cmd="git diff --name-only --cached"
-    preview=(
-      --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)"
-      --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
-    )
-    ;;
-  unstaged)
-    list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
-    preview=(
-      --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)"
-      --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
-    )
-    ;;
-  *)
-    list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
-    preview=(
-      --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)"
-      --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
-    )
-    ;;
+    staged)
+      list_cmd="git diff --name-only --cached"
+      preview=(
+        --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)"
+        --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
+      )
+      ;;
+    unstaged)
+      list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
+      preview=(
+        --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)"
+        --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
+      )
+      ;;
+    *)
+      list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
+      preview=(
+        --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)"
+        --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
+      )
+      ;;
   esac
 
   local args
@@ -372,6 +375,44 @@ __git_reset_soft() {
     offset=$(git rev-list --count --first-parent "$commit"..HEAD)
     echo "git reset --soft HEAD~$((offset + 1)) "
   fi
+}
+
+# Drop one commit from history while preserving the content of every other
+# commit. The descendants necessarily get new SHAs (a git commit hashes its
+# parent), which is harmless while they are unpushed — so by default only
+# unpushed, non-merge commits are offered and published history can't be
+# rewritten by accident; pass a rev-range as $1 to widen the scope. Echoes
+# `git rebase --onto <sha>~1 <sha>` for review (leader flag `e`) rather than
+# running it, like __git_reset_soft.
+__git_drop_commit() {
+  __git_require_repo || return 1
+
+  local range header
+  if [ -n "$1" ]; then
+    range="$1"
+    header='drop commit — pick one to remove'
+  elif git rev-parse --verify --quiet '@{upstream}' >/dev/null 2>&1; then
+    range='@{upstream}..HEAD'
+    header='drop an unpushed commit'
+  else
+    range='HEAD'
+    header='drop commit (no upstream — showing all history)'
+  fi
+
+  local -a preview=(
+    --preview "$_GIT_FZF_PREVIEW_CMD git show --color=always --stat --decorate {1} | $_GIT_PAGER"
+    --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
+  )
+  local commit
+  commit=$(git log --oneline --no-merges "$range" |
+    fzf "${_GIT_FZF_BASE[@]}" "${preview[@]}" --header="$header" | awk '{print $1}')
+
+  [ "$commit" = "" ] && return
+
+  # --onto <sha>~1 <sha> replays the picked commit's descendants onto its
+  # parent, dropping just that commit. Conflicts only if a later commit
+  # touched the same lines. Echoed for review; press enter to run.
+  echo "git rebase --onto $commit~1 $commit "
 }
 
 __git_log() {
@@ -440,11 +481,12 @@ __git_install_lefthook() {
   selected_configs=$(echo "$available_configs" | fzf "${_GIT_FZF_DEFAULT[@]}" "${preview[@]}")
 
   if [ "$selected_configs" != "" ]; then
+    local nl=$'\n'
     {
       echo "remotes:"
       echo "  - git_url: $repo_url"
       echo "    configs:"
-      echo "$selected_configs" | sed 's/^/      - /'
+      echo "      - ${selected_configs//$nl/$nl      - }"
     } >lefthook.yml
     lefthook install
   fi
