@@ -72,6 +72,7 @@ gbm 	git-forgit blame                           	git
 gcm 	__git_commit                               	git                 commit              new	e
 gco 	git commit                                 	git                 commit              new	x
 gca 	git commit --message --amend NewMessage    	git                 commit              edit message
+gcd 	__git_drop_commit                          	git                 commit              drop	e
 gcl 	__git_clone Documents/dev                  	git                 clone               repo	x
 gcf 	cloneit                                    	git                 clone           dir/file	x
 gcp 	__git_cherry_pick                          	git                 cherry-pick	e
