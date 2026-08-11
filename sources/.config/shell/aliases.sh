@@ -66,6 +66,7 @@ alias audit='lynis audit system'
 
 alias nr='nix run --verbose'
 alias nb='nix build'
+# shellcheck disable=SC2154  # devShellName is assigned by `read -r` in the alias body
 alias nd='printf "nix develop %s#" "$HOME"; read -r devShellName && nix develop "$HOME#$devShellName"'
 
 # ______________________________________ DIRECTORIES
@@ -79,9 +80,6 @@ alias st='cd /nix/store'
 # ______________________________________ FILES
 
 alias nn='fc -s nvim'
-
-alias aig='export GEMINI_API_KEY="$(pass show GEMINI_API_KEY)"; aider --model gemini/gemini-1.5-pro-latest --no-auto-commits'
-alias aiq='export GROQ_API_KEY="$(pass show GROQ_API_KEY)"; aider --model groq/llama3-70b-8192 --no-auto-commits'
 
 # ______________________________________ NPM
 
@@ -131,6 +129,7 @@ alias chrome='google-chrome-stable'
 alias ffd='firefox-devedition --marionette --remote-debugging-port 9222'
 alias cheat='navi --cheatsh'
 alias tldr='navi --tldr'
+alias jira='JIRA_API_TOKEN="$(pass show JIRA_API_TOKEN)" jira'
 alias n='nvim'
 alias vi='vi -c "set number"'
 alias db='setsid appimage-run $HOME/AppImages/Chat2DB-Local-latest.AppImage'
