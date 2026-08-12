@@ -140,13 +140,14 @@ pac	__pass_clip                                                    	pass
 par	__pass_rm                                                      	pass
 pak	gpgconf --reload gpg-agent                                     	pass
 pau	pass show GEMINI_API_KEY > /dev/null                           	pass
+pl	pass                                                           	pass	x
 pee	rm -r .venv 2>/dev/null ; python3.12 -m venv .venv && source .venv/bin/activate         	python            venv         recreate	x
 pec	python3.12 -m venv .venv                                       	python            venv         create	x
 pea	source .venv/bin/activate                                      	python            venv         activate	x
 ped	deactivate                                                     	python            venv         deactivate	x
 per	rm -r .venv                                                    	python            venv         remove
 pi	pip install -r Package                                         	python            package      install
-pl	pip list                                                       	python            package      list	x
+pil	pip list                                                       	python            package      list	x
 pv	python --version                                               	python            version	x
 pb	brew list | grep python                                        	python            version      list	x
 cl	__claude                                                       	claude	x
