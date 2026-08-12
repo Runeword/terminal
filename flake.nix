@@ -68,9 +68,16 @@
           tools = mkTools pkgs wrappers;
           terminal = mkTerminal pkgs configPath tools;
 
+          devShell = import ./devshells {
+            inherit pkgs;
+            astGrepShell = inputs.claude.devShells.${system}.ast-grep;
+            inherit (inputs) lefthook;
+          };
+
           unitTests = import ./lib/tests-unit.nix {
             inherit (pkgs) lib;
             inherit wrappers terminal;
+            devShellHelpers = devShell.helpers;
           };
         in
         {
@@ -93,18 +100,7 @@
             meta.description = "Alacritty terminal (set $PERMEANCE_ROOT to a sources tree for live config)";
           };
 
-          devShells.default = pkgs.mkShell {
-            inputsFrom = [
-              (import ./devshells/terminal.nix { inherit pkgs; })
-              (import ./devshells/languages.nix { inherit pkgs; })
-              (import ./devshells/infra.nix { inherit pkgs; })
-              inputs.claude.devShells.${system}.ast-grep
-              (import ./devshells/lefthook.nix {
-                inherit pkgs;
-                inherit (inputs) lefthook;
-              })
-            ];
-          };
+          devShells.default = devShell;
 
           checks = (pkgs.lib.mapAttrs (_: drv: drv.passthru.tests.smoke) wrappers) // {
             alacritty = terminal.passthru.tests.smoke;
