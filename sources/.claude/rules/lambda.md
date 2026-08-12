@@ -2,7 +2,6 @@
 paths:
   - "**/lambda/**"
   - "**/lambdas/**"
-  - "**/functions/**"
   - "**/handler.{py,js,mjs,ts,go,rb,java,cs,rs}"
   - "**/*handler*.{py,js,mjs,ts,go,rb,java,cs,rs}"
   - "**/template.{yaml,yml}"
