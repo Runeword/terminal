@@ -42,7 +42,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config syntax is valid, uses the zsh wrapper, and enables resurrect pane-content capture";
+      description = "Verify tmux config syntax is valid, uses the zsh wrapper, enables resurrect pane-content capture, limits passthrough to visible panes, and yanks via copy-selection";
       script = ''
         # No explicit -f — let the launcher's flags = [ "-f" "$PERMEANCE_ROOT/.config/tmux/tmux.conf" ]
         # provide it, so the smoke exercises the launcher's flag routing.
@@ -65,6 +65,21 @@ let
         else
           fail "@resurrect-capture-pane-contents is '$cap', expected 'on'"
         fi
+
+        # allow-passthrough is a pane option; its global default lives in the
+        # window/pane table, so -gw (a plain -g comes back empty).
+        passthrough=$(${self}/bin/tmux start-server \; show-options -gwv allow-passthrough \; kill-server 2>/dev/null)
+        if [ "$passthrough" = "on" ]; then
+          ok "allow-passthrough limited to visible panes"
+        else
+          fail "allow-passthrough is '$passthrough', expected 'on'"
+        fi
+
+        yank=$(${self}/bin/tmux start-server \; list-keys -T copy-mode-vi y \; kill-server 2>/dev/null)
+        case "$yank" in
+          *copy-selection*) ok "copy-mode-vi y yanks via copy-selection" ;;
+          *) fail "copy-mode-vi y is '$yank', expected copy-selection" ;;
+        esac
       '';
     };
   };
