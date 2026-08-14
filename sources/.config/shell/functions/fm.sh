@@ -99,8 +99,8 @@ __ripgrep() {
         --no-separator \
         --header-first \
         --header='exact !not [!]^prefix [!]suffix$' \
-        --preview "$PERMEANCE_TREE/.config/shell/scripts/fm_preview.sh {1}" \
-        --preview-window right,55%,border-none,~2
+        --preview "$PERMEANCE_TREE/.config/shell/scripts/fm_preview.sh {1} {2} {q}" \
+        --preview-window 'right,55%,border-none,~2,+{2}+2/2'
   )
 
   [ "$selections" = "" ] && return 0
