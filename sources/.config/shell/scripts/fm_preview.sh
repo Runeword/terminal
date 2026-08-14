@@ -21,8 +21,72 @@ else
   echo "$1"
   echo ""
   if command -v bat >/dev/null; then
-    bat --style=plain --color=always "$1" |
-      sed 's/^/  /'
+    # Collect literal terms from the fzf query ($3) to emphasize in the preview.
+    # $3 is space-separated AND-terms with optional extended-search operators:
+    # drop negations (!term), strip the exact ('), prefix (^) and suffix ($)
+    # markers, keep the literal. `set -f` stops a query like *.c from being
+    # glob-expanded during the word-split.
+    hlterms=""
+    if command -v awk >/dev/null 2>&1; then
+      set -f
+      for w in $3; do
+        case $w in
+          '!'*) continue ;;
+          '|') continue ;;
+        esac
+        w=${w#\'}
+        w=${w#^}
+        w=${w%\$}
+        [ -n "$w" ] && hlterms="$hlterms$w
+"
+      done
+      set +f
+    fi
+
+    {
+      if [ -n "$2" ]; then
+        bat --style=plain --color=always --highlight-line "$2" "$1"
+      else
+        bat --style=plain --color=always "$1"
+      fi
+    } | {
+      if [ -n "$hlterms" ]; then
+        # Reverse-video each term wherever it appears. ANSI-aware: bat's color
+        # codes are copied verbatim and never matched inside. Uses the 7m/27m
+        # attribute toggle so the underlying fg/bg colors are preserved (swap
+        # for 4m/24m if you prefer underline).
+        HLTERMS="$hlterms" awk '
+          BEGIN {
+            nt = split(ENVIRON["HLTERMS"], A, "\n"); m = 0
+            for (i = 1; i <= nt; i++) if (A[i] != "") { m++; T[m] = A[i]; L[m] = tolower(A[i]) }
+            ON = "\033[7m"; OFF = "\033[27m"; ESC = "\033"
+          }
+          {
+            s = $0; out = ""
+            while (length(s) > 0) {
+              if (substr(s, 1, 1) == ESC && match(s, /^\033\[[0-9;]*[A-Za-z]/)) {
+                out = out substr(s, 1, RLENGTH); s = substr(s, RLENGTH + 1); continue
+              }
+              ei = index(s, ESC); seglen = (ei == 0) ? length(s) : ei - 1
+              seg = substr(s, 1, seglen); lseg = tolower(seg)
+              bp = 0; bl = 0
+              for (i = 1; i <= m; i++) {
+                p = index(lseg, L[i])
+                if (p > 0 && (bp == 0 || p < bp)) { bp = p; bl = length(T[i]) }
+              }
+              if (bp > 0) {
+                out = out substr(seg, 1, bp - 1) ON substr(seg, bp, bl) OFF
+                s = substr(s, bp + bl)
+              } else {
+                out = out seg; s = substr(s, seglen + 1)
+              }
+            }
+            print out
+          }'
+      else
+        cat
+      fi
+    } | sed 's/^/  /'
   else
     cat "$1"
   fi
