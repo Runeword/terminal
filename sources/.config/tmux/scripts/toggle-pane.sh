@@ -8,9 +8,10 @@ cmd="$*"
 
 p=$(tmux show-option -wqv @toggle_pane)
 
-# Check if pane still exists
+# Check if pane still exists in this window (a pane moved out by break-pane
+# counts as stale; %ids resolve server-wide)
 if [ "$p" != "" ]; then
-  h=$(tmux display-message -t "$p" -p '#{pane_height}' 2>/dev/null)
+  h=$(tmux list-panes -F '#{pane_id} #{pane_height}' | awk -v p="$p" '$1 == p {print $2}')
   if [ "$h" = "" ]; then
     tmux set-option -wu @toggle_pane
     p=""
