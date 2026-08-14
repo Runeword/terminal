@@ -8,10 +8,11 @@ width="${1:-44}"
 
 p=$(tmux show-option -wqv @claude_pane)
 
-# A tracked pane exists: if it's still alive, close it (toggle off). If the
-# handle is stale (pane already gone), drop it and fall through to recreate.
+# A tracked pane exists: if it's still alive in this window, close it (toggle
+# off). If the handle is stale (pane gone -- or moved to another window by
+# break-pane; %ids resolve server-wide), drop it and fall through to recreate.
 if [ "$p" != "" ]; then
-  if tmux display-message -t "$p" -p '#{pane_id}' >/dev/null 2>&1; then
+  if tmux list-panes -F '#{pane_id}' | grep -qxF "$p"; then
     tmux kill-pane -t "$p"
     tmux set-option -wu @claude_pane
     exit 0
