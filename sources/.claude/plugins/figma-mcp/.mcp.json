@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "figma-mcp": {
+      "command": "npx",
+      "args": ["-y", "figma-developer-mcp@0.13.2", "--stdio"],
+      "env": {
+        "FIGMA_API_KEY": "${FIGMA_API_KEY:-}",
+        "npm_config_cache": "${CLAUDE_CONFIG_DIR:-/tmp}/.npm-cache"
+      }
+    }
+  }
+}
