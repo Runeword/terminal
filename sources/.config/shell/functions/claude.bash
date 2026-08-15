@@ -41,7 +41,7 @@ __claude_sandbox_prefix() {
 # Fails (and propagates through __claude_init) when the sandbox gate refuses to
 # launch, so callers abort after the gate's message instead of silently running.
 __claude_build_cmd() {
-  local args prefix unlock=""
+  local args prefix unlock="" secrets=""
   prefix=$(__claude_sandbox_prefix) || return 1
   args=$(printf '%q ' "$__claude_args")
   # __claude_run launches via `tmux new-window`, which spawns from the tmux
@@ -54,8 +54,21 @@ __claude_build_cmd() {
   # path and the only thing that appeared to work was CLAUDE_SANDBOX=0.
   [ "${CLAUDE_SANDBOX_UNLOCK_SOURCES:-0}" = "1" ] && unlock="${unlock}CLAUDE_SANDBOX_UNLOCK_SOURCES=1 "
   [ "${CLAUDE_SANDBOX_ALLOW_GH:-0}" = "1" ] && unlock="${unlock}CLAUDE_SANDBOX_ALLOW_GH=1 "
+  # The figma-mcp plugin (npx figma-developer-mcp) needs a Figma PAT in claude's
+  # env. Pull it from pass — the same FIGMA_TOKEN entry the `figma` REST wrapper
+  # uses — but only when that plugin is selected, so ordinary launches don't fire
+  # a gpg prompt. The $(…) stays unevaluated here and runs at launch time (like
+  # the CONFIG_DIR var below); bwrap inherits the result, so the MCP server spawned
+  # inside the sandbox sees FIGMA_API_KEY.
+  case "$__claude_plugins" in
+    *figma-mcp*)
+      # $(pass …) is intentionally literal — it runs at launch (see above), not here.
+      # shellcheck disable=SC2016
+      secrets='FIGMA_API_KEY=$(pass show "${FIGMA_TOKEN_PASS:-FIGMA_TOKEN}" 2>/dev/null) '
+      ;;
+  esac
   # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
-  __CLAUDE_CMD="${unlock}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance ${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-8 $args"
+  __CLAUDE_CMD="${unlock}${secrets}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance ${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-8 $args"
 }
 
 # Make sources/ own each profile's user-level config: path-scoped rules and bundled
