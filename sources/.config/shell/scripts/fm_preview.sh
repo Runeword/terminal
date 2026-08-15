@@ -1,5 +1,10 @@
 #!/bin/sh
 
+# fzf runs the preview with an empty slot when the result list is empty (e.g. an
+# interactive rg search before you type). bat errors on an empty/absent FILE, so
+# bail out quietly unless $1 is an existing path.
+[ -e "$1" ] || exit 0
+
 if [ -d "$1" ]; then
   # if command -v exa >/dev/null; then
   #   exa "$1" --long --octal-permissions --color=always --list-dirs --total-size |
