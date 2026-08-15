@@ -72,41 +72,30 @@ __open_file() {
 #   tail -n +2 |
 
 __ripgrep() {
-  local selections
-  selections=$(
-    rg \
-      --color always \
-      --colors 'path:none' \
-      --colors 'line:none' \
-      --colors 'match:none' \
-      --colors 'line:fg:red' \
-      --line-number \
-      --no-heading \
-      --smart-case \
-      --no-ignore-vcs \
-      "${*:-}" |
-      fzf \
-        --ansi \
-        --multi \
-        --keep-right \
-        --delimiter : \
-        --reverse \
-        --border none \
-        --prompt='  ' \
-        --cycle \
-        --info=hidden \
-        --height 70% \
-        --no-separator \
-        --header-first \
-        --header='exact !not [!]^prefix [!]suffix$' \
-        --preview "$PERMEANCE_TREE/.config/shell/scripts/fm_preview.sh {1} {2} {q}" \
-        --preview-window 'right,55%,border-none,~2,+{2}+2/2'
-  )
-
-  [ "$selections" = "" ] && return 0
-
-  # Extract just the file paths and open with nvim
-  echo "$selections" | cut -d: -f1 | xargs nvim
+  fzf \
+    --ansi \
+    --read0 \
+    --disabled \
+    --query "${*:-}" \
+    --bind "start:reload:$PERMEANCE_TREE/.config/shell/scripts/fm_rg.sh {q}" \
+    --bind "change:reload:sleep 0.1; $PERMEANCE_TREE/.config/shell/scripts/fm_rg.sh {q}" \
+    --multi \
+    --wrap \
+    --gap \
+    --delimiter : \
+    --reverse \
+    --border none \
+    --prompt='  ' \
+    --cycle \
+    --info=hidden \
+    --height 70% \
+    --no-separator \
+    --header-first \
+    --header='rg: regex, smart-case' \
+    --preview "$PERMEANCE_TREE/.config/shell/scripts/fm_preview.sh {1} {2} {q}" \
+    --preview-window 'right,55%,border-none,~2,+{2}+2/2' \
+    --bind 'enter:become(nvim {+1})' \
+    </dev/null
 }
 
 __mkdir_cd() {
