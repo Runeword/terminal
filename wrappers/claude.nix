@@ -44,6 +44,8 @@ let
     pkgs.vscode-langservers-extracted
     pkgs.shellcheck
     pkgs.firefox-devedition
+    # node/npx runtime for npx-launched MCP servers (e.g. the figma-mcp plugin)
+    pkgs.nodejs
     firefoxMcpPkg
     mobileMcpPkg
     awsApiMcpPkg
