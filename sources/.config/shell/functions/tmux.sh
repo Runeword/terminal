@@ -161,11 +161,13 @@ __tmux_renumber_sessions() {
     tmux source-file -
 }
 
-# Kill the current session and move focus to the NEXT session (or the PREVIOUS one
-# when killing the last), renumbering in the same command batch so there is no
-# flicker. Bound to M-w; also used by __tmux_kill_pane when the last window closes.
+# Kill the current session and move focus to the PREVIOUS session (wrapping past
+# the first back to the last), batching switch + kill so there is no flicker. The
+# focused, lower-numbered survivor keeps its number, so nothing needs renaming in
+# the batch; the session-closed hook then compacts the hole the kill leaves behind.
+# Reached via M-N / M-W, and via __tmux_kill_pane (M-w) when the last window closes.
 __tmux_kill_session() {
-  local session_count current_session session_list current_index target
+  local session_count current_session session_list current_index prev_index target
   session_count=$(tmux list-sessions | wc -l)
   current_session=$(tmux display-message -p '#S')
 
@@ -177,19 +179,14 @@ __tmux_kill_session() {
   session_list=$(tmux list-sessions -F '#{session_name}' | sort -V)
   current_index=$(echo "$session_list" | awk -v sess="$current_session" '{if ($1 == sess) print NR}')
 
-  if [ "$current_index" -eq "$session_count" ]; then
-    # Last session: focus the PREVIOUS one (the new last). Survivors are already
-    # 1..N-1, so no rename is needed -- and no flicker.
-    target=$(echo "$session_list" | sed -n "$((current_index - 1))p")
-    tmux switch-client -t "=$target" \; kill-session -t "=$current_session"
+  # Focus the PREVIOUS session; from the first, wrap back to the last.
+  if [ "$current_index" -eq 1 ]; then
+    prev_index=$session_count
   else
-    # Otherwise focus the NEXT session -- so killing 2 of 1,2,3 lands on old-3.
-    # Rename it to the killed number in the SAME command batch (tmux redraws once),
-    # so the focused cell shows its final number instead of flashing the old name
-    # before the session-closed hook renames it. The hook compacts higher survivors.
-    target=$(echo "$session_list" | sed -n "$((current_index + 1))p")
-    tmux switch-client -t "=$target" \; kill-session -t "=$current_session" \; rename-session -t "=$target" "$current_session"
+    prev_index=$((current_index - 1))
   fi
+  target=$(echo "$session_list" | sed -n "${prev_index}p")
+  tmux switch-client -t "=$target" \; kill-session -t "=$current_session"
 }
 
 __tmux_attach_session() {
@@ -215,35 +212,26 @@ __tmux_attach_session() {
 }
 
 __tmux_kill_pane() {
-  local direction="${1:-next}"
   local pane_count window_count session_count
   pane_count=$(tmux display-message -p '#{window_panes}')
   window_count=$(tmux display-message -p '#{session_windows}')
   session_count=$(tmux list-sessions | wc -l)
 
   if [ "$pane_count" -gt 1 ]; then
-    tmux kill-pane
+    # Focus the PREVIOUS pane (wrapping past the first back to the last), then kill
+    # the one we left -- same "step back" rule as __tmux_kill_session.
+    local current_pane
+    current_pane=$(tmux display-message -p '#{pane_id}')
+    tmux select-pane -t '{previous}' \; kill-pane -t "$current_pane"
   elif [ "$window_count" -gt 1 ]; then
-    local current_window window_list first_window last_window
+    # Focus the PREVIOUS window (select-window -p wraps first -> last), then kill the
+    # one we left; renumber-windows compacts the hole. Same rule as the session kill.
+    local current_window
     current_window=$(tmux display-message -p '#{window_index}')
-    window_list=$(tmux list-windows -F '#{window_index}' | sort -n)
-    first_window=$(echo "$window_list" | head -1)
-    last_window=$(echo "$window_list" | tail -1)
-
-    if [ "$current_window" = "$first_window" ]; then
-      tmux select-window -n
-    elif [ "$current_window" = "$last_window" ]; then
-      tmux select-window -p
-    elif [ "$direction" = "next" ]; then
-      tmux select-window -n
-    else
-      tmux select-window -p
-    fi
-
-    tmux kill-window -t:"$current_window"
+    tmux select-window -p \; kill-window -t:"$current_window"
   elif [ "$session_count" -gt 1 ]; then
     # Last window/pane of this session -> kill the whole session. Focus moves to
-    # the next (or previous) session; see __tmux_kill_session.
+    # the previous session; see __tmux_kill_session.
     __tmux_kill_session
   else
     tmux kill-pane
