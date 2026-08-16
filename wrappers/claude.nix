@@ -20,8 +20,6 @@ let
   };
   firefoxMcpPkg = import ../packages/custom/firefox-mcp.nix { inherit pkgs; };
   mobileMcpPkg = import ../packages/custom/mobile-mcp.nix { inherit pkgs; };
-  awsApiMcpPkg = import ../packages/custom/aws-api-mcp.nix { inherit pkgs; };
-  googleWorkspaceMcpPkg = import ../packages/custom/google-workspace-mcp.nix { inherit pkgs; };
 
   tools = [
     claudeStatusline
@@ -44,18 +42,18 @@ let
     pkgs.vscode-langservers-extracted
     pkgs.shellcheck
     pkgs.firefox-devedition
-    # node/npx runtime for npx-launched MCP servers (e.g. the figma-mcp plugin)
+    # Runtimes for MCP servers launched from a plugin .mcp.json rather than being
+    # Nix-packaged: nodejs/npx for figma-mcp; uv/uvx + python for the pure-Python
+    # servers (nix-mcp, aws-api-mcp, google-workspace-mcp). uvx fetches the pinned
+    # server from PyPI at run time (cached under $CLAUDE_CONFIG_DIR); python312 with
+    # UV_PYTHON_PREFERENCE=only-system avoids a managed-Python download and gives
+    # broad wheel coverage. firefox-mcp/mobile-mcp stay Nix-packaged because they
+    # also need sidecar binaries on PATH (geckodriver, adb).
     pkgs.nodejs
+    pkgs.uv
+    pkgs.python312
     firefoxMcpPkg
     mobileMcpPkg
-    awsApiMcpPkg
-    googleWorkspaceMcpPkg
-  ]
-  # mcp-nixos: nixpkgs eval breaks transitively on aarch64-darwin
-  # (lupa→luajit_2_0, see utensils/mcp-nixos#137). x86_64-darwin is dropped
-  # flake-wide (see flake.nix), so Linux-only covers the remaining Darwin case.
-  ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
-    pkgs.mcp-nixos
   ]
   # Required by claude's built-in `/sandbox` on Linux (Seatbelt is built in on macOS).
   # Presence on PATH only enables the feature; sandbox stays off until opted into via
