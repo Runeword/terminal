@@ -54,17 +54,31 @@ __claude_build_cmd() {
   # path and the only thing that appeared to work was CLAUDE_SANDBOX=0.
   [ "${CLAUDE_SANDBOX_UNLOCK_SOURCES:-0}" = "1" ] && unlock="${unlock}CLAUDE_SANDBOX_UNLOCK_SOURCES=1 "
   [ "${CLAUDE_SANDBOX_ALLOW_GH:-0}" = "1" ] && unlock="${unlock}CLAUDE_SANDBOX_ALLOW_GH=1 "
-  # The figma-mcp plugin (npx figma-developer-mcp) needs a Figma PAT in claude's
-  # env. Pull it from pass — the same FIGMA_TOKEN entry the `figma` REST wrapper
-  # uses — but only when that plugin is selected, so ordinary launches don't fire
-  # a gpg prompt. The $(…) stays unevaluated here and runs at launch time (like
-  # the CONFIG_DIR var below); bwrap inherits the result, so the MCP server spawned
-  # inside the sandbox sees FIGMA_API_KEY.
+  # Some MCP plugins need a secret in claude's env, pulled from pass — the same
+  # entries their interactive counterparts use — but only when that plugin is
+  # selected, so ordinary launches don't fire a gpg prompt. Each $(…) stays
+  # unevaluated here and runs at launch time (like the CONFIG_DIR var below);
+  # bwrap inherits the result, so the MCP server spawned inside the sandbox sees
+  # the value through the ${VAR:-} placeholder in its .mcp.json. Appended, not
+  # assigned, so selecting more than one such plugin injects each one's secret.
+  # A separate `case` per plugin keeps them independent (both can be selected).
   case "$__claude_plugins" in
     *figma-mcp*)
-      # $(pass …) is intentionally literal — it runs at launch (see above), not here.
+      # figma-developer-mcp reads FIGMA_API_KEY; same FIGMA_TOKEN entry the `figma`
+      # REST wrapper uses. $(pass …) is intentionally literal — runs at launch.
       # shellcheck disable=SC2016
-      secrets='FIGMA_API_KEY=$(pass show "${FIGMA_TOKEN_PASS:-FIGMA_TOKEN}" 2>/dev/null) '
+      secrets="${secrets}"'FIGMA_API_KEY=$(pass show "${FIGMA_TOKEN_PASS:-FIGMA_TOKEN}" 2>/dev/null) '
+      ;;
+  esac
+  case "$__claude_plugins" in
+    *google-workspace-mcp*)
+      # workspace-mcp reads GOOGLE_OAUTH_CLIENT_ID/SECRET; feed both from pass so no
+      # long-lived client secret sits in the ambient env or a client_secret.json on
+      # disk. $(pass …) is intentionally literal — runs at launch.
+      # shellcheck disable=SC2016
+      secrets="${secrets}"'GOOGLE_OAUTH_CLIENT_ID=$(pass show "${GOOGLE_OAUTH_CLIENT_ID_PASS:-GOOGLE_OAUTH_CLIENT_ID}" 2>/dev/null) '
+      # shellcheck disable=SC2016
+      secrets="${secrets}"'GOOGLE_OAUTH_CLIENT_SECRET=$(pass show "${GOOGLE_OAUTH_CLIENT_SECRET_PASS:-GOOGLE_OAUTH_CLIENT_SECRET}" 2>/dev/null) '
       ;;
   esac
   # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
