@@ -94,6 +94,8 @@ __ripgrep() {
     --header='rg: regex, smart-case' \
     --preview "$PERMEANCE_TREE/.config/shell/scripts/fm_preview.sh {1} {2} {q}" \
     --preview-window 'right,55%,border-none,~2,+{2}+2/2' \
+    --bind 'ctrl-j:down' \
+    --bind 'ctrl-k:up' \
     --bind 'esc:abort' \
     --bind 'enter:become(nvim -- {+1})' \
     </dev/null
