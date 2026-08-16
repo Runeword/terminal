@@ -22,7 +22,7 @@ with pkgs;
   jira-cli-go
 
   # _______________________________ AI
-  gemini-cli-bin
+  antigravity-cli
   cursor-cli
 
   # _______________________________ Coreutils
