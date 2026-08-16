@@ -1,7 +1,12 @@
 {
   "mcpServers": {
     "nix-mcp": {
-      "command": "mcp-nixos"
+      "command": "uvx",
+      "args": ["--from", "mcp-nixos==3.0.0", "mcp-nixos"],
+      "env": {
+        "UV_CACHE_DIR": "${CLAUDE_CONFIG_DIR:-/tmp}/.uv-cache",
+        "UV_PYTHON_PREFERENCE": "only-system"
+      }
     }
   }
 }
