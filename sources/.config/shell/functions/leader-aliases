@@ -116,6 +116,9 @@ gdc  	__git_diff staged                          	git                 Show stage
 gdd  	__git_diff unstaged                        	git                 Show unstaged changes	e
 gdb  	__git_diff_branches                        	git                 Show diff between 2 branches	e
 gdv  	__git_diff_revs                            	git                 Diff 2 files across 2 revs	e
+gdps 	__git_patch staged                         	git                 Write staged changes to a patch	e
+gdpu 	__git_patch unstaged                       	git                 Write unstaged changes to a patch	e
+gdpc 	__git_patch committed                      	git                 Write commits to patches (format-patch)	e
 gwa 	__git_worktree_add                         	git                 worktree                  add	e
 gwr 	__git_worktree_remove                      	git                 worktree                  remove	e
 gog	go get                                       	go
@@ -139,7 +142,6 @@ pag	pass generate                                                  	pass
 pac	__pass_clip                                                    	pass
 par	__pass_rm                                                      	pass
 pak	gpgconf --reload gpg-agent                                     	pass
-pau	pass show GEMINI_API_KEY > /dev/null                           	pass
 pl	pass                                                           	pass	x
 pee	rm -r .venv 2>/dev/null ; python3.12 -m venv .venv && source .venv/bin/activate         	python            venv         recreate	x
 pec	python3.12 -m venv .venv                                       	python            venv         create	x
