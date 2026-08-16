@@ -360,6 +360,43 @@ __git_diff_revs() {
   echo "$git_cmd diff $(__shell_quote "$rev_a:$file_a") $(__shell_quote "$rev_b:$file_b")"
 }
 
+# Write a patch for staged, unstaged, or committed changes. Echoes the command
+# for review (leader flag `e`) instead of running it, so the output path and
+# commit range can be tweaked before anything is written.
+#   staged/unstaged -> single plain diff, apply with `git apply`
+#   committed       -> format-patch: one mailbox file per commit in ./patches,
+#                      apply with `git am` (preserves message + authorship)
+__git_patch() {
+  __git_require_repo || return 1
+
+  local git_cmd
+  git_cmd="$(__git_cmd_prefix)"
+
+  case "${1:-staged}" in
+    staged)
+      echo "$git_cmd diff --staged > staged.patch"
+      ;;
+    unstaged)
+      echo "$git_cmd diff > unstaged.patch"
+      ;;
+    committed)
+      local -a preview=(
+        --preview "$_GIT_FZF_PREVIEW_CMD git show --color=always --stat --decorate {1} | $_GIT_PAGER"
+        --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
+      )
+      local commit
+      commit=$(git log --oneline --first-parent |
+        fzf "${_GIT_FZF_BASE[@]}" "${preview[@]}" \
+          --header='format-patch every commit from the selected one through HEAD' |
+        awk '{print $1}')
+      [ "$commit" = "" ] && return
+      # Range start is exclusive, so <commit>~1 makes the picked commit itself
+      # the first patch; -o writes the NNNN-*.patch files into ./patches.
+      echo "$git_cmd format-patch $commit~1 -o patches"
+      ;;
+  esac
+}
+
 __git_reset_soft() {
   __git_require_repo || return 1
 
