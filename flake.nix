@@ -84,8 +84,6 @@
           packages.default = terminal;
           packages.firefox-mcp = import ./packages/custom/firefox-mcp.nix { inherit pkgs; };
           packages.mobile-mcp = import ./packages/custom/mobile-mcp.nix { inherit pkgs; };
-          packages.aws-api-mcp = import ./packages/custom/aws-api-mcp.nix { inherit pkgs; };
-          packages.google-workspace-mcp = import ./packages/custom/google-workspace-mcp.nix { inherit pkgs; };
           packages.tools = pkgs.buildEnv {
             name = "tools";
             paths = tools;
