@@ -141,6 +141,8 @@ __claude_init() {
   __claude_args="$*"
 
   local plugins_dir="$NIX_OUT_SHELL/paths/claude/.claude/plugins"
+  # Live tree (dev) → plugin .mcp.json edits apply without a rebuild; baked copy otherwise.
+  [ -d "$PERMEANCE_TREE/.claude/plugins" ] && plugins_dir="$PERMEANCE_TREE/.claude/plugins"
   __claude_plugins=""
   for p in "${__CLAUDE_DEFAULT_PLUGINS[@]}"; do
     [ -d "$plugins_dir/$p" ] && __claude_plugins="$__claude_plugins --plugin-dir $plugins_dir/$p"
@@ -159,6 +161,8 @@ __claude_init_fzf() {
   __claude_args="$*"
 
   local plugins_dir="$NIX_OUT_SHELL/paths/claude/.claude/plugins"
+  # Live tree (dev) → plugin .mcp.json edits apply without a rebuild; baked copy otherwise.
+  [ -d "$PERMEANCE_TREE/.claude/plugins" ] && plugins_dir="$PERMEANCE_TREE/.claude/plugins"
   local selected
   selected=$(find -L "$plugins_dir" -mindepth 1 -maxdepth 1 -exec basename {} \; 2>/dev/null | eval fzf --multi "$__CLAUDE_FZF") || return 1
   __claude_plugins=$(echo "$selected" | while IFS= read -r p; do
