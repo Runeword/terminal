@@ -1,12 +1,14 @@
 {
   "mcpServers": {
     "google-workspace-mcp": {
-      "command": "workspace-mcp",
-      "args": ["--single-user", "--tools", "gmail", "calendar", "drive"],
+      "command": "uvx",
+      "args": ["--from", "workspace-mcp==1.22.0", "workspace-mcp", "--single-user", "--tools", "gmail", "calendar", "drive"],
       "env": {
         "GOOGLE_OAUTH_CLIENT_ID": "${GOOGLE_OAUTH_CLIENT_ID:-}",
         "GOOGLE_OAUTH_CLIENT_SECRET": "${GOOGLE_OAUTH_CLIENT_SECRET:-}",
-        "OAUTHLIB_INSECURE_TRANSPORT": "1"
+        "OAUTHLIB_INSECURE_TRANSPORT": "1",
+        "UV_CACHE_DIR": "${CLAUDE_CONFIG_DIR:-/tmp}/.uv-cache",
+        "UV_PYTHON_PREFERENCE": "only-system"
       }
     }
   }
