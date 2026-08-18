@@ -97,7 +97,7 @@ gpl 	git pull                                   	git	x
 gpl 	git pull --rebase                          	git	x
 gf  	git fetch                                  	git	x
 gx  	git absorb --one-fixup-per-commit --base master	git             [1] auto create fixup commits for those changes
-gxr 	git absorb --and-rebase                    	git                 [2] auto rebase interactively and squash the fixups
+gxr 	git absorb --base master --and-rebase      	git                 [2] auto rebase interactively and squash the fixups
 # gx  	git commit --fixup SHA                   	git                 [1] fix commit with staged changes
 # gxr 	git rebase --interactive --autosquash SHA^      	git                 [2] fix commit with staged changes
 grd 	__git_discard                              	git                 Discard	e
@@ -127,6 +127,7 @@ gom	go mod tidy                                  	go	x
 goc	go clean -modcache                           	go
 got	go test                                      	go
 god	__go_dev                                     	go              dev             build	x
+gow	__go_watch                                     	go              dev             watch	x
 godc	__go_dev clean                               	go              dev             clean	x
 gc	gcloud auth login                                              	gcloud              auth                    login	x
 gc	gcloud config set project PROJECT                              	gcloud              project                 set
