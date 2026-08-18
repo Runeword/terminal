@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -17,6 +18,7 @@ type StatusInput struct {
 			InputTokens              int `json:"input_tokens"`
 			OutputTokens             int `json:"output_tokens"`
 			CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+			CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 		} `json:"current_usage"`
 	} `json:"context_window"`
 	RateLimits struct {
@@ -32,6 +34,43 @@ type StatusInput struct {
 	Cost struct {
 		TotalCostUSD float64 `json:"total_cost_usd"`
 	} `json:"cost"`
+}
+
+// rates holds per-MTok USD prices for a model family: uncached input, output,
+// 5-minute-TTL cache creation (input×1.25), and cache read (input×0.1).
+type rates struct {
+	input, output, cacheWrite, cacheRead float64
+}
+
+var (
+	opusRates   = rates{5, 25, 6.25, 0.5}
+	sonnetRates = rates{3, 15, 3.75, 0.3}
+	haikuRates  = rates{1, 5, 1.25, 0.1}
+	fableRates  = rates{10, 50, 12.5, 1}
+)
+
+// ratesFor selects pricing from the model's display name, defaulting to Opus
+// when the family is unrecognised (or the name is empty).
+func ratesFor(displayName string) rates {
+	name := strings.ToLower(displayName)
+	switch {
+	case strings.Contains(name, "haiku"):
+		return haikuRates
+	case strings.Contains(name, "sonnet"):
+		return sonnetRates
+	case strings.Contains(name, "fable"), strings.Contains(name, "mythos"):
+		return fableRates
+	default:
+		return opusRates
+	}
+}
+
+// requestCost estimates the USD cost of a single request from its token counts.
+func requestCost(r rates, input, output, cacheWrite, cacheRead int) float64 {
+	return (float64(input)*r.input +
+		float64(output)*r.output +
+		float64(cacheWrite)*r.cacheWrite +
+		float64(cacheRead)*r.cacheRead) / 1_000_000
 }
 
 func bar(pct float64) string {
@@ -86,9 +125,10 @@ func main() {
 	tokIn := input.ContextWindow.CurrentUsage.InputTokens
 	tokOut := input.ContextWindow.CurrentUsage.OutputTokens
 	tokNew := input.ContextWindow.CurrentUsage.CacheCreationInputTokens
-	tokTotal := tokIn + tokOut + tokNew
+	tokRead := input.ContextWindow.CurrentUsage.CacheReadInputTokens
+	tokTotal := tokIn + tokOut + tokNew + tokRead
 
-	reqCost := (float64(tokIn)*15 + float64(tokOut)*75 + float64(tokNew)*18.75) / 1000000
+	reqCost := requestCost(ratesFor(model), tokIn, tokOut, tokNew, tokRead)
 
 	ctxPct := input.ContextWindow.UsedPercentage
 	rate5h := input.RateLimits.FiveHour.UsedPercentage
@@ -97,8 +137,8 @@ func main() {
 	reset5h := formatTime(input.RateLimits.FiveHour.ResetsAt, "5h")
 	reset7d := formatTime(input.RateLimits.SevenDay.ResetsAt, "7d")
 
-	fmt.Printf("↓%d ↑%d +%d (%d) $%.4f  ctx %s %.0f%%  %s %s %.0f%%  %s %s %.0f%%  $%.2f  %s",
-		tokIn, tokOut, tokNew, tokTotal, reqCost,
+	fmt.Printf("↓%d ↑%d W%d R%d =%d $%.4f  ctx %s %.0f%%  %s %s %.0f%%  %s %s %.0f%%  $%.2f  %s",
+		tokIn, tokOut, tokNew, tokRead, tokTotal, reqCost,
 		bar(ctxPct), ctxPct,
 		reset5h, bar(rate5h), rate5h,
 		reset7d, bar(rate7d), rate7d,
