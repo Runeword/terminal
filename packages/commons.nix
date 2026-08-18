@@ -51,6 +51,7 @@ with pkgs;
   awscli2
   sqlite
   ast-grep
+  watchexec # file watcher (powers the `gow` go dev loop)
 
   # _______________________________ Archivers
   ouch
