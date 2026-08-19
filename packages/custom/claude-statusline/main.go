@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -73,6 +74,30 @@ func requestCost(r rates, input, output, cacheWrite, cacheRead int) float64 {
 		float64(cacheRead)*r.cacheRead) / 1_000_000
 }
 
+// humanTokens renders a token count compactly so the bar stays legible: bare
+// below 1000, then "k" (thousands) or "M" (millions) with one decimal while the
+// scaled value is under 10 and none above. So 2354→"2.4k", 95191→"95k",
+// 101661→"102k". The k/M cutover sits just under 1e6 so a count that would round
+// to "1000k" shows as "1.0M" instead.
+func humanTokens(n int) string {
+	switch {
+	case n < 1000:
+		return strconv.Itoa(n)
+	case n < 999_500:
+		return scaled(float64(n)/1000, "k")
+	default:
+		return scaled(float64(n)/1_000_000, "M")
+	}
+}
+
+func scaled(v float64, unit string) string {
+	prec := 0
+	if v < 10 {
+		prec = 1
+	}
+	return strconv.FormatFloat(v, 'f', prec, 64) + unit
+}
+
 func bar(pct float64) string {
 	width := 5
 	filled := int(pct * float64(width) / 100)
@@ -137,8 +162,8 @@ func main() {
 	reset5h := formatTime(input.RateLimits.FiveHour.ResetsAt, "5h")
 	reset7d := formatTime(input.RateLimits.SevenDay.ResetsAt, "7d")
 
-	fmt.Printf("↓%d ↑%d W%d R%d =%d $%.4f  ctx %s %.0f%%  %s %s %.0f%%  %s %s %.0f%%  $%.2f  %s",
-		tokIn, tokOut, tokNew, tokRead, tokTotal, reqCost,
+	fmt.Printf("↓%s ↑%s W%s R%s =%s $%.4f  ctx %s %.0f%%  %s %s %.0f%%  %s %s %.0f%%  $%.2f  %s",
+		humanTokens(tokIn), humanTokens(tokOut), humanTokens(tokNew), humanTokens(tokRead), humanTokens(tokTotal), reqCost,
 		bar(ctxPct), ctxPct,
 		reset5h, bar(rate5h), rate5h,
 		reset7d, bar(rate7d), rate7d,
