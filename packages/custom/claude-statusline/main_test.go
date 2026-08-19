@@ -33,6 +33,35 @@ func TestRequestCost(t *testing.T) {
 	}
 }
 
+func TestHumanTokens(t *testing.T) {
+	tests := []struct {
+		n    int
+		want string
+	}{
+		{0, "0"},
+		{5, "5"},
+		{999, "999"},
+		{1000, "1.0k"},
+		{2354, "2.4k"},
+		{4114, "4.1k"},
+		{12345, "12k"},
+		{95191, "95k"},
+		{101661, "102k"},
+		{999_499, "999k"},
+		{999_500, "1.0M"},
+		{1_000_000, "1.0M"},
+		{2_500_000, "2.5M"},
+		{15_000_000, "15M"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			if got := humanTokens(tt.n); got != tt.want {
+				t.Errorf("humanTokens(%d) = %q, want %q", tt.n, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRatesFor(t *testing.T) {
 	tests := []struct {
 		displayName string
