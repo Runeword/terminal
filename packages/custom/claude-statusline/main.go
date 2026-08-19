@@ -162,7 +162,7 @@ func main() {
 	reset5h := formatTime(input.RateLimits.FiveHour.ResetsAt, "5h")
 	reset7d := formatTime(input.RateLimits.SevenDay.ResetsAt, "7d")
 
-	fmt.Printf("↓%s ↑%s W%s R%s =%s $%.4f  ctx %s %.0f%%  %s %s %.0f%%  %s %s %.0f%%  $%.2f  %s",
+	fmt.Printf("↓%s ↑%s W%s R%s =%s $%.2f  ctx %s %.0f%%  %s %s %.0f%%  %s %s %.0f%%  $%.2f  %s",
 		humanTokens(tokIn), humanTokens(tokOut), humanTokens(tokNew), humanTokens(tokRead), humanTokens(tokTotal), reqCost,
 		bar(ctxPct), ctxPct,
 		reset5h, bar(rate5h), rate5h,
