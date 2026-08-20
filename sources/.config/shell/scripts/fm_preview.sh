@@ -34,14 +34,22 @@ else
     hlterms=""
     if command -v awk >/dev/null 2>&1; then
       set -f
-      for w in $3; do
+      # Protect backslash-escaped spaces so "foo\ bar" stays one word through the
+      # split (matching fm_rg.sh). SEN is a byte a fzf query can't contain.
+      SEN=$(printf '\001')
+      case $3 in
+      *"\\ "*) q3=$(printf '%s' "$3" | sed "s/\\\\ /$SEN/g") ;;
+      *) q3=$3 ;;
+      esac
+      for w in $q3; do
         case $w in
-          '!'*) continue ;;
-          '|') continue ;;
+        '!'*) continue ;;
+        '|') continue ;;
         esac
         w=${w#\'}
         w=${w#^}
         w=${w%\$}
+        case $w in *"$SEN"*) w=$(printf '%s' "$w" | tr "$SEN" ' ') ;; esac
         [ -n "$w" ] && hlterms="$hlterms$w
 "
       done
