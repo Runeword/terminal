@@ -89,7 +89,7 @@ __ripgrep() {
     --height 70% \
     --no-separator \
     --header-first \
-    --header='rg: regex, smart-case' \
+    --header='fzf-style: '\''exact !not [!]^prefix [!]suffix$ a|b, smart-case' \
     --preview "$PERMEANCE_TREE/.config/shell/scripts/fm_preview.sh {2} {3} {q}" \
     --preview-window 'right,55%,border-none,~2,+{3}+2/2' \
     --bind 'ctrl-j:down+transform([ {4} = H ] && echo down)' \
