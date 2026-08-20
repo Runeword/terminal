@@ -115,5 +115,6 @@
     "command": "claude-statusline"
   },
   "disableClaudeAiConnectors": true,
-  "disableArtifact": true
+  "disableArtifact": true,
+  "disableRemoteControl": true
 }
