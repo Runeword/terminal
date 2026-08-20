@@ -50,9 +50,9 @@ else
 
     {
       if [ -n "$2" ]; then
-        bat --style=plain --color=always --highlight-line "$2" "$1"
+        bat --style=numbers --color=always --highlight-line "$2" "$1"
       else
-        bat --style=plain --color=always "$1"
+        bat --style=numbers --color=always "$1"
       fi
     } | {
       if [ -n "$hlterms" ]; then
