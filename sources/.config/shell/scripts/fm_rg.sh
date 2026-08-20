@@ -4,9 +4,10 @@
 # (2) a highlight spec. Syntax: spaces separate AND terms; a bare term is fuzzy
 # ("cfg" matches "config"); 'term is an exact substring; ^term / term$ anchor to
 # line start/end; !term excludes; a lone | ORs the terms on either side of it
-# ("go$ | rb$" matches lines ending in go OR rb). Each AND term (or a |-joined
-# OR group) becomes a lookahead so they combine on one line (rg -P); case follows
-# the query (smart-case). An empty query, or one with only
+# ("go$ | rb$" matches lines ending in go OR rb); a backslash escapes a space, so
+# "foo\ bar" is one term with a literal space, not two. Each AND term (or a
+# |-joined OR group) becomes a lookahead so they combine on one line (rg -P); case
+# follows the query (smart-case). An empty query, or one with only
 # exclusions, yields no output, so fzf starts empty instead of dumping the tree.
 #
 # rg runs --color never; the grouping awk does the highlighting from the spec, so
@@ -46,8 +47,9 @@ comp=$(printf '%s' "$1" | awk '
     else{ alt=""; for(i=1;i<=gc;i++) alt=alt (i>1?"|":"") (gneg[i] ? "(?!" gb[i] ")" : gb[i]); look=look "(?=" alt ")" }
     gc=0
   }
-  BEGIN{ META=".^$*+?()[]{}|\\" }
+  BEGIN{ META=".^$*+?()[]{}|\\"; SEN=sprintf("%c",1) }
   {
+    gsub(/\\ /, SEN)
     n=split($0, tk, /[ \t]+/); look=""; spec=""; pos=0; gc=0; orn=0
     for(t=1;t<=n;t++){
       w=tk[t]; if(w=="")continue
@@ -60,6 +62,7 @@ comp=$(printf '%s' "$1" | awk '
               if(w!="" && substr(w,length(w),1)=="$"){suf=1; w=substr(w,1,length(w)-1)} }
       }
       if(w=="")continue
+      gsub(SEN, " ", w)
       if(!orn && gc>0) flush()
       orn=0
       core=(ex||pre||suf||neg)?esc(w):fz(w)
