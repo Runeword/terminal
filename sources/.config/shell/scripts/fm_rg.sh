@@ -3,8 +3,10 @@
 # $1 is the fzf-style query. awk compiles it into (1) a PCRE2 filter regex and
 # (2) a highlight spec. Syntax: spaces separate AND terms; a bare term is fuzzy
 # ("cfg" matches "config"); 'term is an exact substring; ^term / term$ anchor to
-# line start/end; !term excludes. Each term is a lookahead so they AND on one line
-# (rg -P); case follows the query (smart-case). An empty query, or one with only
+# line start/end; !term excludes; a lone | ORs the terms on either side of it
+# ("go$ | rb$" matches lines ending in go OR rb). Each AND term (or a |-joined
+# OR group) becomes a lookahead so they combine on one line (rg -P); case follows
+# the query (smart-case). An empty query, or one with only
 # exclusions, yields no output, so fzf starts empty instead of dumping the tree.
 #
 # rg runs --color never; the grouping awk does the highlighting from the spec, so
@@ -35,22 +37,37 @@
 comp=$(printf '%s' "$1" | awk '
   function esc(s,   o,i,c){ o=""; for(i=1;i<=length(s);i++){c=substr(s,i,1); o=o (index(META,c)?"\\":"") c} return o }
   function fz(s,   o,i,c,f){ o=""; f=1; for(i=1;i<=length(s);i++){c=substr(s,i,1); o=o (f?"":".*?") (index(META,c)?"\\":"") c; f=0} return o }
+  # Emit the accumulated group as one lookahead: a lone term keeps the plain
+  # (?=b)/(?!b) form; a |-joined OR group alternates the bodies in a single
+  # (?=b1|b2|...) (negated members become nested (?!b) branches). Resets the group.
+  function flush(   i,alt){
+    if(gc==0) return
+    if(gc==1){ look=look (gneg[1] ? "(?!" gb[1] ")" : "(?=" gb[1] ")") }
+    else{ alt=""; for(i=1;i<=gc;i++) alt=alt (i>1?"|":"") (gneg[i] ? "(?!" gb[i] ")" : gb[i]); look=look "(?=" alt ")" }
+    gc=0
+  }
   BEGIN{ META=".^$*+?()[]{}|\\" }
   {
-    n=split($0, tk, /[ \t]+/); look=""; spec=""; pos=0
+    n=split($0, tk, /[ \t]+/); look=""; spec=""; pos=0; gc=0; orn=0
     for(t=1;t<=n;t++){
       w=tk[t]; if(w=="")continue
-      neg=0; if(substr(w,1,1)=="!"){neg=1; w=substr(w,2)}; if(w=="")continue
+      if(w=="|"){ orn=1; continue }
+      neg=0; if(substr(w,1,1)=="!"){neg=1; w=substr(w,2)}
       pre=0; suf=0; ex=0
-      if(substr(w,1,1)=="\047"){ex=1; w=substr(w,2)}
-      else{ if(substr(w,1,1)=="^"){pre=1; w=substr(w,2)}
-            if(w!="" && substr(w,length(w),1)=="$"){suf=1; w=substr(w,1,length(w)-1)} }
+      if(w!=""){
+        if(substr(w,1,1)=="\047"){ex=1; w=substr(w,2)}
+        else{ if(substr(w,1,1)=="^"){pre=1; w=substr(w,2)}
+              if(w!="" && substr(w,length(w),1)=="$"){suf=1; w=substr(w,1,length(w)-1)} }
+      }
       if(w=="")continue
+      if(!orn && gc>0) flush()
+      orn=0
       core=(ex||pre||suf||neg)?esc(w):fz(w)
       if(pre&&suf)b=core "$"; else if(pre)b=core; else if(suf)b=".*" core "$"; else b=".*" core
-      if(neg) look=look "(?!" b ")"
-      else{ look=look "(?=" b ")"; pos=1; spec=spec (spec==""?"":"\t") ((ex||pre||suf)?"L:":"F:") w }
+      gc++; gb[gc]=b; gneg[gc]=neg
+      if(!neg){ pos=1; spec=spec (spec==""?"":"\t") ((ex||pre||suf)?"L:":"F:") w }
     }
+    flush()
     if(!pos){ print ""; print ""; next }
     print "^" look
     print spec
