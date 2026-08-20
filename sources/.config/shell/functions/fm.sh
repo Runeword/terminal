@@ -74,15 +74,13 @@ __open_file() {
 __ripgrep() {
   fzf \
     --ansi \
-    --read0 \
     --disabled \
     --query "${*:-}" \
     --bind "start:unbind(j,k,g,G,f,i,q,y)+reload:$PERMEANCE_TREE/.config/shell/scripts/fm_rg.sh {q}" \
     --bind "change:reload:sleep 0.1; $PERMEANCE_TREE/.config/shell/scripts/fm_rg.sh {q}" \
     --multi \
-    --wrap \
-    --gap \
-    --delimiter : \
+    --delimiter '\t' \
+    --with-nth 1 \
     --reverse \
     --border none \
     --prompt='  ' \
@@ -92,12 +90,15 @@ __ripgrep() {
     --no-separator \
     --header-first \
     --header='rg: regex, smart-case' \
-    --preview "$PERMEANCE_TREE/.config/shell/scripts/fm_preview.sh {1} {2} {q}" \
-    --preview-window 'right,55%,border-none,~2,+{2}+2/2' \
-    --bind 'ctrl-j:down' \
-    --bind 'ctrl-k:up' \
+    --preview "$PERMEANCE_TREE/.config/shell/scripts/fm_preview.sh {2} {3} {q}" \
+    --preview-window 'right,55%,border-none,~2,+{3}+2/2' \
+    --bind 'ctrl-j:down+transform([ {4} = H ] && echo down)' \
+    --bind 'ctrl-k:up+transform([ {4} = H ] && echo up)' \
+    --bind 'down:down+transform([ {4} = H ] && echo down)' \
+    --bind 'up:up+transform([ {4} = H ] && echo up)' \
+    --bind 'load:transform([ {4} = H ] && echo down)' \
     --bind 'esc:abort' \
-    --bind 'enter:become(nvim -- {+1})' \
+    --bind 'enter:become(nvim -- {+2})' \
     </dev/null
 }
 
