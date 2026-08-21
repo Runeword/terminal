@@ -26,34 +26,13 @@ else
   echo "$1"
   echo ""
   if command -v bat >/dev/null; then
-    # Collect literal terms from the fzf query ($3) to emphasize in the preview.
-    # $3 is space-separated AND-terms with optional extended-search operators:
-    # drop negations (!term), strip the exact ('), prefix (^) and suffix ($)
-    # markers, keep the literal. `set -f` stops a query like *.c from being
-    # glob-expanded during the word-split.
+    # Highlight the query's positive terms in the preview. fm-query (the shared
+    # fzf-query compiler) prints the highlight spec on line 2 as tab-separated
+    # TYPE:text entries; take each entry's text as a term, one per line. Negated
+    # terms aren't in the spec, so they're excluded automatically.
     hlterms=""
-    if command -v awk >/dev/null 2>&1; then
-      set -f
-      # Protect backslash-escaped spaces so "foo\ bar" stays one word through the
-      # split (matching fm_rg.sh). SEN is a byte a fzf query can't contain.
-      SEN=$(printf '\001')
-      case $3 in
-        *"\\ "*) q3=$(printf '%s' "$3" | sed "s/\\\\ /$SEN/g") ;;
-        *) q3=$3 ;;
-      esac
-      for w in $q3; do
-        case $w in
-          '!'*) continue ;;
-          '|') continue ;;
-        esac
-        w=${w#\'}
-        w=${w#^}
-        w=${w%\$}
-        case $w in *"$SEN"*) w=$(printf '%s' "$w" | tr "$SEN" ' ') ;; esac
-        [ -n "$w" ] && hlterms="$hlterms$w
-"
-      done
-      set +f
+    if command -v fm-query >/dev/null 2>&1; then
+      hlterms=$(fm-query "$3" | sed -n 2p | tr '\t' '\n' | sed -n 's/^[LF]://p')
     fi
 
     {
