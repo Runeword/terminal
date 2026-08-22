@@ -564,6 +564,10 @@ __git_worktree_remove() {
   git-branches worktree-remove "${_GIT_FZF_BASE[@]}"
 }
 
+__git_worktree_switch() {
+  git-branches worktree-switch "${_GIT_FZF_BASE[@]}"
+}
+
 __git_merge() {
   git-branches merge "${_GIT_FZF_BASE[@]}"
 }
