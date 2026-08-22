@@ -18,7 +18,7 @@ var errFzfCancel = errors.New("fzf canceled")
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: git-branches <worktree|worktree-add|switch|merge|cherry-pick|diff-branches|worktree-remove|stash-apply>")
+		fmt.Fprintln(os.Stderr, "usage: git-branches <worktree|worktree-add|worktree-switch|switch|merge|cherry-pick|diff-branches|worktree-remove|stash-apply>")
 		os.Exit(1)
 	}
 
@@ -44,6 +44,8 @@ func main() {
 		err = worktreeAdd()
 	case "worktree-remove":
 		err = worktreeRemove()
+	case "worktree-switch":
+		err = worktreeSwitch()
 	case "stash-apply":
 		err = stashApply()
 	default:
@@ -152,6 +154,33 @@ func listWorktrees() ([]worktree, error) {
 		worktrees = append(worktrees, *cur)
 	}
 	return worktrees, nil
+}
+
+// worktreeChoice renders a worktree as a tab-delimited fzf line:
+//
+//	base \t shortSHA \t label \t path \t target
+//
+// Columns 1-3 are shown; column 4 is the worktree path (the cd/removal target);
+// column 5 is the raw ref — branch name, or the full sha when detached — used
+// as the ref in a --preview command. label is "[branch]" or "(detached)". ok is
+// false for bare worktrees, which have no working tree to cd into or remove.
+// Callers must not pre-quote column 5: fzf single-quotes every {N} during
+// --preview interpolation, so embedded quotes would survive into the git arg.
+func worktreeChoice(wt worktree) (line string, ok bool) {
+	if wt.bare {
+		return "", false
+	}
+	short := wt.head
+	if len(short) > 7 {
+		short = short[:7]
+	}
+	label, target := "(detached)", wt.head
+	if !wt.detached && wt.branch != "" {
+		name := strings.TrimPrefix(wt.branch, "refs/heads/")
+		label, target = "["+name+"]", name
+	}
+	return fmt.Sprintf("%s\t%s\t%s\t%s\t%s",
+		filepath.Base(wt.path), short, label, wt.path, target), true
 }
 
 type branchInfo struct {
@@ -743,33 +772,14 @@ func worktreeRemove() error {
 	}
 	header := fmt.Sprintf("%s\t%s\t%s", dirName, currentCommit, branchLabel)
 
-	// Tab-delimited display lines for fzf:
-	//   dir \t commit \t [branch] \t fullpath \t diff target
-	// Columns 1-3 are shown; column 4 is the path used for removal; column 5
-	// is the raw ref (branch name or sha for detached) used in --preview.
-	// Do not pre-shell-quote column 5 — fzf single-quotes every {N} during
-	// interpolation, so the literal quotes would survive into the git arg.
+	// worktrees[0] is the main worktree — never removable — so skip it. The
+	// tab-delimited column layout is documented on worktreeChoice; here column
+	// 5 is the diff target fed to the --preview below.
 	var displayLines []string
 	for _, wt := range worktrees[1:] {
-		if wt.bare {
-			continue
+		if line, ok := worktreeChoice(wt); ok {
+			displayLines = append(displayLines, line)
 		}
-		short := wt.head
-		if len(short) > 7 {
-			short = short[:7]
-		}
-		var displayBranch, diffTarget string
-		if wt.detached || wt.branch == "" {
-			displayBranch = "(detached)"
-			diffTarget = wt.head
-		} else {
-			name := strings.TrimPrefix(wt.branch, "refs/heads/")
-			displayBranch = "[" + name + "]"
-			diffTarget = name
-		}
-		displayLines = append(displayLines,
-			fmt.Sprintf("%s\t%s\t%s\t%s\t%s",
-				filepath.Base(wt.path), short, displayBranch, wt.path, diffTarget))
 	}
 	if len(displayLines) == 0 {
 		return nil
@@ -822,6 +832,82 @@ func worktreeRemove() error {
 	cmds = append(cmds, "ls")
 
 	fmt.Print(strings.Join(cmds, " && "))
+	return nil
+}
+
+// worktreeSwitch lists existing worktrees and outputs a `cd` into the selected
+// one. Unlike switchBranch (branch-centric, includes branches with no
+// worktree), this lists only checked-out worktrees, so it is a fast jump
+// between parallel checkouts. Bare entries are skipped. The picker stays quiet
+// unless at least two worktrees exist — with only the main checkout there is
+// nowhere to switch to.
+func worktreeSwitch() error {
+	var currentBranch, currentCommit string
+	var detached bool
+	var worktrees []worktree
+
+	var g errgroup.Group
+	g.Go(func() error {
+		var err error
+		currentBranch, detached, err = detectHead()
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		currentCommit, err = gitLine("rev-parse", "--short", "HEAD")
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		worktrees, err = listWorktrees()
+		return err
+	})
+	if err := g.Wait(); err != nil {
+		return err
+	}
+
+	var displayLines []string
+	for _, wt := range worktrees {
+		if line, ok := worktreeChoice(wt); ok {
+			displayLines = append(displayLines, line)
+		}
+	}
+	if len(displayLines) < 2 {
+		return nil
+	}
+
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	branchLabel := "[" + currentBranch + "]"
+	if detached {
+		branchLabel = "(detached)"
+	}
+	header := fmt.Sprintf("%s\t%s\t%s", filepath.Base(currentDir), currentCommit, branchLabel)
+
+	fzfArgs := []string{
+		fmt.Sprintf("--header=%s", header),
+		"--with-nth=1,2,3",
+		"--delimiter=\t",
+		"--preview=echo {1} {2} {3}; echo; git -C {4} status --short --branch; echo; git log --oneline --color=always -n 20 --end-of-options {5}",
+		"--preview-window=right,75%,border-none,wrap,~1",
+	}
+	fzfArgs = append(fzfArgs, os.Args[2:]...)
+
+	selected, err := runFzf(displayLines, fzfArgs...)
+	if err != nil {
+		return err
+	}
+	if selected == "" {
+		return nil
+	}
+
+	parts := strings.SplitN(selected, "\t", 5)
+	if len(parts) < 4 {
+		return nil
+	}
+	fmt.Printf("builtin cd %s ", shellQuote(parts[3]))
 	return nil
 }
 
