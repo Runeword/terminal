@@ -26,14 +26,23 @@ else
   echo "$1"
   echo ""
   if command -v bat >/dev/null; then
-    # Highlight the query's positive terms in the preview. fm-query (the shared
-    # fzf-query compiler) prints the highlight spec on line 2 as tab-separated
-    # TYPE:text entries; take each entry's text as a term, one per line. Negated
-    # terms aren't in the spec, so they're excluded automatically.
-    hlterms=""
+    # Highlight the query's positive terms in the preview, consistent with the
+    # interactive list (fm_rg.sh). fm-query (the shared fzf-query compiler) prints
+    # the highlight spec on line 2 as tab-separated TYPE:text entries: L exact,
+    # F fuzzy. We hand the raw spec to awk (types intact) so literal terms match as
+    # substrings and fuzzy terms match per character (a subsequence, "cfg" in
+    # "config"), exactly like fm_rg.sh's list highlighter -- stripping the type,
+    # as before, made every fuzzy term match full-word-only. Negated terms aren't
+    # in the spec, so they're excluded automatically. Smart-case follows the query
+    # (uppercase anywhere -> case-sensitive), matching the list.
+    hlspec=""
     if command -v fm-query >/dev/null 2>&1; then
-      hlterms=$(fm-query "$3" | sed -n 2p | tr '\t' '\n' | sed -n 's/^[LF]://p')
+      hlspec=$(fm-query "$3" | sed -n 2p)
     fi
+    case "$3" in
+      *[A-Z]*) ci01=0 ;;
+      *) ci01=1 ;;
+    esac
 
     {
       if [ -n "$2" ]; then
@@ -42,37 +51,81 @@ else
         bat --style=numbers --color=always "$1"
       fi
     } | {
-      if [ -n "$hlterms" ]; then
-        # Reverse-video each term wherever it appears. ANSI-aware: bat's color
-        # codes are copied verbatim and never matched inside. Uses the 7m/27m
-        # attribute toggle so the underlying fg/bg colors are preserved (swap
-        # for 4m/24m if you prefer underline).
-        HLTERMS="$hlterms" awk '
+      if [ -n "$hlspec" ]; then
+        # Reverse-video the matched characters. ANSI-aware: bat's color codes are
+        # copied verbatim and never matched inside. We split each line into its
+        # plain text plus an emit stream, mark which plain-text positions each term
+        # covers (L: every substring occurrence; F: the leftmost subsequence, per
+        # character), then re-emit with 7m/27m around marked runs so the underlying
+        # fg/bg colors are preserved. ON is re-asserted after any escape inside a
+        # run so a mid-run reset from bat can't drop the reverse (swap 7m/27m for
+        # 4m/24m if you prefer underline).
+        HLSPEC="$hlspec" awk -v CI="$ci01" '
           BEGIN {
-            nt = split(ENVIRON["HLTERMS"], A, "\n"); m = 0
-            for (i = 1; i <= nt; i++) if (A[i] != "") { m++; T[m] = A[i]; L[m] = tolower(A[i]) }
+            ne = split(ENVIRON["HLSPEC"], E, "\t"); m = 0
+            for (i = 1; i <= ne; i++) if (E[i] != "") {
+              m++; TYP[m] = substr(E[i], 1, 1)
+              t = substr(E[i], 3); TXT[m] = CI ? tolower(t) : t
+            }
             ON = "\033[7m"; OFF = "\033[27m"; ESC = "\033"
           }
+          m == 0 { print; next }
           {
-            s = $0; out = ""
+            # 1. Tokenize into plain text (plain) plus an emit stream of escapes (E)
+            #    and characters (C, tagged with their plain-text index).
+            s = $0; np = 0; nt = 0; plain = ""
             while (length(s) > 0) {
               if (substr(s, 1, 1) == ESC && match(s, /^\033\[[0-9;]*[A-Za-z]/)) {
-                out = out substr(s, 1, RLENGTH); s = substr(s, RLENGTH + 1); continue
+                nt++; TT[nt] = "E"; TV[nt] = substr(s, 1, RLENGTH)
+                s = substr(s, RLENGTH + 1); continue
               }
               ei = index(s, ESC); seglen = (ei == 0) ? length(s) : ei - 1
-              seg = substr(s, 1, seglen); lseg = tolower(seg)
-              bp = 0; bl = 0
-              for (i = 1; i <= m; i++) {
-                p = index(lseg, L[i])
-                if (p > 0 && (bp == 0 || p < bp)) { bp = p; bl = length(T[i]) }
+              seg = substr(s, 1, seglen)
+              for (j = 1; j <= seglen; j++) {
+                np++; ch = substr(seg, j, 1); plain = plain ch
+                nt++; TT[nt] = "C"; TV[nt] = ch; TP[nt] = np
               }
-              if (bp > 0) {
-                out = out substr(seg, 1, bp - 1) ON substr(seg, bp, bl) OFF
-                s = substr(s, bp + bl)
+              s = substr(s, seglen + 1)
+            }
+            # 2. Mark plain-text positions per term. Same subsequence logic as
+            #    fm_rg.sh hlcode, but the preview renders every line (not only the
+            #    lines that matched the pattern), so a fuzzy term commits its marks
+            #    only when the WHOLE subsequence is present -- otherwise a partial
+            #    prefix would speckle non-matching lines with stray single chars.
+            for (i = 1; i <= np; i++) mark[i] = 0
+            cl = CI ? tolower(plain) : plain
+            for (i = 1; i <= m; i++) {
+              t = TXT[i]; lt = length(t); if (lt == 0) continue
+              start = 1
+              if (TYP[i] == "L") {
+                while ((k = index(substr(cl, start), t)) > 0) {
+                  pos = start + k - 1
+                  for (j = pos; j < pos + lt; j++) mark[j] = 1
+                  start = pos + 1
+                }
               } else {
-                out = out seg; s = substr(s, seglen + 1)
+                ok = 1; cnt = 0
+                for (c = 1; c <= lt; c++) {
+                  k = index(substr(cl, start), substr(t, c, 1))
+                  if (k == 0) { ok = 0; break }
+                  pos = start + k - 1; cnt++; SEQ[cnt] = pos; start = pos + 1
+                }
+                if (ok) for (c = 1; c <= cnt; c++) mark[SEQ[c]] = 1
               }
             }
+            # 3. Re-emit, wrapping marked runs in ON/OFF and passing escapes through.
+            out = ""; inrun = 0
+            for (i = 1; i <= nt; i++) {
+              if (TT[i] == "E") {
+                out = out TV[i]; if (inrun) out = out ON
+              } else {
+                p = TP[i]
+                if (mark[p] && !inrun) { out = out ON; inrun = 1 }
+                else if (!mark[p] && inrun) { out = out OFF; inrun = 0 }
+                out = out TV[i]
+              }
+            }
+            if (inrun) out = out OFF
             print out
           }'
       else
