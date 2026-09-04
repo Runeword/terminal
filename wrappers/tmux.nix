@@ -42,7 +42,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config syntax is valid, uses the zsh wrapper, enables resurrect pane-content capture, limits passthrough to visible panes, and yanks via copy-selection";
+      description = "Verify tmux config syntax is valid, uses the zsh wrapper, enables resurrect pane-content capture, limits passthrough to visible panes, yanks via copy-selection, and reorders windows by dragging their status-bar name";
       script = ''
         # No explicit -f — let the launcher's flags = [ "-f" "$PERMEANCE_ROOT/.config/tmux/tmux.conf" ]
         # provide it, so the smoke exercises the launcher's flag routing.
@@ -79,6 +79,22 @@ let
         case "$yank" in
           *copy-selection*) ok "copy-mode-vi y yanks via copy-selection" ;;
           *) fail "copy-mode-vi y is '$yank', expected copy-selection" ;;
+        esac
+
+        # Dragging a window's status-bar name reorders it. swap-window's -t= can't
+        # resolve the window under the pointer, so the swap is routed through the
+        # marked window: MouseDown marks the grabbed window (select-pane -m) and each
+        # MouseDrag swaps it toward the pointer via swap-window. Assert both halves.
+        grab=$(${self}/bin/tmux start-server \; list-keys -T root MouseDown1Status \; kill-server 2>/dev/null)
+        case "$grab" in
+          *"select-pane -m"*) ok "MouseDown1Status marks the grabbed window" ;;
+          *) fail "MouseDown1Status is '$grab', expected select-pane -m" ;;
+        esac
+
+        drag=$(${self}/bin/tmux start-server \; list-keys -T root MouseDrag1Status \; kill-server 2>/dev/null)
+        case "$drag" in
+          *swap-window*) ok "MouseDrag1Status reorders windows via swap-window" ;;
+          *) fail "MouseDrag1Status is '$drag', expected swap-window" ;;
         esac
       '';
     };
