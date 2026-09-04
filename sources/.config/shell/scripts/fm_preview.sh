@@ -41,6 +41,7 @@ else
     if command -v fm-query >/dev/null 2>&1; then
       hlspec=$(fm-query "$3" | sed -n 2p)
     fi
+    # Smart-case is global over the raw query (see fm_rg.sh / fm-query), not per-term.
     case "$3" in
       *[A-Z]*) ci01=0 ;;
       *) ci01=1 ;;
