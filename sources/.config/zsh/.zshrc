@@ -173,7 +173,15 @@ typeset -F __TW1="$SECONDS"
 autoload -U select-word-style
 select-word-style bash
 setopt GLOB_DOTS
-KEYTIMEOUT=1
+# KEYTIMEOUT (centiseconds) is how long zsh waits for the rest of a key sequence
+# before dispatching a shorter match. It was 1 (10ms) for an instant standalone
+# ESC (bound to __ls_or_escape below), but that is too tight once network latency
+# fragments a sequence's bytes: a shift-tab (\e[Z) split across the window either
+# fires ESC (ls) after \e, or is swallowed by __discard-csi after \e[. Widen it so
+# a multi-byte sequence still assembles whole over SSH. Cost: a *standalone* ESC
+# now waits this long before acting -- accepted. Tune toward 1 for snappier local
+# ESC, higher for laggier links.
+KEYTIMEOUT=20
 typeset -F __TW2="$SECONDS"
 _profile "word-style: %.0fms\n" $(( (__TW2 - __TW1) * 1000 ))
 
@@ -319,6 +327,7 @@ typeset -F __TF2="$SECONDS"
 _profile "functions: %.0fms\n" $(( (__TF2 - __TF1) * 1000 ))
 
 __on_empty_buffer() {
+  local precmd_function
   if [[ -n "$BUFFER" ]]; then
       eval "$2"
       return
