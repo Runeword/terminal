@@ -38,10 +38,21 @@
 # the path and in matched code are squashed to spaces so neither can inject extra
 # tab-delimited fields.
 [ -n "$1" ] || exit 0
+# Unlike the preview (where a missing fm-query only drops highlighting), fm-query
+# is essential here: it compiles the regex. If it is absent (a degraded env -- the
+# wrapper normally puts it on PATH), show a row rather than a silent empty list,
+# which would be indistinguishable from "no matches".
+command -v fm-query >/dev/null 2>&1 || {
+  printf 'fm-query not found on PATH -- interactive search unavailable\n'
+  exit 0
+}
 comp=$(fm-query "$1")
 regex=$(printf '%s\n' "$comp" | sed -n 1p)
 [ -n "$regex" ] || exit 0
 spec=$(printf '%s\n' "$comp" | sed -n 2p)
+# Smart-case, but global over the whole raw query (any uppercase anywhere makes
+# every term case-sensitive), not fzf's per-term rule. Intentional: it keeps rg,
+# the list highlight, and the preview in lockstep. See fm-query's header comment.
 case "$1" in *[A-Z]*)
   ci=--case-sensitive
   ci01=0
@@ -69,14 +80,14 @@ rg -P "$ci" \
   --max-columns-preview \
   -- "$regex" </dev/null 2>/dev/null |
   awk -v HL="$spec" -v CI="$ci01" '
-  function hlcode(code,   n,i,cl,m,parts,ent,typ,txt,t,start,k,pos,j,s,ch,res,inrun){
+  function hlcode(code,   n,i,cl,m,parts,ent,typ,txt,t,start,k,pos,j,s,ch,res,inrun,ok,cnt,c,seq){
     n=length(code); for(i=1;i<=n;i++) mark[i]=0
     cl = CI ? tolower(code) : code
     m=split(HL, parts, "\t")
     for(i=1;i<=m;i++){ ent=parts[i]; if(ent=="")continue
       typ=substr(ent,1,1); txt=substr(ent,3); t=CI?tolower(txt):txt
       if(typ=="L"){ start=1; while((k=index(substr(cl,start),t))>0){ pos=start+k-1; for(j=pos;j<pos+length(t);j++)mark[j]=1; start=pos+1 } }
-      else { start=1; for(s=1;s<=length(t);s++){ ch=substr(t,s,1); k=index(substr(cl,start),ch); if(k==0)break; pos=start+k-1; mark[pos]=1; start=pos+1 } } }
+      else { ok=1; cnt=0; start=1; for(s=1;s<=length(t);s++){ ch=substr(t,s,1); k=index(substr(cl,start),ch); if(k==0){ok=0;break} pos=start+k-1; seq[++cnt]=pos; start=pos+1 } if(ok)for(c=1;c<=cnt;c++)mark[seq[c]]=1 } }
     res=""; inrun=0
     for(i=1;i<=n;i++){ if(mark[i]&&!inrun){res=res "\033[1;36m"; inrun=1} else if(!mark[i]&&inrun){res=res "\033[0m"; inrun=0} res=res substr(code,i,1) }
     if(inrun)res=res "\033[0m"; return res
