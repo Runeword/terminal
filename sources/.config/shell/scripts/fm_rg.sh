@@ -52,7 +52,6 @@ rg -P "$ci" \
   --color never \
   --line-number \
   --no-heading \
-  --no-ignore-vcs \
   --max-columns 300 \
   --max-columns-preview \
   -- "$regex" </dev/null 2>/dev/null |
