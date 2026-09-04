@@ -71,6 +71,25 @@ let
           fail "delta.syntax-theme is '$theme', expected 'none' via include"
         fi
 
+        # SSH-signing scaffolding is wired (gpg.format + user.signingkey), but
+        # auto-sign is deferred (commit.gpgsign=false) until hardware keys land:
+        # a passphrase-protected key can't sign in the non-interactive lefthook
+        # auto-commit hook (no TTY for the prompt). Assert both — flip the
+        # gpgsign expectation to "true" when signing is turned back on.
+        fmt=$(${self}/bin/git config --global --get gpg.format 2>/dev/null)
+        if [ "$fmt" = "ssh" ]; then
+          ok "gpg.format=ssh loaded (SSH signing configured)"
+        else
+          fail "gpg.format is '$fmt', expected 'ssh'"
+        fi
+
+        sign=$(${self}/bin/git config --global --get commit.gpgsign 2>/dev/null)
+        if [ "$sign" = "false" ]; then
+          ok "commit.gpgsign=false (auto-sign deferred, scaffolding wired)"
+        else
+          fail "commit.gpgsign is '$sign', expected 'false'"
+        fi
+
         # Dashed builtins must bypass the launcher — its `-c` prefix would
         # break them, and ssh-served fetch/push with them.
         if ${self}/bin/git-upload-pack -h 2>&1 | grep -q "unknown switch"; then
