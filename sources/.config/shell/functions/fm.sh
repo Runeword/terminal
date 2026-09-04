@@ -72,12 +72,16 @@ __open_file() {
 #   tail -n +2 |
 
 __ripgrep() {
+  local statefile
+  statefile=$(mktemp "${TMPDIR:-/tmp}/fm_rg_ignore.XXXXXX") || return 1
+  : >"$statefile"
   fzf \
     --ansi \
     --disabled \
     --query "${*:-}" \
-    --bind "start:unbind(j,k,g,G,f,i,q,y)+reload:$PERMEANCE_TREE/.config/shell/scripts/fm_rg.sh {q}" \
-    --bind "change:reload:sleep 0.1; $PERMEANCE_TREE/.config/shell/scripts/fm_rg.sh {q}" \
+    --bind "start:unbind(j,k,g,G,f,i,q,y)+transform-header($PERMEANCE_TREE/.config/shell/scripts/fm_rg_ignore.sh header $statefile)+reload($PERMEANCE_TREE/.config/shell/scripts/fm_rg.sh {q} $statefile)" \
+    --bind "change:reload:sleep 0.1; $PERMEANCE_TREE/.config/shell/scripts/fm_rg.sh {q} $statefile" \
+    --bind "ctrl-g:execute-silent($PERMEANCE_TREE/.config/shell/scripts/fm_rg_ignore.sh flip $statefile)+transform-header($PERMEANCE_TREE/.config/shell/scripts/fm_rg_ignore.sh header $statefile)+reload(sleep 0.1; $PERMEANCE_TREE/.config/shell/scripts/fm_rg.sh {q} $statefile)" \
     --multi \
     --delimiter '\t' \
     --with-nth 1 \
@@ -89,9 +93,8 @@ __ripgrep() {
     --height 70% \
     --no-separator \
     --header-first \
-    --header='fzf-style: '\''exact !not [!]^prefix [!]suffix$ a|b, smart-case' \
     --preview "$PERMEANCE_TREE/.config/shell/scripts/fm_preview.sh {2} {3} {q}" \
-    --preview-window 'right,55%,border-none,~2,+{3}+2/2' \
+    --preview-window 'right,55%,border-none,~2' \
     --bind 'ctrl-j:down+transform([ {4} = H ] && echo down)' \
     --bind 'ctrl-k:up+transform([ {4} = H ] && echo up)' \
     --bind 'down:down+transform([ {4} = H ] && echo down)' \
@@ -100,6 +103,7 @@ __ripgrep() {
     --bind 'esc:abort' \
     --bind 'enter:become(nvim -- {+2})' \
     </dev/null
+  rm -f "$statefile"
 }
 
 __mkdir_cd() {
