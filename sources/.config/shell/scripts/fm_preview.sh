@@ -14,7 +14,8 @@ if [ -d "$1" ]; then
   # fi
 
   # tree -Ca -L 2 "$1" | sed 's/^/  /; 1s/^/\n/'
-  command ls -C --almost-all --color --width 90 "$1"
+  # -- so a repo entry named like an option (e.g. --help.txt) is treated as a path.
+  command ls -C --almost-all --color --width 90 -- "$1"
 else
   # if command -v exa >/dev/null; then
   #   exa "$1" --long --octal-permissions --color=always |
@@ -23,7 +24,8 @@ else
   #   ls -l "$1"
   # fi
 
-  echo "$1"
+  # printf, not echo: a path beginning with -n/-e/-E would be swallowed as a flag.
+  printf '%s\n' "$1"
   echo ""
   if command -v bat >/dev/null; then
     # Highlight the query's positive terms in the preview, consistent with the
@@ -46,9 +48,22 @@ else
 
     {
       if [ -n "$2" ]; then
-        bat --style=numbers --color=always --highlight-line "$2" "$1"
+        # Render only a window around the match, not the whole file: the reverse-video
+        # highlighter below is O(lines) and fzf re-runs this preview on every {q}
+        # keystroke, so piping a 50k-line file through awk lagged for seconds. Show
+        # ~half the preview's content height of context above the match so it lands
+        # centred; fm.sh scrolls the preview to the top (~2, no +{3} offset), so these
+        # leading lines position the match. FZF_PREVIEW_LINES is the preview height.
+        h=${FZF_PREVIEW_LINES:-40}
+        case "$h" in '' | *[!0-9]*) h=40 ;; esac
+        [ "$h" -ge 1 ] || h=40
+        above=$(((h - 2) / 2))
+        start=$(($2 - above))
+        [ "$start" -lt 1 ] && start=1
+        bat --style=numbers --color=always --highlight-line "$2" \
+          --line-range "$start:$(($2 + above))" -- "$1"
       else
-        bat --style=numbers --color=always "$1"
+        bat --style=numbers --color=always -- "$1"
       fi
     } | {
       if [ -n "$hlspec" ]; then
@@ -146,6 +161,6 @@ else
       fi
     } | sed 's/^/  /'
   else
-    cat "$1"
+    cat -- "$1"
   fi
 fi
