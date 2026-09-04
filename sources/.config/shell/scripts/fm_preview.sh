@@ -75,9 +75,22 @@ else
             #    and characters (C, tagged with their plain-text index).
             s = $0; np = 0; nt = 0; plain = ""
             while (length(s) > 0) {
-              if (substr(s, 1, 1) == ESC && match(s, /^\033\[[0-9;]*[A-Za-z]/)) {
-                nt++; TT[nt] = "E"; TV[nt] = substr(s, 1, RLENGTH)
-                s = substr(s, RLENGTH + 1); continue
+              if (substr(s, 1, 1) == ESC) {
+                # ESC-led: emit verbatim as an E token (never plain text, so it
+                # neither shifts plain-text indices nor gets marked). A CSI/SGR
+                # (incl. private '?' params like \033[?25l) is consumed whole; any
+                # other ESC form (OSC \033]…, charset select, bare/trailing ESC)
+                # consumes just the ESC byte so the loop always advances -- else
+                # seglen stalls at 0 and the tokenizer spins forever (100% CPU,
+                # blank preview) on that byte.
+                if (match(s, /^\033\[[0-9;?]*[A-Za-z]/)) {
+                  nt++; TT[nt] = "E"; TV[nt] = substr(s, 1, RLENGTH)
+                  s = substr(s, RLENGTH + 1)
+                } else {
+                  nt++; TT[nt] = "E"; TV[nt] = ESC
+                  s = substr(s, 2)
+                }
+                continue
               }
               ei = index(s, ESC); seglen = (ei == 0) ? length(s) : ei - 1
               seg = substr(s, 1, seglen)
