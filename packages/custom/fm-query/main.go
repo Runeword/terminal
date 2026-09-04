@@ -13,7 +13,9 @@
 // they combine on one line. A query with no positive term (empty, or only
 // exclusions) compiles to an empty pattern, which the caller treats as "no
 // results" rather than dumping the whole tree. Smart-case is decided by the
-// caller from the raw query, not here.
+// caller from the raw query as a whole -- any uppercase anywhere makes the entire
+// query case-sensitive -- NOT per-term as fzf does. That is an intentional
+// simplification so rg, the list highlight, and the preview stay in lockstep.
 package main
 
 import (
