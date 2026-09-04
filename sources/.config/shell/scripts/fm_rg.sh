@@ -28,12 +28,15 @@
 # lines don't flood awk/fzf. The wrapper's --ignore-file .config/ignore still
 # applies (node_modules, .direnv, .cache, ...), independent of the VCS-ignore flag.
 #
-# The grouping awk turns each "path:line:code" match into a tab-delimited row: one
-# bold header row per file (its path), then one indented "line:code" row per match.
-# fzf shows only field 1 (--with-nth 1); fields 2 and 3 carry the real path and
-# line for the preview and open action, and field 4 tags the row H (header) or M
-# (match) so __ripgrep's nav binds can skip past the non-selectable headers. Tabs
-# in matched code are squashed to spaces so code can't inject extra fields.
+# rg runs with --null, so each match is PATH<NUL>LINE:CODE; the grouping awk splits
+# on that NUL (not the first colon) into path + line:code, so a path that itself
+# contains ":" or "/" is not mangled. It turns each match into a tab-delimited row:
+# one bold header row per file (its path), then one indented "line:code" row per
+# match. fzf shows only field 1 (--with-nth 1); fields 2 and 3 carry the real path
+# and line for the preview and open action, and field 4 tags the row H (header) or M
+# (match) so __ripgrep's nav binds can skip past the non-selectable headers. Tabs in
+# the path and in matched code are squashed to spaces so neither can inject extra
+# tab-delimited fields.
 [ -n "$1" ] || exit 0
 comp=$(fm-query "$1")
 regex=$(printf '%s\n' "$comp" | sed -n 1p)
@@ -48,10 +51,20 @@ case "$1" in *[A-Z]*)
   ci01=1
   ;;
 esac
+# $2 (optional) is the gitignore-toggle state file written by fm_rg_ignore.sh
+# (bound to ctrl-g in fm.sh): non-empty => also search VCS-ignored files
+# (--no-ignore-vcs, e.g. build output); empty/absent => respect .gitignore,
+# the default fast path. Reading it here (and in the header) keeps flag and
+# label in sync.
+vcs=
+[ -n "${2:-}" ] && [ -s "$2" ] && vcs=--no-ignore-vcs
+# shellcheck disable=SC2086  # $vcs is empty or exactly one flag; split intended
 rg -P "$ci" \
+  $vcs \
   --color never \
   --line-number \
   --no-heading \
+  --null \
   --max-columns 300 \
   --max-columns-preview \
   -- "$regex" </dev/null 2>/dev/null |
@@ -68,8 +81,15 @@ rg -P "$ci" \
     for(i=1;i<=n;i++){ if(mark[i]&&!inrun){res=res "\033[1;36m"; inrun=1} else if(!mark[i]&&inrun){res=res "\033[0m"; inrun=0} res=res substr(code,i,1) }
     if(inrun)res=res "\033[0m"; return res
   }
-  { p=index($0,":"); path=substr($0,1,p-1); rest=substr($0,p+1); q=index(rest,":"); line=substr(rest,1,q-1); code=substr(rest,q+1)
-    gsub(/\t/," ",code); code=hlcode(code)
+  BEGIN { NUL = sprintf("%c", 0) }
+  # rg --null emits PATH<NUL>LINE:CODE. Split on the NUL, not the first colon, so a
+  # path that itself contains ":" (foo:bar.txt) or "/" is not mis-split. Squash tabs
+  # in the path too (code already is) so neither injects extra tab-delimited fields.
+  # A record with no NUL is the pre-newline fragment of a filename that contains a
+  # newline (rg still ends records with one); drop it rather than emit a phantom row.
+  { z=index($0,NUL); if(z==0)next
+    path=substr($0,1,z-1); rest=substr($0,z+1); q=index(rest,":"); line=substr(rest,1,q-1); code=substr(rest,q+1)
+    gsub(/\t/," ",path); gsub(/\t/," ",code); code=hlcode(code)
     if(path!=cur){cur=path; printf "\033[1;35m%s\033[0m\t%s\t%s\tH\n", path, path, line}
     printf "  %s:%s\t%s\t%s\tM\n", line, code, path, line }
   '
