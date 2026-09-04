@@ -96,6 +96,14 @@ let
           *swap-window*) ok "MouseDrag1Status reorders windows via swap-window" ;;
           *) fail "MouseDrag1Status is '$drag', expected swap-window" ;;
         esac
+
+        # The grab survives the pointer straying below the titles: MouseDrag1Pane gates
+        # copy-mode on the @wdrag flag so a downward stray doesn't hijack the drag.
+        pdrag=$(${self}/bin/tmux start-server \; list-keys -T root MouseDrag1Pane \; kill-server 2>/dev/null)
+        case "$pdrag" in
+          *@wdrag*copy-mode*) ok "MouseDrag1Pane gates copy-mode on the window-drag flag" ;;
+          *) fail "MouseDrag1Pane is '$pdrag', expected @wdrag-gated copy-mode" ;;
+        esac
       '';
     };
   };
