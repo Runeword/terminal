@@ -1,6 +1,13 @@
 [user]
 	email = 60324746+Runeword@users.noreply.github.com
 	name = Runeword
+	signingkey = ~/.ssh/id_ed25519_home.pub
+[gpg]
+	format = ssh
+[commit]
+	gpgsign = false
+[tag]
+	gpgsign = false
 [push]
 	default = current
 	autoSetupRemote = true
