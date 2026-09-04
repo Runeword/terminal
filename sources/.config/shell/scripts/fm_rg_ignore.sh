@@ -11,7 +11,7 @@
 #   fm_rg_ignore.sh flip   <statefile>   # flip the state (no output)
 #   fm_rg_ignore.sh header <statefile>   # print the fzf header for the state
 sf="$2"
-help='fzf-style: '\''exact !not [!]^prefix [!]suffix$ a|b, smart-case'
+help='fzf-style: '\''exact !not [!]^prefix [!]suffix$ a|b, global smart-case'
 case "$1" in
   flip)
     if [ -s "$sf" ]; then : >"$sf"; else printf 1 >"$sf"; fi
