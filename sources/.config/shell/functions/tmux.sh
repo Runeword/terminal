@@ -161,6 +161,23 @@ __tmux_renumber_sessions() {
     tmux source-file -
 }
 
+# Swap the grabbed session's number with its neighbour ($2 = +1 / -1) so a mouse
+# drag reorders the number-sorted status-left. tmux has no swap-session and orders
+# #{S:} by creation, so reordering means trading the two numeric names (via a temp).
+# $1 is the grabbed session's current name; the drag bindings pass #{client_session},
+# which follows the grabbed session across the renames. No-op at the 1..N ends.
+__tmux_drag_session() {
+  local num="$1" dir="$2" target
+  case "$num" in '' | *[!0-9]*) return 0 ;; esac
+  target=$((num + dir))
+  [ "$target" -ge 1 ] || return 0
+  tmux has-session -t "=$target" 2>/dev/null || return 0
+  # Batch the three renames through one source-file so the status bar redraws once:
+  # a rename-per-client would flash the temp name and shift the centred window list.
+  printf 'rename-session -t =%s __tmux_drag_swap\nrename-session -t =%s %s\nrename-session -t =__tmux_drag_swap %s\n' \
+    "$num" "$target" "$num" "$target" | tmux source-file -
+}
+
 # Kill the current session and move focus to the PREVIOUS session (wrapping past
 # the first back to the last), batching switch + kill so there is no flicker. The
 # focused, lower-numbered survivor keeps its number, so nothing needs renaming in
