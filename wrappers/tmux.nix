@@ -42,7 +42,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config syntax is valid, uses the zsh wrapper, enables resurrect pane-content capture, limits passthrough to visible panes, yanks via copy-selection, and reorders windows by dragging their status-bar name";
+      description = "Verify tmux config syntax is valid, uses the zsh wrapper, enables resurrect pane-content capture, limits passthrough to visible panes, yanks via copy-selection, reorders windows by dragging their status-bar name, and renders sessions sorted-by-number so they can be dragged to reorder too";
       script = ''
         # No explicit -f — let the launcher's flags = [ "-f" "$PERMEANCE_ROOT/.config/tmux/tmux.conf" ]
         # provide it, so the smoke exercises the launcher's flag routing.
@@ -103,6 +103,22 @@ let
         case "$pdrag" in
           *@wdrag*copy-mode*) ok "MouseDrag1Pane gates copy-mode on the window-drag flag" ;;
           *) fail "MouseDrag1Pane is '$pdrag', expected @wdrag-gated copy-mode" ;;
+        esac
+
+        # Sessions render sorted by their number (not #{S:}'s creation order) so a
+        # drag can reorder them; the sort is unrolled one filtered pass per number.
+        sl=$(${self}/bin/tmux start-server \; show -gv status-left \; kill-server 2>/dev/null)
+        case "$sl" in
+          *"session_name},1}"*"session_name},2}"*"session_name},3}"*) ok "status-left renders sessions sorted by number" ;;
+          *) fail "status-left is not the number-sorted unroll: '$sl'" ;;
+        esac
+
+        # Dragging a session name reorders it by swapping numbers (tmux has no
+        # swap-session): the pane handler routes a session grab through the helper.
+        sdrag=$(${self}/bin/tmux start-server \; list-keys -T root MouseDrag1Pane \; kill-server 2>/dev/null)
+        case "$sdrag" in
+          *__tmux_drag_session*) ok "session drag reorders via __tmux_drag_session" ;;
+          *) fail "MouseDrag1Pane lacks __tmux_drag_session session wiring" ;;
         esac
       '';
     };
