@@ -99,4 +99,11 @@ in
       permeance
       ;
   };
+  tree-sitter = import ./tree-sitter.nix {
+    inherit
+      pkgs
+      permeance
+      configPath
+      ;
+  };
 }
