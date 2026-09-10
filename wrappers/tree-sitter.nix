@@ -11,35 +11,37 @@
 #
 # Why this shape (established empirically against this pin, tree-sitter 0.26.11):
 #
-#   * The CLI does NOT load a grammar's prebuilt `parser` object from a
-#     `parser-directories` grammar dir -- there it wants grammar *source*
-#     (`src/grammar.json`) and would rebuild (needs a runtime `cc`). What it DOES
-#     honour is `TREE_SITTER_LIBDIR`: a flat dir of `<name>.so` it dlopen's
-#     directly. nixpkgs' `builtGrammars.<attr>/parser` is exactly such a prebuilt
-#     `.so` and is ABI-compatible (grammars declare ABI 13-15; the 0.26.11 runtime
-#     accepts 13-15), so we install those verbatim -- no compiler at build or run.
+#   * The CLI won't use a grammar dir's prebuilt parser -- given a parser-directory
+#     it insists on grammar *source* (`src/grammar.json` + `parser.c`) and would
+#     rebuild (needs a runtime `cc`). Its one escape hatch is `TREE_SITTER_LIBDIR`:
+#     a flat dir of `<name>.<so|dylib>` it dlopens directly (the extension is the
+#     host's -- `.so` on Linux, `.dylib` on macOS). nixpkgs' `builtGrammars.<attr>/parser`
+#     is exactly such a prebuilt object (ELF on Linux, Mach-O on macOS; ABI 13-15,
+#     which the 0.26.11 runtime accepts), so we point LIBDIR at those under the host's
+#     extension and compile nothing, at build or run.
 #
-#   * The "needs recompile?" check only fires if the `.so` is missing or a source
-#     file's mtime is strictly newer than the `.so`. Every Nix store file shares
-#     mtime=1, so the check is always false: it never shells out to `cc`. This is
-#     why `TREE_SITTER_LIBDIR` must be `--set` (not `--set-default`) to our store
-#     libdir -- unset, it defaults to ~/.cache/tree-sitter/lib (a cold tmpfs in the
-#     claude sandbox) where the `.so` is absent and every session would recompile.
+#   * It still requires `src/grammar.json` + `parser.c` to exist per grammar, so we
+#     drop in a 2-line stub. Its "recompile?" check only fires when a source file's
+#     mtime is newer than the `.so`; store files are all mtime=1 and the stubs are
+#     stamped epoch-0, so it never shells out to `cc`. (LIBDIR must be `--set`, not
+#     `--set-default`: unset it defaults to a ~/.cache path that's a cold tmpfs in
+#     the claude sandbox, where the `.so` is absent and every session would recompile.)
 #
-#   * Language is auto-detected from the filename via each grammar's generated
-#     `tree-sitter.json` (`scope` + `file-types`); the `.so` to load is named by
-#     that grammar's `src/grammar.json` "name" (the parser's `tree_sitter_<name>`
-#     symbol, derived here with `nm` rather than hardcoded). `TREE_SITTER_DIR`
+#   * Everything else the CLI needs -- filename->language detection and the highlight
+#     queries -- the grammar *source* already ships (`tree-sitter.json` + `queries/`),
+#     so we read detection metadata from it and symlink its queries straight in
+#     rather than re-emitting them; the parser's exported symbol name (which the CLI
+#     dlopens by) is read from the object with the host's `nm`. `TREE_SITTER_DIR`
 #     points the CLI at the generated `config.json` (parser-directories + theme).
 #
-# The theme lives in sources/.config/tree-sitter/theme.json (mirroring the muted
-# palette of sources/.config/bat/themes/monochrome.tmTheme, so the preview keeps
-# its look -- tree-sitter's win here is structural accuracy, not louder colour).
-# In dev mode $PERMEANCE_ROOT points at the working sources/ tree, so the launcher
-# below re-reads that file each launch and synthesises the CLI config: colour edits
-# take effect on the next preview with no rebuild. The copy read at build time is
-# the fallback (bundled mode, or before the file exists). Languages with no grammar
-# (or that ship no highlights) aren't detected; the preview falls back to `bat`.
+# The theme lives in sources/.config/tree-sitter/theme.json (mirroring the user's
+# Neovim nightfly colorscheme, resolved capture-by-capture, so the preview matches
+# the editor; highlight queries come from each grammar's own queries/). In dev mode
+# $PERMEANCE_ROOT points at the working sources/ tree, so the launcher below re-reads
+# that file each launch and synthesises the CLI config: colour edits take effect on
+# the next preview with no rebuild. The copy read at build time is the fallback
+# (bundled mode, or before the file exists). Languages with no grammar (or that ship
+# no highlights) aren't detected; the preview falls back to `bat`.
 
 let
   inherit (pkgs) lib;
@@ -47,48 +49,60 @@ let
   ts = pkgs.tree-sitter; # 0.26.11 on this pin
   bg = ts.builtGrammars;
 
-  # Grammar-dir languages. `scope` + `fileTypes` drive extension detection;
-  # `queries` (optional) selects a non-default query-composition strategy for the
-  # split/inheriting grammars. Everything here is confirmed present in
-  # `builtGrammars` on this pin. `.so` names are derived from the parser symbol at
-  # build time, so attr spelling only has to match the `builtGrammars` attr.
-  langs = {
-    bash = {
-      scope = "source.bash";
-      fileTypes = [
-        "sh"
-        "bash"
-      ];
-    };
-    c = {
-      scope = "source.c";
-      fileTypes = [
-        "c"
-        "h"
-      ];
-    };
-    cmake = {
-      scope = "source.cmake";
-      fileTypes = [
-        "cmake"
-        "CMakeLists.txt"
-      ];
-    };
-    css = {
-      scope = "source.css";
-      fileTypes = [ "css" ];
-    };
-    csv = {
-      scope = "source.csv";
-      fileTypes = [ "csv" ];
-    };
-    diff = {
-      scope = "source.diff";
-      fileTypes = [
-        "diff"
-        "patch"
-      ];
-    };
+  # Per-object-format knobs. The CLI dlopens `<name>.so` (Linux/ELF) or
+  # `<name>.dylib` (macOS/Mach-O) from TREE_SITTER_LIBDIR, so the libdir symlink is
+  # named with the host extension. The exported symbol is read with the host's nm:
+  # GNU `nm -D` reads the ELF `.dynsym`; llvm-nm reads the Mach-O symbol table (where
+  # the symbol carries a leading `_`, stripped in name_of below). Both are given by
+  # full path so the object format and tool never mismatch. The `else` branches stay
+  # unforced off-platform (lazy `if`), so Linux builds pull in no llvm.
+  isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
+  dylibExt = if isDarwin then "dylib" else "so";
+  nmCmd = if isDarwin then "${pkgs.llvmPackages.llvm}/bin/llvm-nm" else "${pkgs.binutils}/bin/nm";
+  nmArgs = if isDarwin then "--defined-only --extern-only" else "-D --defined-only";
+
+  # Grammars to bundle (all confirmed present in `builtGrammars` on this pin).
+  # Detection (scope + file-types) comes from each grammar's own tree-sitter.json;
+  # `overrides` below supplies it only for grammars that ship none, or ship wrong
+  # metadata. A grammar with no highlights query, or that fails to load, is dropped
+  # at build time (-> that file type falls back to `bat`).
+  grammars = [
+    "bash"
+    "c"
+    "cmake"
+    "css"
+    "diff"
+    "dockerfile"
+    "fish"
+    "git-config"
+    "git-rebase"
+    "gitattributes"
+    "gitcommit"
+    "go"
+    "gomod"
+    "html"
+    "ini"
+    "javascript"
+    "json"
+    "json5"
+    "lua"
+    "make"
+    "nix"
+    "python"
+    "rust"
+    "sql"
+    "toml"
+    "tsx"
+    "typescript"
+    "yaml"
+    "zig"
+  ];
+
+  # Only the exceptions to what each grammar's own tree-sitter.json provides.
+  # dockerfile/fish/gomod ship none; tsx's mislabels it as `.ts` (which would also
+  # collide with typescript, whose entry omits `.mts`/`.cts`). The `.so` symbol name
+  # is read from the parser with `nm`, so it is never listed here.
+  overrides = {
     dockerfile = {
       scope = "source.dockerfile";
       fileTypes = [
@@ -100,160 +114,20 @@ let
       scope = "source.fish";
       fileTypes = [ "fish" ];
     };
-    "git-config" = {
-      scope = "source.git-config";
-      fileTypes = [
-        "gitconfig"
-        ".gitconfig"
-      ];
-    };
-    "git-rebase" = {
-      scope = "source.git-rebase";
-      fileTypes = [ "git-rebase-todo" ];
-    };
-    gitattributes = {
-      scope = "source.gitattributes";
-      fileTypes = [
-        "gitattributes"
-        ".gitattributes"
-      ];
-    };
-    gitcommit = {
-      scope = "text.gitcommit";
-      fileTypes = [
-        "COMMIT_EDITMSG"
-        "MERGE_MSG"
-      ];
-    };
-    gitignore = {
-      scope = "source.gitignore";
-      fileTypes = [
-        "gitignore"
-        ".gitignore"
-      ];
-    };
-    go = {
-      scope = "source.go";
-      fileTypes = [ "go" ];
-    };
     gomod = {
       scope = "source.gomod";
       fileTypes = [ "go.mod" ];
     };
-    html = {
-      scope = "text.html.basic";
-      fileTypes = [
-        "html"
-        "htm"
-      ];
-    };
-    ini = {
-      scope = "source.ini";
-      fileTypes = [ "ini" ];
-    };
-    javascript = {
-      scope = "source.js";
-      fileTypes = [
-        "js"
-        "mjs"
-        "cjs"
-        "jsx"
-      ];
-    };
-    json = {
-      scope = "source.json";
-      fileTypes = [ "json" ];
-    };
-    json5 = {
-      scope = "source.json5";
-      fileTypes = [ "json5" ];
-    };
-    lua = {
-      scope = "source.lua";
-      fileTypes = [ "lua" ];
-    };
-    make = {
-      scope = "source.make";
-      fileTypes = [
-        "Makefile"
-        "makefile"
-        "mk"
-      ];
-    };
-    markdown = {
-      scope = "text.markdown";
-      fileTypes = [
-        "md"
-        "markdown"
-      ];
-      queries = "markdown";
-    };
-    nix = {
-      scope = "source.nix";
-      fileTypes = [ "nix" ];
-    };
-    python = {
-      scope = "source.python";
-      fileTypes = [
-        "py"
-        "pyi"
-      ];
-    };
-    rust = {
-      scope = "source.rust";
-      fileTypes = [ "rs" ];
-    };
-    sql = {
-      scope = "source.sql";
-      fileTypes = [ "sql" ];
-    };
-    toml = {
-      scope = "source.toml";
-      fileTypes = [ "toml" ];
-    };
-    typescript = {
-      scope = "source.ts";
-      fileTypes = [
-        "ts"
-        "mts"
-        "cts"
-      ];
-      queries = "typescript";
-    };
     tsx = {
       scope = "source.tsx";
       fileTypes = [ "tsx" ];
-      queries = "tsx";
     };
-    vim = {
-      scope = "source.viml";
-      fileTypes = [ "vim" ];
-    };
-    xml = {
-      scope = "text.xml";
-      fileTypes = [
-        "xml"
-        "svg"
-        "xsd"
-        "xsl"
-      ];
-    };
-    yaml = {
-      scope = "source.yaml";
-      fileTypes = [
-        "yaml"
-        "yml"
-      ];
-    };
-    zig = {
-      scope = "source.zig";
-      fileTypes = [ "zig" ];
-    };
+    typescript.fileTypes = [
+      "ts"
+      "mts"
+      "cts"
+    ];
   };
-
-  # Injection-only parsers: installed into the libdir so markdown's fenced/inline
-  # injections can parse, but with no grammar dir / file-type of their own.
-  extraLibs = [ "markdown-inline" ];
 
   # Minimal bootstrap fallback -- the full, canonical theme lives in
   # sources/.config/tree-sitter/theme.json. This is used only when that file is
@@ -261,15 +135,22 @@ let
   # below wins. Kept to the core captures so the wrapper still renders something
   # sensible in that window. Colours are truecolor (the CLI emits 24-bit RGB).
   defaultTheme = {
-    keyword = "#adb4cc";
-    string = "#9792a8";
-    comment = {
-      color = "#6d8ca8";
+    keyword = {
+      color = "#c792ea";
+      italic = true;
+      bold = true;
+    };
+    string = {
+      color = "#ecc48d";
       italic = true;
     };
-    function = "#d48679";
-    type = "#b3b39a";
-    number = "#96966e";
+    comment = "#7c8f8f";
+    function = {
+      color = "#82aaff";
+      italic = true;
+    };
+    type = "#21c7a8";
+    number = "#f78c6c";
   };
 
   # sources/.config/tree-sitter/theme.json is the source of truth: read here for the
@@ -279,34 +160,22 @@ let
   baseThemeJSON =
     if builtins.pathExists themeFile then builtins.readFile themeFile else builtins.toJSON defaultTheme;
 
-  parserOf = attr: "${bg."tree-sitter-${attr}"}/parser";
-  srcOf = attr: bg."tree-sitter-${attr}".src;
-
-  langsJSON = pkgs.writeText "ts-langs.json" (
-    builtins.toJSON (
-      lib.mapAttrs (_: m: {
-        inherit (m) scope;
-        "file-types" = m.fileTypes;
-        queries = m.queries or "auto";
-      }) langs
-    )
-  );
-
-  # Build-time assembly. Reads store paths from the environment (so they enter the
-  # closure) and lays out the exact tree the CLI consumes. No compiler is invoked:
-  # `nm` only reads each prebuilt `.so`'s exported symbol to name it.
+  # Build-time assembly. One grammar dir per language, each reusing the grammar
+  # source's own tree-sitter.json metadata + queries (symlinked), plus a stub src/
+  # and the parser `.so` in the libdir. No compiler, no query rewriting.
   bundle =
     pkgs.runCommand "tree-sitter-bundle"
       {
         nativeBuildInputs = [
           pkgs.python3
-          pkgs.binutils # nm
+          ts # `highlight --scope` to validate each grammar loads at build time
         ];
-        inherit langsJSON;
         theme = baseThemeJSON;
-        jsSrc = srcOf "javascript";
-        parsers = lib.concatMapStringsSep " " (a: "${a}=${parserOf a}") (lib.attrNames langs ++ extraLibs);
-        srcs = lib.concatMapStringsSep " " (a: "${a}=${srcOf a}") (lib.attrNames langs);
+        parsers = lib.concatMapStringsSep " " (a: "${a}=${bg."tree-sitter-${a}"}/parser") grammars;
+        srcs = lib.concatMapStringsSep " " (a: "${a}=${bg."tree-sitter-${a}".src}") grammars;
+        overrides = builtins.toJSON overrides;
+        # nm binary + flags + libdir extension for the host object format (see let-block).
+        inherit nmCmd nmArgs dylibExt;
       }
       ''
         mkdir -p $out/grammars $out/libdir $out/tsdir
@@ -314,105 +183,109 @@ let
         import os, json, shutil, subprocess
 
         out = os.environ["out"]
-        langs = json.load(open(os.environ["langsJSON"]))
         parsers = dict(x.split("=", 1) for x in os.environ["parsers"].split())
         srcs = dict(x.split("=", 1) for x in os.environ["srcs"].split())
-        jsq = os.path.join(os.environ["jsSrc"], "queries")
+        overrides = json.loads(os.environ["overrides"])
         theme = json.loads(os.environ["theme"])
+        nm = [os.environ["nmCmd"], *os.environ["nmArgs"].split()]
+        dylib_ext = os.environ["dylibExt"]
 
         def name_of(parser):
-            # The loader dlopens libdir/<name>.so and calls tree_sitter_<name>(),
-            # so <name> must be the parser's real exported symbol -- derive it
-            # rather than guess from the attr (git-config -> git_config, etc.).
-            syms = subprocess.check_output(["nm", "-D", "--defined-only", parser]).decode()
+            # The CLI dlopens libdir/<name>.<dylib_ext> and calls tree_sitter_<name>(),
+            # so <name> must be the parser's real exported symbol (git-config's is
+            # git_config, etc.) -- read it rather than guess from the attr. nm prints
+            # one symbol per line, symbol in the last field, with a leading `_` on
+            # Mach-O (stripped here). Among all tree_sitter_* symbols the language
+            # entrypoint is the shortest: a grammar with an external scanner also
+            # exports strictly longer tree_sitter_<name>_external_scanner_* symbols,
+            # which must not shadow it (so pick by length, not nm's line order).
+            syms = subprocess.check_output(nm + [parser]).decode()
+            cands = []
             for line in syms.splitlines():
-                if "tree_sitter_" in line:
-                    return line.split("tree_sitter_")[1].strip()
-            raise SystemExit("no tree_sitter_* symbol in " + parser)
+                parts = line.split()
+                if parts and parts[-1].lstrip("_").startswith("tree_sitter_"):
+                    cands.append(parts[-1].lstrip("_")[len("tree_sitter_"):])
+            if not cands:
+                raise SystemExit("no tree_sitter_* symbol in " + parser)
+            return min(cands, key=len)
 
-        def write(p, data):
-            os.makedirs(os.path.dirname(p), exist_ok=True)
-            open(p, "w").write(data)
+        def meta(attr, src):
+            # scope + file-types: an override if given, else the grammar's own
+            # tree-sitter.json (absent for a few grammars -> they need an override).
+            m = dict(overrides.get(attr, {}))
+            tj = f"{src}/tree-sitter.json"
+            if os.path.exists(tj):
+                g = json.load(open(tj))["grammars"][0]
+                m.setdefault("scope", g.get("scope"))
+                m.setdefault("fileTypes", g.get("file-types", []))
+            return m
 
-        def first(paths):
-            for p in paths:
-                if p and os.path.exists(p):
-                    return p
-            return None
-
-        def cat(paths):
-            s = ""
-            for p in paths:
-                if p and os.path.exists(p):
-                    s += open(p).read() + "\n"
-            return s
-
-        # Install every prebuilt parser (grammar-dir langs + injection-only) as
-        # <name>.so. name_of also gives each grammar dir its src/grammar.json name.
-        names = {}
-        for attr, parser in parsers.items():
-            nm = name_of(parser)
-            names[attr] = nm
-            shutil.copy(parser, f"{out}/libdir/{nm}.so")
-
-        for attr, m in langs.items():
-            nm = names[attr]
-            src = srcs[attr]
+        def build(attr):
+            name = name_of(parsers[attr])
+            m = meta(attr, srcs[attr])
+            qdir = f"{srcs[attr]}/queries"
+            qtypes = [q for q in ("highlights", "injections", "locals")
+                      if os.path.exists(f"{qdir}/{q}.scm")]
+            if not (m.get("scope") and m.get("fileTypes")) or "highlights" not in qtypes:
+                return None
             gd = f"{out}/grammars/tree-sitter-{attr}"
-            # Stubs: grammar.json supplies the name (first 3 lines are regex-scanned
-            # for it); parser.c only has to exist (mtime check, never read).
-            write(f"{gd}/src/grammar.json", json.dumps({"name": nm}))
-            write(f"{gd}/src/parser.c", "")
+            os.makedirs(f"{gd}/src")
+            os.symlink(qdir, f"{gd}/queries")  # reuse the grammar's own queries verbatim
+            # The CLI insists a src/ exists; stamp epoch-0 so its mtime never trips the
+            # "recompile?" check (the real .so comes from the libdir -- see header).
+            open(f"{gd}/src/grammar.json", "w").write(json.dumps({"name": name}))
+            open(f"{gd}/src/parser.c", "w").write("")
+            os.utime(f"{gd}/src/grammar.json", (0, 0))
+            os.utime(f"{gd}/src/parser.c", (0, 0))
+            g = {"name": name, "scope": m["scope"], "file-types": m["fileTypes"]}
+            g.update({q: f"queries/{q}.scm" for q in qtypes})
+            open(f"{gd}/tree-sitter.json", "w").write(
+                json.dumps({"grammars": [g], "metadata": {"version": "0.0.1"}})
+            )
+            os.symlink(parsers[attr], f"{out}/libdir/{name}.{dylib_ext}")
+            return {"name": name, "scope": m["scope"]}
 
-            kind = m.get("queries", "auto")
-            hl = []
-            inj = None
-            loc = None
-            if kind == "typescript":
-                # ts's own highlights extend javascript's; the upstream tree-sitter.json
-                # points at node_modules that don't exist in the src, so compose the
-                # base by hand instead of inheriting.
-                hl = [f"{jsq}/highlights.scm", f"{src}/queries/highlights.scm"]
-                inj = f"{jsq}/injections.scm"
-                loc = f"{jsq}/locals.scm"
-            elif kind == "tsx":
-                hl = [f"{jsq}/highlights.scm", f"{jsq}/highlights-jsx.scm", f"{src}/queries/highlights.scm"]
-                inj = f"{jsq}/injections.scm"
-                loc = f"{jsq}/locals.scm"
-            elif kind == "markdown":
-                sub = f"{src}/tree-sitter-markdown/queries"
-                hl = [f"{sub}/highlights.scm"]
-                inj = f"{sub}/injections.scm"
-            else:
-                # auto: queries live directly under queries/ or in a name subdir
-                # (e.g. xml -> queries/xml, vim -> queries/vim). Resolve each file
-                # from whichever exists; a missing file just drops that query.
-                sub = first([f"{src}/queries/{nm}", f"{src}/queries/{attr}"])
-                cands = lambda f: [f"{src}/queries/{f}"] + ([f"{sub}/{f}"] if sub else [])
-                hlp = first(cands("highlights.scm"))
-                hl = [hlp] if hlp else []
-                inj = first(cands("injections.scm"))
-                loc = first(cands("locals.scm"))
+        built = {attr: build(attr) for attr in srcs}
 
-            g = {"name": nm, "scope": m["scope"], "file-types": m["file-types"]}
-            hlc = cat(hl)
-            # tree-sitter.json may only reference query files that exist, or the CLI
-            # errors -- so add each key only when we actually wrote the file.
-            if hlc.strip():
-                write(f"{gd}/queries/highlights.scm", hlc)
-                g["highlights"] = ["queries/highlights.scm"]
-            if inj and os.path.exists(inj):
-                shutil.copy(inj, f"{gd}/queries/injections.scm")
-                g["injections"] = ["queries/injections.scm"]
-            if loc and os.path.exists(loc):
-                shutil.copy(loc, f"{gd}/queries/locals.scm")
-                g["locals"] = ["queries/locals.scm"]
-            write(f"{gd}/tree-sitter.json", json.dumps({"grammars": [g], "metadata": {"version": "0.0.1"}}))
-
-        write(f"{out}/tsdir/config.json", json.dumps({
+        open(f"{out}/tsdir/config.json", "w").write(json.dumps({
             "parser-directories": [f"{out}/grammars"],
             "theme": theme,
         }))
+
+        # Validate each grammar loads against this exact CLI + pinned parser (a
+        # prebuilt query can reference a node type the pinned grammar lacks); drop any
+        # that don't so the file type falls back to bat instead of erroring.
+        tmp = os.environ["TMPDIR"]
+        cenv = dict(
+            os.environ,
+            HOME=tmp,
+            XDG_CACHE_HOME=f"{tmp}/cache",
+            TREE_SITTER_LIBDIR=f"{out}/libdir",
+            TREE_SITTER_DIR=f"{out}/tsdir",
+        )
+        os.makedirs(cenv["XDG_CACHE_HOME"], exist_ok=True)
+        open(f"{tmp}/probe", "w").write("x\n")
+
+        def loads_ok(scope):
+            r = subprocess.run(
+                ["tree-sitter", "highlight", "--scope", scope, f"{tmp}/probe"],
+                env=cenv,
+                capture_output=True,
+            )
+            return b"Error" not in r.stderr
+
+        dropped = []
+        for attr in srcs:
+            m = built[attr]
+            if m is None:
+                dropped.append(attr)
+                continue
+            if not loads_ok(m["scope"]):
+                shutil.rmtree(f"{out}/grammars/tree-sitter-{attr}", ignore_errors=True)
+                os.remove(f"{out}/libdir/{m['name']}.{dylib_ext}")
+                dropped.append(attr)
+        print("grammars active:", sorted(a for a in srcs if a not in dropped))
+        print("dropped:", sorted(dropped))
         PY
       '';
 
