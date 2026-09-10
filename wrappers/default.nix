@@ -99,6 +99,11 @@ in
       permeance
       ;
   };
+  # Wrapped on all platforms: the bundle installs each grammar's prebuilt parser
+  # under the host's dlopen extension (ELF `.so` on Linux, Mach-O `.dylib` on macOS)
+  # and reads its exported symbol with the host's nm -- see tree-sitter.nix. The
+  # search preview (sources/.config/shell/scripts/fm_preview.sh) falls back to bat
+  # for any file type with no grammar.
   tree-sitter = import ./tree-sitter.nix {
     inherit
       pkgs
