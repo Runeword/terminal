@@ -115,8 +115,9 @@ __git_diff_untracked() {
   root="$(git rev-parse --show-toplevel)"
   quoted="$(__shell_quote "$root")"
   local link="cd $quoted && test -L {} && readlink {}"
+  local dir="cd $quoted && test -d {} && ls -la -- {}"
   local diff="cd $quoted && ! test -L {} && git diff --ignore-space-change --no-index --color=always /dev/null {} | $_GIT_PAGER"
-  printf '{ %s || %s; }' "$link" "$diff"
+  printf '{ %s || %s || %s; }' "$link" "$dir" "$diff"
 }
 
 __git_diff_staged() {
@@ -255,8 +256,8 @@ __git_rm_untracked() {
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
   local args
-  args=$(__git_fzf_select "git ls-files --others --exclude-standard" "${preview[@]}")
-  [ "$args" != "" ] && echo "$git_cmd clean -f -- $args"
+  args=$(__git_fzf_select "LC_ALL=C git clean -nd | sed -n 's/^Would remove //p'" "${preview[@]}")
+  [ "$args" != "" ] && echo "$git_cmd clean -fd -- $args"
 }
 
 __git_ignore() {
