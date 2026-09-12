@@ -112,7 +112,8 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "claude-statusline"
+    "command": "claude-statusline",
+    "refreshInterval": 2
   },
   "disableClaudeAiConnectors": true,
   "disableArtifact": true,
