@@ -52,6 +52,7 @@ export FZF_DEFAULT_OPTS="
 --color=fg+:#ffffff,fg+:regular,bg+:#142926,hl+:#67c9d6,hl+:regular,query:italic \
 --color=info:#d0d0d0,prompt:#ffffff,pointer:#7272ed,border:#2f394a \
 --color=marker:#4534bf,spinner:#ffffff,header:#535e73 \
+--with-shell='sh -c' \
 --bind='tab:select+down,btab:deselect+up' \
 --bind='up:up,down:down' \
 --bind='ctrl-j:transform{[ \"\$FZF_INPUT_STATE\" = enabled ] && echo \"toggle-search+toggle-bind(j,k,g,G,f,i,q,y)+down\" || echo \"down+down+down+down+down\"}' \
