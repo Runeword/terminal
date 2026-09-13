@@ -42,6 +42,13 @@ let
     pkgs.vscode-langservers-extracted
     pkgs.shellcheck
     pkgs.firefox-devedition
+    # firebase CLI on claude's PATH so sessions can run `firebase …`. Already in
+    # packages/commons.nix for the interactive shell (usually inherited here too),
+    # but listed explicitly so availability doesn't depend on the caller's PATH.
+    # Auth uses your own `firebase login`: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 (leader
+    # alias `cf`, wired through claude.bash) makes claude-sandbox.bash expose the
+    # otherwise-masked ~/.config/configstore/firebase-tools.json for that session.
+    pkgs.firebase-tools
     # Runtimes for MCP servers launched from a plugin .mcp.json rather than being
     # Nix-packaged: nodejs/npx for figma-mcp; uv/uvx + python for the pure-Python
     # servers (nix-mcp, aws-api-mcp, google-workspace-mcp). uvx fetches the pinned
@@ -55,9 +62,12 @@ let
     firefoxMcpPkg
     mobileMcpPkg
   ]
-  # Required by claude's built-in `/sandbox` on Linux (Seatbelt is built in on macOS).
-  # Presence on PATH only enables the feature; sandbox stays off until opted into via
-  # `/sandbox` or `sandbox.enabled` in settings.json.
+  # Deps for claude's built-in `/sandbox` on Linux (Seatbelt is built in on macOS).
+  # Recent claude-code turns that sandbox ON by default when these sit on PATH; it
+  # can't nest inside the bubblewrap jail (claude-sandbox.bash passes
+  # --disable-userns), so sources/.claude/settings.linux.json switches it back off
+  # at user scope. Kept on PATH so /sandbox (project-local scope, above user) can
+  # still opt an unsandboxed (CLAUDE_SANDBOX=0) session back in.
   ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
     pkgs.bubblewrap
     pkgs.socat
