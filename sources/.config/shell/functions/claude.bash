@@ -10,7 +10,7 @@ __CLAUDE_DEFAULT_PLUGINS=(nix-mcp nix-lsp typescript-lsp)
 # Set CLAUDE_SANDBOX=0 to launch unwrapped.
 # macOS gets an empty prefix: bwrap is Linux-only, and Claude Code's own /sandbox
 # applies there instead — Seatbelt supports sandbox.allowUnixSockets for the
-# nix-daemon socket, which Linux/seccomp cannot (see __claude_provision_darwin_sandbox).
+# nix-daemon socket, which Linux/seccomp cannot (see __claude_provision_sandbox_overlay).
 # On Linux the gate fails closed: a missing bwrap or launcher script aborts with a
 # message rather than silently starting an unsandboxed claude. bwrap resolves
 # against the *interactive* shell's PATH, so packages/linux.nix ships bubblewrap in
@@ -106,27 +106,40 @@ __claude_provision_config() {
     ln -sfn "$PERMEANCE_TREE/.claude/rules" "$dir/rules"
   fi
   [ -f "$PERMEANCE_TREE/.claude/settings.json" ] && install -m644 "$PERMEANCE_TREE/.claude/settings.json" "$dir/settings.json"
-  __claude_provision_darwin_sandbox "$dir"
+  __claude_provision_sandbox_overlay "$dir"
 }
 
-# macOS gets Claude Code's built-in Seatbelt sandbox rather than the bubblewrap
-# launcher, because bubblewrap is Linux-only and, more importantly, Seatbelt can
-# allow the nix-daemon socket by path while the Linux seccomp filter cannot
-# (anthropics/claude-code#44180). So the Darwin boundary is expressed as settings
-# instead of a wrapper. Merged into the provisioned user settings so the shared
-# settings.json stays platform-neutral — Linux never sees these keys.
-__claude_provision_darwin_sandbox() {
-  local dir="$1"
-  [ "$(uname -s)" = "Darwin" ] || return 0
-  local overlay="$PERMEANCE_TREE/.claude/settings.darwin.json"
+# Per-OS sandbox overlay, deep-merged (jq `*`) over the provisioned user
+# settings so the shared settings.json stays platform-neutral. The two
+# overlays point opposite ways:
+# - settings.darwin.json turns Claude Code's built-in Seatbelt sandbox ON and
+#   is the boundary there: bwrap is Linux-only, and Seatbelt can allow the
+#   nix-daemon socket by path while Linux/seccomp cannot
+#   (anthropics/claude-code#44180).
+# - settings.linux.json turns the built-in sandbox OFF: recent claude-code
+#   enables it by default when bubblewrap+socat are on PATH, but it cannot
+#   start inside the claude-sandbox.bash jail (nested userns is blocked by
+#   --disable-userns), so sandboxed Bash commands and !`…` slash-command
+#   snippets fail or prompt for a per-command bypass. The jail already
+#   isolates the whole process tree.
+# User scope is load-bearing: the shared settings.json also rides --settings
+# (CLI tier, above user), so a sandbox key there would leak across platforms
+# — the Linux "off" would override Darwin's user-tier "on".
+__claude_provision_sandbox_overlay() {
+  local dir="$1" overlay
+  case "$(uname -s)" in
+    Darwin) overlay="$PERMEANCE_TREE/.claude/settings.darwin.json" ;;
+    Linux) overlay="$PERMEANCE_TREE/.claude/settings.linux.json" ;;
+    *) return 0 ;;
+  esac
   [ -f "$overlay" ] && [ -f "$dir/settings.json" ] || return 0
   if ! command -v jq >/dev/null 2>&1; then
-    echo "claude: jq not found; skipping darwin sandbox overlay" >&2
+    echo "claude: jq not found; skipping sandbox settings overlay" >&2
     return 0
   fi
   local merged
   merged=$(jq -s '.[0] * .[1]' "$dir/settings.json" "$overlay") || {
-    echo "claude: failed to merge darwin sandbox overlay" >&2
+    echo "claude: failed to merge sandbox settings overlay" >&2
     return 0
   }
   printf '%s\n' "$merged" >"$dir/settings.json"
