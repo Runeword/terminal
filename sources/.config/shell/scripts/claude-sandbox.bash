@@ -491,6 +491,28 @@ for p in "${__cs_creds[@]}"; do
   [ -n "$p" ] && __cs_mask "$p"
 done
 
+# Firebase CLI (`firebase login`) stores its OAuth token in
+# ~/.config/configstore/firebase-tools.json, masked by default as part of the
+# configstore entry above. CLAUDE_SANDBOX_ALLOW_FIREBASE=1 (leader alias `cf`)
+# exposes *only* that one file: a writable copy in the private workspace, bound
+# over the masked configstore dir (later bind wins) so its siblings stay hidden
+# and the real store on the host cannot be corrupted from inside. Writable so
+# firebase-tools' token refresh does not hit EROFS — the refreshed access token
+# lands in the throwaway copy, discarded with the sandbox; the long-lived refresh
+# token is copied in, so auth works. That refresh token is readable while bound,
+# so this is per-session opt-in, exactly like ALLOW_GH above.
+__cs_fb_store="${XDG_CONFIG_HOME:-$HOME/.config}/configstore/firebase-tools.json"
+if [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ]; then
+  if [ -f "$__cs_fb_store" ]; then
+    mkdir -p "$__cs_tmp/configstore"
+    cp "$__cs_fb_store" "$__cs_tmp/configstore/firebase-tools.json"
+    args+=(--bind "$__cs_tmp/configstore" "${XDG_CONFIG_HOME:-$HOME/.config}/configstore")
+    echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 — your firebase login token is readable by any code in this session" >&2
+  else
+    echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 but no firebase login found ($__cs_fb_store); run 'firebase login' on the host first" >&2
+  fi
+fi
+
 # Sibling Claude profiles. Only the active $CLAUDE_CONFIG_DIR is in scope (bound
 # rw above); every other ~/.claude* profile — and the legacy ~/.claude.json index
 # in $HOME — holds another session's .credentials.json (live OAuth tokens) and
