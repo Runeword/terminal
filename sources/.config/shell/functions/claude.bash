@@ -54,6 +54,10 @@ __claude_build_cmd() {
   # path and the only thing that appeared to work was CLAUDE_SANDBOX=0.
   [ "${CLAUDE_SANDBOX_UNLOCK_SOURCES:-0}" = "1" ] && unlock="${unlock}CLAUDE_SANDBOX_UNLOCK_SOURCES=1 "
   [ "${CLAUDE_SANDBOX_ALLOW_GH:-0}" = "1" ] && unlock="${unlock}CLAUDE_SANDBOX_ALLOW_GH=1 "
+  # Firebase: `firebase login` (your own creds) authed in-session by unmasking its
+  # OAuth store (see CLAUDE_SANDBOX_ALLOW_FIREBASE in claude-sandbox.bash). No pass
+  # entry, no key file — the launcher exposes ~/.config/configstore/firebase-tools.json.
+  [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ] && unlock="${unlock}CLAUDE_SANDBOX_ALLOW_FIREBASE=1 "
   # Some MCP plugins need a secret in claude's env, pulled from pass — the same
   # entries their interactive counterparts use — but only when that plugin is
   # selected, so ordinary launches don't fire a gpg prompt. Each $(…) stays
