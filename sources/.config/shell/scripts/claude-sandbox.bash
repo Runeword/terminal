@@ -507,7 +507,10 @@ __cs_fb_pass="${FIREBASE_SA_KEY_PASS:-firebase/sa-key}"
 if [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ]; then
   if __cs_fb_key=$(pass show "$__cs_fb_pass" 2>/dev/null) && [ -n "$__cs_fb_key" ]; then
     mkdir -p "$__cs_tmp/gcloud"
-    (umask 077; printf '%s\n' "$__cs_fb_key" >"$__cs_tmp/gcloud/firebase-sa.json")
+    (
+      umask 077
+      printf '%s\n' "$__cs_fb_key" >"$__cs_tmp/gcloud/firebase-sa.json"
+    )
     unset __cs_fb_key
     args+=(--ro-bind "$__cs_tmp/gcloud" "${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}")
     args+=(--setenv GOOGLE_APPLICATION_CREDENTIALS "${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}/firebase-sa.json")
