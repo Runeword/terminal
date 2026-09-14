@@ -491,25 +491,29 @@ for p in "${__cs_creds[@]}"; do
   [ -n "$p" ] && __cs_mask "$p"
 done
 
-# Firebase CLI (`firebase login`) stores its OAuth token in
-# ~/.config/configstore/firebase-tools.json, masked by default as part of the
-# configstore entry above. CLAUDE_SANDBOX_ALLOW_FIREBASE=1 (leader alias `cf`)
-# exposes *only* that one file: a writable copy in the private workspace, bound
-# over the masked configstore dir (later bind wins) so its siblings stay hidden
-# and the real store on the host cannot be corrupted from inside. Writable so
-# firebase-tools' token refresh does not hit EROFS — the refreshed access token
-# lands in the throwaway copy, discarded with the sandbox; the long-lived refresh
-# token is copied in, so auth works. That refresh token is readable while bound,
-# so this is per-session opt-in, exactly like ALLOW_GH above.
-__cs_fb_store="${XDG_CONFIG_HOME:-$HOME/.config}/configstore/firebase-tools.json"
+# Firebase CLI auth. CLAUDE_SANDBOX_ALLOW_FIREBASE=1 (leader alias `cf`) mounts a
+# scoped service-account key as Application Default Credentials, NOT your personal
+# `firebase login` OAuth token — that token stays masked (configstore is in the
+# creds list above), so firebase-tools can only act with the least-privilege SA.
+# The key is read from `pass` (entry $__cs_fb_pass), decrypted here on the host —
+# where gpg-agent is reachable, exactly like the MCP `$(pass show …)` secrets — and
+# written to the private workspace, bound read-only over the masked gcloud dir
+# (later bind wins) so its siblings stay hidden. Read-only is safe: unlike the
+# personal token, an SA key is static (short-lived access tokens are minted in
+# memory), so a refresh never writes it back. The key is readable by any code in
+# the session while bound, so this stays per-session opt-in like ALLOW_GH — but a
+# leak is now bounded by the SA's roles, not your whole Google account.
+__cs_fb_pass="${FIREBASE_SA_KEY_PASS:-firebase/sa-key}"
 if [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ]; then
-  if [ -f "$__cs_fb_store" ]; then
-    mkdir -p "$__cs_tmp/configstore"
-    cp "$__cs_fb_store" "$__cs_tmp/configstore/firebase-tools.json"
-    args+=(--bind "$__cs_tmp/configstore" "${XDG_CONFIG_HOME:-$HOME/.config}/configstore")
-    echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 — your firebase login token is readable by any code in this session" >&2
+  if __cs_fb_key=$(pass show "$__cs_fb_pass" 2>/dev/null) && [ -n "$__cs_fb_key" ]; then
+    mkdir -p "$__cs_tmp/gcloud"
+    (umask 077; printf '%s\n' "$__cs_fb_key" >"$__cs_tmp/gcloud/firebase-sa.json")
+    unset __cs_fb_key
+    args+=(--ro-bind "$__cs_tmp/gcloud" "${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}")
+    args+=(--setenv GOOGLE_APPLICATION_CREDENTIALS "${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}/firebase-sa.json")
+    echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 — scoped firebase SA key (pass: $__cs_fb_pass) mounted as ADC; readable by any code in this session" >&2
   else
-    echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 but no firebase login found ($__cs_fb_store); run 'firebase login' on the host first" >&2
+    echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 but no key at 'pass show $__cs_fb_pass'; store the scoped service-account JSON there first (pass insert -m $__cs_fb_pass)" >&2
   fi
 fi
 
