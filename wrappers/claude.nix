@@ -45,9 +45,11 @@ let
     # firebase CLI on claude's PATH so sessions can run `firebase …`. Already in
     # packages/commons.nix for the interactive shell (usually inherited here too),
     # but listed explicitly so availability doesn't depend on the caller's PATH.
-    # Auth uses your own `firebase login`: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 (leader
-    # alias `cf`, wired through claude.bash) makes claude-sandbox.bash expose the
-    # otherwise-masked ~/.config/configstore/firebase-tools.json for that session.
+    # Auth is a scoped service account, not your personal `firebase login`:
+    # CLAUDE_SANDBOX_ALLOW_FIREBASE=1 (leader alias `cf`, wired through claude.bash)
+    # makes claude-sandbox.bash read the least-privilege SA key from `pass`
+    # (entry firebase/sa-key) and mount it read-only as Application Default
+    # Credentials for that session; ~/.config/configstore stays masked.
     pkgs.firebase-tools
     # Runtimes for MCP servers launched from a plugin .mcp.json rather than being
     # Nix-packaged: nodejs/npx for figma-mcp; uv/uvx + python for the pure-Python
