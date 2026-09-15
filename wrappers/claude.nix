@@ -19,7 +19,6 @@ let
     realGit = "${git}/bin/git";
   };
   firefoxMcpPkg = import ../packages/custom/firefox-mcp.nix { inherit pkgs; };
-  mobileMcpPkg = import ../packages/custom/mobile-mcp.nix { inherit pkgs; };
 
   tools = [
     claudeStatusline
@@ -56,13 +55,12 @@ let
     # servers (nix-mcp, aws-api-mcp, google-workspace-mcp). uvx fetches the pinned
     # server from PyPI at run time (cached under $CLAUDE_CONFIG_DIR); python312 with
     # UV_PYTHON_PREFERENCE=only-system avoids a managed-Python download and gives
-    # broad wheel coverage. firefox-mcp/mobile-mcp stay Nix-packaged because they
-    # also need sidecar binaries on PATH (geckodriver, adb).
+    # broad wheel coverage. firefox-mcp stays Nix-packaged because it also needs
+    # a sidecar binary on PATH (geckodriver).
     pkgs.nodejs
     pkgs.uv
     pkgs.python312
     firefoxMcpPkg
-    mobileMcpPkg
   ]
   # Deps for claude's built-in `/sandbox` on Linux (Seatbelt is built in on macOS).
   # Recent claude-code turns that sandbox ON by default when these sit on PATH; it
