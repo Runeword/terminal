@@ -24,4 +24,9 @@
   # packages.tools and is on the interactive/host PATH, where the launcher runs
   # it before exec'ing into the namespace.
   (import ./claude-seccomp-bpf { inherit pkgs; })
+  # Builds the sanitized ~/.ssh copy (config + in-tree Includes + known_hosts +
+  # one .pub per IdentityFile, never a private key) that claude-sandbox.bash
+  # binds into the namespace. Same reason it is here: the launcher invokes it on
+  # the interactive/host PATH before exec'ing into bwrap.
+  (import ./claude-ssh-sanitize { inherit pkgs; })
 ]
