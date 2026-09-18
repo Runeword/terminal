@@ -206,6 +206,7 @@ let
         }
         for p in .claude .config/zsh .config/bash .config/shell/xdg.sh \
           .config/shell/variables.sh .config/shell/aliases.sh .config/shell/functions \
+          .config/shell/leader.toml \
           .config/shell/scripts/claude-sandbox.bash .config/git .config/direnv; do
           pinned "$tree/$p"
         done
