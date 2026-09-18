@@ -101,44 +101,21 @@ cd -P . || {
   echo "claude-sandbox: cannot resolve the current directory" >&2
   exit 64
 }
-# $HOME and its ancestors give the no-op sandbox above. The XDG config/data trees
-# are refused for a second reason: they hold code the desktop session executes
-# without being asked — ~/.config/systemd/user, ~/.config/autostart, ~/.local/bin
-# — so read-write access to them is host code execution at the next login, which
-# none of the masks below can undo.
-for __cs_bad in \
-  "$HOME" \
-  "${XDG_CONFIG_HOME:-$HOME/.config}" \
-  "${XDG_DATA_HOME:-$HOME/.local/share}" \
-  "$HOME/.local"; do
-  __cs_bad=$(readlink -m "$__cs_bad")
-  case "$__cs_bad/" in
-    "${PWD%/}/"*)
-      echo "claude-sandbox: refusing to bind $PWD read-write — it contains $__cs_bad; run from a project directory (or CLAUDE_SANDBOX=0 to launch unsandboxed)" >&2
-      exit 64
-      ;;
-  esac
-done
-# The trees the desktop session executes from without being asked. These are
-# refused in *both* directions, unlike the roots above: a cwd inside
-# ~/.config/systemd/user is host code execution at the next login just as surely
-# as one that contains it. Kept to the executing subtrees rather than all of
-# ~/.config so that the ordinary case of a config repo at ~/.config/nvim still
-# works.
-for __cs_bad in \
-  "${XDG_CONFIG_HOME:-$HOME/.config}/systemd" \
-  "${XDG_CONFIG_HOME:-$HOME/.config}/autostart" \
-  "${XDG_DATA_HOME:-$HOME/.local/share}/systemd" \
-  "${XDG_DATA_HOME:-$HOME/.local/share}/applications" \
-  "$HOME/.local/bin"; do
-  __cs_bad=$(readlink -m "$__cs_bad")
-  case "${PWD%/}/" in
-    "$__cs_bad/"*)
-      echo "claude-sandbox: refusing to bind $PWD read-write — it is inside $__cs_bad, which your desktop session executes at login (or CLAUDE_SANDBOX=0 to launch unsandboxed)" >&2
-      exit 64
-      ;;
-  esac
-done
+# Refuse the cwd as the writable region when it *contains* $HOME, an XDG
+# config/data root, or ~/.local (binding that read-write hands the namespace the
+# whole home directory — a no-op sandbox), or when it is *inside* a tree the
+# desktop session executes at login (~/.config/systemd, ~/.config/autostart,
+# ~/.local/share/{systemd,applications}, ~/.local/bin), where read-write access is
+# host code execution at the next login. The comparison is the *physical* cwd
+# (cd -P above) against readlink -m'd sensitive dirs; that logic, and the refusal
+# messages, live in claude-cwd-gate (see packages/custom/claude-cwd-gate), which
+# exits 64 with the reason on a refusal. Fail closed: any non-zero exit (including
+# the binary missing) aborts rather than bind a possibly-unsafe cwd read-write.
+claude-cwd-gate \
+  --pwd "$PWD" \
+  --home "$HOME" \
+  --config "${XDG_CONFIG_HOME:-$HOME/.config}" \
+  --data "${XDG_DATA_HOME:-$HOME/.local/share}" || exit "$?"
 
 # Runs exactly the gate above — same list, same message — and stops. __claude_run
 # starts claude through `tmux new-window`, whose pane clears the moment the
