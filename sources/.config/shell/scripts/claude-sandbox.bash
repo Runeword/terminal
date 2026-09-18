@@ -341,7 +341,6 @@ case "${PERMEANCE_TREE:-}" in
       if [ -f "$PERMEANCE_TREE/.claude/git-allowlist.toml" ]; then
         args+=(--ro-bind "$PERMEANCE_TREE/.claude/git-allowlist.toml" "$PERMEANCE_TREE/.claude/git-allowlist.toml")
       fi
-      echo "claude-sandbox: $PERMEANCE_TREE is writable — edits there run on your host at the next shell; review with git diff -- sources" >&2
     else
       echo "claude-sandbox: WARNING — PERMEANCE_TREE '$PERMEANCE_TREE' is not a directory; nothing bound" >&2
     fi
