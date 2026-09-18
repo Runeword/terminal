@@ -110,18 +110,13 @@ __git_diff_tracked() {
   printf '{ %s && %s; }' "$check" "$diff"
 }
 
-# $1 overrides the fzf field placeholder the preview reads (default "{}", the
-# whole line). __git_add lists untracked files as one field of a wider tagged
-# row, so it passes "{2}" to point the same preview at that field instead.
 __git_diff_untracked() {
-  local ph="$1"
-  [ -z "$ph" ] && ph='{}'
   local root quoted
   root="$(git rev-parse --show-toplevel)"
   quoted="$(__shell_quote "$root")"
-  local link="cd $quoted && test -L $ph && readlink $ph"
-  local dir="cd $quoted && test -d $ph && ls -la -- $ph"
-  local diff="cd $quoted && ! test -L $ph && git diff --ignore-space-change --no-index --color=always /dev/null $ph | $_GIT_PAGER"
+  local link="cd $quoted && test -L {} && readlink {}"
+  local dir="cd $quoted && test -d {} && ls -la -- {}"
+  local diff="cd $quoted && ! test -L {} && git diff --ignore-space-change --no-index --color=always /dev/null {} | $_GIT_PAGER"
   printf '{ %s || %s || %s; }' "$link" "$dir" "$diff"
 }
 
@@ -174,77 +169,92 @@ __git_prefix_paths() {
   printf '%s' "${list// $q/ $q$cdup}"
 }
 
-# Stage picker (leader alias `ga`). Offers, in one fzf list, both the hunks of
-# tracked changes and every untracked file, and echoes (leader flag `e`) a
-# command that stages exactly the selection: picked hunks are forward-applied
-# to the index (like `git add -p`), picked untracked files are added whole
-# (they carry no diff to slice). Each row is TAB-tagged so the selection can be
-# split back apart and the preview can branch on the kind:
-#   h <TAB> INDEX <TAB> label   a hunk of a tracked file
-#   u <TAB> PATH  <TAB> label   an untracked file
-# The tracked diff is captured once at zero context (--unified=0) so each
-# separated change is its own hunk; the assembled subset forward-applies with
-# --unidiff-zero. Empty selection echoes nothing.
+# Stage picker (leader alias `ga`), a two-level fzf. The top list is every file
+# with changes (modified tracked + untracked); Tab multi-selects whole files to
+# `git add`. Right on a file opens a second picker — git-add-hunks.sh, run via
+# execute (which preserves the Tab marks) — to select individual hunks of that
+# file; Left or Enter there returns here. Enter in the files list finalizes and
+# echoes (leader flag `e`) a command that `git add`s the whole files and
+# forward-applies the picked hunks of the others to the index (`git add -p`
+# mechanics); Esc cancels. Enter is bound through `become` so it prints only the
+# marked whole files — nothing when none are marked, since a bare fzf Enter
+# would otherwise return the focused row and spuriously stage it — and drops a
+# `.commit` sentinel so Esc (no sentinel) is distinguishable from a hunks-only
+# finalize. Per-file hunk picks live in a temp state dir shared with the child,
+# keyed by base64 of the path.
 __git_add() {
   __git_require_repo || return 1
 
-  local git_cmd repo_root git_dir
+  local git_cmd repo_root
   git_cmd="$(__git_cmd_prefix)"
   repo_root="$(git rev-parse --show-toplevel)"
-  git_dir="$(git rev-parse --absolute-git-dir)"
 
-  # Capture the unstaged (tracked) diff once — explicit --git-dir/--work-tree so
-  # a detached git dir resolves too — to feed both the fzf list and its hunk
-  # previews without re-running git per keystroke.
-  local diff_file
-  diff_file="$(mktemp)" || return 1
-  git --git-dir="$git_dir" --work-tree="$repo_root" diff --unified=0 >"$diff_file"
+  local sd sdq hsq
+  sd="$(mktemp -d)" || return 1
+  sdq="$(__shell_quote "$sd")"
+  hsq="$(__shell_quote "$PERMEANCE_TREE/.config/shell/scripts/git-add-hunks.sh")"
 
-  # Preview branches on the row's kind (field 1): a hunk reassembles from the
-  # captured diff; an untracked file reuses __git_diff_untracked pointed at the
-  # path field (field 2). fzf single-quotes {1}/{2} for the shell.
-  local dq hunk_prev file_prev
-  dq="$(__shell_quote "$diff_file")"
-  hunk_prev="git-hunk-pick assemble {2} <$dq | $_GIT_PAGER"
-  file_prev="$(__git_diff_untracked '{2}')"
+  # Preview: the focused path, a marker when it already has hunks saved in the
+  # state dir (keyed by base64 of the path, exactly as the child writes it),
+  # then the file diff. The marker's exit status is irrelevant — `;` runs the
+  # diff regardless.
+  local note
+  note="k=\$(printf %s {} | base64 | tr -d '\\n' | tr / _); [ -f $sdq/\$k ] && printf '▶ hunks selected — press → to change\\n\\n'"
   local -a preview=(
-    --preview "echo {3..}; if [ {1} = h ]; then $hunk_prev; else $file_prev; fi"
+    --preview "$_GIT_FZF_PREVIEW_CMD $note; $(__git_diff_tracked) || $(__git_diff_untracked)"
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
 
-  # Merge both tagged row sources into one multiselect picker. fzf shows only
-  # the label (field 3..) but its output keeps the full line, so awk recovers
-  # the tag (field 1) and payload (field 2) from each selected row.
-  local selection
-  selection=$(
+  # Right drills into the focused file's hunks (execute keeps the Tab marks; a
+  # reload would drop them, and refresh-preview redraws the marker on return).
+  # Enter commits: become prints only the marked whole files and touches the
+  # sentinel.
+  local selected
+  selected=$(
+    builtin cd "$repo_root" || exit 1
     {
-      git-hunk-pick list <"$diff_file" | awk -F'\t' 'BEGIN { OFS = "\t" } { print "h", $0 }'
-      git --git-dir="$git_dir" --work-tree="$repo_root" ls-files --others --exclude-standard |
-        awk -F'\t' 'BEGIN { OFS = "\t" } { print "u", $0, $0 " (untracked)" }'
-    } | fzf "${_GIT_FZF_DEFAULT[@]}" --delimiter='\t' --with-nth=3.. "${preview[@]}"
+      git diff --name-only
+      git ls-files --others --exclude-standard
+    } | sort -u |
+      fzf "${_GIT_FZF_DEFAULT[@]}" \
+        --header='→ pick hunks · tab whole file · ⏎ stage' \
+        --bind "right:execute($hsq {} $sdq)+refresh-preview" \
+        --bind "enter:become(touch $sdq/.commit; test \${FZF_SELECT_COUNT:-0} -gt 0 && printf '%s\\n' {+})" \
+        "${preview[@]}"
   )
-  rm -f "$diff_file"
-  [ "$selection" = "" ] && return 0
 
-  local indices files
-  indices=$(printf '%s\n' "$selection" | awk -F'\t' '$1 == "h" { print $2 }' | tr '\n' ' ')
-  files=$(printf '%s\n' "$selection" | awk -F'\t' '$1 == "u" { print $2 }' |
-    sed "s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' ')
-
-  # Untracked files are staged whole; picked hunks forward-apply to the index.
-  # Emit only the clauses that have a selection, joined with && so both run.
-  local add_cmd="" hunk_cmd=""
-  [ -n "$files" ] && add_cmd="$git_cmd add -- $files"
-  [ -n "$indices" ] &&
-    hunk_cmd="$git_cmd diff --unified=0 | git-hunk-pick assemble ${indices}| $git_cmd apply --cached --unidiff-zero --recount"
-
-  if [ -n "$add_cmd" ] && [ -n "$hunk_cmd" ]; then
-    echo "$add_cmd && $hunk_cmd"
-  elif [ -n "$add_cmd" ]; then
-    echo "$add_cmd"
-  elif [ -n "$hunk_cmd" ]; then
-    echo "$hunk_cmd"
+  # No sentinel means Esc/abort — cancel everything, including drilled hunks.
+  if [ ! -e "$sd/.commit" ]; then
+    rm -rf "$sd"
+    return 0
   fi
+
+  # Whole-file (Tab) selections: a raw newline list for membership tests and a
+  # shell-quoted, space-joined list for the `git add` clause.
+  local whole_raw whole_quoted
+  whole_raw=$(printf '%s\n' "$selected" | sed '/^$/d')
+  whole_quoted=$(printf '%s\n' "$whole_raw" | sed "/^$/d; s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' ')
+
+  # Whole files first, then one hunk-apply clause per drilled file that was NOT
+  # also selected whole (its `git add` already stages everything, so a hunk
+  # apply --cached would then fail to apply).
+  local out=""
+  [ -n "$whole_quoted" ] && out="$git_cmd add -- $whole_quoted"
+
+  local sf p idx pq clause
+  while IFS= read -r sf; do
+    [ -n "$sf" ] || continue
+    p=$(sed -n 1p "$sf")
+    idx=$(sed -n 2p "$sf")
+    if [ -z "$p" ] || [ -z "$idx" ]; then continue; fi
+    printf '%s\n' "$whole_raw" | grep -qxF -- "$p" && continue
+    pq=$(__shell_quote "$p")
+    clause="$git_cmd diff --unified=0 -- $pq | git-hunk-pick assemble ${idx}| $git_cmd apply --cached --unidiff-zero --recount"
+    if [ -n "$out" ]; then out="$out && $clause"; else out="$clause"; fi
+  done < <(find "$sd" -maxdepth 1 -type f ! -name .commit 2>/dev/null)
+  rm -rf "$sd"
+
+  [ -n "$out" ] && echo "$out"
 }
 
 __git_commit() {
