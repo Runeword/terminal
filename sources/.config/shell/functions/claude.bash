@@ -55,25 +55,24 @@ __claude_sandbox_prefix() {
 # Fails (and propagates through __claude_init) when the sandbox gate refuses to
 # launch, so callers abort after the gate's message instead of silently running.
 __claude_build_cmd() {
-  local args prefix unlock="" secrets=""
+  local args prefix flags="" secrets=""
   prefix=$(__claude_sandbox_prefix) || return 1
   args=$(printf '%q ' "$__claude_args")
   # __claude_run launches via `tmux new-window`, which spawns from the tmux
   # *server's* environment — so a prefix assignment on the caller
-  # (CLAUDE_SANDBOX_UNLOCK_SOURCES=1 __claude) is dropped before the sandbox
+  # (CLAUDE_SANDBOX_ALLOW_GH=1 __claude) is dropped before the sandbox
   # script reads it. Carry it in the command string, like the vars below.
   # CLAUDE_SANDBOX needs no such handling: its gate runs in the calling shell.
   # Every sandbox variable the launcher reads has to be listed here. ALLOW_GH was
   # not, so the documented per-session opt-in did nothing on the normal launch
   # path and the only thing that appeared to work was CLAUDE_SANDBOX=0.
-  [ "${CLAUDE_SANDBOX_UNLOCK_SOURCES:-0}" = "1" ] && unlock="${unlock}CLAUDE_SANDBOX_UNLOCK_SOURCES=1 "
-  [ "${CLAUDE_SANDBOX_ALLOW_GH:-0}" = "1" ] && unlock="${unlock}CLAUDE_SANDBOX_ALLOW_GH=1 "
+  [ "${CLAUDE_SANDBOX_ALLOW_GH:-0}" = "1" ] && flags="${flags}CLAUDE_SANDBOX_ALLOW_GH=1 "
   # Firebase: scoped service-account auth. CLAUDE_SANDBOX_ALLOW_FIREBASE=1 makes the
   # launcher mount a least-privilege SA key from `pass` (entry firebase/sa-key) as
   # ADC, with your personal `firebase login` token left masked (see
   # CLAUDE_SANDBOX_ALLOW_FIREBASE in claude-sandbox.bash). Only the flag is carried
   # here; the pass read and the bind happen in the launcher.
-  [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ] && unlock="${unlock}CLAUDE_SANDBOX_ALLOW_FIREBASE=1 "
+  [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ] && flags="${flags}CLAUDE_SANDBOX_ALLOW_FIREBASE=1 "
   # Some MCP plugins need a secret in claude's env, pulled from pass — the same
   # entries their interactive counterparts use — but only when that plugin is
   # selected, so ordinary launches don't fire a gpg prompt. Each $(…) stays
@@ -102,7 +101,7 @@ __claude_build_cmd() {
       ;;
   esac
   # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
-  __CLAUDE_CMD="${unlock}${secrets}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance ${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-8 $args"
+  __CLAUDE_CMD="${flags}${secrets}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance ${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-8 $args"
 }
 
 # Make sources/ own each profile's user-level config: path-scoped rules and bundled
