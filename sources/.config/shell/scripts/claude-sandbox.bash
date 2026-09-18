@@ -500,23 +500,77 @@ done
 # written to the private workspace, bound read-only over the masked gcloud dir
 # (later bind wins) so its siblings stay hidden. Read-only is safe: unlike the
 # personal token, an SA key is static (short-lived access tokens are minted in
-# memory), so a refresh never writes it back. The key is readable by any code in
-# the session while bound, so this stays per-session opt-in like ALLOW_GH — but a
-# leak is now bounded by the SA's roles, not your whole Google account.
+# memory), so a refresh never writes it back — but note the exfiltratable artifact
+# is a *permanent* private key: scoped by the SA's roles, yet valid until revoked,
+# not merely until a token expires. Hence per-session opt-in, like ALLOW_GH.
+#
+# firebase-tools' auth precedence is FIREBASE_TOKEN → configstore login → ADC
+# (GOOGLE_APPLICATION_CREDENTIALS). Masking configstore forces the SA path; a
+# FIREBASE_TOKEN inherited from the launching shell would outrank it and both defeat
+# the scoping and ride in exfiltratable, so it and the gcloud access-token overrides
+# are unset below whenever the SA is mounted (bwrap inherits the env otherwise).
+#
+# Two operational facts, because their failures read as auth bugs, not config gaps:
+#   - No project is selected here. firebase resolves the active project from
+#     `--project <id>` or a repo `.firebaserc` ONLY — never $GOOGLE_CLOUD_PROJECT nor
+#     the key's own project_id — so most commands need an explicit --project.
+#   - The key must carry the IAM roles for the task. One scoped key is realistic for
+#     reads + Hosting (roles/firebase.viewer + firebasehosting.admin +
+#     datastore.viewer); `deploy --only functions` needs far more (Cloud Build,
+#     Artifact Registry, iam.serviceAccountUser, …), so a PERMISSION_DENIED there is
+#     a missing role, not a broken login. (v15 also prints "have you run firebase
+#     login?" on a credential *timeout* — under this setup that means slow
+#     token/role/project, not a missing login.)
+# Only firebase reads GOOGLE_APPLICATION_CREDENTIALS (via ADC); `gcloud` itself uses
+# its own credential store and is NOT authenticated by this key.
 __cs_fb_pass="${FIREBASE_SA_KEY_PASS:-firebase/sa-key}"
 if [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ]; then
-  if __cs_fb_key=$(pass show "$__cs_fb_pass" 2>/dev/null) && [ -n "$__cs_fb_key" ]; then
-    mkdir -p "$__cs_tmp/gcloud"
-    (
-      umask 077
-      printf '%s\n' "$__cs_fb_key" >"$__cs_tmp/gcloud/firebase-sa.json"
-    )
-    unset __cs_fb_key
-    args+=(--ro-bind "$__cs_tmp/gcloud" "${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}")
-    args+=(--setenv GOOGLE_APPLICATION_CREDENTIALS "${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}/firebase-sa.json")
-    echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 — scoped firebase SA key (pass: $__cs_fb_pass) mounted as ADC; readable by any code in this session" >&2
-  else
+  if ! command -v pass >/dev/null 2>&1; then
+    echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 but 'pass' is not on PATH; cannot read the SA key" >&2
+  elif [ -z "$__cs_xdg" ]; then
+    # No per-user runtime dir, so the private workspace fell back to $HOME/.cache on
+    # persistent disk (see __cs_ws_parent above). Refuse rather than write a
+    # long-lived plaintext SA key to disk, where a crash or reboot could strand it:
+    # restart tmux so the pane inherits XDG_RUNTIME_DIR (or export it), then retry.
+    echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 but no RAM-backed runtime dir; refusing to write the SA key to disk. Restart tmux or set XDG_RUNTIME_DIR, then retry." >&2
+  elif ! __cs_fb_key=$(pass show "$__cs_fb_pass" 2>/dev/null) || [ -z "$__cs_fb_key" ]; then
     echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 but no key at 'pass show $__cs_fb_pass'; store the scoped service-account JSON there first (pass insert -m $__cs_fb_pass)" >&2
+  else
+    # Reject anything that is not a service-account key JSON before mounting it, so a
+    # wrong `pass` entry (a bare token, or a password-first multiline note) fails here
+    # with a clear message instead of an opaque parse error inside firebase-tools.
+    case "$__cs_fb_key" in
+      *'"private_key"'*'"client_email"'* | *'"client_email"'*'"private_key"'*)
+        mkdir -p "$__cs_tmp/gcloud"
+        (
+          umask 077
+          printf '%s\n' "$__cs_fb_key" >"$__cs_tmp/gcloud/firebase-sa.json"
+        )
+        unset __cs_fb_key
+        args+=(--ro-bind "$__cs_tmp/gcloud" "${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}")
+        args+=(--setenv GOOGLE_APPLICATION_CREDENTIALS "${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}/firebase-sa.json")
+        # Enforce "only the least-privilege SA": drop the higher-precedence credential
+        # channels bwrap would otherwise inherit, so neither overrides the SA nor is
+        # left readable/exfiltratable inside the open-network namespace.
+        args+=(--unsetenv FIREBASE_TOKEN)
+        args+=(--unsetenv GOOGLE_OAUTH_ACCESS_TOKEN)
+        args+=(--unsetenv CLOUDSDK_AUTH_ACCESS_TOKEN)
+        # firebase-tools caches its MOTD/remote-config and update check under
+        # ~/.config/configstore; $HOME is read-only in here, so those writes fail and
+        # abort the CLI with a spurious "unexpected error" and non-zero exit even when
+        # the command succeeded. Give it a fresh writable tmpfs at the XDG-correct path
+        # (matching the mask above; later bind wins) — a tmpfs, not a persistent dir,
+        # so a stray or planted firebase-tools.json token cannot survive to outrank the
+        # SA next session (configstore > ADC above). Cost: the MOTD cache is not reused
+        # across sessions, which is noise.
+        args+=(--tmpfs "${XDG_CONFIG_HOME:-$HOME/.config}/configstore")
+        echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 — scoped firebase SA key (pass: $__cs_fb_pass) mounted as ADC; readable by any code in this session" >&2
+        ;;
+      *)
+        unset __cs_fb_key
+        echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 but 'pass show $__cs_fb_pass' is not a service-account key JSON (needs private_key + client_email); not mounting" >&2
+        ;;
+    esac
   fi
 fi
 
