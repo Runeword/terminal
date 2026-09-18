@@ -17,42 +17,35 @@ __run_alias() {
   sh -c "$selected"
 }
 
+# Leader-key picker. leader-aliases (packages/custom) renders leader.toml as
+# one fzf row per chord: the displayed chord, command, group and description,
+# then the hidden raw command and mode (run, insert, eval-run, eval-insert).
+# The command column is fitted to $COLUMNS (long commands are cut with an
+# ellipsis) so one wide entry cannot push the other columns off screen.
+# fzf matches on the chord only and accepts as soon as one row is left; a
+# chord that matches nothing is inserted into the line as typed. A table that
+# fails to render (parse error, binary missing) is reported in the status
+# line instead of silently offering nothing.
 __aliases() {
-  local prefix_char
-  local aliases_file
+  local table="${1:-$PERMEANCE_TREE/.config/shell/leader.toml}"
+  local rows
+  if ! rows=$(leader-aliases -width "${COLUMNS:-0}" "$table" 2>&1); then
+    zle -M "${rows:-leader-aliases: failed to render $table}"
+    return 1
+  fi
 
-  # Parse arguments
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      -p | --prefix)
-        prefix_char="$2"
-        shift 2
-        ;;
-      -f | --file)
-        aliases_file="$2"
-        shift 2
-        ;;
-      *)
-        break
-        ;;
-    esac
-  done
-
-  local selected_command
-  if selected_command=$(
-    <"$aliases_file" column \
-      --table \
-      --separator $'\t' \
-      --output-separator $'\u00A0' |
+  local selected
+  if selected=$(
+    printf '%s\n' "$rows" |
       fzf -i \
-        --with-nth=1,2,3 \
+        --with-nth=1,2,3,4 \
         --print-query \
         --query "^" \
         --exact \
         --nth=1 \
         --no-info \
         --no-separator \
-        --delimiter=$'\u00A0' \
+        --delimiter=$' ' \
         --cycle \
         --no-preview \
         --reverse \
@@ -62,25 +55,27 @@ __aliases() {
         --bind 'space:put(\ )' \
         --height 70%
   ); then
-    local last_column
-    last_column=$(echo "$selected_command" | awk -F $'\u00A0' '{ if (NR==2) print $NF }')
-    local cmd
-    cmd=$(echo "$selected_command" | awk -F $'\u00A0' '{ if (NR==2) { sub(/[[:space:]]+$/, "", $2); print $2 " " } }')
+    local cmd mode
+    cmd=$(printf '%s\n' "$selected" | awk -F $' ' 'NR == 2 { print $5 }')
+    mode=$(printf '%s\n' "$selected" | awk -F $' ' 'NR == 2 { print $6 }')
 
-    if [ "$last_column" = "e" ] || [ "$last_column" = "p" ]; then
-      local output
-      zle reset-prompt
-      output=$(eval "$cmd")
-      if [ "$output" != "" ]; then
-        LBUFFER+=$output
-        [ "$last_column" = "e" ] && zle accept-line
-      fi
-    else
-      LBUFFER+=$cmd
-      [ "$last_column" = "x" ] && zle accept-line
-    fi
-  elif [ "$selected_command" ]; then
-    LBUFFER+=$(echo "$selected_command" | sed -n '1p' | sed 's/^\^//')
+    case "$mode" in
+      eval-run | eval-insert)
+        local output
+        zle reset-prompt
+        output=$(eval "$cmd")
+        if [ -n "$output" ]; then
+          LBUFFER+=$output
+          [ "$mode" = eval-run ] && zle accept-line
+        fi
+        ;;
+      *)
+        LBUFFER+="$cmd "
+        [ "$mode" = run ] && zle accept-line
+        ;;
+    esac
+  elif [ "$selected" ]; then
+    LBUFFER+=$(printf '%s\n' "$selected" | sed -n '1p' | sed 's/^\^//')
   fi
 
   zle autosuggest-fetch
