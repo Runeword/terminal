@@ -201,35 +201,78 @@ __git_commit() {
   [ "$args" != "" ] && echo "$git_cmd add -- $args && $git_cmd commit "
 }
 
-__git_unstage() {
+# Interactive hunk picker shared by __git_unstage and __git_discard. Captures
+# the relevant diff once, lists its hunks through git-hunk-pick, lets fzf
+# multiselect them with a delta-rendered preview, then echoes (leader flag `e`)
+# a self-contained pipeline that regenerates the diff, keeps only the picked
+# hunks by index, and reverse-applies them. The diff is taken at zero context
+# (--unified=0) so each separated change is its own selectable hunk instead of
+# being coalesced with a nearby one at default context; whole unmodified hunks
+# are reverse-applied with --unidiff-zero, so the patch stays valid (a run of
+# strictly adjacent changed lines is still a single hunk). $1 names the change
+# set and target: "staged" reverse-applies to the index (unstage a hunk),
+# "unstaged" to the work tree (discard a hunk). Empty selection echoes nothing.
+__git_pick_hunks() {
   __git_require_repo || return 1
 
-  local git_cmd
+  local git_cmd repo_root git_dir
   git_cmd="$(__git_cmd_prefix)"
+  repo_root="$(git rev-parse --show-toplevel)"
+  git_dir="$(git rev-parse --absolute-git-dir)"
+
+  local -a diff_args apply_args
+  case "$1" in
+    staged)
+      diff_args=(diff --cached --unified=0)
+      apply_args=(apply --cached --reverse --unidiff-zero --recount)
+      ;;
+    unstaged)
+      diff_args=(diff --unified=0)
+      apply_args=(apply --reverse --unidiff-zero --recount)
+      ;;
+    *) return 1 ;;
+  esac
+
+  # Capture the diff once — explicit --git-dir/--work-tree so it resolves a
+  # detached git dir too (as __git_cmd_prefix does) — to feed both the fzf list
+  # and every preview without re-running git per keystroke.
+  local diff_file
+  diff_file="$(mktemp)" || return 1
+  git --git-dir="$git_dir" --work-tree="$repo_root" "${diff_args[@]}" >"$diff_file"
+  if [ ! -s "$diff_file" ]; then
+    rm -f "$diff_file"
+    return 0
+  fi
+
+  local dq
+  dq="$(__shell_quote "$diff_file")"
   local -a preview=(
-    --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)"
+    --preview "$_GIT_FZF_PREVIEW_CMD git-hunk-pick assemble {1} <$dq | $_GIT_PAGER"
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
-  local args
-  args=$(__git_fzf_select "git diff --name-only --cached" "${preview[@]}")
-  # `restore --staged` restores from HEAD; before the first commit use `rm --cached`
-  local unstage="restore --staged"
-  git rev-parse --verify --quiet HEAD >/dev/null || unstage="rm --cached"
-  [ "$args" != "" ] && echo "$git_cmd $unstage -- $args"
+
+  # fzf displays only the label (field 2..) but its output stays the full line,
+  # so cut recovers the hunk index from field 1. A misread index is rejected by
+  # git-hunk-pick rather than silently applied, so the pick fails closed.
+  local selection
+  selection=$(
+    git-hunk-pick list <"$diff_file" |
+      fzf "${_GIT_FZF_DEFAULT[@]}" --delimiter='\t' --with-nth=2.. "${preview[@]}"
+  )
+  rm -f "$diff_file"
+  [ "$selection" = "" ] && return 0
+
+  local indices
+  indices=$(printf '%s\n' "$selection" | cut -f1 | tr '\n' ' ')
+  echo "$git_cmd ${diff_args[*]} | git-hunk-pick assemble ${indices}| $git_cmd ${apply_args[*]}"
+}
+
+__git_unstage() {
+  __git_pick_hunks staged
 }
 
 __git_discard() {
-  __git_require_repo || return 1
-
-  local git_cmd
-  git_cmd="$(__git_cmd_prefix)"
-  local -a preview=(
-    --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked)"
-    --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
-  )
-  local args
-  args=$(__git_fzf_select "git diff --name-only" "${preview[@]}")
-  [ "$args" != "" ] && echo "$git_cmd checkout -- $args"
+  __git_pick_hunks unstaged
 }
 
 __git_untrack() {
