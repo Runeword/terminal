@@ -17,31 +17,45 @@
 #   - the host-executed files inside those writable regions are re-pinned
 #     read-only on top of them (bwrap applies binds in order, so a later
 #     --ro-bind wins): $PWD/.direnv/bin, direnv's source_url CAS,
-#     $PWD/.git/{hooks,config} and lefthook*.yml. Writing one line into any of
-#     them is host code execution on the user's next cd or commit, which would
-#     undo every mask below. This is a named list, not a guarantee about the
+#     $PWD/.git/{hooks,config}, lefthook*.yml, and Claude Code's own
+#     project-level config where present — $PWD/.claude/{settings.json,hooks,
+#     agents,commands,skills} and $PWD/.mcp.json (settings.local.json stays
+#     writable: claude writes its own "don't ask again" rules there). Writing
+#     one line into any of them is host code execution on the user's next cd
+#     or commit, or a session granting its successor permissions, which would
+#     undo every mask below. Each pin's parent directory is anchored as a mount
+#     point first (see __cs_anchor), or the pin could be renamed out from under
+#     the host. This is a named list, not a guarantee about the
 #     whole cwd: flake.nix and devshells/ stay writable because editing them is
 #     the point of the repo; what keeps a poisoned shellHook off the host is
 #     nix-direnv's manual-reload mode, set in $PERMEANCE_TREE's direnvrc, which
 #     turns a changed flake into a notice plus an explicit `nix-direnv-reload`
 #     instead of a silent re-evaluation on the next cd.
-#   - $PERMEANCE_TREE — the live sources/ tree — is bound read-write. This is
-#     the one deliberate hole in the rule above, and the widest: every host
-#     shell sources .zshrc and functions/*.sh from it, the tmux config
-#     run-shells ~50 paths in it, DIRENV_CONFIG points at its direnvrc (which
-#     direnv's allow-hash does not cover), and claude.bash executes this very
-#     launcher from it. So a sandboxed session can rewrite the host's shell
-#     config, and this boundary for the next launch, and the host runs what it
-#     wrote at the next shell. The tree is git-tracked: review is
-#     `git diff -- sources` and undo is `git checkout -- sources`, both on the
-#     host, both after the fact. An overlay with a host-side review step held
-#     this line until 2026-09-18 and was dropped as too much workflow for a
-#     config repo; git history has it. Bundled mode resolves $PERMEANCE_TREE
-#     to a root-owned store path, read-only however it is bound, so nothing is
-#     bound there. One file is re-pinned read-only from the host copy on top
-#     of the bind: .claude/git-allowlist.toml, which the git-shim re-reads on
-#     every call — a writable copy would let a session widen its own allowlist
-#     mid-run. It is edited from a plain terminal.
+#   - $PERMEANCE_TREE — the live sources/ tree — is bound read-write, and what
+#     the host executes on its own is re-pinned read-only from the host copy on
+#     top of that bind, the same relock as the cwd list above: .claude/
+#     (settings, hooks, plugin manifests, rules, and git-allowlist.toml, which
+#     the git-shim re-reads on every call), the shell startup chain (.config/zsh,
+#     .config/bash, the shell/*.sh files both rc files source and the
+#     glob-sourced shell/functions/, which holds claude.bash), this launcher,
+#     .config/git (GIT_CONFIG_GLOBAL: core.hooksPath alone would sidestep the
+#     .git/hooks pin) and .config/direnv (direnvrc runs at every cd). Every
+#     host shell sources those before a diff could be reviewed, and claude.bash
+#     executes this very launcher from the tree, so writable they let a session
+#     rewrite the next session's boundary. Each pin's parents are anchored as
+#     mount points (see __cs_anchor). The pinned set is edited from a plain
+#     terminal, as the allowlist always was; a session that needs one changed
+#     writes its candidate elsewhere and hands over the copy. The rest of the
+#     tree stays writable: on-demand tool config (bat, navi, ripgrep, readline,
+#     nvim-fzf, tree-sitter), the fzf scripts under shell/scripts/, and — left
+#     out deliberately as the repo's main editing target, though the host runs
+#     them unprompted too — the tmux, starship and alacritty configs; add those
+#     to __cs_tree_pins if that trade-off changes. Review of the writable rest
+#     is `git diff -- sources` on the host, after the fact; an overlay with a
+#     host-side review step held that line for the whole tree until 2026-09-18
+#     and was dropped as too much workflow. Bundled mode resolves
+#     $PERMEANCE_TREE to a root-owned store path, read-only however it is
+#     bound, so nothing is bound there.
 #   - a seccomp filter fails ioctl(TIOCSTI/TIOCLINUX) with EPERM. Without it the
 #     namespace can push characters into the launching terminal's input queue
 #     (CVE-2017-5226) and the host shell runs them once claude exits — bwrap's
@@ -250,6 +264,22 @@ __cs_relock() {
   fi
   return 0
 }
+# Re-bind a directory read-write onto itself so that it becomes a mount point.
+# A pin holds only while every directory between it and a mount point is itself
+# a mount point: a mount point can be neither renamed nor unlinked (EBUSY), but
+# an ordinary directory *containing* one can be — the mount simply follows the
+# rename — after which a fresh, writable directory can be created at the
+# original path, which is the one the host resolves. Verified on this kernel:
+# `mv sources/.claude sources/.claude.x` succeeded with the allowlist pin inside
+# it, and the pinned copy was then at sources/.claude.x/git-allowlist.toml.
+# Anchors must be bound before the pins beneath them — a later bind over a
+# parent hides the mounts already made under it.
+__cs_anchor() {
+  if [ -d "${1:-}" ]; then
+    args+=(--bind "$1" "$1")
+  fi
+  return 0
+}
 
 # Everything the *host* shell sources or executes, re-pinned read-only over the
 # writable regions above. Each of these is host code execution, not merely a
@@ -296,6 +326,9 @@ fi
 # would be bypassable via core.hooksPath, so .git/config is relocked too (cost:
 # `git config`/`git remote` writes inside the sandbox are refused outright now
 # that no flag lifts this; reads, commits, staging, and checkout are unaffected).
+# .git itself is anchored first (__cs_anchor): a directory that merely contains
+# a mount point can be renamed, so `mv .git .git.x && cp -a .git.x .git` would
+# otherwise recreate hooks and config writable at the path the host's git uses.
 # flake.nix/flake.lock/devshells stay writable by necessity — editing this flake
 # is the repo's purpose — so a poisoned shellHook could reach the host through
 # direnv's re-evaluation (.envrc is self-guarding via direnv's allow-hash;
@@ -304,6 +337,7 @@ fi
 # and prints a notice, and `nix-direnv-reload` — generated into $PWD/.direnv/bin,
 # relocked above — is the human step.
 if [ -d "$PWD/.git" ]; then
+  __cs_anchor "$PWD/.git"
   __cs_relock "$PWD/.git/hooks"
   __cs_relock "$PWD/.git/config"
 fi
@@ -317,30 +351,85 @@ for __cs_lh in "$PWD/lefthook.yml" "$PWD/lefthook-generated.yml"; do
     __cs_relock "$__cs_lh"
   fi
 done
+# Claude Code's own project-level config: the paths its built-in sandbox refuses
+# to let a command write even inside the workspace, because a session that could
+# edit them would grant itself permissions, or add a hook, skill or MCP server
+# for its successor. settings.local.json is deliberately not here — claude
+# writes its "don't ask again" rules there itself. Pinned only where present;
+# creating an absent one stays possible and shows as an untracked file on the
+# host.
+if [ -d "$PWD/.claude" ]; then
+  __cs_anchor "$PWD/.claude"
+  for __cs_pc in settings.json hooks agents commands skills; do
+    if [ -e "$PWD/.claude/$__cs_pc" ]; then
+      __cs_relock "$PWD/.claude/$__cs_pc"
+    fi
+  done
+fi
+if [ -e "$PWD/.mcp.json" ]; then
+  __cs_relock "$PWD/.mcp.json"
+fi
 __cs_relock "${XDG_CACHE_HOME:-$HOME/.cache}/direnv/cas"
 
-# The live sources tree, bound read-write: the one host-executed region this
-# file leaves open (see the header). Bound explicitly rather than merely left
+# The live sources tree, bound read-write, with what the host executes on its
+# own re-pinned read-only just below. Bound explicitly rather than merely left
 # unlocked, and after the relocks above so it wins over anything that happens
 # to contain it: the tree sits inside the writable cwd only when launching from
 # the repo that holds it, and from any other project the root read-only bind
 # would cover it. Bundled mode resolves $PERMEANCE_TREE to a store path —
 # root-owned and read-only however it is bound — so nothing is bound there;
 # edits need a working tree, reached by launching with PERMEANCE_ROOT set.
-# .claude/git-allowlist.toml is re-pinned from the host copy on top of the
-# bind: the git-shim re-reads it on every call, and a writable copy would let a
-# session widen its own allowlist mid-run. It is edited from a plain terminal.
+# What the host executes on its own is re-pinned read-only from the host copy
+# on top of the bind (later bind wins), each parent anchored first — the header
+# has the rule and what is left out; __cs_anchor has why the parents matter.
+# Paths are relative to the tree. A missing one is reported through
+# __cs_unlocked like the cwd locks above: a session could create it, and the
+# host would run it. Edited from a plain terminal, as the allowlist always was.
+__cs_tree_anchors=(
+  .config
+  .config/shell
+  .config/shell/scripts
+)
+__cs_tree_pins=(
+  # Claude's own config: settings*.json (hooks, permissions), hooks/, the plugin
+  # .mcp.json manifests, rules/, and git-allowlist.toml, which the git-shim
+  # re-reads on every call — writable, it would let a session widen its own
+  # allowlist mid-run.
+  .claude
+  # The shell startup chain: .zshrc plus its glob-sourced plugins, .bashrc, the
+  # three files both rc files source by name, and functions/, sourced by glob —
+  # a new file there would be executed too, so the directory is pinned, not its
+  # files. functions/claude.bash is what executes this launcher.
+  .config/zsh
+  .config/bash
+  .config/shell/xdg.sh
+  .config/shell/variables.sh
+  .config/shell/aliases.sh
+  .config/shell/functions
+  # This launcher: the boundary for the next session.
+  .config/shell/scripts/claude-sandbox.bash
+  # GIT_CONFIG_GLOBAL for the wrapped git — so for the git-shim, and for
+  # starship at every prompt: core.hooksPath would sidestep the .git/hooks lock
+  # above, and core.fsmonitor, `!` aliases and filters run commands outright.
+  .config/git
+  # direnvrc runs in the host shell at every cd; the .direnv and CAS locks
+  # above guard direnv's outputs, this guards its input.
+  .config/direnv
+)
 case "${PERMEANCE_TREE:-}" in
   "")
-    echo "claude-sandbox: WARNING — PERMEANCE_TREE is unset; git-allowlist.toml cannot be pinned, and the shell config tree is writable wherever the cwd bind covers it" >&2
+    echo "claude-sandbox: WARNING — PERMEANCE_TREE is unset; the host-executed config in the sources tree cannot be pinned, and the tree is writable wherever the cwd bind covers it" >&2
     ;;
   /nix/store/*) ;;
   *)
     if [ -d "$PERMEANCE_TREE" ]; then
       args+=(--bind "$PERMEANCE_TREE" "$PERMEANCE_TREE")
-      if [ -f "$PERMEANCE_TREE/.claude/git-allowlist.toml" ]; then
-        args+=(--ro-bind "$PERMEANCE_TREE/.claude/git-allowlist.toml" "$PERMEANCE_TREE/.claude/git-allowlist.toml")
-      fi
+      for p in "${__cs_tree_anchors[@]}"; do
+        __cs_anchor "$PERMEANCE_TREE/$p"
+      done
+      for p in "${__cs_tree_pins[@]}"; do
+        __cs_relock "$PERMEANCE_TREE/$p"
+      done
     else
       echo "claude-sandbox: WARNING — PERMEANCE_TREE '$PERMEANCE_TREE' is not a directory; nothing bound" >&2
     fi
