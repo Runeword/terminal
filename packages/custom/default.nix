@@ -25,6 +25,12 @@
   # packages.tools and is on the interactive PATH inside the terminal, where
   # those functions and their fzf preview invoke it by bare name.
   (import ./git-hunk-pick { inherit pkgs; })
+  # Turns a picked subset of working-tree changes (a patch on stdin + untracked
+  # files) into one real stash via temp-index plumbing, without touching the
+  # index. Backs the hunk path of the gsp leader alias's two-level picker
+  # (sources/.config/shell/functions/git.bash); on packages.tools PATH so
+  # __git_pick_files invokes it by bare name.
+  (import ./git-stash-hunks { inherit pkgs; })
   # Emits the TIOCSTI/TIOCLINUX seccomp filter (seccomp_export_bpf format) that
   # claude-sandbox.bash feeds to bwrap's --seccomp. Here so it lands in
   # packages.tools and is on the interactive/host PATH, where the launcher runs
