@@ -37,7 +37,8 @@
 #     (settings, hooks, plugin manifests, rules, and git-allowlist.toml, which
 #     the git-shim re-reads on every call), the shell startup chain (.config/zsh,
 #     .config/bash, the shell/*.sh files both rc files source and the
-#     glob-sourced shell/functions/, which holds claude.bash), this launcher,
+#     glob-sourced shell/functions/, which holds claude.bash), the leader table
+#     shell/leader.toml (aliases.sh runs the picked chord), this launcher,
 #     .config/git (GIT_CONFIG_GLOBAL: core.hooksPath alone would sidestep the
 #     .git/hooks pin) and .config/direnv (direnvrc runs at every cd). Every
 #     host shell sources those before a diff could be reviewed, and claude.bash
@@ -406,6 +407,13 @@ __cs_tree_pins=(
   .config/shell/variables.sh
   .config/shell/aliases.sh
   .config/shell/functions
+  # The leader-key command table: aliases.sh's __aliases widget (pinned above)
+  # renders it and runs the picked chord's cmd in the host shell — accept-line
+  # for the default run mode, eval for eval entries — on every leader press.
+  # Writable, a session could rewrite a familiar chord into its own host command;
+  # this is the data the pinned widget executes, moved out of the pinned
+  # functions/ dir, so pinned with it.
+  .config/shell/leader.toml
   # This launcher: the boundary for the next session.
   .config/shell/scripts/claude-sandbox.bash
   # GIT_CONFIG_GLOBAL for the wrapped git — so for the git-shim, and for
