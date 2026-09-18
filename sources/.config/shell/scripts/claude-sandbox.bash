@@ -610,178 +610,32 @@ if [ -f /etc/ssh/ssh_config ]; then
 fi
 
 # Replace ~/.ssh with a sanitized copy: config plus everything it Includes from
-# inside ~/.ssh, known_hosts, and one public key per IdentityFile. ssh still
-# authenticates through the agent socket (re-bound below), outside the
-# namespace, so private keys never enter it. When the agent holds no identity
-# the sanitized tree simply lacks usable keys — auth fails loudly instead of
-# falling back to exposing the real ~/.ssh (the repo agent runs `ssh-agent -t
-# 2h`, so an empty agent is routine here, not exceptional).
+# inside ~/.ssh, known_hosts, and one public key per IdentityFile — never a
+# private key. ssh still authenticates through the agent socket (re-bound below),
+# outside the namespace, so the sanitized tree needs only public material. When
+# the agent holds no identity the tree simply lacks usable keys — auth fails
+# loudly rather than falling back to exposing the real ~/.ssh (the repo agent runs
+# `ssh-agent -t 2h`, so an empty agent is routine here, not exceptional).
+#
+# The walk — Include directives (globs, dedup, the containment check that stops a
+# crafted `Include ../x` writing outside the tree, a 64-file cap) and each
+# IdentityFile resolved to a public key with an agent-listing fallback — lives in
+# claude-ssh-sanitize (see packages/custom/claude-ssh-sanitize). It prints the
+# private keys that live OUTSIDE ~/.ssh, one per line, for us to mask over the
+# read-only root. Fail closed, like the seccomp gate above: if the helper is
+# missing or errors, refuse to launch rather than let the read-only root expose
+# the real ~/.ssh — its private keys — inside the namespace.
 if [ -d "$HOME/.ssh" ]; then
-  mkdir -p "$__cs_tmp/ssh"
-  for f in known_hosts known_hosts2; do
-    [ -f "$HOME/.ssh/$f" ] && cp "$HOME/.ssh/$f" "$__cs_tmp/ssh/$f"
-  done
-
-  # Collect config files to scan: ~/.ssh/config and, transitively, every
-  # Include target. Targets under ~/.ssh are copied at their relative path
-  # (the bind below would otherwise make them vanish inside the namespace);
-  # targets elsewhere stay readable through the read-only root. Tokens are
-  # ~-expanded and relative ones resolved against ~/.ssh, as ssh does; globs
-  # expand naturally.
-  # Split an ssh_config argument list into tokens, honouring the double quotes
-  # ssh uses around paths that contain spaces. `read -r -a` could not: it splits
-  # on IFS, so `Include "my confs/*"` arrived as two broken targets — and where
-  # $HOME itself contains a space, every relative Include was silently dropped.
-  __cs_split() {
-    local line="$1" tok="" ch quoted=0 i
-    __cs_out=()
-    for ((i = 0; i < ${#line}; i++)); do
-      ch="${line:i:1}"
-      case "$ch" in
-        '"') if [ "$quoted" -eq 1 ]; then quoted=0; else quoted=1; fi ;;
-        ' ' | $'\t')
-          if [ "$quoted" -eq 1 ]; then
-            tok+="$ch"
-          elif [ -n "$tok" ]; then
-            __cs_out+=("$tok")
-            tok=""
-          fi
-          ;;
-        *) tok+="$ch" ;;
-      esac
-    done
-    if [ -n "$tok" ]; then __cs_out+=("$tok"); fi
-    return 0
-  }
-
-  __cs_ssh_real=$(readlink -m "$HOME/.ssh")
-  __cs_cfgs=()
-  __cs_queue=()
-  __cs_trunc=0
-  declare -A __cs_seen=()
-  if [ -f "$HOME/.ssh/config" ]; then
-    cp "$HOME/.ssh/config" "$__cs_tmp/ssh/config"
-    __cs_cfgs+=("$HOME/.ssh/config")
-    __cs_queue+=("$HOME/.ssh/config")
-    __cs_seen["$(readlink -m "$HOME/.ssh/config")"]=1
+  if ! __cs_ssh_masks=$(claude-ssh-sanitize \
+    --home "$HOME" --src "$HOME/.ssh" --dst "$__cs_tmp/ssh" \
+    --auth-sock "${SSH_AUTH_SOCK:-}"); then
+    echo "claude-sandbox: could not sanitize ~/.ssh — claude-ssh-sanitize is missing from PATH or failed. Refusing to launch, because the read-only root would otherwise expose your real ~/.ssh (private keys) inside the namespace. Rebuild the terminal so its tools env carries claude-ssh-sanitize, or set CLAUDE_SANDBOX=0 to launch unsandboxed." >&2
+    exit 1
   fi
-  while [ "${#__cs_queue[@]}" -gt 0 ]; do
-    __cs_cfg="${__cs_queue[0]}"
-    __cs_queue=("${__cs_queue[@]:1}")
-    while IFS= read -r __cs_line; do
-      __cs_split "$__cs_line"
-      for __cs_t in "${__cs_out[@]}"; do
-        # shellcheck disable=SC2088 # matching a literal ~/ token, as ssh writes it
-        case "$__cs_t" in
-          "~/"*) __cs_t="$HOME/${__cs_t#"~/"}" ;;
-          /*) ;;
-          *) __cs_t="$HOME/.ssh/$__cs_t" ;;
-        esac
-        # shellcheck disable=SC2086 # unquoted on purpose: Include supports globs
-        for __cs_f in $__cs_t; do
-          [ -f "$__cs_f" ] || continue
-          # Canonicalised before anything is done with it. A relative Include is
-          # concatenated onto ~/.ssh by plain string arithmetic above, so
-          # `Include ../../../../elsewhere/x` walks straight out of it — and the
-          # copy below would then mkdir and cp outside the workspace. Resolving
-          # first makes the containment test mean what it says, and doubles as
-          # the dedup key so two spellings of one file collapse to one entry.
-          __cs_real=$(readlink -m "$__cs_f")
-          [ -z "${__cs_seen["$__cs_real"]:-}" ] || continue
-          __cs_seen["$__cs_real"]=1
-          # Checked per file rather than per queue-pop: the old bound let a
-          # single config with 70 top-level Includes collect all of them and then
-          # expand none of their nested ones, silently.
-          if [ "${#__cs_cfgs[@]}" -ge 64 ]; then
-            __cs_trunc=1
-            continue
-          fi
-          case "$__cs_real/" in
-            "$__cs_ssh_real/"*)
-              __cs_rel="${__cs_real#"$__cs_ssh_real/"}"
-              mkdir -p "$__cs_tmp/ssh/$(dirname "$__cs_rel")"
-              cp "$__cs_real" "$__cs_tmp/ssh/$__cs_rel"
-              ;;
-          esac
-          __cs_cfgs+=("$__cs_real")
-          __cs_queue+=("$__cs_real")
-        done
-      done
-    done < <(sed -nE 's/^[[:space:]]*[Ii][Nn][Cc][Ll][Uu][Dd][Ee][[:space:]=]+//p' "$__cs_cfg")
-  done
-  if [ "$__cs_trunc" -eq 1 ]; then
-    echo "claude-sandbox: more than 64 ssh config files reachable from ~/.ssh/config; the remainder were not copied, so ssh may resolve some hosts differently inside the sandbox" >&2
-  fi
-
-  # One public key per IdentityFile. Prefer the identity's own .pub from the
-  # real ~/.ssh; fall back to the agent listing only when the choice is
-  # unambiguous — dumping a multi-key `ssh-add -L` into every .pub would make
-  # ssh present the same first key for every host (and on services that map
-  # keys to accounts, authenticate as the wrong identity).
-  __cs_agent=$(ssh-add -L 2>/dev/null) || __cs_agent=""
-  __cs_agent_n=0
-  [ -n "$__cs_agent" ] && __cs_agent_n=$(printf '%s\n' "$__cs_agent" | grep -c .)
-  if [ "${#__cs_cfgs[@]}" -gt 0 ]; then
-    while IFS= read -r __cs_id; do
-      [ -n "$__cs_id" ] || continue
-      # shellcheck disable=SC2088 # matching a literal ~/ token, as ssh writes it
-      case "$__cs_id" in
-        "~/"*) __cs_id="$HOME/${__cs_id#"~/"}" ;;
-        /*) ;;
-        *) continue ;; # %-tokens / cwd-relative names: not resolvable here
-      esac
-      case "$__cs_id" in
-        "$HOME/.ssh/"*)
-          __cs_dst="$__cs_tmp/ssh/${__cs_id#"$HOME/.ssh/"}.pub"
-          mkdir -p "$(dirname "$__cs_dst")"
-          ;;
-        *)
-          # Identity outside ~/.ssh: the private key would stay readable through
-          # the read-only root — mask it. Its real .pub (if any) is still
-          # visible, so agent auth keeps working for that host.
-          __cs_mask "$__cs_id"
-          continue
-          ;;
-      esac
-      [ -e "$__cs_dst" ] && continue
-      if [ -f "$__cs_id.pub" ]; then
-        cp "$__cs_id.pub" "$__cs_dst"
-      elif [ "$__cs_agent_n" -eq 1 ]; then
-        printf '%s\n' "$__cs_agent" >"$__cs_dst"
-      elif [ "$__cs_agent_n" -gt 1 ]; then
-        # Disambiguate by the agent comment, which is usually the key's path.
-        __cs_match=$(printf '%s\n' "$__cs_agent" | grep -F "$(basename "$__cs_id")" || true)
-        if [ -n "$__cs_match" ] && [ "$(printf '%s\n' "$__cs_match" | grep -c .)" -eq 1 ]; then
-          printf '%s\n' "$__cs_match" >"$__cs_dst"
-        else
-          echo "claude-sandbox: no unambiguous agent key for $__cs_id (no .pub beside it, $__cs_agent_n agent keys); skipping" >&2
-        fi
-      else
-        # No .pub beside the key and nothing in the agent to reconstruct one
-        # from: this identity gets no stub, so a later ssh-add cannot rescue it
-        # either. The only unfixable-mid-session case, hence the only warning —
-        # an empty agent alone is not one, since the stub makes ssh-add work at
-        # any point in the session.
-        echo "claude-sandbox: no public key for $__cs_id (no .pub beside it, agent empty); ssh with this identity cannot work this session — create the .pub or ssh-add before launching" >&2
-      fi
-    done < <(
-      sed -nE 's/^[[:space:]]*[Ii][Dd][Ee][Nn][Tt][Ii][Tt][Yy][Ff][Ii][Ll][Ee][[:space:]=]+//p' \
-        "${__cs_cfgs[@]}" | sed -E 's/^"//; s/"$//' | sort -u
-    )
-  fi
-
+  while IFS= read -r __cs_m; do
+    [ -n "$__cs_m" ] && __cs_mask "$__cs_m"
+  done <<<"$__cs_ssh_masks"
   args+=(--ro-bind "$__cs_tmp/ssh" "$HOME/.ssh")
-
-  # If the agent socket itself lives under ~/.ssh, give the sanitized tree a
-  # mountpoint for the re-bind below — bwrap cannot create one through a
-  # read-only mount and would abort namespace setup.
-  case "${SSH_AUTH_SOCK:-}" in
-    "$HOME/.ssh/"*)
-      __cs_rel="${SSH_AUTH_SOCK#"$HOME/.ssh/"}"
-      mkdir -p "$__cs_tmp/ssh/$(dirname "$__cs_rel")"
-      : >"$__cs_tmp/ssh/$__cs_rel"
-      ;;
-  esac
 fi
 
 # The agent socket is the one deliberate unix-socket channel into the
