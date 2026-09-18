@@ -19,4 +19,9 @@
   # search). Here so it lands in packages.tools and is on the interactive PATH
   # inside the terminal, where fzf's reload/preview commands invoke it.
   (import ./fm-query { inherit pkgs; })
+  # Emits the TIOCSTI/TIOCLINUX seccomp filter (seccomp_export_bpf format) that
+  # claude-sandbox.bash feeds to bwrap's --seccomp. Here so it lands in
+  # packages.tools and is on the interactive/host PATH, where the launcher runs
+  # it before exec'ing into the namespace.
+  (import ./claude-seccomp-bpf { inherit pkgs; })
 ]
