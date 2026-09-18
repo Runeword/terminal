@@ -408,12 +408,12 @@ __aliases_() {
     fi
 }
 
-__aliases_or_space() { __on_empty_buffer "__aliases --prefix ' ' --file $PERMEANCE_TREE/.config/shell/functions/leader-aliases" "LBUFFER+=' '; zle autosuggest-fetch"; }
+__aliases_or_space() { __on_empty_buffer __aliases "LBUFFER+=' '; zle autosuggest-fetch"; }
 # __aliases_or_space() { __aliases_; }
 zle -N __aliases_or_space
 bindkey "${KEYS[SPACE]}" __aliases_or_space
 
-__aliases_or_enter() { __on_empty_buffer "__aliases --prefix '^M' --file $PERMEANCE_TREE/.config/shell/functions/leader-aliases" 'zle accept-line'; }
+__aliases_or_enter() { __on_empty_buffer __aliases 'zle accept-line'; }
 zle -N __aliases_or_enter
 bindkey "${KEYS[ENTER]}" __aliases_or_enter
 
