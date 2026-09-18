@@ -220,6 +220,12 @@ __git_pick_files() {
       hunk_apply="apply --reverse --unidiff-zero --recount"
       verb="discard"
       ;;
+    stash)
+      list_cmd='{ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u'
+      diff_preview="$(__git_diff_tracked) || $(__git_diff_untracked)"
+      child_mode="unstaged"
+      verb="stash"
+      ;;
     *) return 1 ;;
   esac
 
@@ -267,6 +273,34 @@ __git_pick_files() {
   local whole_raw whole_quoted
   whole_raw=$(printf '%s\n' "$selected" | sed '/^$/d')
   whole_quoted=$(printf '%s\n' "$whole_raw" | sed "/^$/d; s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' ')
+
+  # gsp finalizes to a single stash of the picked working-tree changes, not an
+  # apply: whole files (tracked or untracked) go to git-stash-hunks --whole (it
+  # diffs the tracked ones and adds the untracked), and drilled files feed their
+  # picked hunks in on stdin. See git-stash-hunks in packages/custom.
+  if [ "$1" = stash ]; then
+    local whole_flags="" hunk_cmds="" sf p idx pq
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      whole_flags="$whole_flags --whole $(__shell_quote "$p")"
+    done < <(printf '%s\n' "$whole_raw")
+    while IFS= read -r sf; do
+      [ -n "$sf" ] || continue
+      p=$(sed -n 1p "$sf")
+      idx=$(sed -n 2p "$sf")
+      if [ -z "$p" ] || [ -z "$idx" ]; then continue; fi
+      printf '%s\n' "$whole_raw" | grep -qxF -- "$p" && continue
+      pq=$(__shell_quote "$p")
+      hunk_cmds="${hunk_cmds:+$hunk_cmds; }$git_cmd diff --unified=0 -- $pq | git-hunk-pick assemble ${idx}"
+    done < <(find "$sd" -maxdepth 1 -type f ! -name .commit 2>/dev/null)
+    rm -rf "$sd"
+    if [ -n "$hunk_cmds" ]; then
+      echo "{ $hunk_cmds; } | git-stash-hunks$whole_flags"
+    elif [ -n "$whole_flags" ]; then
+      echo "git-stash-hunks$whole_flags </dev/null"
+    fi
+    return 0
+  fi
 
   # Whole files first, then one hunk clause per drilled file NOT also selected
   # whole (the whole-file command already covers it, so its hunk apply fails).
@@ -715,22 +749,7 @@ __git_cherry_pick() {
 }
 
 __git_stash_push() {
-  __git_require_repo || return 1
-
-  local list_files="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
-  local -a preview=(
-    --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)"
-    --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
-  )
-
-  local selected_files
-  selected_files=$(__git_fzf_select "$list_files" "${preview[@]}")
-
-  if [ "$selected_files" != "" ]; then
-    local git_cmd
-    git_cmd="$(__git_cmd_prefix)"
-    echo "$git_cmd stash push --include-untracked -- $selected_files"
-  fi
+  __git_pick_files stash
 }
 
 __git_stash_apply() {
