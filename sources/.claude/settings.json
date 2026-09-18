@@ -116,6 +116,11 @@
     "refreshInterval": 2
   },
   "disableClaudeAiConnectors": true,
+  "disableWorkflows": true,
   "disableArtifact": true,
-  "disableRemoteControl": true
+  "disableRemoteControl": true,
+    "skillOverrides": {
+      "code-review": "off",
+      "ultrareview": "off"
+    }
 }
