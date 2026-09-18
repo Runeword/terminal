@@ -170,19 +170,7 @@ __git_prefix_paths() {
 }
 
 __git_add() {
-  __git_require_repo || return 1
-
-  local git_cmd
-  git_cmd="$(__git_cmd_prefix)"
-  local -a preview=(
-    --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)"
-    --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
-  )
-  local args
-  args=$(__git_fzf_select \
-    "{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq" \
-    "${preview[@]}")
-  [ "$args" != "" ] && echo "$git_cmd add -- $args"
+  __git_pick_hunks stage
 }
 
 __git_commit() {
@@ -201,17 +189,21 @@ __git_commit() {
   [ "$args" != "" ] && echo "$git_cmd add -- $args && $git_cmd commit "
 }
 
-# Interactive hunk picker shared by __git_unstage and __git_discard. Captures
-# the relevant diff once, lists its hunks through git-hunk-pick, lets fzf
-# multiselect them with a delta-rendered preview, then echoes (leader flag `e`)
-# a self-contained pipeline that regenerates the diff, keeps only the picked
-# hunks by index, and reverse-applies them. The diff is taken at zero context
+# Interactive hunk picker shared by __git_add, __git_unstage and __git_discard.
+# Captures the relevant diff once, lists its hunks through git-hunk-pick, lets
+# fzf multiselect them with a delta-rendered preview, then echoes (leader flag
+# `e`) a self-contained pipeline that regenerates the diff, keeps only the
+# picked hunks by index, and applies them. The diff is taken at zero context
 # (--unified=0) so each separated change is its own selectable hunk instead of
-# being coalesced with a nearby one at default context; whole unmodified hunks
-# are reverse-applied with --unidiff-zero, so the patch stays valid (a run of
-# strictly adjacent changed lines is still a single hunk). $1 names the change
-# set and target: "staged" reverse-applies to the index (unstage a hunk),
-# "unstaged" to the work tree (discard a hunk). Empty selection echoes nothing.
+# being coalesced with a nearby one at default context; the patch is applied
+# with --unidiff-zero so a zero-context hunk stays valid (a run of strictly
+# adjacent changed lines is still a single hunk). $1 names the operation:
+#   stage   — forward-apply an unstaged hunk into the index     (git add -p)
+#   unstage — reverse-apply a staged hunk out of the index      (git reset -p)
+#   discard — reverse-apply an unstaged hunk out of the work tree
+# Untracked files carry no diff, so — like `git add -p` — they aren't offered by
+# `stage`; `git add --intent-to-add` (the `xga` alias) makes one appear as a
+# hunk. Empty selection echoes nothing.
 __git_pick_hunks() {
   __git_require_repo || return 1
 
@@ -222,11 +214,15 @@ __git_pick_hunks() {
 
   local -a diff_args apply_args
   case "$1" in
-    staged)
+    stage)
+      diff_args=(diff --unified=0)
+      apply_args=(apply --cached --unidiff-zero --recount)
+      ;;
+    unstage)
       diff_args=(diff --cached --unified=0)
       apply_args=(apply --cached --reverse --unidiff-zero --recount)
       ;;
-    unstaged)
+    discard)
       diff_args=(diff --unified=0)
       apply_args=(apply --reverse --unidiff-zero --recount)
       ;;
@@ -268,11 +264,11 @@ __git_pick_hunks() {
 }
 
 __git_unstage() {
-  __git_pick_hunks staged
+  __git_pick_hunks unstage
 }
 
 __git_discard() {
-  __git_pick_hunks unstaged
+  __git_pick_hunks discard
 }
 
 __git_untrack() {
