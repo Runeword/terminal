@@ -2,7 +2,11 @@
 # shellcheck disable=SC2153
 
 __CLAUDE_FZF="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path"
-__CLAUDE_DEFAULT_PLUGINS=(nix-mcp nix-lsp typescript-lsp)
+# nix-mcp is opt-in, not a default: the mcp-nixos server costs ~1.7s to import on
+# every launch (its own server init, not uvx overhead; no faster version exists),
+# so loading it unconditionally taxed every session. Pick it from __claude_plugins
+# (the fzf plugin picker) when you need nixpkgs/option search.
+__CLAUDE_DEFAULT_PLUGINS=(nix-lsp typescript-lsp)
 
 # Prefix that runs claude inside the bubblewrap boundary (scripts/claude-sandbox.bash):
 # whole-process filesystem isolation, which Claude Code's own /sandbox can't provide
