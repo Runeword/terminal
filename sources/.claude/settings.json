@@ -119,6 +119,10 @@
   "disableWorkflows": true,
   "disableArtifact": true,
   "disableRemoteControl": true,
+  "env": {
+    "DISABLE_AUTOUPDATER": "1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+  },
     "skillOverrides": {
       "code-review": "off",
       "ultrareview": "off"
