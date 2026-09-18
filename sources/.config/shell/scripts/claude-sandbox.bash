@@ -791,66 +791,28 @@ if [ -n "${SSH_AUTH_SOCK:-}" ] && [ -S "$SSH_AUTH_SOCK" ]; then
   args+=(--bind "$SSH_AUTH_SOCK" "$SSH_AUTH_SOCK")
 fi
 
-# Fail ioctl(TIOCSTI/TIOCLINUX) with EPERM. bwrap keeps the launching terminal
-# as the controlling tty (--new-session would drop it, and with it the TUI's
-# SIGWINCH), so without this filter the namespace can push characters into that
-# terminal's input queue and the host shell executes them after claude exits —
-# CVE-2017-5226. The kernel is no backstop: LEGACY_TIOCSTI still defaults to y
-# upstream, and dev.tty.legacy_tiocsti is 1 on this host.
-# Emitted as raw cBPF (what bwrap's --seccomp expects, i.e. seccomp_export_bpf
-# format): struct sock_filter { u16 code; u8 jt; u8 jf; u32 k; }, little-endian.
-__cs_bpf() {
-  printf '%b' "$(printf '\\x%02x\\x%02x\\x%02x\\x%02x\\x%02x\\x%02x\\x%02x\\x%02x' \
-    $(($1 & 0xff)) $((($1 >> 8) & 0xff)) "$2" "$3" \
-    $(($4 & 0xff)) $((($4 >> 8) & 0xff)) $((($4 >> 16) & 0xff)) $((($4 >> 24) & 0xff)))"
-}
-# Native arch + its 32-bit compat arch, with ioctl's syscall number under each.
-# BOTH must be filtered: a 32-bit process reports the *compat* arch in
-# seccomp_data.arch (x86_64→i386, arm64→arm), so a filter that recognises only
-# the native arch and then ALLOWs waves that process straight through — the exact
-# TIOCSTI escape this filter exists to close (CVE-2017-5226), trivially reachable
-# on any kernel with the compat ABI compiled in (here CONFIG_IA32_EMULATION=y).
-__cs_seccomp_arch="" __cs_seccomp_carch=""
-case "$(uname -m)" in
-  x86_64)
-    __cs_seccomp_arch=$((0xC000003E)) __cs_nr_ioctl=16
-    __cs_seccomp_carch=$((0x40000003)) __cs_nr_ioctl_c=54
-    ;; # AUDIT_ARCH_I386
-  aarch64)
-    __cs_seccomp_arch=$((0xC00000B7)) __cs_nr_ioctl=29
-    __cs_seccomp_carch=$((0x40000028)) __cs_nr_ioctl_c=54
-    ;; # AUDIT_ARCH_ARM
-esac
-if [ -n "$__cs_seccomp_arch" ]; then
-  {
-    # cBPF over seccomp_data. args[] are 64-bit slots at fixed offsets whatever
-    # the calling ABI, so the TIOCSTI/TIOCLINUX request compare is shared; only
-    # ioctl's syscall number differs per ABI. Instruction indices are noted
-    # because jt/jf are relative jumps that must land exactly. Unknown arch still
-    # ALLOWs (a genuine other-arch multi-arch binary, not the compat bypass,
-    # which is now handled explicitly).
-    __cs_bpf $((0x20)) 0 0 4                     # 0:  A = arch
-    __cs_bpf $((0x15)) 2 0 "$__cs_seccomp_arch"  # 1:  ==native → native nr-check (4)
-    __cs_bpf $((0x15)) 4 0 "$__cs_seccomp_carch" # 2:  ==compat → compat nr-check (7)
-    __cs_bpf $((0x06)) 0 0 $((0x7fff0000))       # 3:  other arch → ALLOW
-    __cs_bpf $((0x20)) 0 0 0                     # 4:  A = syscall nr
-    __cs_bpf $((0x15)) 4 0 "$__cs_nr_ioctl"      # 5:  ==ioctl → request-check (10)
-    __cs_bpf $((0x06)) 0 0 $((0x7fff0000))       # 6:  not ioctl → ALLOW
-    __cs_bpf $((0x20)) 0 0 0                     # 7:  A = syscall nr
-    __cs_bpf $((0x15)) 1 0 "$__cs_nr_ioctl_c"    # 8:  ==ioctl(compat) → request-check (10)
-    __cs_bpf $((0x06)) 0 0 $((0x7fff0000))       # 9:  not ioctl → ALLOW
-    __cs_bpf $((0x20)) 0 0 24                    # 10: A = args[1], the ioctl request
-    __cs_bpf $((0x15)) 2 0 $((0x5412))           # 11: TIOCSTI → block (14)
-    __cs_bpf $((0x15)) 1 0 $((0x541C))           # 12: TIOCLINUX → block (14)
-    __cs_bpf $((0x06)) 0 0 $((0x7fff0000))       # 13: other request → ALLOW
-    __cs_bpf $((0x06)) 0 0 $((0x00050001))       # 14: SECCOMP_RET_ERRNO | EPERM
-  } >"$__cs_tmp/seccomp.bpf"
-  # A numeric fd, so it survives the exec into bwrap.
-  exec 9<"$__cs_tmp/seccomp.bpf"
-  args+=(--seccomp 9)
-else
-  echo "claude-sandbox: no seccomp filter for $(uname -m); TIOCSTI injection into the launching terminal is not blocked" >&2
+# Fail ioctl(TIOCSTI/TIOCLINUX) with EPERM so a process in the namespace cannot
+# push characters into the launching terminal's input queue (CVE-2017-5226) for
+# the host shell to run once claude exits. bwrap keeps the launching terminal as
+# the controlling tty (--new-session would drop it, and with it the TUI's
+# SIGWINCH), and the kernel is no backstop — dev.tty.legacy_tiocsti is 1 here.
+# claude-seccomp-bpf (a libseccomp binary; see packages/custom/claude-seccomp-bpf)
+# emits the filter in the seccomp_export_bpf format --seccomp expects, covering
+# the native and 32-bit compat ABI both, so a compat-arch call can't slip past.
+# Passed to bwrap on a numeric fd, which survives the exec into bwrap below.
+#
+# Required, so it fails closed like the bwrap check at the top of this file: if
+# claude-seccomp-bpf is missing from PATH (a tools env built before it was added)
+# or emits nothing, refuse to launch rather than run claude with the terminal
+# open to injection. There is deliberately no in-place fallback — --new-session
+# would also close the hole but costs the TUI its controlling terminal, which is
+# the whole reason this filter exists — so the only safe move left is to stop.
+if ! claude-seccomp-bpf >"$__cs_tmp/seccomp.bpf" 2>/dev/null || [ ! -s "$__cs_tmp/seccomp.bpf" ]; then
+  echo "claude-sandbox: could not emit the TIOCSTI/TIOCLINUX seccomp filter for $(uname -m) — claude-seccomp-bpf is missing from PATH or produced no output. Refusing to launch, because without it a process in the namespace can inject characters into the launching terminal (CVE-2017-5226) that the host shell runs once claude exits. Rebuild the terminal so its tools env carries claude-seccomp-bpf, or set CLAUDE_SANDBOX=0 to launch unsandboxed." >&2
+  exit 1
 fi
+exec 9<"$__cs_tmp/seccomp.bpf"
+args+=(--seccomp 9)
 
 # The nix-daemon socket stays reachable by design (see the header). For a client
 # the daemon trusts, that is equivalent to root on the host: trusted clients may
