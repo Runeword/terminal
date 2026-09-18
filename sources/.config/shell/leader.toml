@@ -1,0 +1,275 @@
+# Leader-key aliases: press space (or enter) on an empty prompt, then type a
+# chord; the picker narrows on the chord and dispatches the selection.
+#
+# One [group] per tool, one chord per key. A chord is an inline table or, for
+# a submenu (the same chord listed more than once), an array of them; fzf can
+# only resolve those by tab-selecting, since the chord never narrows to one.
+#
+#   cmd  (required)  shell text inserted into the line; <name> marks a placeholder
+#   desc             breadcrumb shown next to the command (the group is prepended)
+#   run  = true      accept the line at once; false leaves it in the line for editing
+#   eval = false     true: cmd prints the real command (fzf-backed helpers), which
+#                    is then inserted (and run unless run = false)
+#
+# Quote cmd with '...' (no escapes); use "..." only when it contains a '.
+# Rendered by leader-aliases (packages/custom); a parse error shows up in the
+# prompt and every chord stays dead until it is fixed.
+
+[zoxide]
+" " = { cmd = '__zoxide_zi', desc = 'jump (fzf)' }
+
+[open]
+ol = { cmd = '__tmux_open_url',       desc = 'url' }
+on = { cmd = '__open_editor_history', desc = 'editor history' }
+oh = { cmd = 'nvim $HISTFILE',        desc = 'history' }
+
+# [ollama]
+# ols = { cmd = 'ollama serve',         desc = 'serve' }
+# olr = { cmd = 'ollama run codellama', desc = 'run' }
+
+[home-manager]
+hgr = { cmd = '__home_manager_generation_remove',                             desc = 'generation › remove' }
+hgs = { cmd = '__home_manager_generation_switch',                             desc = 'generation › switch' }
+hp  = { cmd = '__home_manager_packages_list',                                 desc = 'packages › list' }
+hu  = { cmd = '__update_flake_inputs $HOME_MANAGER_PATH',                     desc = 'inputs › update' }
+# hs  = { cmd = 'home-manager switch --flake $HOME_MANAGER_PATH',               desc = 'config › build/activate' }
+hs  = { cmd = '__home_manager_switch',                                        desc = 'config › build/activate' }
+hd  = { cmd = 'nix-env -p "${XDG_STATE_HOME:-$HOME/.local/state}/nix/profiles/home-manager" --delete-generations old && nix-collect-garbage --verbose', desc = 'garbage › clean' }
+hv  = { cmd = 'home-manager --version',                                       desc = 'version' }
+
+[nixos]
+ngs = { cmd = '__nixos_generation_switch',                      desc = 'generation › switch' }
+ngr = { cmd = '__nixos_generation_remove',                      desc = 'generation › remove' }
+du  = { cmd = '__update_flake_inputs $HOME/.config/nix-darwin', desc = 'darwin › inputs › update' }
+nu  = { cmd = '__update_flake_inputs $NIXOS_PATH',              desc = 'inputs › update' }
+ns  = { cmd = '__nix_system_rebuild',                           desc = 'config › build/boot/activate' }
+nv  = { cmd = 'nixos-version',                                  desc = 'version' }
+ni  = { cmd = 'nix-info -m',                                    desc = 'info' }
+
+[nix]
+np  = { cmd = '__nix_package',                                   desc = 'package › search' }
+npr = { cmd = '__nix_package run',                               desc = 'package › run', eval = true, run = false }
+nps = { cmd = '__nix_package shell',                             desc = 'package › shell', eval = true }
+nd  = { cmd = 'sudo nix-collect-garbage --verbose --delete-old', desc = 'garbage › clean' }
+nl  = { cmd = 'sudo nix-collect-garbage --dry-run --delete-old', desc = 'garbage › list' }
+nc  = { cmd = 'cd /nix/store && __open_file',                    desc = 'store › list' }
+
+[flake]
+# np = { cmd = 'readlink -f result',                                           desc = 'path › show' }
+nb = { cmd = 'nix build --print-out-paths',                                  desc = 'package › build' }
+nr = { cmd = 'nix run',                                                      desc = 'application › run' }
+fl = { cmd = 'nix flake update',                                             desc = 'lock › recreate' }
+fs = { cmd = 'nix flake show',                                               desc = 'outputs › show' }
+fp = { cmd = 'nix path-info . --json | jq',                                  desc = 'references › show' }
+fd = { cmd = "nix store delete $(nix path-info . --json | jq -r '.[].path')", desc = 'references › delete' }
+fr = [
+  { cmd = "nix-store --query --referrers $(nix path-info . --json | jq -r '.[].path')", desc = 'referrers › show' },
+  { cmd = 'rm -rf .direnv .envrc .gitignore nix',                         desc = 'files › remove', run = false },
+]
+fu = { cmd = '__update_flake_inputs .',                                      desc = 'inputs › update' }
+fm = { cmd = 'nix flake metadata',                                           desc = 'metadata' }
+ft = { cmd = '__use_flake_template "github:Runeword/templates"',             desc = 'templates › use' }
+
+[direnv]
+da = { cmd = 'direnv allow',  desc = 'allow' }
+dr = { cmd = 'direnv reload', desc = 'reload' }
+
+[txt]
+td = { cmd = "awk '!seen[$0]++' <source> > <target>",                        desc = 'dedup', run = false }
+ts = { cmd = 'split --lines=1000 --numeric-suffixes=1 <source> <target-prefix>', desc = 'split', run = false }
+
+[json]
+js = { cmd = "__paste | jq '@json' | tee >(__copy)",                  desc = 'to string' }
+jf = { cmd = "__paste | jq '.' | tee >(__copy)",                      desc = 'string › to json' }
+jk = { cmd = "jq --raw-output 'keys[]' <file.json>",                  desc = 'to keys', run = false }
+jp = { cmd = "__paste | jq --raw-output '.' | jq --color-output '.'", desc = 'pretty print' }
+
+[git]
+g = [
+  { cmd = 'lazygit',                   desc = 'tui' },
+  { cmd = 'onefetch --include-hidden', desc = 'repo › info' },
+  { cmd = '__git_set_user',            desc = 'config › set user' },
+]
+gi   = { cmd = '__git_info',                                               desc = 'repo › info' }
+# gia  = { cmd = 'git log --format="%h %an %ae" master..HEAD',               desc = 'authors › info' }
+gh   = { cmd = '__git_install_lefthook',                                   desc = 'lefthook › hook › add' }
+ghi  = { cmd = 'lefthook install',                                         desc = 'lefthook › install' }
+ghr  = { cmd = 'rm -rf .git/info/lefthook-remotes',                        desc = 'lefthook › remote › delete' }
+ghp  = { cmd = '__git_lefthook_pre_commit',                                desc = 'lefthook › pre-commit › run' }
+gl   = { cmd = '__git_log',                                                desc = 'commit › list', eval = true }
+ga   = { cmd = '__git_add',                                                desc = 'file › stage', eval = true }
+gu   = { cmd = '__git_open_url',                                           desc = 'url › open' }
+guc  = { cmd = '__git_open_url commits',                                   desc = 'url › open' }
+xga  = { cmd = 'git add --intent-to-add <file>',                           desc = 'file › track', run = false }
+gt   = { cmd = 'git status',                                               desc = 'file › list' }
+gbl  = { cmd = 'git branch --list',                                        desc = 'branch › list' }
+gbs  = { cmd = '__git_branch_switch',                                      desc = 'branch › switch', eval = true }
+gbc  = { cmd = 'git switch --create <branch>',                             desc = 'branch › new', run = false }
+gbr  = { cmd = 'git branch --move --force <old> <new>',                    desc = 'branch › rename', run = false }
+gm   = { cmd = '__git_merge',                                              desc = 'branch › merge', eval = true }
+gbd = [
+  { cmd = 'git branch --delete --force <branch>', desc = 'branch › delete local', run = false },
+  { cmd = 'git-forgit branch_delete',             desc = 'branch › delete local' },
+]
+gbdr = { cmd = 'git push origin --delete <branch>',                        desc = 'branch › delete remote', run = false }
+gbm  = { cmd = 'git-forgit blame',                                         desc = 'blame (forgit)', run = false }
+gcm  = { cmd = '__git_commit',                                             desc = 'commit › new', eval = true }
+gco  = { cmd = 'git commit',                                               desc = 'commit › new' }
+gca  = { cmd = 'git commit --message --amend <message>',                   desc = 'commit › edit message', run = false }
+gcd  = { cmd = '__git_drop_commit',                                        desc = 'commit › drop', eval = true }
+gcl  = { cmd = '__git_clone Documents/dev',                                desc = 'clone › repo' }
+gcf  = { cmd = 'cloneit',                                                  desc = 'clone › dir/file' }
+gcp  = { cmd = '__git_cherry_pick',                                        desc = 'cherry-pick', eval = true }
+gkf  = { cmd = 'git-forgit checkout_file',                                 desc = 'checkout › file (forgit)', run = false }
+gkt  = { cmd = 'git-forgit checkout_tag',                                  desc = 'checkout › tag (forgit)', run = false }
+gkc  = { cmd = 'git-forgit checkout_commit',                               desc = 'checkout › commit (forgit)', run = false }
+gko  = { cmd = 'git checkout --ours <file>',                               desc = 'merge conflict › keep our', run = false }
+gni  = { cmd = '__git_ignore open',                                        desc = 'open ignored files', eval = true }
+# gnc  = { cmd = 'nvim $(git diff-tree --no-commit-id --name-only -r HEAD)', desc = 'open › last commit' }
+gnb  = { cmd = 'nvim $(git diff --name-only master...)',                   desc = 'open › current branch' }
+gsp  = { cmd = '__git_stash_push',                                         desc = 'stash › untracked/staged/unstaged', eval = true }
+gsa  = { cmd = 'git stash push --include-untracked',                       desc = 'stash › untracked/staged/unstaged' }
+gss  = { cmd = 'git stash push --staged',                                  desc = 'stash › staged' }
+gsu  = { cmd = 'git stash push --include-untracked --keep-index',          desc = 'stash › untracked/unstaged' }
+gsy  = { cmd = '__git_stash_apply',                                        desc = 'stash › apply', eval = true }
+gsc  = { cmd = 'git stash clear',                                          desc = 'stash › delete all', run = false }
+gsf  = { cmd = 'git-forgit stash_push',                                    desc = 'stash › push' }
+gpp  = { cmd = 'git push',                                                 desc = 'push' }
+gpf  = { cmd = 'git push --force',                                         desc = 'push › force', run = false }
+gpu  = { cmd = 'git push --set-upstream origin HEAD',                      desc = 'set upstream branch' }
+gpl = [
+  { cmd = 'git pull',          desc = 'pull' },
+  { cmd = 'git pull --rebase', desc = 'pull › rebase' },
+]
+gf   = { cmd = 'git fetch',                                                desc = 'fetch' }
+gx   = { cmd = 'git absorb --one-fixup-per-commit --base master',          desc = '[1] auto create fixup commits for those changes', run = false }
+gxr  = { cmd = 'git absorb --base master --and-rebase',                    desc = '[2] auto rebase interactively and squash the fixups', run = false }
+# gx   = { cmd = 'git commit --fixup SHA',                                   desc = '[1] fix commit with staged changes', run = false }
+# gxr  = { cmd = 'git rebase --interactive --autosquash SHA^',               desc = '[2] fix commit with staged changes', run = false }
+grd  = { cmd = '__git_discard',                                            desc = 'discard', eval = true }
+gru  = { cmd = '__git_unstage',                                            desc = 'unstage', eval = true }
+grt  = { cmd = '__git_untrack',                                            desc = 'untrack', eval = true }
+grm  = { cmd = '__git_rm_untracked',                                       desc = 'remove untracked files', eval = true }
+gri  = { cmd = '__git_ignore remove',                                      desc = 'remove ignored files', eval = true }
+grb  = { cmd = 'git-forgit rebase --interactive',                          desc = 'interactive rebase', run = false }
+grh  = { cmd = 'git reset --hard',                                         desc = 'delete staged + unstaged', run = false }
+gro  = { cmd = 'git reset --hard origin/$(git branch --show-current)',     desc = 'make the local branch identical to the remote branch' }
+grs  = { cmd = '__git_reset_soft',                                         desc = 'revert commits and unstage their changes starting from the selected commit', eval = true }
+grth = { cmd = 'git reset --hard HEAD~<n>',                                desc = 'revert last n commit and delete their changes', run = false }
+# gcln = { cmd = 'git-forgit clean --force -d',                              desc = 'delete untracked files and directories', run = false }
+gda  = { cmd = '__git_diff',                                               desc = 'show staged/unstaged/untracked', eval = true }
+gdc  = { cmd = '__git_diff staged',                                        desc = 'show staged changes', eval = true }
+gdd  = { cmd = '__git_diff unstaged',                                      desc = 'show unstaged changes', eval = true }
+gdb  = { cmd = '__git_diff_branches',                                      desc = 'show diff between 2 branches', eval = true }
+gdv  = { cmd = '__git_diff_revs',                                          desc = 'diff 2 files across 2 revs', eval = true }
+gdps = { cmd = '__git_patch staged',                                       desc = 'write staged changes to a patch', eval = true }
+gdpu = { cmd = '__git_patch unstaged',                                     desc = 'write unstaged changes to a patch', eval = true }
+gdpc = { cmd = '__git_patch committed',                                    desc = 'write commits to patches (format-patch)', eval = true }
+gwa  = { cmd = '__git_worktree_add',                                       desc = 'worktree › add', eval = true }
+gwr  = { cmd = '__git_worktree_remove',                                    desc = 'worktree › remove', eval = true }
+gws  = { cmd = '__git_worktree_switch',                                    desc = 'worktree › switch', eval = true }
+
+[go]
+gog  = { cmd = 'go get',             desc = 'get', run = false }
+gor  = { cmd = 'go run',             desc = 'run', run = false }
+gom  = { cmd = 'go mod tidy',        desc = 'mod › tidy' }
+goc  = { cmd = 'go clean -modcache', desc = 'clean › modcache', run = false }
+got  = { cmd = 'go test',            desc = 'test', run = false }
+god  = { cmd = '__go_dev',           desc = 'dev › build' }
+gow  = { cmd = '__go_watch',         desc = 'dev › watch' }
+godc = { cmd = '__go_dev clean',     desc = 'dev › clean' }
+
+[gcloud]
+gc = [
+  { cmd = 'gcloud auth login',                                            desc = 'auth › login' },
+  { cmd = 'gcloud config set project <project>',                          desc = 'project › set', run = false },
+  { cmd = 'gcloud secrets list',                                          desc = 'secret › list', run = false },
+  { cmd = 'gcloud secrets versions access latest --secret=<secret>',      desc = 'secret › get', run = false },
+  { cmd = 'echo <value> | gcloud secrets versions add <secret> --data-file=-', desc = 'secret › set', run = false },
+]
+
+[task]
+# xtw = { cmd = 'task --watch build > /dev/null 2>&1 &',             desc = 'watch', run = false }
+xtb = { cmd = "tmux split-window -v -l 5 -d 'task --watch build'", desc = 'watch' }
+xtk = { cmd = 'pkill -f "task --watch build"',                     desc = 'kill' }
+
+[pass]
+pap = { cmd = 'pass git push',              desc = 'git push', run = false }
+pai = { cmd = 'pass insert',                desc = 'insert', run = false }
+pag = { cmd = 'pass generate',              desc = 'generate', run = false }
+pac = { cmd = '__pass_clip',                desc = 'clip', run = false }
+par = { cmd = '__pass_rm',                  desc = 'remove', run = false }
+pak = { cmd = 'gpgconf --reload gpg-agent', desc = 'reload gpg-agent', run = false }
+pl  = { cmd = 'pass',                       desc = 'list' }
+
+[python]
+pee = { cmd = 'rm -r .venv 2>/dev/null ; python3.12 -m venv .venv && source .venv/bin/activate', desc = 'venv › recreate' }
+pec = { cmd = 'python3.12 -m venv .venv',                                     desc = 'venv › create' }
+pea = { cmd = 'source .venv/bin/activate',                                    desc = 'venv › activate' }
+ped = { cmd = 'deactivate',                                                   desc = 'venv › deactivate' }
+per = { cmd = 'rm -r .venv',                                                  desc = 'venv › remove', run = false }
+pi  = { cmd = 'pip install -r <requirements>',                                desc = 'package › install', run = false }
+pil = { cmd = 'pip list',                                                     desc = 'package › list' }
+pv  = { cmd = 'python --version',                                             desc = 'version' }
+pb  = { cmd = 'brew list | grep python',                                      desc = 'version › list' }
+
+[claude]
+cl  = { cmd = '__claude',                                          desc = 'start' }
+cr  = { cmd = '__claude --resume',                                 desc = 'resume' }
+cpl = { cmd = '__claude_plugins',                                  desc = 'plugins' }
+cpr = { cmd = '__claude_plugins --resume',                         desc = 'plugins › resume' }
+cd  = { cmd = '__claude_debug',                                    desc = 'debug' }
+cf  = { cmd = 'CLAUDE_SANDBOX_ALLOW_FIREBASE=1 __claude',          desc = 'firebase' }
+cfr = { cmd = 'CLAUDE_SANDBOX_ALLOW_FIREBASE=1 __claude --resume', desc = 'firebase › resume' }
+
+[chezmoi]
+chd  = { cmd = 'chezmoi diff --reverse',            desc = 'diff --reverse' }
+chi  = { cmd = 'chezmoi ignored',                   desc = 'ignored' }
+chc  = { cmd = '__chezmoi_cd',                      desc = 'cd' }
+che  = { cmd = 'chezmoi --refresh-externals apply', desc = 'apply --refresh-externals' }
+chr  = { cmd = 'chezmoi state reset',               desc = 'reset chezmoi local state', run = false }
+cha  = { cmd = '__chezmoi add',                     desc = 'add' }
+xcha = { cmd = '__chezmoi add',                     desc = 'add', run = false }
+chy  = { cmd = '__chezmoi apply',                   desc = 'apply' }
+xchy = { cmd = '__chezmoi apply',                   desc = 'apply', run = false }
+chf  = { cmd = '__chezmoi_forget',                  desc = 'forget' }
+xchf = { cmd = '__chezmoi_forget',                  desc = 'forget', run = false }
+cht  = { cmd = '__chezmoi_status',                  desc = 'status' }
+chm  = { cmd = '__chezmoi_managed',                 desc = 'managed' }
+chp  = { cmd = '__chezmoi_private',                 desc = 'private', run = false }
+chpa = { cmd = '__chezmoi_private add',             desc = 'private › add', run = false }
+chpy = { cmd = '__chezmoi_private apply',           desc = 'private › apply', run = false }
+chs  = { cmd = '__chezmoi_shared',                  desc = 'shared', run = false }
+chsa = { cmd = '__chezmoi_shared add',              desc = 'shared › add', run = false }
+chsy = { cmd = '__chezmoi_shared apply',            desc = 'shared › apply', run = false }
+
+[aws]
+al = { cmd = 'aws sso login',                                 desc = 'sso › login' }
+ap = { cmd = 'aws configure list-profiles',                   desc = 'profiles › list', run = false }
+af = { cmd = 'aws lambda list-functions --profile <profile>', desc = 'lambda › list', run = false }
+ab = { cmd = 'sam build',                                     desc = 'lambda › build', run = false }
+as = { cmd = 'sam local start-api --profile <profile>',       desc = 'lambda › start/local', run = false }
+ai = { cmd = 'sam init --runtime go --package-type Image',    desc = 'lambda › init/go', run = false }
+
+[docker]
+dsl = { cmd = 'docker system df',                            desc = 'system › list' }
+dsp = { cmd = 'docker system prune --force --all --volumes', desc = 'system › remove unused containers, networks, images, volumes, build cache' }
+dnl = { cmd = 'docker network ls',                           desc = 'network › list' }
+dnp = { cmd = 'docker network prune --force',                desc = 'network › remove unused' }
+dvl = { cmd = 'docker volume ls',                            desc = 'volume › list' }
+dvp = { cmd = 'docker volume prune --force --all',           desc = 'volume › remove unused' }
+dcs = { cmd = 'docker compose stop',                         desc = 'compose › stop' }
+dcl = { cmd = 'docker container ls --all',                   desc = 'container › list' }
+dcp = { cmd = 'docker container prune --force',              desc = 'container › remove unused' }
+dil = { cmd = 'docker image ls --all',                       desc = 'image › list' }
+dip = { cmd = 'docker image prune --force --all',            desc = 'image › remove unused' }
+
+[typescript]
+tx = { cmd = 'npx tsx <file>', desc = 'execute', run = false }
+tc = { cmd = 'npx tsc',        desc = 'compile', run = false }
+
+[rsync]
+rs = { cmd = '__rsync <source> <target>', desc = 'file/dir › copy', run = false }
+
+[node]
+yi = { cmd = 'yarn install --frozen-lockfile', desc = 'install' }
