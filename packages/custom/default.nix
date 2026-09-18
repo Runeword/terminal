@@ -19,6 +19,12 @@
   # search). Here so it lands in packages.tools and is on the interactive PATH
   # inside the terminal, where fzf's reload/preview commands invoke it.
   (import ./fm-query { inherit pkgs; })
+  # Splits a git diff into selectable hunks and reassembles a chosen subset into
+  # a valid patch. Backs the interactive hunk pickers behind the grd/gru leader
+  # aliases (sources/.config/shell/functions/git.bash). Here so it lands in
+  # packages.tools and is on the interactive PATH inside the terminal, where
+  # those functions and their fzf preview invoke it by bare name.
+  (import ./git-hunk-pick { inherit pkgs; })
   # Emits the TIOCSTI/TIOCLINUX seccomp filter (seccomp_export_bpf format) that
   # claude-sandbox.bash feeds to bwrap's --seccomp. Here so it lands in
   # packages.tools and is on the interactive/host PATH, where the launcher runs
