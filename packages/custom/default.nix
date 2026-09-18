@@ -29,4 +29,8 @@
   # binds into the namespace. Same reason it is here: the launcher invokes it on
   # the interactive/host PATH before exec'ing into bwrap.
   (import ./claude-ssh-sanitize { inherit pkgs; })
+  # Decides whether claude-sandbox.bash may bind the cwd read-write (refuses
+  # $HOME/XDG-root/login-exec-tree cwds). The launcher passes the physical cwd
+  # and calls it before building the namespace; here for the same host-PATH reason.
+  (import ./claude-cwd-gate { inherit pkgs; })
 ]
