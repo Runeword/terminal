@@ -23,6 +23,16 @@ __claude_sandbox_prefix() {
     echo "claude: bwrap not found on PATH; refusing to launch unsandboxed (CLAUDE_SANDBOX=0 to override)" >&2
     return 1
   fi
+  # The launcher applies a seccomp filter (from claude-seccomp-bpf) that stops the
+  # namespace injecting characters into this terminal (TIOCSTI, CVE-2017-5226), and
+  # fails closed without it. Pre-check it here, in the calling shell, so a missing
+  # binary is reported where it can be read — the launcher's own refusal would land
+  # in the `tmux new-window` pane, which clears the moment it dies. Same rationale
+  # as the bwrap pre-check above and the --check-cwd gate below.
+  if ! command -v claude-seccomp-bpf >/dev/null 2>&1; then
+    echo "claude: claude-seccomp-bpf not found on PATH; it emits the TIOCSTI seccomp filter the sandbox needs and the launcher fails closed without it. Refusing to launch — rebuild the terminal to pick it up, or CLAUDE_SANDBOX=0 to override." >&2
+    return 1
+  fi
   if [ ! -x "$script" ]; then
     echo "claude: $script is missing or not executable; refusing to launch unsandboxed (CLAUDE_SANDBOX=0 to override)" >&2
     return 1
