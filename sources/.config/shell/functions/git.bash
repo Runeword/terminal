@@ -110,13 +110,18 @@ __git_diff_tracked() {
   printf '{ %s && %s; }' "$check" "$diff"
 }
 
+# $1 overrides the fzf field placeholder the preview reads (default "{}", the
+# whole line). __git_add lists untracked files as one field of a wider tagged
+# row, so it passes "{2}" to point the same preview at that field instead.
 __git_diff_untracked() {
+  local ph="$1"
+  [ -z "$ph" ] && ph='{}'
   local root quoted
   root="$(git rev-parse --show-toplevel)"
   quoted="$(__shell_quote "$root")"
-  local link="cd $quoted && test -L {} && readlink {}"
-  local dir="cd $quoted && test -d {} && ls -la -- {}"
-  local diff="cd $quoted && ! test -L {} && git diff --ignore-space-change --no-index --color=always /dev/null {} | $_GIT_PAGER"
+  local link="cd $quoted && test -L $ph && readlink $ph"
+  local dir="cd $quoted && test -d $ph && ls -la -- $ph"
+  local diff="cd $quoted && ! test -L $ph && git diff --ignore-space-change --no-index --color=always /dev/null $ph | $_GIT_PAGER"
   printf '{ %s || %s || %s; }' "$link" "$dir" "$diff"
 }
 
@@ -169,8 +174,77 @@ __git_prefix_paths() {
   printf '%s' "${list// $q/ $q$cdup}"
 }
 
+# Stage picker (leader alias `ga`). Offers, in one fzf list, both the hunks of
+# tracked changes and every untracked file, and echoes (leader flag `e`) a
+# command that stages exactly the selection: picked hunks are forward-applied
+# to the index (like `git add -p`), picked untracked files are added whole
+# (they carry no diff to slice). Each row is TAB-tagged so the selection can be
+# split back apart and the preview can branch on the kind:
+#   h <TAB> INDEX <TAB> label   a hunk of a tracked file
+#   u <TAB> PATH  <TAB> label   an untracked file
+# The tracked diff is captured once at zero context (--unified=0) so each
+# separated change is its own hunk; the assembled subset forward-applies with
+# --unidiff-zero. Empty selection echoes nothing.
 __git_add() {
-  __git_pick_hunks stage
+  __git_require_repo || return 1
+
+  local git_cmd repo_root git_dir
+  git_cmd="$(__git_cmd_prefix)"
+  repo_root="$(git rev-parse --show-toplevel)"
+  git_dir="$(git rev-parse --absolute-git-dir)"
+
+  # Capture the unstaged (tracked) diff once — explicit --git-dir/--work-tree so
+  # a detached git dir resolves too — to feed both the fzf list and its hunk
+  # previews without re-running git per keystroke.
+  local diff_file
+  diff_file="$(mktemp)" || return 1
+  git --git-dir="$git_dir" --work-tree="$repo_root" diff --unified=0 >"$diff_file"
+
+  # Preview branches on the row's kind (field 1): a hunk reassembles from the
+  # captured diff; an untracked file reuses __git_diff_untracked pointed at the
+  # path field (field 2). fzf single-quotes {1}/{2} for the shell.
+  local dq hunk_prev file_prev
+  dq="$(__shell_quote "$diff_file")"
+  hunk_prev="git-hunk-pick assemble {2} <$dq | $_GIT_PAGER"
+  file_prev="$(__git_diff_untracked '{2}')"
+  local -a preview=(
+    --preview "echo {3..}; if [ {1} = h ]; then $hunk_prev; else $file_prev; fi"
+    --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
+  )
+
+  # Merge both tagged row sources into one multiselect picker. fzf shows only
+  # the label (field 3..) but its output keeps the full line, so awk recovers
+  # the tag (field 1) and payload (field 2) from each selected row.
+  local selection
+  selection=$(
+    {
+      git-hunk-pick list <"$diff_file" | awk -F'\t' 'BEGIN { OFS = "\t" } { print "h", $0 }'
+      git --git-dir="$git_dir" --work-tree="$repo_root" ls-files --others --exclude-standard |
+        awk -F'\t' 'BEGIN { OFS = "\t" } { print "u", $0, $0 " (untracked)" }'
+    } | fzf "${_GIT_FZF_DEFAULT[@]}" --delimiter='\t' --with-nth=3.. "${preview[@]}"
+  )
+  rm -f "$diff_file"
+  [ "$selection" = "" ] && return 0
+
+  local indices files
+  indices=$(printf '%s\n' "$selection" | awk -F'\t' '$1 == "h" { print $2 }' | tr '\n' ' ')
+  files=$(printf '%s\n' "$selection" | awk -F'\t' '$1 == "u" { print $2 }' |
+    sed "s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' ')
+
+  # Untracked files are staged whole; picked hunks forward-apply to the index.
+  # Emit only the clauses that have a selection, joined with && so both run.
+  local add_cmd="" hunk_cmd=""
+  [ -n "$files" ] && add_cmd="$git_cmd add -- $files"
+  [ -n "$indices" ] &&
+    hunk_cmd="$git_cmd diff --unified=0 | git-hunk-pick assemble ${indices}| $git_cmd apply --cached --unidiff-zero --recount"
+
+  if [ -n "$add_cmd" ] && [ -n "$hunk_cmd" ]; then
+    echo "$add_cmd && $hunk_cmd"
+  elif [ -n "$add_cmd" ]; then
+    echo "$add_cmd"
+  elif [ -n "$hunk_cmd" ]; then
+    echo "$hunk_cmd"
+  fi
 }
 
 __git_commit() {
@@ -189,21 +263,17 @@ __git_commit() {
   [ "$args" != "" ] && echo "$git_cmd add -- $args && $git_cmd commit "
 }
 
-# Interactive hunk picker shared by __git_add, __git_unstage and __git_discard.
-# Captures the relevant diff once, lists its hunks through git-hunk-pick, lets
-# fzf multiselect them with a delta-rendered preview, then echoes (leader flag
-# `e`) a self-contained pipeline that regenerates the diff, keeps only the
-# picked hunks by index, and applies them. The diff is taken at zero context
+# Interactive hunk picker shared by __git_unstage and __git_discard. Captures
+# the relevant diff once, lists its hunks through git-hunk-pick, lets fzf
+# multiselect them with a delta-rendered preview, then echoes (leader flag `e`)
+# a self-contained pipeline that regenerates the diff, keeps only the picked
+# hunks by index, and reverse-applies them. The diff is taken at zero context
 # (--unified=0) so each separated change is its own selectable hunk instead of
-# being coalesced with a nearby one at default context; the patch is applied
-# with --unidiff-zero so a zero-context hunk stays valid (a run of strictly
-# adjacent changed lines is still a single hunk). $1 names the operation:
-#   stage   — forward-apply an unstaged hunk into the index     (git add -p)
-#   unstage — reverse-apply a staged hunk out of the index      (git reset -p)
-#   discard — reverse-apply an unstaged hunk out of the work tree
-# Untracked files carry no diff, so — like `git add -p` — they aren't offered by
-# `stage`; `git add --intent-to-add` (the `xga` alias) makes one appear as a
-# hunk. Empty selection echoes nothing.
+# being coalesced with a nearby one at default context; whole unmodified hunks
+# are reverse-applied with --unidiff-zero, so the patch stays valid (a run of
+# strictly adjacent changed lines is still a single hunk). $1 names the change
+# set and target: "staged" reverse-applies to the index (unstage a hunk),
+# "unstaged" to the work tree (discard a hunk). Empty selection echoes nothing.
 __git_pick_hunks() {
   __git_require_repo || return 1
 
@@ -214,15 +284,11 @@ __git_pick_hunks() {
 
   local -a diff_args apply_args
   case "$1" in
-    stage)
-      diff_args=(diff --unified=0)
-      apply_args=(apply --cached --unidiff-zero --recount)
-      ;;
-    unstage)
+    staged)
       diff_args=(diff --cached --unified=0)
       apply_args=(apply --cached --reverse --unidiff-zero --recount)
       ;;
-    discard)
+    unstaged)
       diff_args=(diff --unified=0)
       apply_args=(apply --reverse --unidiff-zero --recount)
       ;;
@@ -264,11 +330,11 @@ __git_pick_hunks() {
 }
 
 __git_unstage() {
-  __git_pick_hunks unstage
+  __git_pick_hunks staged
 }
 
 __git_discard() {
-  __git_pick_hunks discard
+  __git_pick_hunks unstaged
 }
 
 __git_untrack() {
