@@ -16,23 +16,32 @@
 #     store, /tmp — all created up front so a first run can't hit EROFS
 #   - the host-executed files inside those writable regions are re-pinned
 #     read-only on top of them (bwrap applies binds in order, so a later
-#     --ro-bind wins): $PERMEANCE_TREE's direnvrc/zshrc, $PWD/.direnv/bin,
-#     direnv's source_url CAS, $PWD/.git/{hooks,config} and lefthook*.yml.
-#     Writing one line into any of them is host code execution on the user's
-#     next cd or commit, which would undo every mask below. This is a named
-#     list, not a guarantee about the whole cwd: flake.nix and devshells/ stay
-#     writable because editing them is the point of the repo, so a poisoned
-#     shellHook re-evaluated by direnv remains a residual hole here.
-#     CLAUDE_SANDBOX_UNLOCK_SOURCES=1 lifts exactly one of these locks — the
-#     $PERMEANCE_TREE one, for sessions deliberately editing shell config. The
-#     rest ($PWD/.direnv, direnv's CAS, $PWD/.git/{hooks,config},
-#     lefthook*.yml) are never what such a session set out to edit, so they
-#     hold unconditionally: one flag that dropped all five turned "edit a zsh
-#     alias" into "hand over the git hook path for the session".
-#     When the flag is set the tree is bound read-write explicitly rather than
-#     merely left unlocked, so it works from any cwd — the lock-only form was a
-#     silent no-op whenever $PERMEANCE_TREE lay outside the writable cwd, i.e.
-#     every launch from a project other than the one holding the tree.
+#     --ro-bind wins): $PWD/.direnv/bin, direnv's source_url CAS,
+#     $PWD/.git/{hooks,config} and lefthook*.yml. Writing one line into any of
+#     them is host code execution on the user's next cd or commit, which would
+#     undo every mask below. This is a named list, not a guarantee about the
+#     whole cwd: flake.nix and devshells/ stay writable because editing them is
+#     the point of the repo; what keeps a poisoned shellHook off the host is
+#     nix-direnv's manual-reload mode, set in $PERMEANCE_TREE's direnvrc, which
+#     turns a changed flake into a notice plus an explicit `nix-direnv-reload`
+#     instead of a silent re-evaluation on the next cd.
+#   - $PERMEANCE_TREE — the live sources/ tree — is bound read-write. This is
+#     the one deliberate hole in the rule above, and the widest: every host
+#     shell sources .zshrc and functions/*.sh from it, the tmux config
+#     run-shells ~50 paths in it, DIRENV_CONFIG points at its direnvrc (which
+#     direnv's allow-hash does not cover), and claude.bash executes this very
+#     launcher from it. So a sandboxed session can rewrite the host's shell
+#     config, and this boundary for the next launch, and the host runs what it
+#     wrote at the next shell. The tree is git-tracked: review is
+#     `git diff -- sources` and undo is `git checkout -- sources`, both on the
+#     host, both after the fact. An overlay with a host-side review step held
+#     this line until 2026-09-18 and was dropped as too much workflow for a
+#     config repo; git history has it. Bundled mode resolves $PERMEANCE_TREE
+#     to a root-owned store path, read-only however it is bound, so nothing is
+#     bound there. One file is re-pinned read-only from the host copy on top
+#     of the bind: .claude/git-allowlist.toml, which the git-shim re-reads on
+#     every call — a writable copy would let a session widen its own allowlist
+#     mid-run. It is edited from a plain terminal.
 #   - a seccomp filter fails ioctl(TIOCSTI/TIOCLINUX) with EPERM. Without it the
 #     namespace can push characters into the launching terminal's input queue
 #     (CVE-2017-5226) and the host shell runs them once claude exits — bwrap's
@@ -244,13 +253,8 @@ __cs_relock() {
 
 # Everything the *host* shell sources or executes, re-pinned read-only over the
 # writable regions above. Each of these is host code execution, not merely a
-# weaker next sandbox:
-#   - $PERMEANCE_TREE: .zshrc/.bashrc source every functions/*.sh from it, the
-#     tmux config run-shells ~50 paths in it, DIRENV_CONFIG points at its
-#     direnvrc (which direnv's allow-hash does not cover — that hash is for
-#     .envrc only), and claude.bash executes the launcher from it, so a write
-#     here also rewrites this boundary for the next launch. Also read by the
-#     git-shim on every git call, which re-reads git-allowlist.toml each time.
+# weaker next sandbox ($PERMEANCE_TREE would head this list; it is the one
+# region left writable on purpose — see the header and the bind below):
 #   - $PWD/.direnv: nix-direnv puts bin/ on the host PATH and the host shell
 #     evals flake-profile-*.rc on each direnv load.
 #   - direnv's source_url CAS: cmd_fetchurl returns a cache hit by path without
@@ -272,10 +276,10 @@ fi
 if [ -d "$PWD/.git" ]; then
   mkdir -p "$PWD/.git/hooks"
 fi
-# Unconditional locks. CLAUDE_SANDBOX_UNLOCK_SOURCES does not reach these: a
-# session that sets it is editing shell config, never .git/hooks or lefthook.yml,
-# so lifting them together only widened the boundary for no gain — "edit a zsh
-# alias" also meant "the git hook path is writable until this session ends".
+# Unconditional locks. No flag lifts these, and the writable $PERMEANCE_TREE
+# below does not reach them: a session editing shell config never needs
+# .git/hooks or lefthook.yml, so opening those alongside would only widen the
+# boundary for no gain.
 #
 # Each lock is attempted only where the tool it protects is actually in play,
 # so a target recorded as absent below is a real anomaly rather than "this repo
@@ -293,9 +297,12 @@ fi
 # `git config`/`git remote` writes inside the sandbox are refused outright now
 # that no flag lifts this; reads, commits, staging, and checkout are unaffected).
 # flake.nix/flake.lock/devshells stay writable by necessity — editing this flake
-# is the repo's purpose — so a poisoned shellHook re-evaluated by direnv on the
-# next cd is a residual risk this lock does not cover (.envrc is self-guarding
-# via direnv's allow-hash; flake.nix is not).
+# is the repo's purpose — so a poisoned shellHook could reach the host through
+# direnv's re-evaluation (.envrc is self-guarding via direnv's allow-hash;
+# flake.nix is not). That path is closed in $PERMEANCE_TREE's direnvrc, which
+# puts nix-direnv in manual-reload mode: an outdated flake keeps the cached env
+# and prints a notice, and `nix-direnv-reload` — generated into $PWD/.direnv/bin,
+# relocked above — is the human step.
 if [ -d "$PWD/.git" ]; then
   __cs_relock "$PWD/.git/hooks"
   __cs_relock "$PWD/.git/config"
@@ -312,41 +319,34 @@ for __cs_lh in "$PWD/lefthook.yml" "$PWD/lefthook-generated.yml"; do
 done
 __cs_relock "${XDG_CACHE_HOME:-$HOME/.cache}/direnv/cas"
 
-# The single lock CLAUDE_SANDBOX_UNLOCK_SOURCES lifts, applied last so the
-# read-write bind wins over anything above it that happens to contain the tree.
-#
-# Bound read-write explicitly rather than just left unlocked. Omitting the lock
-# only helps where the tree already sits inside the writable cwd, so `cu` from
-# any other project was a silent no-op — the tree stayed read-only through the
-# root bind and the warning below claimed otherwise. An explicit bind makes the
-# flag mean the same thing from every directory.
-if [ "${CLAUDE_SANDBOX_UNLOCK_SOURCES:-0}" = "1" ]; then
-  case "${PERMEANCE_TREE:-}" in
-    "")
-      echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_SOURCES=1 has nothing to unlock — PERMEANCE_TREE is unset" >&2
-      ;;
-    # Bundled mode resolves PERMEANCE_TREE to the wrapper's own store path, which
-    # is root-owned and read-only however it is bound. Say so instead of emitting
-    # a bind that cannot work: the tree the user means to edit is their working
-    # copy, reachable only by launching with PERMEANCE_ROOT set to it.
-    /nix/store/*)
-      echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_SOURCES=1 has nothing to unlock — PERMEANCE_TREE is a store path ($PERMEANCE_TREE); relaunch the terminal with PERMEANCE_ROOT pointing at your working tree" >&2
-      ;;
-    *)
-      if [ -d "$PERMEANCE_TREE" ]; then
-        args+=(--bind "$PERMEANCE_TREE" "$PERMEANCE_TREE")
-        echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_SOURCES=1 — $PERMEANCE_TREE is writable; edits to it run on your host, outside this sandbox" >&2
-      else
-        echo "claude-sandbox: CLAUDE_SANDBOX_UNLOCK_SOURCES=1 has nothing to unlock — PERMEANCE_TREE '$PERMEANCE_TREE' is not a directory" >&2
+# The live sources tree, bound read-write: the one host-executed region this
+# file leaves open (see the header). Bound explicitly rather than merely left
+# unlocked, and after the relocks above so it wins over anything that happens
+# to contain it: the tree sits inside the writable cwd only when launching from
+# the repo that holds it, and from any other project the root read-only bind
+# would cover it. Bundled mode resolves $PERMEANCE_TREE to a store path —
+# root-owned and read-only however it is bound — so nothing is bound there;
+# edits need a working tree, reached by launching with PERMEANCE_ROOT set.
+# .claude/git-allowlist.toml is re-pinned from the host copy on top of the
+# bind: the git-shim re-reads it on every call, and a writable copy would let a
+# session widen its own allowlist mid-run. It is edited from a plain terminal.
+case "${PERMEANCE_TREE:-}" in
+  "")
+    echo "claude-sandbox: WARNING — PERMEANCE_TREE is unset; git-allowlist.toml cannot be pinned, and the shell config tree is writable wherever the cwd bind covers it" >&2
+    ;;
+  /nix/store/*) ;;
+  *)
+    if [ -d "$PERMEANCE_TREE" ]; then
+      args+=(--bind "$PERMEANCE_TREE" "$PERMEANCE_TREE")
+      if [ -f "$PERMEANCE_TREE/.claude/git-allowlist.toml" ]; then
+        args+=(--ro-bind "$PERMEANCE_TREE/.claude/git-allowlist.toml" "$PERMEANCE_TREE/.claude/git-allowlist.toml")
       fi
-      ;;
-  esac
-else
-  if [ -z "${PERMEANCE_TREE:-}" ]; then
-    echo "claude-sandbox: WARNING — PERMEANCE_TREE is unset, so the shell config tree cannot be locked; anything written to it runs on your host" >&2
-  fi
-  __cs_relock "${PERMEANCE_TREE:-}"
-fi
+      echo "claude-sandbox: $PERMEANCE_TREE is writable — edits there run on your host at the next shell; review with git diff -- sources" >&2
+    else
+      echo "claude-sandbox: WARNING — PERMEANCE_TREE '$PERMEANCE_TREE' is not a directory; nothing bound" >&2
+    fi
+    ;;
+esac
 if [ "${#__cs_unlocked[@]}" -gt 0 ]; then
   echo "claude-sandbox: absent, so not locked: ${__cs_unlocked[*]} — nothing stops the sandbox creating them, and your host runs what it finds there" >&2
 fi
