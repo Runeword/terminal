@@ -169,21 +169,59 @@ __git_prefix_paths() {
   printf '%s' "${list// $q/ $q$cdup}"
 }
 
-# Stage picker (leader alias `ga`), a two-level fzf. The top list is every file
-# with changes (modified tracked + untracked); Tab multi-selects whole files to
-# `git add`. Right on a file opens a second picker — git-add-hunks.sh, run via
-# execute (which preserves the Tab marks) — to select individual hunks of that
-# file; Left or Enter there returns here. Enter in the files list finalizes and
-# echoes (leader flag `e`) a command that `git add`s the whole files and
-# forward-applies the picked hunks of the others to the index (`git add -p`
-# mechanics); Esc cancels. Enter is bound through `become` so it prints only the
-# marked whole files — nothing when none are marked, since a bare fzf Enter
-# would otherwise return the focused row and spuriously stage it — and drops a
-# `.commit` sentinel so Esc (no sentinel) is distinguishable from a hunks-only
-# finalize. Per-file hunk picks live in a temp state dir shared with the child,
-# keyed by base64 of the path.
-__git_add() {
+# Two-level stage / unstage / discard picker behind ga / gru / grd. $1 is the
+# op; only these differ per op:
+#
+#   op       files listed          preview diff   whole-file cmd        child mode  hunk diff         hunk apply
+#   stage    unstaged + untracked  tracked/untr.  git add               unstaged    diff -U0          apply --cached
+#   unstage  staged                staged         git restore --staged  staged      diff --cached -U0 apply --cached --reverse
+#   discard  unstaged (tracked)    tracked        git restore           unstaged    diff -U0          apply --reverse
+#
+# The top fzf lists the files; Tab multi-selects whole files, Right drills into
+# git-file-hunks.sh for that file's hunks (execute preserves the Tab marks; a
+# reload would drop them, refresh-preview redraws the marker on return), Left or
+# Enter there returns. Enter in the files list finalizes and echoes (leader flag
+# `e`) the whole-file command plus one hunk clause per drilled file NOT also
+# selected whole (the whole-file command already covers it, so a following hunk
+# apply would fail). Enter is routed through `become` so an unmarked Enter emits
+# no whole files — a bare fzf Enter would return the focused row and act on it —
+# and drops a `.commit` sentinel so Esc (no sentinel) cancels everything,
+# including drilled hunks. Per-file hunk picks live in a temp state dir shared
+# with the child, keyed by base64 of the path.
+__git_pick_files() {
   __git_require_repo || return 1
+
+  local list_cmd diff_preview whole_cmd child_mode hunk_diff hunk_apply verb
+  case "$1" in
+    stage)
+      list_cmd='{ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u'
+      diff_preview="$(__git_diff_tracked) || $(__git_diff_untracked)"
+      whole_cmd="add --"
+      child_mode="unstaged"
+      hunk_diff="diff --unified=0"
+      hunk_apply="apply --cached --unidiff-zero --recount"
+      verb="stage"
+      ;;
+    unstage)
+      list_cmd='git diff --cached --name-only'
+      diff_preview="$(__git_diff_staged)"
+      whole_cmd="restore --staged --"
+      child_mode="staged"
+      hunk_diff="diff --cached --unified=0"
+      hunk_apply="apply --cached --reverse --unidiff-zero --recount"
+      verb="unstage"
+      ;;
+    discard)
+      list_cmd='git diff --name-only'
+      diff_preview="$(__git_diff_tracked)"
+      whole_cmd="restore --"
+      child_mode="unstaged"
+      hunk_diff="diff --unified=0"
+      hunk_apply="apply --reverse --unidiff-zero --recount"
+      verb="discard"
+      ;;
+    *) return 1 ;;
+  esac
 
   local git_cmd repo_root
   git_cmd="$(__git_cmd_prefix)"
@@ -192,33 +230,28 @@ __git_add() {
   local sd sdq hsq
   sd="$(mktemp -d)" || return 1
   sdq="$(__shell_quote "$sd")"
-  hsq="$(__shell_quote "$PERMEANCE_TREE/.config/shell/scripts/git-add-hunks.sh")"
+  hsq="$(__shell_quote "$PERMEANCE_TREE/.config/shell/scripts/git-file-hunks.sh")"
 
-  # Preview: the focused path, a marker when it already has hunks saved in the
-  # state dir (keyed by base64 of the path, exactly as the child writes it),
-  # then the file diff. The marker's exit status is irrelevant — `;` runs the
-  # diff regardless.
+  # Marker shown when the focused file already has hunks saved in the state dir
+  # (keyed by base64 of the path, exactly as the child writes it). Its exit
+  # status is irrelevant — `;` runs the diff preview regardless.
   local note
   note="k=\$(printf %s {} | base64 | tr -d '\\n' | tr / _); [ -f $sdq/\$k ] && printf '▶ hunks selected — press → to change\\n\\n'"
   local -a preview=(
-    --preview "$_GIT_FZF_PREVIEW_CMD $note; $(__git_diff_tracked) || $(__git_diff_untracked)"
+    --preview "$_GIT_FZF_PREVIEW_CMD $note; $diff_preview"
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
 
-  # Right drills into the focused file's hunks (execute keeps the Tab marks; a
-  # reload would drop them, and refresh-preview redraws the marker on return).
-  # Enter commits: become prints only the marked whole files and touches the
-  # sentinel.
+  # Right drills into the focused file's hunks; execute keeps the Tab marks and
+  # refresh-preview redraws the marker on return. Enter commits: become touches
+  # the sentinel and prints only the marked whole files (nothing when none).
   local selected
   selected=$(
     builtin cd "$repo_root" || exit 1
-    {
-      git diff --name-only
-      git ls-files --others --exclude-standard
-    } | sort -u |
+    sh -c "$list_cmd" |
       fzf "${_GIT_FZF_DEFAULT[@]}" \
-        --header='→ pick hunks · tab whole file · ⏎ stage' \
-        --bind "right:execute($hsq {} $sdq)+refresh-preview" \
+        --header="→ pick hunks · tab whole file · ⏎ $verb" \
+        --bind "right:execute($hsq {} $sdq $child_mode)+refresh-preview" \
         --bind "enter:become(touch $sdq/.commit; test \${FZF_SELECT_COUNT:-0} -gt 0 && printf '%s\\n' {+})" \
         "${preview[@]}"
   )
@@ -230,16 +263,15 @@ __git_add() {
   fi
 
   # Whole-file (Tab) selections: a raw newline list for membership tests and a
-  # shell-quoted, space-joined list for the `git add` clause.
+  # shell-quoted, space-joined list for the whole-file command.
   local whole_raw whole_quoted
   whole_raw=$(printf '%s\n' "$selected" | sed '/^$/d')
   whole_quoted=$(printf '%s\n' "$whole_raw" | sed "/^$/d; s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' ')
 
-  # Whole files first, then one hunk-apply clause per drilled file that was NOT
-  # also selected whole (its `git add` already stages everything, so a hunk
-  # apply --cached would then fail to apply).
+  # Whole files first, then one hunk clause per drilled file NOT also selected
+  # whole (the whole-file command already covers it, so its hunk apply fails).
   local out=""
-  [ -n "$whole_quoted" ] && out="$git_cmd add -- $whole_quoted"
+  [ -n "$whole_quoted" ] && out="$git_cmd $whole_cmd $whole_quoted"
 
   local sf p idx pq clause
   while IFS= read -r sf; do
@@ -249,12 +281,16 @@ __git_add() {
     if [ -z "$p" ] || [ -z "$idx" ]; then continue; fi
     printf '%s\n' "$whole_raw" | grep -qxF -- "$p" && continue
     pq=$(__shell_quote "$p")
-    clause="$git_cmd diff --unified=0 -- $pq | git-hunk-pick assemble ${idx}| $git_cmd apply --cached --unidiff-zero --recount"
+    clause="$git_cmd $hunk_diff -- $pq | git-hunk-pick assemble ${idx}| $git_cmd $hunk_apply"
     if [ -n "$out" ]; then out="$out && $clause"; else out="$clause"; fi
   done < <(find "$sd" -maxdepth 1 -type f ! -name .commit 2>/dev/null)
   rm -rf "$sd"
 
   [ -n "$out" ] && echo "$out"
+}
+
+__git_add() {
+  __git_pick_files stage
 }
 
 __git_commit() {
@@ -273,78 +309,12 @@ __git_commit() {
   [ "$args" != "" ] && echo "$git_cmd add -- $args && $git_cmd commit "
 }
 
-# Interactive hunk picker shared by __git_unstage and __git_discard. Captures
-# the relevant diff once, lists its hunks through git-hunk-pick, lets fzf
-# multiselect them with a delta-rendered preview, then echoes (leader flag `e`)
-# a self-contained pipeline that regenerates the diff, keeps only the picked
-# hunks by index, and reverse-applies them. The diff is taken at zero context
-# (--unified=0) so each separated change is its own selectable hunk instead of
-# being coalesced with a nearby one at default context; whole unmodified hunks
-# are reverse-applied with --unidiff-zero, so the patch stays valid (a run of
-# strictly adjacent changed lines is still a single hunk). $1 names the change
-# set and target: "staged" reverse-applies to the index (unstage a hunk),
-# "unstaged" to the work tree (discard a hunk). Empty selection echoes nothing.
-__git_pick_hunks() {
-  __git_require_repo || return 1
-
-  local git_cmd repo_root git_dir
-  git_cmd="$(__git_cmd_prefix)"
-  repo_root="$(git rev-parse --show-toplevel)"
-  git_dir="$(git rev-parse --absolute-git-dir)"
-
-  local -a diff_args apply_args
-  case "$1" in
-    staged)
-      diff_args=(diff --cached --unified=0)
-      apply_args=(apply --cached --reverse --unidiff-zero --recount)
-      ;;
-    unstaged)
-      diff_args=(diff --unified=0)
-      apply_args=(apply --reverse --unidiff-zero --recount)
-      ;;
-    *) return 1 ;;
-  esac
-
-  # Capture the diff once — explicit --git-dir/--work-tree so it resolves a
-  # detached git dir too (as __git_cmd_prefix does) — to feed both the fzf list
-  # and every preview without re-running git per keystroke.
-  local diff_file
-  diff_file="$(mktemp)" || return 1
-  git --git-dir="$git_dir" --work-tree="$repo_root" "${diff_args[@]}" >"$diff_file"
-  if [ ! -s "$diff_file" ]; then
-    rm -f "$diff_file"
-    return 0
-  fi
-
-  local dq
-  dq="$(__shell_quote "$diff_file")"
-  local -a preview=(
-    --preview "$_GIT_FZF_PREVIEW_CMD git-hunk-pick assemble {1} <$dq | $_GIT_PAGER"
-    --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
-  )
-
-  # fzf displays only the label (field 2..) but its output stays the full line,
-  # so cut recovers the hunk index from field 1. A misread index is rejected by
-  # git-hunk-pick rather than silently applied, so the pick fails closed.
-  local selection
-  selection=$(
-    git-hunk-pick list <"$diff_file" |
-      fzf "${_GIT_FZF_DEFAULT[@]}" --delimiter='\t' --with-nth=2.. "${preview[@]}"
-  )
-  rm -f "$diff_file"
-  [ "$selection" = "" ] && return 0
-
-  local indices
-  indices=$(printf '%s\n' "$selection" | cut -f1 | tr '\n' ' ')
-  echo "$git_cmd ${diff_args[*]} | git-hunk-pick assemble ${indices}| $git_cmd ${apply_args[*]}"
-}
-
 __git_unstage() {
-  __git_pick_hunks staged
+  __git_pick_files unstage
 }
 
 __git_discard() {
-  __git_pick_hunks unstaged
+  __git_pick_files discard
 }
 
 __git_untrack() {
