@@ -107,7 +107,7 @@ func TestRenderPadsDisplayColumnsAndHidesDispatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	var buf bytes.Buffer
-	if err := render(&buf, rows); err != nil {
+	if err := render(&buf, rows, 0); err != nil {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
@@ -168,5 +168,72 @@ func TestModeCoversAllCombinations(t *testing.T) {
 		if got := tc.e.mode(); got != tc.want {
 			t.Errorf("%+v: got %s, want %s", tc.e, got, tc.want)
 		}
+	}
+}
+
+func TestCmdWidthFitsTerminal(t *testing.T) {
+	// sample's natural widths: chord 3, command 30, group 6, description 15
+	// ("branch › switch"), so the fixed part of a row is 2+3+6+3+15 = 29.
+	widths := [4]int{3, 30, 6, 15}
+	tests := []struct {
+		name string
+		term int
+		want int
+	}{
+		{"unknown width keeps the natural column", 0, 30},
+		{"wide terminal keeps the natural column", 200, 30},
+		{"exact fit keeps the natural column", 59, 30},
+		{"tight terminal shrinks the column", 55, 26},
+		{"very narrow terminal stops at the floor", 40, cmdFloor},
+	}
+	for _, tc := range tests {
+		if got := cmdWidth(widths, tc.term); got != tc.want {
+			t.Errorf("%s: cmdWidth(%d) = %d, want %d", tc.name, tc.term, got, tc.want)
+		}
+	}
+	// A long description only reserves descReserve cells, never all of it.
+	if got := cmdWidth([4]int{3, 100, 6, 80}, 120); got != 120-2-3-6-3-descReserve {
+		t.Errorf("long description: got %d", got)
+	}
+}
+
+func TestTruncateCountsRunes(t *testing.T) {
+	tests := []struct {
+		in    string
+		width int
+		want  string
+	}{
+		{"abc", 5, "abc"},
+		{"abcd", 4, "abcd"},
+		{"abcdef", 4, "abc…"},
+		{"a›bcd", 3, "a›…"},
+	}
+	for _, tc := range tests {
+		if got := truncate(tc.in, tc.width); got != tc.want {
+			t.Errorf("truncate(%q, %d) = %q, want %q", tc.in, tc.width, got, tc.want)
+		}
+	}
+}
+
+func TestRenderFitsCommandColumnToWidth(t *testing.T) {
+	rows, err := parse(sample)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := render(&buf, rows, 55); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
+	// Width 55 leaves 26 cells for commands: the 30-cell gf command is cut
+	// with an ellipsis in the display column while its raw field is intact,
+	// and shorter commands pad to the same 26.
+	want := "gf " + sep + `git log --format="%h" | j…` + sep + "git   " + sep + "" + sep + `git log --format="%h" | jq '.'` + sep + "run"
+	if lines[7] != want {
+		t.Errorf("gf row:\n got %q\nwant %q", lines[7], want)
+	}
+	want = "gt " + sep + "git status                " + sep + "git   " + sep + "file › list" + sep + "git status" + sep + "run"
+	if lines[1] != want {
+		t.Errorf("gt row:\n got %q\nwant %q", lines[1], want)
 	}
 }
