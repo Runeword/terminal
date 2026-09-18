@@ -16,19 +16,23 @@
 // chord, command or description may contain): the four display columns
 // CHORD, CMD, GROUP, DESC, the first three padded to a common width, then the
 // hidden RAWCMD and MODE, where MODE is one of run, insert, eval-run,
-// eval-insert. Rows keep file order, which the picker relies on (fzf
-// --no-sort). A parse or validation error (unknown field, missing cmd,
-// duplicate chord, wrong type) goes to stderr with exit status 1 so the
-// widget can display it.
+// eval-insert. With -width (the widget passes $COLUMNS) the CMD column is
+// capped at what the terminal leaves after the other columns and a reserve
+// for DESC, and longer commands are cut with an ellipsis, so one long entry
+// cannot push the rest of the row off screen; RAWCMD is never cut. Rows keep
+// file order, which the picker relies on (fzf --no-sort). A parse or
+// validation error (unknown field, missing cmd, duplicate chord, wrong type)
+// goes to stderr with exit status 1 so the widget can display it.
 //
 // Usage:
 //
-//	leader-aliases FILE
+//	leader-aliases [-width COLUMNS] FILE
 package main
 
 import (
 	"bufio"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -40,7 +44,18 @@ import (
 
 // sep separates the fields of a rendered row. fzf splits on it (--delimiter)
 // and renders it as a plain space.
-const sep = " "
+const sep = "\u00a0"
+
+// Layout budget applied when the terminal width is known: fzf draws a
+// two-cell pointer gutter before each row, the description keeps up to
+// descReserve cells (all of it when narrower), and the command column never
+// shrinks below cmdFloor so a narrow pane still shows something useful.
+const (
+	gutter      = 2
+	descReserve = 32
+	cmdFloor    = 24
+	ellipsis    = "…"
+)
 
 // entry is one chord binding: what to insert and how to dispatch it.
 type entry struct {
@@ -234,9 +249,41 @@ func pad(s string, width int) string {
 	return s
 }
 
+// cmdWidth returns the display width of the command column given the natural
+// column widths: the widest command, or, when the terminal width is known,
+// what is left after the gutter, the chord and group columns, the three
+// separators and the description reserve, bounded below by cmdFloor.
+func cmdWidth(widths [4]int, termWidth int) int {
+	natural := widths[1]
+	if termWidth <= 0 {
+		return natural
+	}
+	reserve := widths[3]
+	if reserve > descReserve {
+		reserve = descReserve
+	}
+	budget := termWidth - gutter - widths[0] - widths[2] - 3 - reserve
+	if budget < cmdFloor {
+		budget = cmdFloor
+	}
+	if budget > natural {
+		return natural
+	}
+	return budget
+}
+
+// truncate cuts s to width runes, the last one an ellipsis marking the cut.
+func truncate(s string, width int) string {
+	if utf8.RuneCountInString(s) <= width {
+		return s
+	}
+	return string([]rune(s)[:width-1]) + ellipsis
+}
+
 // render writes one row per entry: the display columns padded to a common
-// width (the last one needs none), then the raw command and mode.
-func render(w io.Writer, rows []row) error {
+// width (the last one needs none), the command column fitted to termWidth
+// when that is positive, then the raw command and mode.
+func render(w io.Writer, rows []row, termWidth int) error {
 	var widths [4]int
 	for _, r := range rows {
 		for i, s := range r.display() {
@@ -245,9 +292,10 @@ func render(w io.Writer, rows []row) error {
 			}
 		}
 	}
+	widths[1] = cmdWidth(widths, termWidth)
 	for _, r := range rows {
 		d := r.display()
-		fields := []string{pad(d[0], widths[0]), pad(d[1], widths[1]), pad(d[2], widths[2]), d[3], r.cmd, r.mode()}
+		fields := []string{pad(d[0], widths[0]), pad(truncate(d[1], widths[1]), widths[1]), pad(d[2], widths[2]), d[3], r.cmd, r.mode()}
 		if _, err := io.WriteString(w, strings.Join(fields, sep)+"\n"); err != nil {
 			return err
 		}
@@ -261,11 +309,17 @@ func fail(err error) {
 }
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: leader-aliases FILE")
+	width := flag.Int("width", 0, "terminal width in cells; fit the command column to it (0: no limit)")
+	flag.Usage = func() {
+		fmt.Fprintln(os.Stderr, "usage: leader-aliases [-width COLUMNS] FILE")
+		flag.PrintDefaults()
+	}
+	flag.Parse()
+	if flag.NArg() != 1 {
+		flag.Usage()
 		os.Exit(2)
 	}
-	path := os.Args[1]
+	path := flag.Arg(0)
 	src, err := os.ReadFile(path)
 	if err != nil {
 		fail(err)
@@ -275,7 +329,7 @@ func main() {
 		fail(fmt.Errorf("%s: %w", path, err))
 	}
 	w := bufio.NewWriter(os.Stdout)
-	if err := render(w, rows); err != nil {
+	if err := render(w, rows, *width); err != nil {
 		fail(err)
 	}
 	if err := w.Flush(); err != nil {
