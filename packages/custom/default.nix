@@ -39,4 +39,9 @@
   # $HOME/XDG-root/login-exec-tree cwds). The launcher passes the physical cwd
   # and calls it before building the namespace; here for the same host-PATH reason.
   (import ./claude-cwd-gate { inherit pkgs; })
+  # Renders sources/.config/shell/leader.toml into the fzf rows behind the
+  # leader-key picker (sources/.config/shell/functions/aliases.sh). Here so it
+  # lands in packages.tools and is on the interactive PATH inside the terminal,
+  # where the zle widget invokes it by bare name.
+  (import ./leader-aliases { inherit pkgs; })
 ]
