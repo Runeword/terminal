@@ -330,6 +330,39 @@ __tmux_move_window_to_session() {
   tmux switch-client -t "$target_session"
 }
 
+# Move the current window to the numerically-named session $1 (the M-S-<n> range in
+# tmux.conf), following it there -- the by-number analogue of __tmux_move_window_to_session
+# (next/prev), as C-S-<n> is the by-index analogue of window selection. No-op if $1 is
+# already the current session or no session is named $1 (matching M-<n>, which does
+# nothing past the last session rather than clamping to it). Resolve the target to its
+# session_id up front: moving the current session's last window empties and destroys it,
+# and the session-closed hook then renumbers survivors, so the target's *name* can change
+# mid-operation while its id cannot -- the follow-switch below must use the id.
+__tmux_move_window_to_session_number() {
+  local target="$1" current_session target_id src_win src_idx
+  case "$target" in '' | *[!0-9]*) return 0 ;; esac
+
+  current_session=$(tmux display-message -p '#S')
+  [ "$target" = "$current_session" ] && return 0
+
+  target_id=$(tmux list-sessions -f "#{==:#{session_name},$target}" -F '#{session_id}' 2>/dev/null)
+  [ "$target_id" = "" ] && return 0
+
+  src_win=$(tmux display-message -p '#{window_id}')
+  src_idx=$(tmux display-message -p '#{window_index}')
+
+  # Keep the window's own index number in the destination: if that index is taken, insert
+  # before the occupant (-b) so the window takes it and the rest shift up; otherwise drop it
+  # at exactly that index -- even past the session's end, leaving a gap, so the window always
+  # keeps its number. Chain the follow-switch into the same command so tmux redraws once (a
+  # separate switch-client would repaint the source session, then the target, which flickers).
+  if tmux list-windows -t "$target_id" -F '#{window_index}' | grep -qx "$src_idx"; then
+    tmux move-window -s "$src_win" -b -t "$target_id:$src_idx" \; switch-client -t "$target_id"
+  else
+    tmux move-window -s "$src_win" -t "$target_id:$src_idx" \; switch-client -t "$target_id"
+  fi
+}
+
 __tmux_open_url() {
   if ! command -v tmux >/dev/null 2>&1 || [ "$TMUX" = "" ]; then
     return 1
