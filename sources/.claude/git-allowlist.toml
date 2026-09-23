@@ -18,6 +18,13 @@
 # Mostly NOT enforced otherwise: other subcommand-specific flags are trusted.
 # Adding a subcommand here trusts the rest of its flags — allowing "push" also
 # allows "git push --force". Only add subcommands whose flags you will permit.
+#
+# Deliberately NOT listed (destructive on the live tree the host shares, and the
+# subcommand-level allowlist can't separate their safe forms from their dangerous
+# ones — do these from a plain terminal):
+#   - checkout: `git checkout -- .` discards uncommitted work; a branch switch
+#     rewrites the host's live working tree.
+#   - worktree: creates trees at paths the sandbox pins don't cover (see CLAUDE.md).
 
 allow = [
   "version",
@@ -27,7 +34,6 @@ allow = [
   "fetch",
   "merge-base",
   "ls-tree",
-  "worktree",
   "stash",
   "cat-file",
   "rebase",
@@ -35,6 +41,5 @@ allow = [
   "init",
   "path-id",
   "grep",
-  "checkout",
   "config",
 ]
