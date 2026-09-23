@@ -197,6 +197,19 @@ bindings = [
   { key = "(", mods = "Control|Shift", chars = "\u001B[57;6u" },
   { key = ")", mods = "Control|Shift", chars = "\u001B[48;6u" },
 
+  # Alt+Shift+<n> -> CSI-u M-S-<n> (mod 4 = Alt+Shift), base codepoint like C-<n>/C-S-<n>
+  # above. tmux binds these to "move current window to session <n>" (see tmux.conf).
+  { key = "!", mods = "Alt|Shift", chars = "\u001B[49;4u" },
+  { key = "@", mods = "Alt|Shift", chars = "\u001B[50;4u" },
+  { key = "#", mods = "Alt|Shift", chars = "\u001B[51;4u" },
+  { key = "$", mods = "Alt|Shift", chars = "\u001B[52;4u" },
+  { key = "%", mods = "Alt|Shift", chars = "\u001B[53;4u" },
+  { key = "^", mods = "Alt|Shift", chars = "\u001B[54;4u" },
+  { key = "&", mods = "Alt|Shift", chars = "\u001B[55;4u" },
+  { key = "*", mods = "Alt|Shift", chars = "\u001B[56;4u" },
+  { key = "(", mods = "Alt|Shift", chars = "\u001B[57;4u" },
+  { key = ")", mods = "Alt|Shift", chars = "\u001B[48;4u" },
+
   { key = "Return", mods = "Control|Alt", chars = "\u001B[13;7u" },
   { key = "Return", mods = "Control|Alt|Shift", chars = "\u001B[13;8u" },
 ]
