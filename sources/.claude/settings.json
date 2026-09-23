@@ -119,6 +119,7 @@
   "disableWorkflows": true,
   "disableArtifact": true,
   "disableRemoteControl": true,
+  "feedbackDrafts": "off",
   "env": {
     "DISABLE_AUTOUPDATER": "1"
   },
