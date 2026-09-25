@@ -182,7 +182,7 @@ __tmux_drag_session() {
 # the first back to the last), batching switch + kill so there is no flicker. The
 # focused, lower-numbered survivor keeps its number, so nothing needs renaming in
 # the batch; the session-closed hook then compacts the hole the kill leaves behind.
-# Reached via M-N / M-W, and via __tmux_kill_pane (M-w) when the last window closes.
+# Reached via __tmux_kill_pane (M-w / M-W) when the last window of a session closes.
 __tmux_kill_session() {
   local session_count current_session session_list current_index prev_index target
   session_count=$(tmux list-sessions | wc -l)
@@ -228,39 +228,47 @@ __tmux_attach_session() {
   fi
 }
 
+# Close the current pane -- or its window when it is the last pane, or the whole
+# session when that is its last window -- then focus a neighbour. $1 picks which:
+# "next" (M-w, the default) or "prev" (M-W). Neither wraps: with nothing in that
+# direction (next from the last pane/window, prev from the first), step the other
+# way instead.
 __tmux_kill_pane() {
-  local pane_count window_count session_count
+  local direction="${1:-next}" pane_count window_count session_count step
   pane_count=$(tmux display-message -p '#{window_panes}')
   window_count=$(tmux display-message -p '#{session_windows}')
   session_count=$(tmux list-sessions | wc -l)
 
   if [ "$pane_count" -gt 1 ]; then
-    # Keep focus on the current index: step to the NEXT pane -- the one that slides
-    # into this slot once we kill -- then kill the pane we left, so killing pane 1
-    # of 1|2|3 lands on the old pane 2 (now pane 1), not on the pane we came from.
-    # On the last pane there is no next, so step back to the new last instead.
-    local current_pane current_index last_index
+    # "next" keeps focus on the current index: step to the NEXT pane -- the one that
+    # slides into this slot once we kill -- then kill the pane we left, so killing
+    # pane 1 of 1|2|3 lands on the old pane 2 (now pane 1), not on the pane we came
+    # from. "prev" steps to the PREVIOUS pane instead, which keeps its index.
+    local current_pane current_index first_index last_index
     current_pane=$(tmux display-message -p '#{pane_id}')
     current_index=$(tmux display-message -p '#{pane_index}')
+    first_index=$(tmux list-panes -F '#{pane_index}' | sort -n | head -1)
     last_index=$(tmux list-panes -F '#{pane_index}' | sort -n | tail -1)
-    if [ "$current_index" -ge "$last_index" ]; then
-      tmux select-pane -t '{previous}' \; kill-pane -t "$current_pane"
-    else
-      tmux select-pane -t '{next}' \; kill-pane -t "$current_pane"
-    fi
+    step='{next}'
+    case "$direction" in
+      prev) [ "$current_index" -le "$first_index" ] || step='{previous}' ;;
+      *) [ "$current_index" -lt "$last_index" ] || step='{previous}' ;;
+    esac
+    tmux select-pane -t "$step" \; kill-pane -t "$current_pane"
   elif [ "$window_count" -gt 1 ]; then
-    # Same index-preserving rule for windows: step to the NEXT window (renumber-
-    # windows then slides it into our old index) and kill the one we left, so
-    # killing window 1 lands on the old window 2, now renumbered to 1. On the last
-    # window there is no next, so step back to the new last instead.
-    local current_window last_window
+    # Same rules for windows: "next" steps to the NEXT window (renumber-windows then
+    # slides it into our old index) and kills the one we left, so killing window 1
+    # lands on the old window 2, now renumbered to 1; "prev" steps to the PREVIOUS.
+    local current_window first_window last_window
     current_window=$(tmux display-message -p '#{window_index}')
+    first_window=$(tmux list-windows -F '#{window_index}' | sort -n | head -1)
     last_window=$(tmux list-windows -F '#{window_index}' | sort -n | tail -1)
-    if [ "$current_window" -ge "$last_window" ]; then
-      tmux select-window -p \; kill-window -t:"$current_window"
-    else
-      tmux select-window -n \; kill-window -t:"$current_window"
-    fi
+    step=-n
+    case "$direction" in
+      prev) [ "$current_window" -le "$first_window" ] || step=-p ;;
+      *) [ "$current_window" -lt "$last_window" ] || step=-p ;;
+    esac
+    tmux select-window "$step" \; kill-window -t:"$current_window"
   elif [ "$session_count" -gt 1 ]; then
     # Last window/pane of this session -> kill the whole session. Focus moves to
     # the previous session; see __tmux_kill_session.
