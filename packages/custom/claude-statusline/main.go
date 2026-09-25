@@ -11,6 +11,7 @@ import (
 
 type StatusInput struct {
 	Model struct {
+		ID          string `json:"id"`
 		DisplayName string `json:"display_name"`
 	} `json:"model"`
 	ContextWindow struct {
@@ -22,6 +23,9 @@ type StatusInput struct {
 			CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 		} `json:"current_usage"`
 	} `json:"context_window"`
+	PromptCache struct {
+		TTL string `json:"ttl"`
+	} `json:"prompt_cache"`
 	RateLimits struct {
 		FiveHour struct {
 			UsedPercentage float64 `json:"used_percentage"`
@@ -37,40 +41,73 @@ type StatusInput struct {
 	} `json:"cost"`
 }
 
-// rates holds per-MTok USD prices for a model family: uncached input, output,
-// 5-minute-TTL cache creation (input×1.25), and cache read (input×0.1).
+// rates holds per-MTok USD list prices for a model: uncached input, output,
+// cache creation at the 5-minute and 1-hour TTLs (input×1.25 and ×2), and cache
+// read (input×0.1, but ×0.05 on Opus 5.5 and ×0.025 on Fable/Mythos 5.1).
 type rates struct {
-	input, output, cacheWrite, cacheRead float64
+	input, output, cacheWrite5m, cacheWrite1h, cacheRead float64
 }
 
+// List prices from platform.claude.com/docs/en/about-claude/pricing.
 var (
-	opusRates   = rates{5, 25, 6.25, 0.5}
-	sonnetRates = rates{3, 15, 3.75, 0.3}
-	haikuRates  = rates{1, 5, 1.25, 0.1}
-	fableRates  = rates{10, 50, 12.5, 1}
+	opus55Rates  = rates{4, 20, 5, 8, 0.2}
+	opusRates    = rates{5, 25, 6.25, 10, 0.5}
+	sonnet5Rates = rates{2, 10, 2.5, 4, 0.2}
+	sonnetRates  = rates{3, 15, 3.75, 6, 0.3}
+	haikuRates   = rates{1, 5, 1.25, 2, 0.1}
+	fable51Rates = rates{10, 50, 12.5, 20, 0.25}
+	fableRates   = rates{10, 50, 12.5, 20, 1}
 )
 
-// ratesFor selects pricing from the model's display name, defaulting to Opus
-// when the family is unrecognised (or the name is empty).
-func ratesFor(displayName string) rates {
-	name := strings.ToLower(displayName)
-	switch {
-	case strings.Contains(name, "haiku"):
-		return haikuRates
-	case strings.Contains(name, "sonnet"):
-		return sonnetRates
-	case strings.Contains(name, "fable"), strings.Contains(name, "mythos"):
-		return fableRates
-	default:
-		return opusRates
-	}
+// modelRates maps a model key to its rates. The first key found in the model's
+// name wins, so a version's key precedes its family's ("opus-5-5" before "opus").
+var modelRates = []struct {
+	key   string
+	rates rates
+}{
+	{"opus-5-5", opus55Rates},
+	{"opus", opusRates},
+	{"sonnet-5", sonnet5Rates},
+	{"sonnet", sonnetRates},
+	{"haiku", haikuRates},
+	{"fable-5-1", fable51Rates},
+	{"mythos-5-1", fable51Rates},
+	{"fable", fableRates},
+	{"mythos", fableRates},
 }
 
-// requestCost estimates the USD cost of a single request from its token counts.
-func requestCost(r rates, input, output, cacheWrite, cacheRead int) float64 {
+// ratesFor selects pricing from the model's id and display name together: the
+// id can be a bare alias ("opus") and the display name a custom picker label, so
+// either may be the one carrying the version. Unrecognised models (or none)
+// fall back to Opus pricing, as Claude Code's own cost tracking does.
+func ratesFor(id, displayName string) rates {
+	byID, byName := modelKey(id), modelKey(displayName)
+	for _, m := range modelRates {
+		if strings.Contains(byID, m.key) || strings.Contains(byName, m.key) {
+			return m.rates
+		}
+	}
+	return opusRates
+}
+
+// modelKey lowercases a model id or display name and hyphenates its spaces and
+// dots, so "claude-opus-5-5[1m]" and "Opus 5.5 (1M context)" both contain
+// "opus-5-5".
+func modelKey(s string) string {
+	return strings.NewReplacer(" ", "-", ".", "-").Replace(strings.ToLower(s))
+}
+
+// requestCost estimates the USD cost of a single request from its token counts,
+// pricing cache writes at the 1-hour rate when the prompt cache's TTL is "1h"
+// and at the 5-minute rate otherwise.
+func requestCost(r rates, ttl string, input, output, cacheWrite, cacheRead int) float64 {
+	writeRate := r.cacheWrite5m
+	if ttl == "1h" {
+		writeRate = r.cacheWrite1h
+	}
 	return (float64(input)*r.input +
 		float64(output)*r.output +
-		float64(cacheWrite)*r.cacheWrite +
+		float64(cacheWrite)*writeRate +
 		float64(cacheRead)*r.cacheRead) / 1_000_000
 }
 
@@ -153,7 +190,8 @@ func main() {
 	tokRead := input.ContextWindow.CurrentUsage.CacheReadInputTokens
 	tokTotal := tokIn + tokOut + tokNew + tokRead
 
-	reqCost := requestCost(ratesFor(model), tokIn, tokOut, tokNew, tokRead)
+	reqCost := requestCost(ratesFor(input.Model.ID, input.Model.DisplayName), input.PromptCache.TTL,
+		tokIn, tokOut, tokNew, tokRead)
 
 	ctxPct := input.ContextWindow.UsedPercentage
 	rate5h := input.RateLimits.FiveHour.UsedPercentage
