@@ -97,6 +97,19 @@ let
     }
   ];
 
+  # claude's PATH, ahead of the inherited one (@OUT@ is the launcher's own $out).
+  # gitShim ships a binary named `git`. It is injected only into claude's own
+  # PATH (and inherited by its subprocesses: bash, Python, Make, …), not merged
+  # into $out/bin, so the user's interactive shell still sees the wrapped git.
+  # Prefixed first so it wins over git-with-config within claude's process
+  # tree. The shim enforces the same allowlist policy as git-allowlist-hook,
+  # then exec's the real git.
+  pathPrefix = [
+    "${gitShim}/bin"
+    "@OUT@/bin"
+    "${pkgs.lib.makeBinPath tools}"
+  ];
+
   self = pkgs.symlinkJoin {
     name = "claude-with-config";
     paths = [
@@ -105,17 +118,7 @@ let
     ];
     postBuild = permeance.installLauncher {
       binName = "claude";
-      # gitShim ships a binary named `git`. It is injected only into claude's
-      # own PATH (and inherited by its subprocesses: bash, Python, Make, …),
-      # not merged into $out/bin, so the user's interactive shell still sees
-      # the wrapped git. Prefixed first so it wins over git-with-config within
-      # claude's process tree. The shim enforces the same allowlist policy as
-      # git-allowlist-hook, then exec's the real git.
-      pathPrefix = [
-        "${gitShim}/bin"
-        "@OUT@/bin"
-        "${pkgs.lib.makeBinPath tools}"
-      ];
+      inherit pathPrefix;
       configEnv = {
         CLAUDE_GIT_ALLOWLIST_CONFIG = ".claude/git-allowlist.toml";
       };
@@ -132,7 +135,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "claude";
-      description = "Verify claude binary executes and the sandbox launcher pins the host-executed config";
+      description = "Verify claude binary executes, settings.json commands resolve, the status line renders, and the sandbox launcher pins the host-executed config";
       script = ''
         # claude-code does not expose a config-loading probe that works in a
         # sandbox without auth/network. This only verifies the wrapper's binary
@@ -141,6 +144,33 @@ let
           ok "binary executes"
         else
           fail "binary failed to execute"
+        fi
+
+        # settings.json names the status line and hooks by bare command, so each
+        # must resolve on claude's PATH; at runtime a missing one fails silently
+        # (the status line just goes blank).
+        claudePath=${
+          pkgs.lib.concatMapStringsSep ":" (builtins.replaceStrings [ "@OUT@" ] [ "${self}" ]) pathPrefix
+        }
+        settings=${self}/.claude/settings.json
+        for cmd in $(${pkgs.jq}/bin/jq -r '[.statusLine.command] + [.hooks[][].hooks[] | .command // empty] | .[] | split(" ")[0]' "$settings" | sort -u); do
+          if PATH="$claudePath" command -v "$cmd" > /dev/null; then
+            ok "on claude's PATH: $cmd"
+          else
+            fail "settings.json command not on claude's PATH: $cmd"
+          fi
+        done
+
+        # Run the status line the way Claude Code does (sh -c, claude's PATH) on
+        # a fixed payload. No rate_limits, so the line doesn't depend on the clock.
+        payload='{"model":{"id":"claude-opus-5-5","display_name":"Opus 5.5"},"context_window":{"used_percentage":42,"current_usage":{"input_tokens":2000,"output_tokens":1500,"cache_creation_input_tokens":8000,"cache_read_input_tokens":120000}},"prompt_cache":{"ttl":"1h"},"cost":{"total_cost_usd":1.5}}'
+        want='ctx ━━─── 42%  $1.50 +0.13  Opus 5.5  ↓2.0k ↑1.5k W8.0k R120k =132k'
+        line=$(printf '%s' "$payload" \
+          | COLUMNS=200 PATH="$claudePath" ${pkgs.runtimeShell} -c "$(${pkgs.jq}/bin/jq -r .statusLine.command "$settings")")
+        if [ "$line" = "$want" ]; then
+          ok "status line renders a sample payload"
+        else
+          fail "status line rendered: $line"
         fi
 
         # The bubblewrap launcher cannot run for real here (no user namespaces
