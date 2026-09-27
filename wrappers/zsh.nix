@@ -105,6 +105,20 @@ let
         else
           fail "git-file-select post: sel='$selact' desel='$deselact' exec='$exc'"
         fi
+
+        # key/load switch lists in place: leaving a drill with its 2nd hunk marked
+        # records the spec and queues the files list's marks and cursor for load.
+        printf 'a.txt\nb.txt\n' > "$sd/.files"
+        printf 'b.txt\n' > "$sd/.marks"
+        printf 'h1\nh2\n' > "$sd/.hunks"
+        printf 'a.txt\n' > "$sd/.drill"
+        back=$(FZF_SELECT_COUNT=1 GFS_HEADER_FILES=files sh "$gfs" key "$sd" unstaged left x h2 1)
+        if [ "$back" = "reload-sync(cat $sd/.files)" ] && [ "$(sh "$gfs" get "$sd" a.txt)" = 2 ] \
+          && [ "$(sh "$gfs" load "$sd")" = "change-header(files)+pos(1)+select+pos(2)+select+pos(1)" ]; then
+          ok "git-file-select key/load leave a drill with its spec, marks and cursor"
+        else
+          fail "git-file-select key/load: key='$back'"
+        fi
         rm -rf "$sd"
       '';
     };
