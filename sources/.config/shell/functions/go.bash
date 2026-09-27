@@ -19,9 +19,11 @@ __go_dev() {
 }
 
 # Live-rebuild every Go program under packages/custom into .direnv/bin (which is
-# on PATH, so the running terminal / Claude picks up the fresh binary). Uses
-# watchexec (event-driven): builds them all on startup, then rebuilds only the
-# module whose .go file changed. Ctrl-C to stop. Bound to the `gow` leader entry.
+# on PATH, so the running terminal picks up the fresh binary; Claude's status
+# line and hooks don't: the claude wrapper puts its Nix-built copies first on
+# its PATH, so those need a terminal rebuild). Uses watchexec (event-driven):
+# builds them all on startup, then rebuilds only the module whose .go file
+# changed. Ctrl-C to stop. Bound to the `gow` leader entry.
 __go_watch() {
   local src="$HOME/terminal/packages/custom"
   local bin="$HOME/terminal/.direnv/bin"
