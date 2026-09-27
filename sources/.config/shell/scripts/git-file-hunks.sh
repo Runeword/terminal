@@ -26,6 +26,19 @@
 # A file with no diff here has no hunks: Enter finalizes at once, Right is a no-op.
 set -u
 
+# fzf's execute (the parent's enter/right bind) paused the files picker onto the
+# alternate screen with the cursor homed, so a --height picker started there opens at
+# the top of the screen. Step back onto the main screen instead: the files list is
+# still drawn there and the cursor is restored to its prompt line. Save that position
+# (DECSC), then go up one row to the list's top, where its --header-first header sits:
+# the hunks picker below opens there and, with the same --height and layout, covers
+# exactly the files list's rows. Every exit path puts the cursor back (DECRC) and
+# re-enters the alternate screen, the state the parent's resume expects: it leaves the
+# alternate screen, restoring the cursor, and redraws in place.
+printf '\033[?1049l\0337\033[A\r' >/dev/tty
+tmpdiff=
+trap '[ -z "$tmpdiff" ] || rm -f "$tmpdiff"; printf "\0338\033[?1049h" >/dev/tty' EXIT
+
 file=$1
 state_dir=$2
 mode=${3:-unstaged}
@@ -54,7 +67,6 @@ if [ -z "$diff" ]; then
 fi
 
 tmpdiff=$(mktemp) || exit 1
-trap 'rm -f "$tmpdiff"' EXIT
 printf '%s\n' "$diff" >"$tmpdiff"
 
 pager=$(git config core.pager 2>/dev/null || echo cat)
