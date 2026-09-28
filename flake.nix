@@ -82,7 +82,7 @@
         in
         {
           packages.default = terminal;
-          packages.firefox-mcp = import ./packages/custom/firefox-mcp.nix { inherit pkgs; };
+          packages.firefox-mcp = import ./packages/firefox-mcp.nix { inherit pkgs; };
           packages.tools = pkgs.buildEnv {
             name = "tools";
             paths = tools;
