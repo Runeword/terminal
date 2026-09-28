@@ -17,6 +17,12 @@ typeset -F SECONDS=0
 
 # ------------------------------------ compinit (deferred)
 typeset -F __T1="$SECONDS"
+# nix-darwin's /etc/zshenv, which zsh reads even with --no-global-rcs, prepends
+# the profile completion dirs in every shell, so an exported FPATH gains another
+# copy per nesting level. The stamp below keys on fpath: without deduping, shells
+# at different depths (tmux pane, nested zsh) invalidated each other's dump and
+# rebuilt it before their first prompt (~1s, slower still over the duplicates).
+typeset -gU fpath
 typeset -g ZCOMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
 [[ -d ${ZCOMPDUMP:h} ]] || mkdir -p "${ZCOMPDUMP:h}"
 
@@ -317,13 +323,52 @@ typeset -F __TAL2="$SECONDS"
 _profile "aliases: %.0fms\n" $(( (__TAL2 - __TAL1) * 1000 ))
 
 # ------------------------------------ NVM
+# Sourcing nvm.sh makes it run `nvm use default`, whose alias resolution forks
+# dozens of subshells: ~1s on every shell start. Put the default version on
+# PATH directly instead, and load nvm itself on the first `nvm` call.
+export NVM_DIR="$HOME/.nvm"
+
 __load_nvm() {
-  export NVM_DIR="$HOME/.nvm"
-  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" "$@"
   [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
 }
+
+# Sets REPLY to the newest installed version the default alias names as a
+# version prefix (22 -> v22.17.0). Fails on aliases it can't read that way
+# (lts/*, node), which are left to nvm.
+__nvm_default_version_dir() {
+  local alias_target
+  { read -r alias_target < "$NVM_DIR/alias/default"; } 2>/dev/null || return 1
+  local -a installed=( "$NVM_DIR"/versions/node/v${alias_target#v}(|.*)(N/nOn) )
+  (( $#installed )) || return 1
+  REPLY=${installed[1]}
+}
+
+# Mirrors nvm's startup: a node already active from $NVM_DIR (inherited from a
+# parent shell) stays active; otherwise the given version replaces an inherited
+# nvm PATH entry in place, or is prepended.
+__use_nvm_version_dir() {
+  local version_dir=$1
+  if [[ ${commands[node]} == $NVM_DIR/* ]]; then
+    version_dir=${commands[node]:h:h}
+  else
+    local inherited_index=${path[(i)$NVM_DIR/versions/node/*/bin]}
+    if (( inherited_index <= $#path )); then
+      path[inherited_index]="$version_dir/bin"
+    else
+      path=( "$version_dir/bin" $path )
+    fi
+  fi
+  export NVM_BIN="$version_dir/bin" NVM_INC="$version_dir/include/node"
+}
+
 typeset -F __T3="$SECONDS"
-__load_nvm
+if __nvm_default_version_dir; then
+  __use_nvm_version_dir "$REPLY"
+  nvm() { unfunction nvm; __load_nvm --no-use; nvm "$@"; }
+else
+  __load_nvm
+fi
 typeset -F __T4="$SECONDS"
 _profile "nvm: %.0fms\n" $(( (__T4 - __T3) * 1000 ))
 
