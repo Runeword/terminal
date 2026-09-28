@@ -172,7 +172,12 @@ let
         else
           fail "status line rendered: $line"
         fi
-
+      ''
+      # The bubblewrap launcher is Linux-only (macOS uses Claude Code's built-in
+      # Seatbelt), and its claude-seccomp-bpf helper cgo-links libseccomp, which
+      # does not evaluate on aarch64-darwin. Gate the launcher dry-run to Linux;
+      # the binary/settings/status-line checks above still run on every platform.
+      + pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
         # The bubblewrap launcher cannot run for real here (no user namespaces
         # in the build sandbox), but its policy is an argv. Run it against a
         # writable copy of the sources tree with a stand-in `bwrap` that prints
