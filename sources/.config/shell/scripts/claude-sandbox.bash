@@ -132,7 +132,7 @@ cd -P . || {
 # ~/.local/share/{systemd,applications}, ~/.local/bin), where read-write access is
 # host code execution at the next login. The comparison is the *physical* cwd
 # (cd -P above) against readlink -m'd sensitive dirs; that logic, and the refusal
-# messages, live in claude-cwd-gate (see packages/custom/claude-cwd-gate), which
+# messages, live in claude-cwd-gate (see packages/claude/cwd-gate), which
 # exits 64 with the reason on a refusal. Fail closed: any non-zero exit (including
 # the binary missing) aborts rather than bind a possibly-unsafe cwd read-write.
 claude-cwd-gate \
@@ -208,7 +208,7 @@ __cs_writable=(
   "$HOME/.local/state/nix/defexpr"
   "$HOME/.cache/direnv"
   # Go's build cache and golangci-lint's fact cache. This repo builds Go binaries
-  # (packages/custom/*), and lefthook's pre-commit runs gofumpt and golangci-lint
+  # (under packages/), and lefthook's pre-commit runs gofumpt and golangci-lint
   # over them, so read-only here does not merely slow things down — golangci-lint
   # reports "0 issues" after its typechecking fails on the read-only cache, which
   # is a false pass on a commit hook. Left as ordinary writable rather than a
@@ -693,7 +693,7 @@ fi
 # The walk — Include directives (globs, dedup, the containment check that stops a
 # crafted `Include ../x` writing outside the tree, a 64-file cap) and each
 # IdentityFile resolved to a public key with an agent-listing fallback — lives in
-# claude-ssh-sanitize (see packages/custom/claude-ssh-sanitize). It prints the
+# claude-ssh-sanitize (see packages/claude/ssh-sanitize). It prints the
 # private keys that live OUTSIDE ~/.ssh, one per line, for us to mask over the
 # read-only root. Fail closed, like the seccomp gate above: if the helper is
 # missing or errors, refuse to launch rather than let the read-only root expose
@@ -723,7 +723,7 @@ fi
 # the host shell to run once claude exits. bwrap keeps the launching terminal as
 # the controlling tty (--new-session would drop it, and with it the TUI's
 # SIGWINCH), and the kernel is no backstop — dev.tty.legacy_tiocsti is 1 here.
-# claude-seccomp-bpf (a libseccomp binary; see packages/custom/claude-seccomp-bpf)
+# claude-seccomp-bpf (a libseccomp binary; see packages/claude/seccomp-bpf)
 # emits the filter in the seccomp_export_bpf format --seccomp expects, covering
 # the native and 32-bit compat ABI both, so a compat-arch call can't slip past.
 # Passed to bwrap on a numeric fd, which survives the exec into bwrap below.
