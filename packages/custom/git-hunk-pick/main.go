@@ -1,10 +1,11 @@
 // Command git-hunk-pick splits a unified git diff (read on stdin) into
 // individually selectable hunks and reassembles a chosen subset into a valid
-// patch. It backs the interactive hunk pickers in git.bash (the `grd`/`gru`
-// leader aliases): `list` feeds fzf one line per hunk, and `assemble` emits the
-// picked hunks — grouped under each file's original header, in ascending diff
-// order — as a patch that `git apply --reverse` (optionally `--cached`) applies
-// to unstage or discard exactly those hunks.
+// patch. It backs the ga/gru/grd/gsp file picker in git.bash: `assemble` emits
+// the picked hunks — grouped under each file's original header, in ascending
+// diff order — as a patch that `git apply` (with `--cached` and/or `--reverse`)
+// applies to stage, unstage or discard exactly those hunks, and the picker
+// subcommands (picker.go) keep the picker's state as it switches between the
+// files list and one file's hunks.
 //
 // Only whole, unmodified hunks are ever emitted, so the reconstructed patch is
 // always valid: each hunk's b-side line numbers are absolute, so any subset
@@ -16,6 +17,7 @@
 //
 //	git-hunk-pick list               <diff   # INDEX<TAB>LABEL per hunk, 1-based
 //	git-hunk-pick assemble INDEX...  <diff   # patch of those hunks
+//	git-hunk-pick key|load|get|hint SD ...   # the file picker's state (picker.go)
 package main
 
 import (
@@ -119,17 +121,24 @@ func hunkLabel(hunk string) string {
 	return hunk
 }
 
+// labels returns one "path @@-header" label per hunk, in diff order.
+func labels(files []fileDiff) []string {
+	var out []string
+	for _, f := range files {
+		for _, h := range f.hunks {
+			out = append(out, f.path+" "+hunkLabel(h))
+		}
+	}
+	return out
+}
+
 // list writes one "INDEX<TAB>path @@-header" line per hunk, indices 1-based in
 // diff order, for fzf to present (field 2..) and return (field 1 = index). It
 // returns the first write error, if any.
 func list(w io.Writer, files []fileDiff) error {
-	idx := 0
-	for _, f := range files {
-		for _, h := range f.hunks {
-			idx++
-			if _, err := fmt.Fprintf(w, "%d\t%s %s\n", idx, f.path, hunkLabel(h)); err != nil {
-				return err
-			}
+	for i, l := range labels(files) {
+		if _, err := fmt.Fprintf(w, "%d\t%s\n", i+1, l); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -194,7 +203,15 @@ func fatal(msg string) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fatal("usage: git-hunk-pick <list|assemble INDEX...>  (diff on stdin)")
+		fatal("usage: git-hunk-pick <list|assemble INDEX...>  (diff on stdin), or <key|load|get|hint> SD ...")
+	}
+
+	switch os.Args[1] {
+	case "key", "load", "get", "hint":
+		if err := runPicker(os.Args[1], os.Args[2:], os.Stdout); err != nil {
+			fatal(err.Error())
+		}
+		return
 	}
 
 	files, err := parseDiff(os.Stdin)
