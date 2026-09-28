@@ -31,6 +31,17 @@
   # (sources/.config/shell/functions/git.bash); on packages.tools PATH so
   # __git_pick_files invokes it by bare name.
   (import ./git-stash-hunks { inherit pkgs; })
+  # Renders sources/.config/shell/leader.toml into the fzf rows behind the
+  # leader-key picker (sources/.config/shell/functions/aliases.sh). Here so it
+  # lands in packages.tools and is on the interactive PATH inside the terminal,
+  # where the zle widget invokes it by bare name.
+  (import ./leader-aliases { inherit pkgs; })
+]
+# The claude-sandbox.bash launcher helpers are Linux-only: the sandbox is
+# bubblewrap (macOS uses Claude Code's built-in Seatbelt instead), so these
+# never run on darwin. claude-seccomp-bpf additionally cgo-links libseccomp,
+# which does not evaluate on aarch64-darwin at all (see devshells/languages.nix).
+++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
   # Emits the TIOCSTI/TIOCLINUX seccomp filter (seccomp_export_bpf format) that
   # claude-sandbox.bash feeds to bwrap's --seccomp. Here so it lands in
   # packages.tools and is on the interactive/host PATH, where the launcher runs
@@ -45,9 +56,4 @@
   # $HOME/XDG-root/login-exec-tree cwds). The launcher passes the physical cwd
   # and calls it before building the namespace; here for the same host-PATH reason.
   (import ./claude-cwd-gate { inherit pkgs; })
-  # Renders sources/.config/shell/leader.toml into the fzf rows behind the
-  # leader-key picker (sources/.config/shell/functions/aliases.sh). Here so it
-  # lands in packages.tools and is on the interactive PATH inside the terminal,
-  # where the zle widget invokes it by bare name.
-  (import ./leader-aliases { inherit pkgs; })
 ]
