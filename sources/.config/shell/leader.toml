@@ -12,8 +12,8 @@
 #                    is then inserted (and run unless run = false)
 #
 # Quote cmd with '...' (no escapes); use "..." only when it contains a '.
-# Rendered by leader-aliases (packages/custom); a parse error shows up in the
-# prompt and every chord stays dead until it is fixed.
+# Rendered by leader-aliases (packages/leader-aliases); a parse error shows up
+# in the prompt and every chord stays dead until it is fixed.
 
 [zoxide]
 " " = { cmd = '__zoxide_zi', desc = 'jump (fzf)' }
