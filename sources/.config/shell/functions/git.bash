@@ -185,12 +185,12 @@ __git_prefix_paths() {
 # so the picker keeps its rows and never blanks the screen (a nested hunks fzf run by
 # `execute` could do neither: fzf pauses onto the alternate screen to run it).
 # Whole-file selection is fzf's NATIVE multi-select: Tab selects, Shift-Tab deselects,
-# Ctrl-A selects all (or clears), all in-process. git-file-select.sh `key` handles the
+# Ctrl-A selects all (or clears), all in-process. `git-hunk-pick key` handles the
 # four keys whose meaning depends on the list shown; a reload wipes native marks, so a
 # drill saves the files list's marks and query, and each switch queues what must land
 # with the new list (header, marks, cursor, query, the hunk preselection) for `load`,
-# which fzf runs before it paints the reloaded list. Drilled hunk specs live in $sd/.sel
-# (a path, then ALL or its hunk indices): a drill opens with the file's spec marked (a
+# which fzf runs before it paints the reloaded list. git-hunk-pick keeps each drilled
+# file's hunk spec (ALL or its hunk indices): a drill opens with the spec marked (a
 # Tab-marked file: every hunk), leaving records the marks WYSIWYG and selects or
 # deselects the file to match. Enter in the hunks list, or on a file without hunks,
 # finalizes ($sd/.whole lists the selected files, $sd/.commit confirms) and the command
@@ -241,18 +241,16 @@ __git_pick_files() {
   git_cmd="$(__git_cmd_prefix)"
   repo_root="$(git rev-parse --show-toplevel)"
 
-  local sd sdq hsl hslq
+  local sd sdq
   sd="$(mktemp -d)" || return 1
   sdq="$(__shell_quote "$sd")"
-  hsl="$PERMEANCE_TREE/.config/shell/scripts/git-file-select.sh"
-  hslq="$(__shell_quote "$hsl")"
 
   # One preview for both lists: a hunk ($sd/.drill exists while drilled) shows that
-  # hunk alone; a file shows its path, a partial hint (git-file-select.sh hint prints
-  # a line only for a drilled hunk SUBSET), then its diff. {n} is the focused row's
+  # hunk alone; a file shows its path, a partial hint (git-hunk-pick hint prints a
+  # line only for a drilled hunk SUBSET), then its diff. {n} is the focused row's
   # 0-based index, and git-hunk-pick numbers hunks from 1.
   local -a preview=(
-    --preview "if [ -e $sdq/.drill ]; then echo {}; git-hunk-pick assemble \$(({n} + 1)) <$sdq/.diff | $_GIT_PAGER; else echo {}; $hslq hint $sdq {}; $diff_preview; fi"
+    --preview "if [ -e $sdq/.drill ]; then echo {}; git-hunk-pick assemble \$(({n} + 1)) <$sdq/.diff | $_GIT_PAGER; else echo {}; git-hunk-pick hint $sdq {}; $diff_preview; fi"
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
 
@@ -262,7 +260,7 @@ __git_pick_files() {
   # scrolled off screen behind a leading ellipsis. The ctrl-a bind keeps
   # $FZF_SELECT_COUNT/$FZF_MATCH_COUNT single-quoted so fzf (not the shell) expands
   # them; scope SC2016 to the subshell instead of fighting the formatter.
-  local key_cmd="$hslq key $sdq $child_mode"
+  local key_cmd="git-hunk-pick key $sdq $child_mode"
   # shellcheck disable=SC2016
   (
     builtin cd "$repo_root" || exit 1
@@ -276,7 +274,7 @@ __git_pick_files() {
         --bind "right:transform($key_cmd right {+f} {} {+n})" \
         --bind "left:transform($key_cmd left {+f} {} {+n})" \
         --bind "esc:transform($key_cmd esc {+f} {} {+n})" \
-        --bind "load:transform($hslq load $sdq)" \
+        --bind "load:transform(git-hunk-pick load $sdq)" \
         --bind "tab:select+down" \
         --bind "btab:deselect+up" \
         --bind 'ctrl-a:transform([ "${FZF_SELECT_COUNT:-0}" -eq "${FZF_MATCH_COUNT:-0}" ] && echo deselect-all || echo select-all)' \
@@ -289,10 +287,10 @@ __git_pick_files() {
     return 0
   fi
 
-  # The selected files are in $sd/.whole (one path per line) on finalize;
-  # $sd/.sel holds only DRILLED specs. A selected path with no spec — or an ALL spec
-  # — is whole; a subset spec applies just those hunks. Look each path's spec up via
-  # the helper (finalize is one-shot, so a subprocess per selected file is fine) — no
+  # The selected files are in $sd/.whole (one path per line) on finalize; only
+  # DRILLED files have a spec. A selected path with no spec — or an ALL spec — is
+  # whole; a subset spec applies just those hunks. Look each path's spec up with
+  # `git-hunk-pick get` (finalize is one-shot, a process per file is fine) — no
   # associative array, whose string-key quoting differs between bash and zsh, and this
   # function is sourced by both.
   local p spec
@@ -301,7 +299,7 @@ __git_pick_files() {
     if [ -f "$sd/.whole" ]; then
       while IFS= read -r p; do
         [ -n "$p" ] || continue
-        spec=$(sh "$hsl" get "$sd" "$p")
+        spec=$(git-hunk-pick get "$sd" "$p")
         case "${spec:-ALL}" in
           ALL) whole_flags="$whole_flags --whole $(__shell_quote "$p")" ;;
           *) hunk_cmds="${hunk_cmds:+$hunk_cmds; }$git_cmd diff --unified=0 -- $(__shell_quote "$p") | git-hunk-pick assemble ${spec}" ;;
@@ -324,7 +322,7 @@ __git_pick_files() {
     while IFS= read -r p; do
       [ -n "$p" ] || continue
       pq=$(__shell_quote "$p")
-      spec=$(sh "$hsl" get "$sd" "$p")
+      spec=$(git-hunk-pick get "$sd" "$p")
       case "${spec:-ALL}" in
         ALL) whole_list="$whole_list $pq" ;;
         *)
