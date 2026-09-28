@@ -17,8 +17,8 @@ __run_alias() {
   sh -c "$selected"
 }
 
-# Leader-key picker. leader-aliases (packages/custom) renders leader.toml as
-# one fzf row per chord: the displayed chord, command, group and description,
+# Leader-key picker. leader-aliases (packages/leader-aliases) renders leader.toml
+# as one fzf row per chord: the displayed chord, command, group and description,
 # then the hidden raw command and mode (run, insert, eval-run, eval-insert).
 # The command column is fitted to $COLUMNS (long commands are cut with an
 # ellipsis) so one wide entry cannot push the other columns off screen.
