@@ -1,6 +1,6 @@
 { pkgs }:
 import ./commons.nix { inherit pkgs; }
-++ import ./custom { inherit pkgs; }
+++ import ./custom.nix { inherit pkgs; }
 ++ (
   if pkgs.stdenv.isDarwin then
     import ./darwin.nix { inherit pkgs; }
