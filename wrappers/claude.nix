@@ -6,17 +6,17 @@
 }:
 
 let
-  claudeStatusline = import ../packages/custom/claude-statusline { inherit pkgs; };
-  claudeSessionStatus = import ../packages/custom/claude-session-status { inherit pkgs; };
-  claudeDocsGuard = import ../packages/custom/claude-docs-guard { inherit pkgs; };
-  claudeContext = import ../packages/custom/claude-context { inherit pkgs; };
-  gitAllowlistHook = import ../packages/custom/git-allowlist-hook { inherit pkgs; };
+  claudeStatusline = import ../packages/claude/statusline { inherit pkgs; };
+  claudeSessionStatus = import ../packages/claude/session-status { inherit pkgs; };
+  claudeDocsGuard = import ../packages/claude/docs-guard { inherit pkgs; };
+  claudeContext = import ../packages/claude/context { inherit pkgs; };
+  gitAllowlistHook = import ../packages/git/allowlist-hook { inherit pkgs; };
   # Used only by the smoke test below, which dry-runs the sandbox launcher: it
   # fails closed without these on PATH. They reach the host PATH through
-  # packages/custom/default.nix, never claude's own.
-  claudeCwdGate = import ../packages/custom/claude-cwd-gate { inherit pkgs; };
-  claudeSeccompBpf = import ../packages/custom/claude-seccomp-bpf { inherit pkgs; };
-  claudeSshSanitize = import ../packages/custom/claude-ssh-sanitize { inherit pkgs; };
+  # packages/custom.nix, never claude's own.
+  claudeCwdGate = import ../packages/claude/cwd-gate { inherit pkgs; };
+  claudeSeccompBpf = import ../packages/claude/seccomp-bpf { inherit pkgs; };
+  claudeSshSanitize = import ../packages/claude/ssh-sanitize { inherit pkgs; };
   # Stand-in bwrap for that dry run: prints the argv it was handed, one per line.
   fakeBwrap = pkgs.writeShellScript "bwrap" ''
     printf '%s\n' "$@"
@@ -24,11 +24,11 @@ let
   # Point the shim at the wrapped git so config (excludesFile, pager, includes,
   # GIT_CONFIG_GLOBAL) applies whether git is invoked from claude or from the
   # interactive shell. The allowlist check still runs first on the same argv.
-  gitShim = import ../packages/custom/git-shim {
+  gitShim = import ../packages/git/shim {
     inherit pkgs;
     realGit = "${git}/bin/git";
   };
-  firefoxMcpPkg = import ../packages/custom/firefox-mcp.nix { inherit pkgs; };
+  firefoxMcpPkg = import ../packages/firefox-mcp.nix { inherit pkgs; };
 
   tools = [
     claudeStatusline
