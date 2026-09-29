@@ -244,7 +244,7 @@ chsa = { cmd = '__chezmoi_shared add', desc = 'shared › add', run = false }
 chsy = { cmd = '__chezmoi_shared apply', desc = 'shared › apply', run = false }
 
 [aws]
-al = { cmd = 'aws sso login', desc = 'sso › login' }
+al = { cmd = '__aws_login', desc = 'sso › login' }
 ap = { cmd = 'aws configure list-profiles', desc = 'profiles › list', run = false }
 af = { cmd = 'aws lambda list-functions --profile <profile>', desc = 'lambda › list', run = false }
 ab = { cmd = 'sam build', desc = 'lambda › build', run = false }
