@@ -8,9 +8,10 @@ __CLAUDE_FZF="--reverse --no-separator --keep-right --border none --cycle --heig
 # (the fzf plugin picker) when you need nixpkgs/option search.
 __CLAUDE_DEFAULT_PLUGINS=(nix-lsp typescript-lsp)
 
-# Prefix that runs claude inside the bubblewrap boundary (scripts/claude-sandbox.bash):
-# whole-process filesystem isolation, which Claude Code's own /sandbox can't provide
-# here because its seccomp filter blocks AF_UNIX and kills the nix-daemon socket.
+# Prefix that runs claude inside the bubblewrap boundary: claude-sandbox, from
+# github:Runeword/claude-sandbox (on PATH through the tools env). Whole-process
+# filesystem isolation, which Claude Code's own /sandbox can't provide here
+# because its seccomp filter blocks AF_UNIX and kills the nix-daemon socket.
 # Set CLAUDE_SANDBOX=0 to launch unwrapped.
 # macOS gets no bwrap prefix: bwrap is Linux-only, and Claude Code's own /sandbox
 # applies there instead — Seatbelt supports sandbox.allowUnixSockets for the
@@ -27,7 +28,7 @@ __claude_sandbox_prefix() {
     __claude_macos_prefix
     return
   fi
-  local script="$PERMEANCE_TREE/.config/shell/scripts/claude-sandbox.bash"
+  local script
   if ! command -v bwrap >/dev/null 2>&1; then
     echo "claude: bwrap not found on PATH; refusing to launch unsandboxed (CLAUDE_SANDBOX=0 to override)" >&2
     return 1
@@ -49,8 +50,10 @@ __claude_sandbox_prefix() {
     echo "claude: claude-egress-proxy not found on PATH; cf/cj sessions run behind its network filter, and the launcher refuses them without it. Rebuild the terminal to pick it up, or launch without the credential." >&2
     return 1
   fi
-  if [ ! -x "$script" ]; then
-    echo "claude: $script is missing or not executable; refusing to launch unsandboxed (CLAUDE_SANDBOX=0 to override)" >&2
+  # Resolved here and handed on as a full path: the command runs in a
+  # `tmux new-window` pane, which gets the tmux server's PATH, not this one.
+  if ! script=$(command -v claude-sandbox); then
+    echo "claude: claude-sandbox not found on PATH; refusing to launch unsandboxed. Rebuild the terminal to pick it up, or CLAUDE_SANDBOX=0 to override." >&2
     return 1
   fi
   # The launcher refuses a cwd that would bind $HOME, an XDG root, or a tree the
@@ -65,15 +68,16 @@ __claude_sandbox_prefix() {
 
 # macOS has no bwrap launcher, but the per-session credential opt-ins
 # (CLAUDE_SANDBOX_ALLOW_FIREBASE, CLAUDE_SANDBOX_ALLOW_JIRA) still need one:
-# scripts/claude-macos.bash reads the credential from pass on the host and hands
-# it to claude. Only a session that opts in goes through it; every other launch
-# runs claude directly, as before. Like the Linux gate, a missing launcher
-# refuses the launch rather than starting without what was asked for.
+# claude-macos (github:Runeword/claude-sandbox) reads the credential from pass
+# on the host and hands it to claude. Only a session that opts in goes through
+# it; every other launch runs claude directly, as before. Like the Linux gate, a
+# missing launcher refuses the launch rather than starting without what was
+# asked for.
 __claude_macos_prefix() {
   [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ] || [ "${CLAUDE_SANDBOX_ALLOW_JIRA:-0}" = "1" ] || return 0
-  local script="$PERMEANCE_TREE/.config/shell/scripts/claude-macos.bash"
-  if [ ! -x "$script" ]; then
-    echo "claude: $script is missing or not executable; refusing to launch without the credentials CLAUDE_SANDBOX_ALLOW_* asked for" >&2
+  local script
+  if ! script=$(command -v claude-macos); then
+    echo "claude: claude-macos not found on PATH; refusing to launch without the credentials CLAUDE_SANDBOX_ALLOW_* asked for. Rebuild the terminal to pick it up." >&2
     return 1
   fi
   printf '%s ' "$script"
@@ -174,7 +178,7 @@ __claude_provision_config() {
 #   is the boundary there: bwrap is Linux-only, and Seatbelt can allow the
 #   nix-daemon socket by path while Linux/seccomp cannot
 #   (anthropics/claude-code#44180). It also carries what the macOS credential
-#   opt-ins rely on (see scripts/claude-macos.bash): Read deny rules that keep
+#   opt-ins rely on (see claude-macos): Read deny rules that keep
 #   the `firebase login` and gcloud credentials out of every session, and
 #   `jira` run outside Seatbelt.
 # - settings.linux.json turns the built-in sandbox OFF: recent claude-code
