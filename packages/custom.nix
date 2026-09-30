@@ -37,27 +37,3 @@
   # where the zle widget invokes it by bare name.
   (import ./leader-aliases { inherit pkgs; })
 ]
-# The claude-sandbox.bash launcher helpers are Linux-only: the sandbox is
-# bubblewrap (macOS uses Claude Code's built-in Seatbelt instead), so these
-# never run on darwin. claude-seccomp-bpf additionally cgo-links libseccomp,
-# which does not evaluate on aarch64-darwin at all (see devshells/languages.nix).
-++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
-  # Emits the TIOCSTI/TIOCLINUX seccomp filter (seccomp_export_bpf format) that
-  # claude-sandbox.bash feeds to bwrap's --seccomp. Here so it lands in
-  # packages.tools and is on the interactive/host PATH, where the launcher runs
-  # it before exec'ing into the namespace.
-  (import ./claude/seccomp-bpf { inherit pkgs; })
-  # Builds the sanitized ~/.ssh copy (config + in-tree Includes + known_hosts +
-  # one .pub per IdentityFile, never a private key) that claude-sandbox.bash
-  # binds into the namespace. Same reason it is here: the launcher invokes it on
-  # the interactive/host PATH before exec'ing into bwrap.
-  (import ./claude/ssh-sanitize { inherit pkgs; })
-  # Decides whether claude-sandbox.bash may bind the cwd read-write (refuses
-  # $HOME/XDG-root/login-exec-tree cwds). The launcher passes the physical cwd
-  # and calls it before building the namespace; here for the same host-PATH reason.
-  (import ./claude/cwd-gate { inherit pkgs; })
-  # The network filter of cf/cj sessions: the launcher runs its `serve` half on
-  # the host before exec'ing into bwrap, and its `bridge` half inside the
-  # namespace, which inherits this PATH.
-  (import ./claude/egress-proxy { inherit pkgs; })
-]
