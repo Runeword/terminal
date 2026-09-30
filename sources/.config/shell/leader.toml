@@ -221,6 +221,8 @@ cpr = { cmd = '__claude_plugins --resume', desc = 'plugins › resume' }
 cd  = { cmd = '__claude_debug', desc = 'debug' }
 cf  = { cmd = 'CLAUDE_SANDBOX_ALLOW_FIREBASE=1 __claude', desc = 'firebase' }
 cfr = { cmd = 'CLAUDE_SANDBOX_ALLOW_FIREBASE=1 __claude --resume', desc = 'firebase › resume' }
+cj  = { cmd = 'CLAUDE_SANDBOX_ALLOW_JIRA=1 __claude', desc = 'jira' }
+cjr = { cmd = 'CLAUDE_SANDBOX_ALLOW_JIRA=1 __claude --resume', desc = 'jira › resume' }
 
 [chezmoi]
 chd  = { cmd = 'chezmoi diff --reverse', desc = 'diff --reverse' }
