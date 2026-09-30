@@ -15,6 +15,9 @@
   inputs.permeance.url = "github:Runeword/permeance";
   inputs.permeance.inputs.nixpkgs.follows = "nixpkgs";
 
+  inputs.nix-index-database.url = "github:nix-community/nix-index-database";
+  inputs.nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
+
   # inputs.hello-flake.url = "github:sbellem/hello-flake";
 
   outputs =
@@ -26,6 +29,7 @@
         pkgs: configPath:
         import ./wrappers {
           inherit pkgs configPath;
+          inherit (inputs) nixpkgs nix-index-database;
           permeance = mkPermeance pkgs;
         };
 
