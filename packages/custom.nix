@@ -56,4 +56,8 @@
   # $HOME/XDG-root/login-exec-tree cwds). The launcher passes the physical cwd
   # and calls it before building the namespace; here for the same host-PATH reason.
   (import ./claude/cwd-gate { inherit pkgs; })
+  # The network filter of cf/cj sessions: the launcher runs its `serve` half on
+  # the host before exec'ing into bwrap, and its `bridge` half inside the
+  # namespace, which inherits this PATH.
+  (import ./claude/egress-proxy { inherit pkgs; })
 ]
