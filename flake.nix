@@ -15,6 +15,10 @@
   inputs.permeance.url = "github:Runeword/permeance";
   inputs.permeance.inputs.nixpkgs.follows = "nixpkgs";
 
+  inputs.claude-sandbox.url = "github:Runeword/claude-sandbox";
+  inputs.claude-sandbox.inputs.nixpkgs.follows = "nixpkgs";
+  inputs.claude-sandbox.inputs.lefthook.follows = "lefthook";
+
   inputs.nix-index-database.url = "github:nix-community/nix-index-database";
   inputs.nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -25,15 +29,25 @@
     let
       mkPermeance = pkgs: inputs.permeance.lib pkgs;
 
+      # The claude sandbox's launchers and helpers, for pkgs' system.
+      mkClaudeSandbox = pkgs: inputs.claude-sandbox.packages.${pkgs.stdenv.hostPlatform.system};
+
       mkWrappers =
         pkgs: configPath:
         import ./wrappers {
           inherit pkgs configPath;
           inherit (inputs) nixpkgs nix-index-database;
           permeance = mkPermeance pkgs;
+          claudeSandbox = mkClaudeSandbox pkgs;
         };
 
-      mkTools = pkgs: wrappers: import ./packages { inherit pkgs; } ++ builtins.attrValues wrappers;
+      mkTools =
+        pkgs: wrappers:
+        import ./packages {
+          inherit pkgs;
+          claudeSandbox = mkClaudeSandbox pkgs;
+        }
+        ++ builtins.attrValues wrappers;
 
       mkTerminal =
         pkgs: configPath: tools:
