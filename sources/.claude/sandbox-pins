@@ -1,0 +1,43 @@
+# What the host shell sources or runs from this tree on its own, which
+# claude-sandbox (github:Runeword/claude-sandbox) pins read-only on top of its
+# read-write bind of the tree: writable, each one would let a session run code
+# on the host before a diff could be reviewed. One path per line, relative to
+# sources/, `#` starting a comment. Read at every launch and pinned itself,
+# like everything it names, so it is edited from a plain terminal.
+#
+# Claude's own config: settings*.json (hooks, permissions), hooks/, the plugin
+# .mcp.json manifests, rules/, and git-allowlist.toml, which the git-shim
+# re-reads on every call — writable, it would let a session widen its own
+# allowlist mid-run.
+.claude
+# The shell startup chain: .zshrc plus its glob-sourced plugins, .bashrc, the
+# three files both rc files source by name, and functions/, sourced by glob —
+# a new file there would be executed too, so the directory is pinned, not its
+# files. functions/claude.bash is what starts the sandbox.
+.config/zsh
+.config/bash
+.config/shell/xdg.sh
+.config/shell/variables.sh
+.config/shell/aliases.sh
+.config/shell/functions
+# The leader-key command table: aliases.sh's __aliases widget (pinned above)
+# renders it and runs the picked chord's cmd in the host shell — accept-line
+# for the default run mode, eval for eval entries — on every leader press.
+# Writable, a session could rewrite a familiar chord into its own host command;
+# this is the data the pinned widget executes, moved out of the pinned
+# functions/ dir, so pinned with it.
+.config/shell/leader.toml
+# GIT_CONFIG_GLOBAL for the wrapped git — so for the git-shim, and for
+# starship at every prompt: core.hooksPath would sidestep the launcher's
+# .git/hooks lock, and core.fsmonitor, `!` aliases and filters run commands
+# outright.
+.config/git
+# direnvrc runs in the host shell at every cd; the launcher's .direnv and CAS
+# locks guard direnv's outputs, this guards its input.
+.config/direnv
+#
+# Left writable on purpose: on-demand tool config (bat, navi, ripgrep, readline,
+# nvim-fzf, tree-sitter), the fzf scripts under shell/scripts/, and — the repo's
+# main editing target, though the host runs them unprompted too — the tmux,
+# starship and alacritty configs. Add them here if that trade-off changes.
+# Review of the writable rest is `git diff -- sources` on the host.
