@@ -78,7 +78,12 @@
 #     is masked too: an `ask` rule on Bash(gh *) is not a control here, because
 #     the Read tool and every hook/MCP server reach the file without going
 #     through Bash at all. Set CLAUDE_SANDBOX_ALLOW_GH=1 when a session needs
-#     the gh CLI.
+#     the gh CLI. Two more opt-ins hand one session a credential read from pass
+#     on the host: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 a scoped service-account
+#     key, CLAUDE_SANDBOX_ALLOW_JIRA=1 a Jira API token. Their entries live
+#     under claude/ in the store, so `pass ls claude` lists everything a
+#     session can be handed. Those two sessions also get a filtered network,
+#     below.
 #   - ~/.ssh replaced by a sanitized copy: config plus its Includes,
 #     known_hosts, and one public key per IdentityFile, so `IdentitiesOnly yes`
 #     is satisfied and git-over-ssh keeps working while private keys never
@@ -86,9 +91,12 @@
 #     ~/.ssh, even when the agent holds no identity
 #
 # Deliberately NOT isolated:
-#   - the network. bwrap alone offers no domain filtering, so this is a
-#     containment boundary against filesystem damage and credential reads, not
-#     against exfiltration.
+#   - the network, outside the credential sessions. bwrap alone offers no
+#     domain filtering, so an ordinary session is a containment boundary
+#     against filesystem damage and credential reads, not against
+#     exfiltration. A session holding a Jira or Firebase credential gets no
+#     network of its own instead: claude-egress-proxy lets through only listed
+#     hosts (see CLAUDE_SANDBOX_NET_ALLOW below).
 #   - the nix-daemon socket, which is the whole reason this wrapper exists. Note
 #     what that costs: a client the daemon considers trusted may override daemon
 #     settings (post-build-hook, pre-build-hook, diff-hook, build-users-group),
@@ -596,7 +604,7 @@ done
 #     token/role/project, not a missing login.)
 # Only firebase reads GOOGLE_APPLICATION_CREDENTIALS (via ADC); `gcloud` itself uses
 # its own credential store and is NOT authenticated by this key.
-__cs_fb_pass="${FIREBASE_SA_KEY_PASS:-firebase/sa-key}"
+__cs_fb_pass="${FIREBASE_SA_KEY_PASS:-claude/firebase-sa-key}"
 if [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ]; then
   if ! command -v pass >/dev/null 2>&1; then
     echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_FIREBASE=1 but 'pass' is not on PATH; cannot read the SA key" >&2
@@ -645,6 +653,131 @@ if [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ]; then
         ;;
     esac
   fi
+fi
+
+# Jira CLI auth. CLAUDE_SANDBOX_ALLOW_JIRA=1 (leader alias `cj`) hands the session
+# the API token in pass entry $__cs_jira_pass, read here on the host like the
+# firebase key above. That is claude's own token, not the JIRA_API_TOKEN entry
+# the interactive `jira` alias reads, so its scopes, expiry and revocation stay
+# apart from yours, as the firebase SA key does from your login. jira-cli takes
+# it from JIRA_API_TOKEN, so it is exported for bwrap to inherit — never
+# --setenv, which would leave it in bwrap's argv, readable through /proc by any
+# local user for the whole session. Any code in the session can read it until
+# it expires or is revoked, hence per-session opt-in.
+#
+# jira-cli gets its own config, .jira/claude.yml, so the interactive `jira` alias
+# and its default config are left alone. The file holds no secret; write it once
+# from a plain terminal ($HOME is read-only in here) with this entry's token;
+# `command` skips the alias, which would supply your personal one:
+#   JIRA_API_TOKEN="$(pass show claude/jira-token)" \
+#     JIRA_CONFIG_FILE=~/.config/.jira/claude.yml command jira init \
+#     --installation cloud --login <email> \
+#     --server https://api.atlassian.com/ex/jira/<cloudId>
+# A scoped token works only through that API gateway, not the site URL, and
+# jira-cli 1.7 has no native support for it; a classic token takes the site URL.
+# Without the file the token is not handed over: jira-cli would fail anyway.
+__cs_jira_pass="${JIRA_API_TOKEN_PASS:-claude/jira-token}"
+__cs_jira_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/.jira/claude.yml"
+if [ "${CLAUDE_SANDBOX_ALLOW_JIRA:-0}" = "1" ]; then
+  if ! command -v pass >/dev/null 2>&1; then
+    echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_JIRA=1 but 'pass' is not on PATH; cannot read the token" >&2
+  elif [ ! -f "$__cs_jira_cfg" ]; then
+    echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_JIRA=1 but $__cs_jira_cfg is missing; create it from a plain terminal (see CLAUDE_SANDBOX_ALLOW_JIRA in claude-sandbox.bash). Not passing the token" >&2
+  elif ! __cs_jira_tok=$(pass show "$__cs_jira_pass" 2>/dev/null) || [ -z "$__cs_jira_tok" ]; then
+    echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_JIRA=1 but no token at 'pass show $__cs_jira_pass'; store claude's own API token there first (pass insert $__cs_jira_pass)" >&2
+  else
+    export JIRA_API_TOKEN="$__cs_jira_tok"
+    unset __cs_jira_tok
+    args+=(--setenv JIRA_CONFIG_FILE "$__cs_jira_cfg")
+    echo "claude-sandbox: CLAUDE_SANDBOX_ALLOW_JIRA=1 — jira API token (pass: $__cs_jira_pass) exported as JIRA_API_TOKEN; readable by any code in this session" >&2
+  fi
+fi
+
+# Network filter for the credential sessions above. A session holding a Jira or
+# Firebase credential also reads text anyone can write (tickets, database
+# records), so with an open network one injected instruction could send what
+# that credential reaches anywhere. Such a session gets no network of its own
+# (--unshare-net): everything it sends goes through claude-egress-proxy
+# (packages/claude/egress-proxy), which runs here on the host, lets through only
+# the hosts listed below plus the session's service, and refuses a listed name
+# that resolves to loopback, a private range or this host. Inside, its `bridge`
+# serves the proxy on the namespace's own 127.0.0.1:3128, where HTTPS_PROXY and
+# friends point; unix sockets (nix daemon, ssh agent) are files and keep
+# working. Left without network: anything that ignores the proxy variables, and
+# ssh (git over ssh). A refused request gets a 403 naming the host and a line in
+# $CLAUDE_CONFIG_DIR/egress.log. CLAUDE_SANDBOX_NET_ALLOW adds hosts for one
+# session, space- or comma-separated ("*.example.com" for subdomains, "*" for
+# any host, local addresses still refused).
+__cs_net_allow=(
+  # Claude Code itself (its docs' "Network access requirements"); the optional
+  # telemetry hosts are left out, and that traffic is switched off below.
+  api.anthropic.com claude.ai claude.com platform.claude.com code.claude.com
+  # GitHub: flake inputs, git over HTTPS, raw files and release assets.
+  github.com api.github.com codeload.github.com raw.githubusercontent.com
+  objects.githubusercontent.com
+  # Nix: binary caches, and the registry `nixpkgs#…` resolves through.
+  cache.nixos.org '*.cachix.org' channels.nixos.org
+  # MCP servers launched with npx or uvx.
+  registry.npmjs.org pypi.org files.pythonhosted.org
+)
+__cs_net=0
+if [ "${CLAUDE_SANDBOX_ALLOW_JIRA:-0}" = "1" ]; then
+  __cs_net=1
+  __cs_net_allow+=(api.atlassian.com '*.atlassian.net')
+fi
+if [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ]; then
+  __cs_net=1
+  __cs_net_allow+=('*.googleapis.com' '*.firebaseio.com' '*.firebasedatabase.app')
+fi
+__cs_cmd=("$@")
+if [ "$__cs_net" = "1" ]; then
+  IFS=', ' read -r -a __cs_net_extra <<<"${CLAUDE_SANDBOX_NET_ALLOW:-}"
+  __cs_net_allow+=("${__cs_net_extra[@]}")
+  __cs_net_args=()
+  for h in "${__cs_net_allow[@]}"; do
+    if [ -n "$h" ]; then
+      __cs_net_args+=(--allow "$h")
+    fi
+  done
+  __cs_net_log="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/egress.log"
+  __cs_net_sock="$__cs_tmp/egress.sock"
+  # It exits on its own once $$, bwrap after the exec below, is gone.
+  if command -v claude-egress-proxy >/dev/null 2>&1; then
+    claude-egress-proxy serve --socket "$__cs_net_sock" --parent $$ \
+      "${__cs_net_args[@]}" </dev/null >/dev/null 2>>"$__cs_net_log" &
+    for _ in $(seq 100); do
+      [ -S "$__cs_net_sock" ] && break
+      sleep 0.02
+    done
+  fi
+  # Fails closed like the seccomp gate below: without the filter this would be
+  # a session holding a credential with an open network.
+  if [ ! -S "$__cs_net_sock" ]; then
+    echo "claude-sandbox: the network filter for this credential session did not start (claude-egress-proxy missing from PATH, a bad CLAUDE_SANDBOX_NET_ALLOW entry, or see $__cs_net_log). Refusing to launch a session that holds a credential with an open network." >&2
+    exit 1
+  fi
+  # The workspace sits under the runtime dir, a private tmpfs in there, so the
+  # socket is bound into that tmpfs. Without a runtime dir the workspace is
+  # under ~/.cache, visible read-only, and connect(2) works through that.
+  __cs_net_sock_in="$__cs_net_sock"
+  if [ -n "$__cs_xdg" ]; then
+    __cs_net_sock_in="$__cs_xdg/claude-egress.sock"
+    args+=(--bind "$__cs_net_sock" "$__cs_net_sock_in")
+  fi
+  args+=(--unshare-net)
+  for v in HTTPS_PROXY HTTP_PROXY https_proxy http_proxy; do
+    args+=(--setenv "$v" http://127.0.0.1:3128)
+  done
+  for v in NO_PROXY no_proxy; do
+    args+=(--setenv "$v" "localhost,127.0.0.1,::1")
+  done
+  # Node's built-in fetch ignores the variables above unless asked to.
+  args+=(--setenv NODE_USE_ENV_PROXY 1)
+  # Claude Code's optional telemetry hosts are not on the list: switch that
+  # traffic off rather than log a refusal for every event.
+  args+=(--setenv CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC 1)
+  __cs_cmd=(claude-egress-proxy bridge --listen 127.0.0.1:3128 --socket "$__cs_net_sock_in" -- "$@")
+  echo "claude-sandbox: network filtered for this credential session — only its ${#__cs_net_allow[@]} listed host patterns are reachable; refusals go to $__cs_net_log, and CLAUDE_SANDBOX_NET_ALLOW adds hosts" >&2
 fi
 
 # Sibling Claude profiles. Only the active $CLAUDE_CONFIG_DIR is in scope (bound
@@ -782,7 +915,7 @@ trap - EXIT
   while kill -0 $$ 2>/dev/null; do sleep 15; done
   rm -rf "$__cs_tmp"
 ) &
-exec -a "$(basename "$1")" bwrap "${args[@]}" -- "$@"
+exec -a "$(basename "$1")" bwrap "${args[@]}" -- "${__cs_cmd[@]}"
 rm -rf "$__cs_tmp"
 echo "claude-sandbox: failed to exec bwrap" >&2
 exit 127
