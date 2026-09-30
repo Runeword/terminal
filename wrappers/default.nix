@@ -2,6 +2,8 @@
   pkgs,
   configPath,
   permeance,
+  nixpkgs,
+  nix-index-database,
 }:
 let
   files = import ../lib/files.nix {
@@ -21,6 +23,8 @@ let
       files
       permeance
       git
+      nixpkgs
+      nix-index-database
       ;
   };
   zsh = import ./zsh.nix {
