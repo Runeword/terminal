@@ -38,6 +38,29 @@
         "type": "github"
       }
     },
+    "claude-sandbox": {
+      "inputs": {
+        "lefthook": [
+          "lefthook"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1790807711,
+        "narHash": "sha256-RIwXBR5VOGvrYqEfPs47KqWeJ/CWMspe5NDa9sI6cTs=",
+        "owner": "Runeword",
+        "repo": "claude-sandbox",
+        "rev": "5d817f52e46cbc79b1416b27e174fb9ce9ad0297",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Runeword",
+        "repo": "claude-sandbox",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
@@ -172,6 +195,7 @@
     "root": {
       "inputs": {
         "claude": "claude",
+        "claude-sandbox": "claude-sandbox",
         "flake-utils": "flake-utils",
         "lefthook": "lefthook_2",
         "nix-index-database": "nix-index-database",
