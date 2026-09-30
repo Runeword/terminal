@@ -1,4 +1,7 @@
 {
+  "permissions": {
+    "deny": ["Read(~/.config/configstore/**)", "Read(~/.config/gcloud/**)"]
+  },
   "sandbox": {
     "enabled": true,
     "network": {
@@ -15,6 +18,6 @@
     "filesystem": {
       "allowWrite": ["~/.cache/nix", "~/.local/state/nix", "~/.cache/direnv"]
     },
-    "excludedCommands": ["gh *", "tofu *", "terraform *"]
+    "excludedCommands": ["gh *", "tofu *", "terraform *", "jira *"]
   }
 }
