@@ -7,13 +7,15 @@
 # Claude Code applies them: Read deny rules become filesystem.denyRead,
 # sandbox.network and sandbox.filesystem the same keys, and the cwd plus the
 # configstore claude-macos.bash passes with --add-dir filesystem.allowWrite.
-# claude-macos.bash itself runs under Apple's /bin/bash 3.2 and BSD tools, with
-# stand-ins for pass and claude.
+# claude-macos.bash itself, from the claude-sandbox revision flake.lock pins,
+# runs under Apple's /bin/bash 3.2 and BSD tools, with stand-ins for pass and
+# claude.
 #
 # Everything happens under a throwaway $HOME, so nothing lands in a real one.
 # The tools come from the nixpkgs pinned in flake.lock (read with the runner's
-# jq), so the flake's private inputs are never fetched. Run by ci.yml on its
-# macOS machine, after the flake check.
+# jq), not from the flake, so permeance is never fetched; claude-sandbox,
+# private too, comes through the access token ci.yml sets up for nix. Run by
+# ci.yml on its macOS machine, after the flake check.
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/../.." && pwd -P)
@@ -22,6 +24,8 @@ w=$(cd "$w" && pwd -P)
 trap 'rm -rf "$w"' EXIT
 
 nixpkgs=$(jq -r '.nodes.nixpkgs.locked | "github:\(.owner)/\(.repo)/\(.rev)"' "$repo/flake.lock")
+sandbox=$(jq -r '.nodes[.nodes.root.inputs["claude-sandbox"]].locked | "github:\(.owner)/\(.repo)/\(.rev)"' "$repo/flake.lock")
+sandbox_src=$(nix flake prefetch --json "$sandbox" | jq -r .storePath)
 for p in sandbox-runtime ripgrep go; do
   PATH="$(nix build --no-link --print-out-paths "$nixpkgs#$p" | head -1)/bin:$PATH"
 done
@@ -69,7 +73,7 @@ EOF
 chmod +x "$mac/bin/pass" "$mac/bin/claude"
 PATH="$mac/bin:$PATH" TMPDIR="$mac" CLAUDE_OUT="$mac/out" \
   CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_SANDBOX_ALLOW_FIREBASE=1 \
-  /bin/bash "$repo/sources/.config/shell/scripts/claude-macos.bash" claude --version \
+  /bin/bash "$sandbox_src/launchers/claude-macos.bash" claude --version \
   >"$mac/stdout" 2>"$mac/err" &
 session=$!
 for _ in $(seq 100); do
