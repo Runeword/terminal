@@ -5,6 +5,8 @@
   git,
   nixpkgs,
   nix-index-database,
+  # github:Runeword/claude-sandbox's packages for this system.
+  claudeSandbox,
 }:
 
 let
@@ -12,14 +14,7 @@ let
   claudeSessionStatus = import ../packages/claude/session-status { inherit pkgs; };
   claudeDocsGuard = import ../packages/claude/docs-guard { inherit pkgs; };
   claudeContext = import ../packages/claude/context { inherit pkgs; };
-  gitAllowlistHook = import ../packages/git/allowlist-hook { inherit pkgs; };
-  # Used only by the smoke test below, which dry-runs the sandbox launcher: it
-  # fails closed without these on PATH. They reach the host PATH through
-  # packages/custom.nix, never claude's own.
-  claudeCwdGate = import ../packages/claude/cwd-gate { inherit pkgs; };
-  claudeSeccompBpf = import ../packages/claude/seccomp-bpf { inherit pkgs; };
-  claudeSshSanitize = import ../packages/claude/ssh-sanitize { inherit pkgs; };
-  claudeEgressProxy = import ../packages/claude/egress-proxy { inherit pkgs; };
+  gitAllowlistHook = claudeSandbox.git-allowlist-hook;
   # Stand-in bwrap for that dry run: prints the argv it was handed, one per line,
   # and saves the environment it inherited to $BWRAP_ENV.
   fakeBwrap = pkgs.writeShellScript "bwrap" ''
@@ -47,10 +42,7 @@ let
   # Point the shim at the wrapped git so config (excludesFile, pager, includes,
   # GIT_CONFIG_GLOBAL) applies whether git is invoked from claude or from the
   # interactive shell. The allowlist check still runs first on the same argv.
-  gitShim = import ../packages/git/shim {
-    inherit pkgs;
-    realGit = "${git}/bin/git";
-  };
+  gitShim = claudeSandbox.git-shim.override { realGit = "${git}/bin/git"; };
   firefoxMcpPkg = import ../packages/firefox-mcp.nix { inherit pkgs; };
 
   tools = [
@@ -237,8 +229,9 @@ let
         # in the build sandbox), but its policy is an argv. Run it against a
         # writable copy of the sources tree with a stand-in `bwrap` that prints
         # the arguments it was handed, and assert that the host-executed config
-        # comes out pinned read-only, with each parent bound first as an anchor
-        # (a directory that merely contains a pin can be renamed from under it).
+        # sources/.claude/sandbox-pins names comes out pinned read-only, with
+        # each parent bound first as an anchor (a directory that merely
+        # contains a pin can be renamed from under it).
         tree="$TMPDIR/tree"
         cp -r ${../sources} "$tree"
         chmod -R u+w "$tree"
@@ -254,18 +247,11 @@ let
         argv="$TMPDIR/bwrap-argv"
         if ! (
           cd "$repo" \
-            && PATH="$TMPDIR/fakebin:${
-              pkgs.lib.makeBinPath [
-                claudeCwdGate
-                claudeSeccompBpf
-                claudeSshSanitize
-                claudeEgressProxy
-              ]
-            }:$PATH" \
+            && PATH="$TMPDIR/fakebin:${claudeSandbox.default}/bin:$PATH" \
               PERMEANCE_TREE="$tree" \
               CLAUDE_SANDBOX_ALLOW_JIRA=1 \
               BWRAP_ENV="$TMPDIR/bwrap-env" \
-              bash "$tree/.config/shell/scripts/claude-sandbox.bash" claude --version \
+              claude-sandbox claude --version \
               > "$argv" 2> "$TMPDIR/launcher.err"
         ); then
           fail "launcher did not reach bwrap: $(cat "$TMPDIR/launcher.err")"
@@ -303,14 +289,12 @@ let
         }
         for p in .claude .config/zsh .config/bash .config/shell/xdg.sh \
           .config/shell/variables.sh .config/shell/aliases.sh .config/shell/functions \
-          .config/shell/leader.toml \
-          .config/shell/scripts/claude-sandbox.bash .config/git .config/direnv; do
+          .config/shell/leader.toml .config/git .config/direnv; do
           pinned "$tree/$p"
         done
         anchored "$tree" "$tree/.claude"
         anchored "$tree/.config" "$tree/.config/zsh"
         anchored "$tree/.config/shell" "$tree/.config/shell/functions"
-        anchored "$tree/.config/shell/scripts" "$tree/.config/shell/scripts/claude-sandbox.bash"
         anchored "$repo/.git" "$repo/.git/hooks"
         anchored "$repo/.git" "$repo/.git/config"
         anchored "$repo/.claude" "$repo/.claude/skills"
@@ -360,7 +344,7 @@ let
         ln -s ${fakeClaude} "$mac/bin/claude"
         PATH="$mac/bin:$PATH" TMPDIR="$mac" CLAUDE_OUT="$mac/out" \
           CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_SANDBOX_ALLOW_FIREBASE=1 \
-          bash ${../sources/.config/shell/scripts/claude-macos.bash} claude --version \
+          ${claudeSandbox.claude-macos}/bin/claude-macos claude --version \
           > "$mac/stdout" 2> "$mac/err" || true
         if grep -qx 'JIRA_API_TOKEN=fake-jira-token' "$mac/out/env" \
           && grep -qx "JIRA_CONFIG_FILE=$HOME/.config/.jira/claude.yml" "$mac/out/env" \
