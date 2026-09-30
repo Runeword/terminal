@@ -7,7 +7,7 @@ GitHub repository settings managed with OpenTofu.
 - Repository visibility, features, security analysis (`repository.tf`)
 - Actions permissions: allowed actions, SHA pinning, default token scope (`actions.tf`)
 - Branch protection on `main` (`branch-protection.tf`)
-- Actions secrets (`secrets.tf`) — currently `PERMEANCE_TOKEN`, used by `.github/workflows/ci.yml` to fetch the private `Runeword/permeance` flake input
+- Actions secrets (`secrets.tf`) — currently `PERMEANCE_TOKEN`, used by `.github/workflows/ci.yml` to fetch the private `Runeword/permeance` and `Runeword/claude-sandbox` flake inputs
 
 ## Usage
 
@@ -55,9 +55,9 @@ TF_VAR_permeance_token='<pat>' infra apply
 ```
 
 The PAT needs read access to public repos (for nixpkgs / flake-utils fetches)
-**and** to `Runeword/permeance`. A **classic PAT with `repo` scope** satisfies
-both; a fine-grained PAT scoped only to `Runeword/permeance` would 401 on
-public fetches because the `access-tokens` per-path scoping isn't reliable in
+**and** to the private `Runeword/permeance` and `Runeword/claude-sandbox`. A
+**classic PAT with `repo` scope** covers all of them; a fine-grained PAT scoped
+only to the private repos would 401 on public fetches because the `access-tokens` per-path scoping isn't reliable in
 the Nix version shipped by `cachix/install-nix-action@v31` (Nix 2.34.7).
 
 The plaintext value lands in local `terraform.tfstate` (gitignored). If the
