@@ -4,6 +4,7 @@
   permeance,
   nixpkgs,
   nix-index-database,
+  claudeSandbox,
 }:
 let
   files = import ../lib/files.nix {
@@ -25,6 +26,7 @@ let
       git
       nixpkgs
       nix-index-database
+      claudeSandbox
       ;
   };
   zsh = import ./zsh.nix {
