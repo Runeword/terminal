@@ -3,6 +3,8 @@
   files,
   permeance,
   git,
+  nixpkgs,
+  nix-index-database,
 }:
 
 let
@@ -17,9 +19,30 @@ let
   claudeCwdGate = import ../packages/claude/cwd-gate { inherit pkgs; };
   claudeSeccompBpf = import ../packages/claude/seccomp-bpf { inherit pkgs; };
   claudeSshSanitize = import ../packages/claude/ssh-sanitize { inherit pkgs; };
-  # Stand-in bwrap for that dry run: prints the argv it was handed, one per line.
+  claudeEgressProxy = import ../packages/claude/egress-proxy { inherit pkgs; };
+  # Stand-in bwrap for that dry run: prints the argv it was handed, one per line,
+  # and saves the environment it inherited to $BWRAP_ENV.
   fakeBwrap = pkgs.writeShellScript "bwrap" ''
     printf '%s\n' "$@"
+    env >"$BWRAP_ENV"
+  '';
+  # Stand-in `pass` for the launcher dry runs: only claude's own entries decrypt,
+  # so a launcher that read the alias's JIRA_API_TOKEN entry would hand over
+  # nothing.
+  fakePass = pkgs.writeShellScript "pass" ''
+    case "$*" in
+      "show claude/jira-token") echo fake-jira-token ;;
+      "show claude/firebase-sa-key") echo '{"private_key": "fake-sa-key", "client_email": "sa@fake"}' ;;
+    esac
+  '';
+  # Stand-in `claude` for the macOS launcher's dry run: saves the argv and
+  # environment it was handed to $CLAUDE_OUT, with the key it can read and the
+  # configstore firebase-tools would use (XDG_CONFIG_HOME, else ~/.config).
+  fakeClaude = pkgs.writeShellScript "claude" ''
+    printf '%s\n' "$@" >"$CLAUDE_OUT/argv"
+    env >"$CLAUDE_OUT/env"
+    cat "$GOOGLE_APPLICATION_CREDENTIALS" >"$CLAUDE_OUT/key"
+    ls -A "''${XDG_CONFIG_HOME:-$HOME/.config}/configstore" >"$CLAUDE_OUT/configstore"
   '';
   # Point the shim at the wrapped git so config (excludesFile, pager, includes,
   # GIT_CONFIG_GLOBAL) applies whether git is invoked from claude or from the
@@ -57,9 +80,22 @@ let
     # Auth is a scoped service account, not your personal `firebase login`:
     # CLAUDE_SANDBOX_ALLOW_FIREBASE=1 (leader alias `cf`, wired through claude.bash)
     # makes claude-sandbox.bash read the least-privilege SA key from `pass`
-    # (entry firebase/sa-key) and mount it read-only as Application Default
-    # Credentials for that session; ~/.config/configstore stays masked.
+    # (entry claude/firebase-sa-key) and mount it read-only as Application
+    # Default Credentials for that session; ~/.config/configstore stays masked.
+    # On macOS, claude-macos.bash hands it over instead.
     pkgs.firebase-tools
+    # jira-cli, listed for the same reason. Auth: CLAUDE_SANDBOX_ALLOW_JIRA=1
+    # (leader alias `cj`) makes claude-sandbox.bash export claude's own API token
+    # from `pass` (entry claude/jira-token, not your alias's JIRA_API_TOKEN) as
+    # JIRA_API_TOKEN and point JIRA_CONFIG_FILE at the session's own config,
+    # ~/.config/.jira/claude.yml. On macOS, claude-macos.bash does.
+    pkgs.jira-cli-go
+    # comma with nix-index-database's prebuilt index: `, -p <cmd>` names the
+    # nixpkgs packages that ship bin/<cmd>, offline. The always-on rule
+    # sources/.claude/rules/nix-run.md has claude look a missing command up this
+    # way, then run it with `nix shell` from the nixpkgs pinned below, never
+    # install it.
+    nix-index-database.packages.${pkgs.stdenv.hostPlatform.system}.comma-with-db
     # Runtimes for MCP servers launched from a plugin .mcp.json rather than being
     # Nix-packaged: nodejs/npx for figma-mcp; uv/uvx + python for the pure-Python
     # servers (nix-mcp, aws-api-mcp, google-workspace-mcp). uvx fetches the pinned
@@ -124,6 +160,17 @@ let
       };
       staticEnv = {
         RTK_TELEMETRY_DISABLED = "1";
+        # The nixpkgs claude runs missing commands from: this flake's locked
+        # input, already in the store, so resolving it downloads nothing (plain
+        # `nixpkgs#` goes through the host's registry: maybe another revision,
+        # and a fresh fetch each sandbox session, whose ~/.cache/nix starts cold)
+        # and a tool the terminal ships resolves to the very same build. comma
+        # reads it too, but only when NIX_PATH has no nixpkgs= entry, which is
+        # why the rule runs through `nix shell` instead of `, <cmd>`.
+        COMMA_NIXPKGS_FLAKE = "path:${nixpkgs}";
+        # comma keeps its choice cache under $XDG_STATE_HOME, read-only in the
+        # sandbox, where it would print an error on every call.
+        COMMA_CACHING = "0";
       };
       unsetEnv = [ "TMUX" ];
       flags = [
@@ -135,7 +182,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "claude";
-      description = "Verify claude binary executes, settings.json commands resolve, the status line renders, and the sandbox launcher pins the host-executed config";
+      description = "Verify claude binary executes, settings.json commands resolve, the status line renders, comma looks packages up offline, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
       script = ''
         # claude-code does not expose a config-loading probe that works in a
         # sandbox without auth/network. This only verifies the wrapper's binary
@@ -172,6 +219,14 @@ let
         else
           fail "status line rendered: $line"
         fi
+
+        # The lookup nix-run.md relies on: comma on claude's PATH finds the
+        # package that ships a command in its bundled index, with no network.
+        if PATH="$claudePath" , -p rg | grep -qx -- '- ripgrep.out'; then
+          ok "comma looks up rg's package offline"
+        else
+          fail "comma lookup failed: $(PATH="$claudePath" , -p rg 2>&1)"
+        fi
       ''
       # The bubblewrap launcher is Linux-only (macOS uses Claude Code's built-in
       # Seatbelt), and its claude-seccomp-bpf helper cgo-links libseccomp, which
@@ -192,6 +247,10 @@ let
         : > "$repo/.git/config"
         : > "$repo/.claude/settings.local.json"
         ln -s ${fakeBwrap} "$TMPDIR/fakebin/bwrap"
+        # The same run opts into jira, with a fake pass and the session's config.
+        ln -s ${fakePass} "$TMPDIR/fakebin/pass"
+        mkdir -p "$HOME/.config/.jira"
+        : > "$HOME/.config/.jira/claude.yml"
         argv="$TMPDIR/bwrap-argv"
         if ! (
           cd "$repo" \
@@ -200,9 +259,12 @@ let
                 claudeCwdGate
                 claudeSeccompBpf
                 claudeSshSanitize
+                claudeEgressProxy
               ]
             }:$PATH" \
               PERMEANCE_TREE="$tree" \
+              CLAUDE_SANDBOX_ALLOW_JIRA=1 \
+              BWRAP_ENV="$TMPDIR/bwrap-env" \
               bash "$tree/.config/shell/scripts/claude-sandbox.bash" claude --version \
               > "$argv" 2> "$TMPDIR/launcher.err"
         ); then
@@ -259,6 +321,56 @@ let
           fail "a pin target is missing from the tree: $(grep 'absent, so not locked' "$TMPDIR/launcher.err")"
         else
           ok "every pin target present in the tree"
+        fi
+        # CLAUDE_SANDBOX_ALLOW_JIRA=1: the token comes from claude's own pass
+        # entry (fakePass decrypts only claude's), reaches bwrap through its
+        # environment, never its argv (readable through /proc), and
+        # JIRA_CONFIG_FILE points jira-cli at the session's own config.
+        if grep -qx 'JIRA_API_TOKEN=fake-jira-token' "$TMPDIR/bwrap-env" \
+          && ! grep -q fake-jira-token "$argv" \
+          && grep -A1 -x JIRA_CONFIG_FILE "$argv" | grep -qx "$HOME/.config/.jira/claude.yml"; then
+          ok "jira token from its own pass entry, exported to bwrap, not in its argv"
+        else
+          fail "jira token not handed over through the environment: $(grep ALLOW_JIRA "$TMPDIR/launcher.err")"
+        fi
+        # A credential session gets no network of its own: bwrap unshares it,
+        # the proxy variables point at the in-namespace bridge, and claude runs
+        # behind that bridge (the launcher refuses to start if the host-side
+        # filter didn't).
+        if grep -qx -- --unshare-net "$argv" \
+          && grep -A1 -x HTTPS_PROXY "$argv" | grep -qx http://127.0.0.1:3128 \
+          && sed -n '/^--$/{n;p;q}' "$argv" | grep -qx claude-egress-proxy; then
+          ok "credential session: network unshared, egress through the filter"
+        else
+          fail "credential session network not filtered: $(grep -i network "$TMPDIR/launcher.err")"
+        fi
+      ''
+      # The macOS launcher is plain bash, so its dry run works on every platform.
+      + ''
+        # claude-macos.bash for `cj` + `cf`, with a personal `firebase login`
+        # planted in ~/.config/configstore: claude gets the jira token and the SA
+        # key (not in its argv, which `ps` shows), and firebase-tools a
+        # configstore without that login. Output goes to files: the launcher
+        # leaves a watcher behind, which must not hold the build log open.
+        mac="$TMPDIR/mac"
+        mkdir -p "$mac/bin" "$mac/out" "$HOME/.config/configstore" "$HOME/.config/.jira"
+        : > "$HOME/.config/.jira/claude.yml"
+        echo '{"user": "personal"}' > "$HOME/.config/configstore/firebase-tools.json"
+        ln -s ${fakePass} "$mac/bin/pass"
+        ln -s ${fakeClaude} "$mac/bin/claude"
+        PATH="$mac/bin:$PATH" TMPDIR="$mac" CLAUDE_OUT="$mac/out" \
+          CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_SANDBOX_ALLOW_FIREBASE=1 \
+          bash ${../sources/.config/shell/scripts/claude-macos.bash} claude --version \
+          > "$mac/stdout" 2> "$mac/err" || true
+        if grep -qx 'JIRA_API_TOKEN=fake-jira-token' "$mac/out/env" \
+          && grep -qx "JIRA_CONFIG_FILE=$HOME/.config/.jira/claude.yml" "$mac/out/env" \
+          && grep -q fake-sa-key "$mac/out/key" \
+          && ! grep -q fake-sa-key "$mac/out/argv" \
+          && [ "$(head -1 "$mac/out/argv")" = --add-dir ] \
+          && [ -f "$mac/out/configstore" ] && [ ! -s "$mac/out/configstore" ]; then
+          ok "macOS launcher hands claude the jira token and SA key, not the firebase login"
+        else
+          fail "macOS launcher did not hand over the credentials: $(cat "$mac/err")"
         fi
       '';
     };
