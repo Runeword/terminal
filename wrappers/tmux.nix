@@ -76,7 +76,17 @@ let
           fail "allow-passthrough is '$passthrough', expected 'on'"
         fi
 
-        yank=$(${self}/bin/tmux start-server \; list-keys -T copy-mode-vi y \; kill-server 2>/dev/null)
+        # The binding of one key, read from its whole table: since tmux 3.7 a
+        # list-keys that matches a single key shows it as a status message
+        # instead of printing it.
+        binding() {
+          ${self}/bin/tmux start-server \; list-keys -T "$1" \; kill-server 2>/dev/null |
+            while read -r _ _ _ key rest; do
+              if [ "$key" = "$2" ]; then printf '%s\n' "$rest"; fi
+            done
+        }
+
+        yank=$(binding copy-mode-vi y)
         case "$yank" in
           *copy-selection*) ok "copy-mode-vi y yanks via copy-selection" ;;
           *) fail "copy-mode-vi y is '$yank', expected copy-selection" ;;
@@ -86,13 +96,13 @@ let
         # resolve the window under the pointer, so the swap is routed through the
         # marked window: MouseDown marks the grabbed window (select-pane -m) and each
         # MouseDrag swaps it toward the pointer via swap-window. Assert both halves.
-        grab=$(${self}/bin/tmux start-server \; list-keys -T root MouseDown1Status \; kill-server 2>/dev/null)
+        grab=$(binding root MouseDown1Status)
         case "$grab" in
           *"select-pane -m"*) ok "MouseDown1Status marks the grabbed window" ;;
           *) fail "MouseDown1Status is '$grab', expected select-pane -m" ;;
         esac
 
-        drag=$(${self}/bin/tmux start-server \; list-keys -T root MouseDrag1Status \; kill-server 2>/dev/null)
+        drag=$(binding root MouseDrag1Status)
         case "$drag" in
           *swap-window*) ok "MouseDrag1Status reorders windows via swap-window" ;;
           *) fail "MouseDrag1Status is '$drag', expected swap-window" ;;
@@ -100,7 +110,7 @@ let
 
         # The grab survives the pointer straying below the titles: MouseDrag1Pane gates
         # copy-mode on the @wdrag flag so a downward stray doesn't hijack the drag.
-        pdrag=$(${self}/bin/tmux start-server \; list-keys -T root MouseDrag1Pane \; kill-server 2>/dev/null)
+        pdrag=$(binding root MouseDrag1Pane)
         case "$pdrag" in
           *@wdrag*copy-mode*) ok "MouseDrag1Pane gates copy-mode on the window-drag flag" ;;
           *) fail "MouseDrag1Pane is '$pdrag', expected @wdrag-gated copy-mode" ;;
@@ -116,7 +126,7 @@ let
 
         # Dragging a session name reorders it by swapping numbers (tmux has no
         # swap-session): the pane handler routes a session grab through the helper.
-        sdrag=$(${self}/bin/tmux start-server \; list-keys -T root MouseDrag1Pane \; kill-server 2>/dev/null)
+        sdrag=$(binding root MouseDrag1Pane)
         case "$sdrag" in
           *__tmux_drag_session*) ok "session drag reorders via __tmux_drag_session" ;;
           *) fail "MouseDrag1Pane lacks __tmux_drag_session session wiring" ;;
@@ -137,6 +147,23 @@ let
             *) fail "no key toggles the $scope scratch" ;;
           esac
         done
+
+        # Closing a window only starts the scratch gc when the window owns a
+        # scratch (listed in @scratch-owners), so other closes cost no process.
+        hooks=$(${self}/bin/tmux start-server \; show-hooks -g \; kill-server 2>/dev/null)
+        case "$hooks" in
+          *window-unlinked*@scratch-owners*"scratch.sh gc"*) ok "window closes start the scratch gc only for scratch owners" ;;
+          *) fail "window-unlinked does not gate the scratch gc on @scratch-owners" ;;
+        esac
+
+        # Clipboard copies from programs inside tmux (the scratch server's, behind
+        # its popup) reach the terminal, and messages still clear the status line
+        # they are drawn over (tmux 3.7+).
+        opts=$(${self}/bin/tmux start-server \; show -sv set-clipboard \; show -gv message-style \; kill-server 2>/dev/null)
+        case "$opts" in
+          on*fill=terminal*) ok "clipboard copies pass through; messages clear the status line" ;;
+          *) fail "set-clipboard / message-style are '$opts'" ;;
+        esac
       '';
     };
   };
