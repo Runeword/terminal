@@ -10,16 +10,22 @@
 #
 # A session or window scratch is named after its owner's id, which survives the
 # session renumbering and a window moving to another session, plus the main
-# server's pid, since ids restart with every server.
-
-# session-<pid>-<n> for $n, window-<pid>-<n> for @n, as seen by the main server
-name() {
-  tmux display-message -p "$1-#{pid}-#{${1}_id}" | tr -d '$@'
-}
+# server's pid, since ids restart with every server. The main server's
+# @scratch-owners lists the owners that have one, so its hooks run gc only when
+# one of them closes, not on every window close.
 
 case "$1" in
   global) exec tmux -L scratch new-session -A -s scratch ;;
-  session | window) exec tmux -L scratch new-session -A -s "$(name "$1")" ;;
+  session | window)
+    read -r pid id <<EOF
+$(tmux display-message -p "#{pid} #{${1}_id}")
+EOF
+    case "$(tmux show-options -gqv @scratch-owners) " in
+      *" $id "*) ;;
+      *) tmux set-option -ga @scratch-owners " $id" ;;
+    esac
+    exec tmux -L scratch new-session -A -s "$1-$pid-${id#?}"
+    ;;
   gc)
     pid=$(tmux display-message -p '#{pid}')
     live=$({
@@ -41,5 +47,10 @@ case "$1" in
         fi
         tmux -L scratch kill-session -t "=$s" 2>/dev/null || :
       done
+    # The survivors back as owner ids: session-<pid>-3 -> $3, window-<pid>-5 -> @5
+    tmux set-option -g @scratch-owners "$(
+      tmux -L scratch list-sessions -F '#{session_name}' 2>/dev/null |
+        sed -n "s/^session-$pid-/ \$/p; s/^window-$pid-/ @/p" | tr -d '\n'
+    )"
     ;;
 esac
