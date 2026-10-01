@@ -6,4 +6,6 @@ pkgs.buildGoModule {
   src = ./.;
   # Stdlib only — no dependency vendoring required.
   vendorHash = null;
+  # TestFinalizedCommand runs the printed command in a real repo.
+  nativeCheckInputs = [ pkgs.git ];
 }
