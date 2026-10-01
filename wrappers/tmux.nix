@@ -156,13 +156,20 @@ let
           *) fail "window-unlinked does not gate the scratch gc on @scratch-owners" ;;
         esac
 
-        # Clipboard copies from programs inside tmux (the scratch server's, behind
-        # its popup) reach the terminal, and messages still clear the status line
-        # they are drawn over (tmux 3.7+).
-        opts=$(${self}/bin/tmux start-server \; show -sv set-clipboard \; show -gv message-style \; kill-server 2>/dev/null)
+        # Programs inside tmux can neither set nor read the clipboard through it,
+        # and messages still clear the status line they are drawn over (tmux 3.7+).
+        opts=$(${self}/bin/tmux start-server \; show -sv set-clipboard \; show -sv get-clipboard \; show -gv message-style \; kill-server 2>/dev/null)
         case "$opts" in
-          on*fill=terminal*) ok "clipboard copies pass through; messages clear the status line" ;;
-          *) fail "set-clipboard / message-style are '$opts'" ;;
+          external*off*fill=terminal*) ok "panes can't set or read the clipboard; messages clear the status line" ;;
+          *) fail "set-clipboard / get-clipboard / message-style are '$opts'" ;;
+        esac
+
+        # The scratch server's copies would reach the main server as a program's,
+        # so it pipes them to the system clipboard itself.
+        copy=$(${self}/bin/tmux -L scratch start-server \; show -sv copy-command \; kill-server 2>/dev/null)
+        case "$copy" in
+          *wl-copy*) ok "the scratch server copies to the system clipboard itself" ;;
+          *) fail "the scratch server's copy-command is '$copy'" ;;
         esac
       '';
     };
