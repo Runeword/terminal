@@ -282,3 +282,31 @@ __claude_debug() {
   __CLAUDE_CMD="CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose $__CLAUDE_CMD --debug --debug-file $file"
   eval "$__CLAUDE_CMD"
 }
+
+# Pick a past session of the current directory: Enter resumes it, ctrl-x erases
+# it (after a y/N), the preview shows its conversation. The builtin picker (cr)
+# can't delete one, and `claude project purge` wipes the whole project, its
+# auto-memory included. claude-sessions (packages/claude/sessions) reads the
+# transcripts; the instance is the first argument, as for __claude. The id goes
+# as --resume=<id>: __claude_build_cmd quotes all its arguments as one word, so
+# `--resume <id>` would reach claude as a single unknown option.
+__claude_sessions() {
+  local instance=1 id
+  if [ "$1" != "" ] && [ "$1" -eq "$1" ] 2>/dev/null; then
+    instance="$1"
+  fi
+  if ! command -v claude-sessions >/dev/null; then
+    echo "claude-sessions is not on PATH: rebuild, then open a new terminal" >&2
+    return 1
+  fi
+  id=$(
+    export CLAUDE_CONFIG_DIR="$HOME/.claude-$instance"
+    claude-sessions list | eval fzf "$__CLAUDE_FZF" \
+      "--delimiter='\t' --with-nth=2.. --accept-nth=1" \
+      "--header='enter: resume · ctrl-x: erase'" \
+      "--preview='claude-sessions preview {1}'" \
+      "--preview-window='right,60%,border-none,wrap'" \
+      "--bind='ctrl-x:execute(claude-sessions rm -ask {1})+reload(claude-sessions list)'"
+  ) || return 0
+  __claude "$instance" --resume="$id"
+}
