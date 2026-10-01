@@ -1,6 +1,6 @@
 { pkgs }:
 
-pkgs.lib.optionals pkgs.stdenv.isLinux (
+pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (
   with pkgs;
   [
     xdg-utils
