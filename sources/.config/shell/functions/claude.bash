@@ -84,12 +84,14 @@ __claude_macos_prefix() {
 }
 
 # Build __CLAUDE_CMD from __claude_instance, __claude_plugins, __claude_args.
+# __CLAUDE_CMD is a string that tmux new-window or eval parses again, so
+# __claude_init keeps __claude_args shell-quoted, one word per argument: an
+# option's value (--resume <id>, --model <name>) stays a word of its own.
 # Fails (and propagates through __claude_init) when the sandbox gate refuses to
 # launch, so callers abort after the gate's message instead of silently running.
 __claude_build_cmd() {
-  local args prefix flags="" secrets=""
+  local prefix flags="" secrets=""
   prefix=$(__claude_sandbox_prefix) || return 1
-  args=$(printf '%q ' "$__claude_args")
   # __claude_run launches via `tmux new-window`, which spawns from the tmux
   # *server's* environment — so a prefix assignment on the caller
   # (CLAUDE_SANDBOX_ALLOW_GH=1 __claude) is dropped before the sandbox
@@ -144,7 +146,7 @@ __claude_build_cmd() {
       ;;
   esac
   # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
-  __CLAUDE_CMD="${flags}${secrets}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance ${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5-5 $args"
+  __CLAUDE_CMD="${flags}${secrets}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance ${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5-5 $__claude_args"
 }
 
 # Make sources/ own each profile's user-level config: path-scoped rules and bundled
@@ -216,7 +218,8 @@ __claude_init() {
     __claude_instance="$1"
     shift
   fi
-  __claude_args="$*"
+  __claude_args=""
+  [ "$#" -gt 0 ] && __claude_args=$(printf '%q ' "$@")
 
   local plugins_dir="$NIX_OUT_SHELL/paths/claude/.claude/plugins"
   # Live tree (dev) → plugin .mcp.json edits apply without a rebuild; baked copy otherwise.
@@ -236,7 +239,8 @@ __claude_init_fzf() {
     __claude_instance="$1"
     shift
   fi
-  __claude_args="$*"
+  __claude_args=""
+  [ "$#" -gt 0 ] && __claude_args=$(printf '%q ' "$@")
 
   local plugins_dir="$NIX_OUT_SHELL/paths/claude/.claude/plugins"
   # Live tree (dev) → plugin .mcp.json edits apply without a rebuild; baked copy otherwise.
@@ -287,9 +291,7 @@ __claude_debug() {
 # it (after a y/N), the preview shows its conversation. The builtin picker (cr)
 # can't delete one, and `claude project purge` wipes the whole project, its
 # auto-memory included. claude-sessions (packages/claude/sessions) reads the
-# transcripts; the instance is the first argument, as for __claude. The id goes
-# as --resume=<id>: __claude_build_cmd quotes all its arguments as one word, so
-# `--resume <id>` would reach claude as a single unknown option.
+# transcripts; the instance is the first argument, as for __claude.
 __claude_sessions() {
   local instance=1 id
   if [ "$1" != "" ] && [ "$1" -eq "$1" ] 2>/dev/null; then
@@ -308,5 +310,5 @@ __claude_sessions() {
       "--preview-window='right,60%,border-none,wrap'" \
       "--bind='ctrl-x:execute(claude-sessions rm -ask {1})+reload(claude-sessions list)'"
   ) || return 0
-  __claude "$instance" --resume="$id"
+  __claude "$instance" --resume "$id"
 }
