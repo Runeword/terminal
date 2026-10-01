@@ -15,6 +15,12 @@
   # The hook half is wired into claude's PATH via wrappers/claude.nix; here so
   # `claude-context log` is runnable from a shell or tmux pane.
   (import ./claude/context { inherit pkgs; })
+  # Lists, previews and erases Claude Code sessions (Claude Code can't delete
+  # one). Backs the session picker behind the cs leader alias
+  # (sources/.config/shell/functions/claude.bash). Here so it lands in
+  # packages.tools and is on the interactive PATH inside the terminal, where
+  # that picker and its fzf preview invoke it by bare name.
+  (import ./claude/sessions { inherit pkgs; })
   # fzf-query compiler shared by fm_rg.sh and fm_preview.sh (interactive file
   # search). Here so it lands in packages.tools and is on the interactive PATH
   # inside the terminal, where fzf's reload/preview commands invoke it.
