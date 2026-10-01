@@ -74,7 +74,7 @@ This pattern is the inverse of NixOS impermanence: same trick (symlink at a Nix 
 
 ### Packages vs wrappers
 
-- `packages/` — plain derivations we expose as-is. `default.nix` fans out to `commons.nix`, `custom.nix` (the Go binaries built from this repo), the `claude-sandbox` input's `default` bundle, and one of `linux.nix` / `darwin.nix` based on `stdenv.isDarwin`.
+- `packages/` — plain derivations we expose as-is. `default.nix` fans out to `commons.nix`, `custom.nix` (the Go binaries built from this repo), the `claude-sandbox` input's `default` bundle, and one of `linux.nix` / `darwin.nix` based on `stdenv.hostPlatform.isDarwin`.
 - `wrappers/` — derivations that wrap an upstream package (e.g., `pkgs.alacritty`, `pkgs.claude-code`) with a permeance launcher built via `permeance.installLauncher`. The upstream binary is renamed to `.foo-real` (or wrapped via `makeWrapper` into `.foo-inner` for wrappers with bundled static flags like nvim-fzf); the launcher resolves config paths from `$PERMEANCE_ROOT` at exec time and `exec -a "$0"` into the inner.
   - **Built wrappers** (`wrappers/default.nix`): `zsh`, `claude`, `git`, `tmux`, `bat`, `fd`, `ripgrep`, `bash`, `starship`, `delta`, `navi`, `nvim-fzf`.
   - **Cross-wrapper deps**: `git` is passed into `claude`; `claude` into `zsh`; `zsh` into `tmux`. That's why `mkWrappers` returns an attrset rather than a list.
