@@ -216,6 +216,7 @@ pb  = { cmd = 'brew list | grep python', desc = 'version › list' }
 [claude]
 cl  = { cmd = '__claude', desc = 'start' }
 cr  = { cmd = '__claude --resume', desc = 'resume' }
+cs  = { cmd = '__claude_sessions', desc = 'sessions' }
 cpl = { cmd = '__claude_plugins', desc = 'plugins' }
 cpr = { cmd = '__claude_plugins --resume', desc = 'plugins › resume' }
 cd  = { cmd = '__claude_debug', desc = 'debug' }
