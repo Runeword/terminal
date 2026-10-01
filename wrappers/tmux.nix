@@ -42,7 +42,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config syntax is valid, uses the zsh wrapper, enables resurrect pane-content capture, limits passthrough to visible panes, yanks via copy-selection, reorders windows by dragging their status-bar name, and renders sessions sorted-by-number so they can be dragged to reorder too";
+      description = "Verify tmux config syntax is valid, uses the zsh wrapper, enables resurrect pane-content capture, limits passthrough to visible panes, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, and toggles a scratch terminal kept on its own server with C-Space";
       script = ''
         # No explicit -f — let the launcher's flags = [ "-f" "$PERMEANCE_ROOT/.config/tmux/tmux.conf" ]
         # provide it, so the smoke exercises the launcher's flag routing.
@@ -119,6 +119,16 @@ let
         case "$sdrag" in
           *__tmux_drag_session*) ok "session drag reorders via __tmux_drag_session" ;;
           *) fail "MouseDrag1Pane lacks __tmux_drag_session session wiring" ;;
+        esac
+
+        # C-Space toggles a scratch terminal kept on its own server (-L scratch), out
+        # of the main session flow. That server loads this config too, minus the
+        # resurrect save, which would overwrite the main server's.
+        scratch=$(${self}/bin/tmux -L scratch start-server \; list-keys -T root \; kill-server 2>/dev/null)
+        case "$scratch" in
+          *save.sh*) fail "the scratch server binds the resurrect save" ;;
+          *"-L scratch new-session"*) ok "C-Space toggles the scratch server, which skips the resurrect save" ;;
+          *) fail "C-Space lacks the -L scratch popup toggle" ;;
         esac
       '';
     };
