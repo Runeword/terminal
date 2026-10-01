@@ -12,7 +12,7 @@ let
 
   config = files.mkConfig "alacritty-config" [ ".config/alacritty" ];
 
-  fonts = pkgs.lib.optionals (!pkgs.stdenv.isDarwin) [
+  fonts = pkgs.lib.optionals (!pkgs.stdenv.hostPlatform.isDarwin) [
     pkgs.nerd-fonts.sauce-code-pro
     pkgs.nerd-fonts.monaspace
     pkgs.nerd-fonts.caskaydia-mono
