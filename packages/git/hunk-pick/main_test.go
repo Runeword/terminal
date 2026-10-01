@@ -139,12 +139,53 @@ func TestHeaderPath(t *testing.T) {
 		{"minus dev-null (add)", "--- /dev/null", "", false},
 		{"non-path header", "index 1111111..2222222 100644\n", "", false},
 		{"unprefixed path", "+++ foo.txt\n", "foo.txt", true},
+		{"quoted path unquoted", "+++ \"b/caf\\303\\251 \\\"x\\\".txt\"\n", "café \"x\".txt", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, ok := headerPath(tt.line)
 			if got != tt.want || ok != tt.ok {
 				t.Errorf("headerPath(%q) = (%q, %v), want (%q, %v)", tt.line, got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}
+
+// TestPick checks assemble --sum: the patch comes out only while the hunks
+// still have the digest they were picked with.
+func TestPick(t *testing.T) {
+	picked := patchSum([]byte(fooHeader + fooHunk2))
+	// fooHunk2's file after an edit above it: a new hunk takes index 2.
+	inserted := fooHeader + fooHunk1 + "@@ -5 +6 @@\n-e\n+E\n" + fooHunk2
+	tests := []struct {
+		name, diff string
+		idx        []int
+		sum        string
+		want       string // the patch, or the refusal
+	}{
+		{"no sum: any patch", sampleDiff, []int{2}, "", fooHeader + fooHunk2},
+		{"the picked hunks", sampleDiff, []int{2}, picked, fooHeader + fooHunk2},
+		{"another hunk at the picked index", inserted, []int{2}, picked, "foo.txt changed since its hunks were picked; pick again"},
+		{"the hunks are gone", "", []int{2}, picked, "the picked hunks are gone (the file changed since the pick); pick again"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files, err := parseDiff(strings.NewReader(tt.diff))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var b strings.Builder
+			got := ""
+			if err := pick(&b, files, tt.idx, tt.sum); err != nil {
+				got = err.Error()
+			}
+			if got == "" {
+				got = b.String()
+			} else if b.Len() > 0 {
+				t.Errorf("refused, but wrote %q", b.String())
+			}
+			if got != tt.want {
+				t.Errorf("pick = %q, want %q", got, tt.want)
 			}
 		})
 	}
