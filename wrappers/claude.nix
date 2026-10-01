@@ -106,7 +106,7 @@ let
   # --disable-userns), so sources/.claude/settings.linux.json switches it back off
   # at user scope. Kept on PATH so /sandbox (project-local scope, above user) can
   # still opt an unsandboxed (CLAUDE_SANDBOX=0) session back in.
-  ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+  ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
     pkgs.bubblewrap
     pkgs.socat
   ];
