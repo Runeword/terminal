@@ -4,8 +4,8 @@
 // the picked hunks — grouped under each file's original header, in ascending
 // diff order — as a patch that `git apply` (with `--cached` and/or `--reverse`)
 // applies to stage, unstage or discard exactly those hunks, and the picker
-// subcommands (picker.go) keep the picker's state as it switches between the
-// files list and one file's hunks.
+// subcommands (picker.go) list the files, keep the picker's state as it switches
+// between the files list and one file's hunks, and print the final command.
 //
 // Only whole, unmodified hunks are ever emitted, so the reconstructed patch is
 // always valid: each hunk's b-side line numbers are absolute, so any subset
@@ -15,12 +15,20 @@
 //
 // Usage:
 //
-//	git-hunk-pick list               <diff   # INDEX<TAB>LABEL per hunk, 1-based
-//	git-hunk-pick assemble INDEX...  <diff   # patch of those hunks
-//	git-hunk-pick key|load|get|hint SD ...   # the file picker's state (picker.go)
+//	git-hunk-pick list                          <diff   # INDEX<TAB>LABEL per hunk, 1-based
+//	git-hunk-pick assemble [--sum SUM] INDEX... <diff   # patch of those hunks
+//	git-hunk-pick files|key|load|hint|finalize SD ...   # the file picker (picker.go)
+//
+// With --sum, assemble refuses (exit 1, no output) unless the patch it would
+// print has that digest (patchSum): the picker's command passes the digest of
+// the hunks as they were picked, so it never applies hunks that changed since.
 package main
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -71,6 +79,13 @@ func headerPath(line string) (string, bool) {
 	}
 	if rest == "/dev/null" {
 		return "", false
+	}
+	// git C-quotes a path it can't print raw ("b/caf\303\251.txt" under the
+	// default core.quotePath); label the hunk with the name it stands for.
+	if strings.HasPrefix(rest, `"`) {
+		if u, err := strconv.Unquote(rest); err == nil {
+			rest = u
+		}
 	}
 	if strings.HasPrefix(rest, "a/") || strings.HasPrefix(rest, "b/") {
 		rest = rest[2:]
@@ -196,6 +211,35 @@ func assemble(w io.Writer, files []fileDiff, indices []int) error {
 	return nil
 }
 
+// patchSum is the digest assemble --sum checks: the first 12 hex digits of the
+// patch's SHA-256, plenty to tell the picked hunks from changed ones.
+func patchSum(patch []byte) string {
+	s := sha256.Sum256(patch)
+	return hex.EncodeToString(s[:6])
+}
+
+// pick is assemble --sum: it writes the patch of the hunks at indices only if
+// the patch has digest sum (any patch when sum is empty), and else nothing.
+func pick(w io.Writer, files []fileDiff, indices []int, sum string) error {
+	var b bytes.Buffer
+	err := assemble(&b, files, indices)
+	if sum != "" && (err != nil || patchSum(b.Bytes()) != sum) {
+		var paths []string
+		for _, f := range files {
+			paths = append(paths, f.path)
+		}
+		if len(paths) == 0 {
+			return errors.New("the picked hunks are gone (the file changed since the pick); pick again")
+		}
+		return errors.New(strings.Join(paths, " ") + " changed since its hunks were picked; pick again")
+	}
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(b.Bytes())
+	return err
+}
+
 func fatal(msg string) {
 	fmt.Fprintln(os.Stderr, "git-hunk-pick: "+msg)
 	os.Exit(1)
@@ -203,11 +247,11 @@ func fatal(msg string) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fatal("usage: git-hunk-pick <list|assemble INDEX...>  (diff on stdin), or <key|load|get|hint> SD ...")
+		fatal("usage: git-hunk-pick <list|assemble [--sum SUM] INDEX...>  (diff on stdin), or <files|key|load|hint|finalize> SD ...")
 	}
 
 	switch os.Args[1] {
-	case "key", "load", "get", "hint":
+	case "files", "key", "load", "hint", "finalize":
 		if err := runPicker(os.Args[1], os.Args[2:], os.Stdout); err != nil {
 			fatal(err.Error())
 		}
@@ -225,15 +269,19 @@ func main() {
 			fatal(err.Error())
 		}
 	case "assemble":
-		indices := make([]int, 0, len(os.Args)-2)
-		for _, a := range os.Args[2:] {
+		args, sum := os.Args[2:], ""
+		if len(args) > 1 && args[0] == "--sum" {
+			args, sum = args[2:], args[1]
+		}
+		indices := make([]int, 0, len(args))
+		for _, a := range args {
 			n, err := strconv.Atoi(a)
 			if err != nil {
 				fatal("invalid hunk index " + strconv.Quote(a))
 			}
 			indices = append(indices, n)
 		}
-		if err := assemble(os.Stdout, files, indices); err != nil {
+		if err := pick(os.Stdout, files, indices, sum); err != nil {
 			fatal(err.Error())
 		}
 	default:
