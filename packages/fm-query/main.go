@@ -1,9 +1,16 @@
 // Command fm-query compiles an fzf-style extended-search query into a PCRE2
 // filter pattern (for `rg -P`) and a tab-separated highlight spec, printed as
-// two lines on stdout: the pattern, then the spec. It is the single parser
-// shared by fm_rg.sh (pattern -> rg, spec -> its highlight awk) and
-// fm_preview.sh (spec -> preview highlight terms), so the two scripts can no
-// longer drift.
+// two lines on stdout: the pattern, then the spec. It also highlights the
+// query's terms (highlight.go): `fm-query rows QUERY` turns fm_rg.sh's rg
+// output into its result rows, and `fm-query mark QUERY` marks them in
+// fm_preview.sh's preview. It is the single parser and matcher shared by both
+// scripts, so the list, the preview and the search can't drift apart.
+//
+// Usage:
+//
+//	fm-query QUERY              # pattern, then spec
+//	fm-query rows QUERY  <rg    # fm_rg.sh's rows (see rows)
+//	fm-query mark QUERY  <text  # the preview with the terms reverse-videoed
 //
 // Query grammar (fzf-compatible): whitespace separates AND terms; a bare term
 // is fuzzy ("cfg" matches "config"); 'term is an exact substring; ^term / term$
@@ -12,9 +19,9 @@
 // literal space. Each AND term (or |-joined OR group) becomes a lookahead so
 // they combine on one line. A query with no positive term (empty, or only
 // exclusions) compiles to an empty pattern, which the caller treats as "no
-// results" rather than dumping the whole tree. Smart-case is decided by the
-// caller from the raw query as a whole -- any uppercase anywhere makes the entire
-// query case-sensitive -- NOT per-term as fzf does. That is an intentional
+// results" rather than dumping the whole tree. Smart-case is decided from the
+// raw query as a whole -- any uppercase anywhere makes the entire query
+// case-sensitive -- NOT per-term as fzf does. That is an intentional
 // simplification so rg, the list highlight, and the preview stay in lockstep.
 package main
 
@@ -185,11 +192,27 @@ func compile(query string) (pattern, spec string) {
 }
 
 func main() {
-	query := ""
-	if len(os.Args) > 1 {
-		query = os.Args[1]
+	args := os.Args[1:]
+	var err error
+	switch {
+	case len(args) <= 1:
+		// One argument is always a query, even one spelled "rows" or "mark".
+		query := ""
+		if len(args) == 1 {
+			query = args[0]
+		}
+		pattern, spec := compile(query)
+		fmt.Println(pattern)
+		fmt.Println(spec)
+	case len(args) == 2 && args[0] == "rows":
+		err = rows(os.Stdin, os.Stdout, args[1])
+	case len(args) == 2 && args[0] == "mark":
+		err = mark(os.Stdin, os.Stdout, args[1])
+	default:
+		err = fmt.Errorf("usage: fm-query QUERY | fm-query rows|mark QUERY")
 	}
-	pattern, spec := compile(query)
-	fmt.Println(pattern)
-	fmt.Println(spec)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "fm-query:", err)
+		os.Exit(1)
+	}
 }
