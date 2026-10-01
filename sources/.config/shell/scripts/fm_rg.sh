@@ -10,11 +10,9 @@
 # follows the query (smart-case). An empty query, or one with only
 # exclusions, yields no output, so fzf starts empty instead of dumping the tree.
 #
-# rg runs --color never; the grouping awk does the highlighting from the spec, so
-# every positive term is colored (rg's own match color marks only one span/line).
-# Literals highlight wherever they occur, fuzzy terms per matched character (like
-# fzf). The spec is tab-separated "TYPE:text" entries (L exact, F fuzzy); CI=1 when
-# the search is case-insensitive.
+# rg runs --color never; `fm-query rows` does the highlighting, so every positive
+# term is colored (rg's own match color marks only one span/line). Literals
+# highlight wherever they occur, fuzzy terms per matched character (like fzf).
 #
 # rg reads stdin (blocking) when given no path and a non-tty stdin, so stdin is
 # pinned to /dev/null -- rg then searches the working directory and still prints
@@ -25,10 +23,10 @@
 # build output (target/, dist/, .venv, ...) -- the dominant cost in large trees.
 # --max-columns caps how much of a matching line is emitted; --max-columns-preview
 # keeps a truncated snippet instead of an omission note, so minified/generated
-# lines don't flood awk/fzf. The wrapper's --ignore-file .config/ignore still
+# lines don't flood fzf. The wrapper's --ignore-file .config/ignore still
 # applies (node_modules, .direnv, .cache, ...), independent of the VCS-ignore flag.
 #
-# rg runs with --null, so each match is PATH<NUL>LINE:CODE; the grouping awk splits
+# rg runs with --null, so each match is PATH<NUL>LINE:CODE; `fm-query rows` splits
 # on that NUL (not the first colon) into path + line:code, so a path that itself
 # contains ":" or "/" is not mangled. It turns each match into a tab-delimited row:
 # one bold header row per file (its path), then one indented "line:code" row per
@@ -46,21 +44,14 @@ command -v fm-query >/dev/null 2>&1 || {
   printf 'fm-query not found on PATH -- interactive search unavailable\n'
   exit 0
 }
-comp=$(fm-query "$1")
-regex=$(printf '%s\n' "$comp" | sed -n 1p)
+regex=$(fm-query "$1" | sed -n 1p)
 [ -n "$regex" ] || exit 0
-spec=$(printf '%s\n' "$comp" | sed -n 2p)
 # Smart-case, but global over the whole raw query (any uppercase anywhere makes
 # every term case-sensitive), not fzf's per-term rule. Intentional: it keeps rg,
 # the list highlight, and the preview in lockstep. See fm-query's header comment.
-case "$1" in *[A-Z]*)
-  ci=--case-sensitive
-  ci01=0
-  ;;
-*)
-  ci=--ignore-case
-  ci01=1
-  ;;
+case "$1" in
+  *[A-Z]*) ci=--case-sensitive ;;
+  *) ci=--ignore-case ;;
 esac
 # $2 (optional) is the gitignore-toggle state file written by fm_rg_ignore.sh
 # (bound to ctrl-g in fm.sh): non-empty => also search VCS-ignored files
@@ -79,28 +70,4 @@ rg -P "$ci" \
   --max-columns 300 \
   --max-columns-preview \
   -- "$regex" </dev/null 2>/dev/null |
-  awk -v HL="$spec" -v CI="$ci01" '
-  function hlcode(code,   n,i,cl,m,parts,ent,typ,txt,t,start,k,pos,j,s,ch,res,inrun,ok,cnt,c,seq){
-    n=length(code); for(i=1;i<=n;i++) mark[i]=0
-    cl = CI ? tolower(code) : code
-    m=split(HL, parts, "\t")
-    for(i=1;i<=m;i++){ ent=parts[i]; if(ent=="")continue
-      typ=substr(ent,1,1); txt=substr(ent,3); t=CI?tolower(txt):txt
-      if(typ=="L"){ start=1; while((k=index(substr(cl,start),t))>0){ pos=start+k-1; for(j=pos;j<pos+length(t);j++)mark[j]=1; start=pos+1 } }
-      else { ok=1; cnt=0; start=1; for(s=1;s<=length(t);s++){ ch=substr(t,s,1); k=index(substr(cl,start),ch); if(k==0){ok=0;break} pos=start+k-1; seq[++cnt]=pos; start=pos+1 } if(ok)for(c=1;c<=cnt;c++)mark[seq[c]]=1 } }
-    res=""; inrun=0
-    for(i=1;i<=n;i++){ if(mark[i]&&!inrun){res=res "\033[1;36m"; inrun=1} else if(!mark[i]&&inrun){res=res "\033[0m"; inrun=0} res=res substr(code,i,1) }
-    if(inrun)res=res "\033[0m"; return res
-  }
-  BEGIN { NUL = sprintf("%c", 0) }
-  # rg --null emits PATH<NUL>LINE:CODE. Split on the NUL, not the first colon, so a
-  # path that itself contains ":" (foo:bar.txt) or "/" is not mis-split. Squash tabs
-  # in the path too (code already is) so neither injects extra tab-delimited fields.
-  # A record with no NUL is the pre-newline fragment of a filename that contains a
-  # newline (rg still ends records with one); drop it rather than emit a phantom row.
-  { z=index($0,NUL); if(z==0)next
-    path=substr($0,1,z-1); rest=substr($0,z+1); q=index(rest,":"); line=substr(rest,1,q-1); code=substr(rest,q+1)
-    gsub(/\t/," ",path); gsub(/\t/," ",code); code=hlcode(code)
-    if(path!=cur){cur=path; printf "\033[1;35m%s\033[0m\t%s\t%s\tH\n", path, path, line}
-    printf "  %s:%s\t%s\t%s\tM\n", line, code, path, line }
-  '
+  fm-query rows "$1"
