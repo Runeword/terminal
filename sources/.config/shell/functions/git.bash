@@ -239,13 +239,11 @@ __git_pick_files() {
   # shellcheck disable=SC2016
   (
     builtin cd "$repo_root" || exit 1
-    export GFS_HEADER_FILES="tab select · ⏎/→ hunks · ⏎⏎ $1"
     export GFS_HEADER_HUNKS="← back · tab hunk · ⏎ $1"
     git-hunk-pick files "$sd" "$1" </dev/null |
       fzf "${_GIT_FZF_DEFAULT[@]}" \
         --read0 --print0 \
         --no-keep-right \
-        --header="$GFS_HEADER_FILES" \
         --bind "enter:transform($key_cmd enter {+f} {} {+n})" \
         --bind "right:transform($key_cmd right {+f} {} {+n})" \
         --bind "left:transform($key_cmd left {+f} {} {+n})" \
