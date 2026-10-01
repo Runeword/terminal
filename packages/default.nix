@@ -6,7 +6,7 @@ import ./commons.nix { inherit pkgs; }
 # launcher. On the host PATH, where claude.bash and the launcher look for them.
 ++ [ claudeSandbox.default ]
 ++ (
-  if pkgs.stdenv.isDarwin then
+  if pkgs.stdenv.hostPlatform.isDarwin then
     import ./darwin.nix { inherit pkgs; }
   else
     import ./linux.nix { inherit pkgs; }
