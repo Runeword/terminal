@@ -21,6 +21,7 @@
 [open]
 ol = { cmd = '__tmux_open_url', desc = 'url' }
 on = { cmd = '__open_editor_history', desc = 'editor history' }
+or = { cmd = '__open_recent', desc = 'recent files' }
 oh = { cmd = 'nvim $HISTFILE', desc = 'history' }
 
 # [ollama]
