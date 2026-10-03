@@ -14,7 +14,6 @@ with pkgs;
   httrack
 
   # _______________________________ CLI
-  bitwarden-cli
   gh
   google-cloud-sdk
   firebase-tools
