@@ -27,7 +27,6 @@ alias xd='xdg-mime default'
 alias f='fzf --reverse --cycle --prompt=" " --height 70% --no-separator --info=inline:""'
 alias ss='systemctl --type=service --state=running | fzf --reverse --cycle --prompt=" " --height 70% --no-separator --info=inline:"" --header-lines=1'
 alias me='__open_device'
-alias bu='__bitwarden_unlock'
 envs() { command env | f; }
 alias k='__kill_processes'
 alias y='__yazi_cd < $TTY'
