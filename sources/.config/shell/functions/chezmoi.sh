@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 __select_files() {
   local files="$1"
@@ -30,8 +30,10 @@ __chezmoi_operation() {
   [ "$1" = "--" ] && shift
 
   if [ $# -gt 0 ]; then
+    # One path per line, as the loop below reads them: $* would join every
+    # argument into a single path.
     local selected_files
-    selected_files=$*
+    selected_files=$(printf '%s\n' "$@")
   else
     local files
     files=$(chezmoi "${chezmoi_args[@]}" status | awk '{print $2}')
@@ -103,8 +105,9 @@ __chezmoi_managed() {
 
 __chezmoi_forget() {
   if [ $# -gt 0 ]; then
+    # One path per line, as in __chezmoi_operation.
     local selected_files
-    selected_files=$*
+    selected_files=$(printf '%s\n' "$@")
   else
     local files
     files=$(chezmoi managed --include=files)
