@@ -20,15 +20,18 @@ __git_require_repo() {
   git rev-parse --is-inside-work-tree >/dev/null || return 1
 }
 
+# The git of every command the pickers print. --literal-pathspecs: git reads a
+# path after -- as a glob, so a picked foo[1].txt would also match foo1.txt (and
+# `git clean -fd` would remove both).
 __git_cmd_prefix() {
   local toplevel git_dir cdup
   toplevel="$(git rev-parse --show-toplevel)" || return 1
   git_dir="$(git rev-parse --absolute-git-dir)"
   cdup="$(git rev-parse --show-cdup)"
   if [ "$git_dir" = "$toplevel/.git" ]; then
-    printf 'git -C %s' "${cdup:-.}"
+    printf 'git --literal-pathspecs -C %s' "${cdup:-.}"
   else
-    printf 'git --git-dir=%s --work-tree=%s -C %s' \
+    printf 'git --literal-pathspecs --git-dir=%s --work-tree=%s -C %s' \
       "$(__shell_quote "$git_dir")" "$(__shell_quote "$toplevel")" "$(__shell_quote "$toplevel")"
   fi
 }
@@ -54,13 +57,15 @@ __git_open_url() {
   #   http(s)://host/owner/repo[.git]            (HTTPS/HTTP)
   # The previous single regex hardcoded `github.com` in the output and only
   # matched the scp-like SSH form, so HTTPS clones or any non-GitHub remote
-  # produced a wrong URL.
+  # produced a wrong URL. A user[:token]@ before the host is dropped: the URL
+  # goes to the browser, and into its history.
   local REPO_URL
   REPO_URL=$(printf '%s\n' "$REMOTE_URL" | sed -E \
     -e 's#^git@([^:]+):#https://\1/#' \
     -e 's#^ssh://(git@)?([^/:]+)(:[0-9]+)?/#https://\2/#' \
     -e 's#^git://([^/]+)/#https://\1/#' \
     -e 's#^http://#https://#' \
+    -e 's#^https://[^/]*@#https://#' \
     -e 's#\.git$##')
 
   # Branch name when attached, or full sha when detached (GitHub treats the
@@ -106,8 +111,8 @@ __git_diff_tracked() {
   [ -n "$ph" ] || ph='{}'
   root="$(git rev-parse --show-toplevel)"
   quoted="$(__shell_quote "$root")"
-  local check="git -C $quoted ls-files --error-unmatch -- $ph > /dev/null 2>&1"
-  local diff="git -C $quoted diff --ignore-space-change --color=always -- $ph | $_GIT_PAGER"
+  local check="git --literal-pathspecs -C $quoted ls-files --error-unmatch -- $ph > /dev/null 2>&1"
+  local diff="git --literal-pathspecs -C $quoted diff --ignore-space-change --color=always -- $ph | $_GIT_PAGER"
   printf '{ %s && %s; }' "$check" "$diff"
 }
 
@@ -127,49 +132,36 @@ __git_diff_staged() {
   [ -n "$ph" ] || ph='{}'
   root="$(git rev-parse --show-toplevel)"
   quoted="$(__shell_quote "$root")"
-  local check="git -C $quoted diff --cached --name-only -- $ph | grep -q ."
-  local diff="git -C $quoted diff --ignore-space-change --cached --color=always -- $ph | $_GIT_PAGER"
+  local check="git --literal-pathspecs -C $quoted diff --cached --name-only -- $ph | grep -q ."
+  local diff="git --literal-pathspecs -C $quoted diff --ignore-space-change --cached --color=always -- $ph | $_GIT_PAGER"
   printf '{ %s && %s; }' "$check" "$diff"
 }
 
-# Run a list command from the repo root, pipe its output into fzf with the
-# default args plus any extras passed positionally, then emit a shell-quoted,
-# space-joined argv suitable for interpolating into a `git ... -- $args` line.
-# fzf is invoked directly (no `sh -c`) so caller-supplied args can be quoted
-# correctly via array splat.
+# Pick paths of kind $1 with fzf (the default args plus any extras after $2)
+# and print them as the words of a command: shell-quoted, space-joined, each
+# prefixed with $2. `git-hunk-pick paths` lists the kind (staged, unstaged,
+# changed, untracked, ignored: packages/git/hunk-pick/paths.go) from the repo
+# root, so the paths are relative to it: pass "" for a `git -C <root>` command,
+# or the cd-up path (git rev-parse --show-cdup) for one that runs from the
+# invocation cwd, like $EDITOR. NUL-separated end to end (--read0/--print0,
+# then `git-hunk-pick quote`), so a path git would quote (café.txt, a tab or
+# newline in it, a space in a status line) reaches the command as is.
 # GIT_DIR/GIT_WORK_TREE are exported in the subshell so the list command and
 # fzf preview commands still resolve the repo when its git dir isn't
 # discoverable from the toplevel (e.g. ~/.dotfiles with core.worktree=$HOME).
 __git_fzf_select() {
-  local list_cmd="$1"
-  shift
+  local kind="$1" prefix="$2"
+  shift 2
   local repo_root git_dir
   repo_root="$(git rev-parse --show-toplevel)"
   git_dir="$(git rev-parse --absolute-git-dir)"
 
-  local result
-  result=$(
+  (
     builtin cd "$repo_root" || exit 1
     export GIT_DIR="$git_dir" GIT_WORK_TREE="$repo_root"
-    sh -c "$list_cmd" | fzf --print0 "${_GIT_FZF_DEFAULT[@]}" "$@"
-  )
-  [ "$result" = "" ] && return 1
-  printf '%s' "$result" | tr '\0' '\n' | sed "s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' '
-}
-
-# __git_prefix_paths rewrites the shell-quoted, space-joined path list produced
-# by the fzf helpers ('a' 'b/c' …) so each token is prefixed with $1, a cd-up
-# path like "../". git prints paths relative to the repo root, but $EDITOR opens
-# them from the invocation cwd, so every element — not just the first — needs the
-# prefix. An empty prefix (already at the repo root) leaves the list unchanged.
-__git_prefix_paths() {
-  local cdup="$1" list="$2" q="'"
-  [ -z "$cdup" ] && {
-    printf '%s' "$list"
-    return
-  }
-  list="${list/#$q/$q$cdup}"
-  printf '%s' "${list// $q/ $q$cdup}"
+    git-hunk-pick paths "$kind" </dev/null |
+      fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "$@"
+  ) | git-hunk-pick quote "$prefix"
 }
 
 # Two-level stage / unstage / discard / stash picker (ga/gru/grd/gsp). $1 is the
@@ -273,9 +265,7 @@ __git_commit() {
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
   local args
-  args=$(__git_fzf_select \
-    "{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq" \
-    "${preview[@]}")
+  args=$(__git_fzf_select changed '' "${preview[@]}")
   [ "$args" != "" ] && echo "$git_cmd add -- $args && $git_cmd commit "
 }
 
@@ -297,7 +287,7 @@ __git_untrack() {
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
   local args
-  args=$(__git_fzf_select "git diff --name-only --cached" "${preview[@]}")
+  args=$(__git_fzf_select staged '' "${preview[@]}")
   [ "$args" != "" ] && echo "$git_cmd rm --cached -- $args"
 }
 
@@ -311,7 +301,7 @@ __git_rm_untracked() {
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
   local args
-  args=$(__git_fzf_select "LC_ALL=C git clean -nd | sed -n 's/^Would remove //p'" "${preview[@]}")
+  args=$(__git_fzf_select untracked '' "${preview[@]}")
   [ "$args" != "" ] && echo "$git_cmd clean -fd -- $args"
 }
 
@@ -336,35 +326,36 @@ __git_ignore() {
     --preview "$_GIT_FZF_PREVIEW_CMD cd $quoted_repo_root && ls -la -- {}"
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
+  # $cmd runs from the invocation cwd: prefix the root-relative paths.
   local args
-  args=$(__git_fzf_select "git status --ignored --porcelain | grep '^!!' | cut -c4-" "${preview[@]}")
+  args=$(__git_fzf_select ignored "$(git rev-parse --show-cdup)" "${preview[@]}")
   [ "$args" != "" ] && echo "$cmd $args"
 }
 
 __git_diff() {
   __git_require_repo || return 1
 
-  local repo_cdup list_cmd
+  local repo_cdup kind
   repo_cdup="$(git rev-parse --show-cdup)"
   local -a preview
 
   case "${1:-all}" in
     staged)
-      list_cmd="git diff --name-only --cached"
+      kind=staged
       preview=(
         --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)"
         --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
       )
       ;;
     unstaged)
-      list_cmd="{ git diff --name-only; git ls-files --others --exclude-standard; } | sort | uniq"
+      kind=unstaged
       preview=(
         --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)"
         --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
       )
       ;;
     *)
-      list_cmd="{ git diff --name-only; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort | uniq"
+      kind=changed
       preview=(
         --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)"
         --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
@@ -373,8 +364,8 @@ __git_diff() {
   esac
 
   local args
-  args=$(__git_fzf_select "$list_cmd" "${preview[@]}")
-  [ "$args" != "" ] && echo "$EDITOR $(__git_prefix_paths "$repo_cdup" "$args")"
+  args=$(__git_fzf_select "$kind" "$repo_cdup" "${preview[@]}")
+  [ "$args" != "" ] && echo "$EDITOR $args"
 }
 
 __git_diff_branches() {
@@ -397,7 +388,9 @@ __git_diff_revs() {
     --header='side A: pick rev' | awk '{print $1}')
   [ "$rev_a" = "" ] && return
 
-  file_a=$(git ls-tree -r --name-only "$rev_a" | fzf "${_GIT_FZF_BASE[@]}" \
+  # `paths tree` lists the rev's whole tree from any directory, relative to the
+  # root as REV:path reads it, NUL-separated so any name comes back as is.
+  file_a=$(git-hunk-pick paths tree "$rev_a" </dev/null | fzf --read0 "${_GIT_FZF_BASE[@]}" \
     --preview "$_GIT_FZF_PREVIEW_CMD git show --color=always $rev_a:{} | $_GIT_PAGER" \
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW" \
     --header="side A: pick file in $rev_a")
@@ -407,7 +400,7 @@ __git_diff_revs() {
     --header='side B: pick rev' | awk '{print $1}')
   [ "$rev_b" = "" ] && return
 
-  file_b=$(git ls-tree -r --name-only "$rev_b" | fzf "${_GIT_FZF_BASE[@]}" \
+  file_b=$(git-hunk-pick paths tree "$rev_b" </dev/null | fzf --read0 "${_GIT_FZF_BASE[@]}" \
     --preview "$_GIT_FZF_PREVIEW_CMD git show --color=always $rev_b:{} | $_GIT_PAGER" \
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW" \
     --header="side B: pick file in $rev_b")
@@ -522,19 +515,20 @@ __git_log() {
 
   local -a file_preview=(
     --header='select files to open'
-    # `:/` anchors the pathspec to the repo root; the listed paths are
-    # root-relative but this fzf runs from the invocation cwd.
-    --preview "$_GIT_FZF_PREVIEW_CMD git show --color=always $commit -- :/{} | $_GIT_PAGER"
+    # `:(top,literal)` anchors the pathspec to the repo root (the listed paths
+    # are root-relative but this fzf runs from the invocation cwd) and reads it
+    # as a path, not a glob.
+    --preview "$_GIT_FZF_PREVIEW_CMD git show --color=always $commit -- ':(top,literal)'{} | $_GIT_PAGER"
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
 
   local repo_cdup
   repo_cdup="$(git rev-parse --show-cdup)"
   local args
-  args=$(git diff-tree --root --no-commit-id --name-only -r "$commit" |
-    fzf --print0 "${_GIT_FZF_DEFAULT[@]}" "${file_preview[@]}" |
-    tr '\0' '\n' | sed "s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' ')
-  [ "$args" != "" ] && echo "$EDITOR $(__git_prefix_paths "$repo_cdup" "$args")"
+  args=$(git-hunk-pick paths commit "$commit" </dev/null |
+    fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "${file_preview[@]}" |
+    git-hunk-pick quote "$repo_cdup")
+  [ "$args" != "" ] && echo "$EDITOR $args"
 }
 
 __git_install_lefthook() {
