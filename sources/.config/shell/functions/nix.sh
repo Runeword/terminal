@@ -21,11 +21,21 @@ __update_flake_inputs() {
   inputs=$(echo "$flake_metadata" | jq --raw-output '.locks.nodes.root.inputs | keys[]')
   [ -z "$inputs" ] && return 1
 
+  # The metadata and the jq filter reach the preview through fzf's environment,
+  # never spliced into its command: a ' in the metadata (the flake's own
+  # description, say) would end the quoting and run the rest as shell as soon
+  # as the preview draws. fzf quotes the {} it substitutes.
+  # The root's inputs map each input to its node, whose name can differ (input
+  # nixpkgs is node nixpkgs_2 when the lock holds several nixpkgs). A follows
+  # input maps to a path instead, with no node of its own: it keeps its name.
+  # shellcheck disable=SC2016 # $n and $k are jq's; --arg binds $k in the preview
+  local filter='.locks.nodes as $n | $n[($n.root.inputs[$k] | strings) // $k] | . + {"lastModified": (.locked.lastModified | if . then (. | strftime("%Y-%m-%d %H:%M:%S")) else null end)}'
   local selected_inputs
+  # shellcheck disable=SC2016 # the preview's shell expands them
   selected_inputs=$(
-    echo "$inputs" | fzf \
+    echo "$inputs" | FLAKE_METADATA="$flake_metadata" FLAKE_FILTER="$filter" fzf \
       --multi --info=inline:'' --reverse --no-separator --prompt='  ' --border none --cycle --height 70% --header-first --bind='ctrl-a:select-all' --header="nix flake update" \
-      --preview "echo '$flake_metadata' | jq --color-output '.locks.nodes.\"{}\" | . + {\"lastModified\": (.locked.lastModified | if . then (. | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end)}'" \
+      --preview 'printf "%s" "$FLAKE_METADATA" | jq --color-output --arg k {} "$FLAKE_FILTER"' \
       --preview-window right,75%,noborder
   )
   [ -z "$selected_inputs" ] && return 1
