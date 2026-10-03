@@ -155,23 +155,18 @@ func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''
 // files lists op's changed files, relative to the repo root, sorted and
 // without duplicates, and saves the list for a return to reload.
 func (p picker) files(op pickOp) (string, error) {
-	cmds := [][]string{{"diff", "--name-only", "-z"}}
+	cmds := [][]string{gitModified}
 	if op.staged {
-		cmds[0] = []string{"diff", "--cached", "--name-only", "-z"}
+		cmds[0] = gitStaged
 	}
 	if op.untracked {
-		cmds = append(cmds, []string{"ls-files", "--others", "--exclude-standard", "-z"})
+		cmds = append(cmds, gitUntracked)
 	}
-	var names []string
-	for _, args := range cmds {
-		out, err := p.git(args...)
-		if err != nil {
-			return "", err
-		}
-		names = append(names, splitList(out)...)
+	names, err := gitList(p.git, cmds, splitList)
+	if err != nil {
+		return "", err
 	}
-	slices.Sort(names)
-	list := joinList(slices.Compact(names))
+	list := joinList(names)
 	return list, os.WriteFile(p.path(".files"), []byte(list), 0o600)
 }
 
@@ -465,9 +460,11 @@ func (p picker) finalize(op pickOp, git string) (string, error) {
 }
 
 // runGit runs git in the current directory, the repo root git.bash runs the
-// picker from, and returns its output.
+// picker from, and returns its output. Its pathspecs are literal: git reads a
+// path after -- as a glob, so a drill into foo[1].txt would list foo1.txt's
+// hunks too.
 func runGit(args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command("git", append([]string{"--literal-pathspecs"}, args...)...)
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	return string(out), err
