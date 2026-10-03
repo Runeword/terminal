@@ -228,12 +228,8 @@ func withPart(a int, unitA string, b int, unitB string) string {
 	return s
 }
 
-// branchGlyph is U+E0A0, the Powerline branch symbol, which the terminal's
-// bundled Nerd Fonts carry.
-const branchGlyph = ""
-
 // locationSection renders the name of the session's current directory and the
-// git branch checked out there, "terminal  main", or nothing when Claude Code
+// git branch checked out there, "terminal main", or nothing when Claude Code
 // sent no directory.
 func locationSection(dir string) string {
 	if dir == "" {
@@ -241,7 +237,7 @@ func locationSection(dir string) string {
 	}
 	s := filepath.Base(dir)
 	if branch := gitBranch(dir); branch != "" {
-		s += " " + branchGlyph + " " + branch
+		s += " " + branch
 	}
 	return s
 }
