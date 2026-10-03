@@ -134,7 +134,9 @@ __open_recent() {
   tempfile=$(mktemp)
   trap 'rm -f "$tempfile"' EXIT
 
-  nvim -es "+redir! > $tempfile" '+oldfiles' '+redir END' '+qall'
+  # nvim -es reads no ShaDa unless -i names one: this is the viminfofile the
+  # nvim config sets (~/neovim/config/lua/options.lua).
+  nvim -es -i "${XDG_CACHE_HOME:-$HOME/.cache}/nvim/viminfo" "+redir! > $tempfile" '+oldfiles' '+redir END' '+qall'
 
   sed -n '/^[[:space:]]*[0-9]*:[[:space:]]*/s/^[[:space:]]*[0-9]*:[[:space:]]*//p' "$tempfile" |
     while IFS= read -r file; do
@@ -143,7 +145,7 @@ __open_recent() {
         man:*) continue ;;
       esac
       [ -f "$file" ] && printf '%s\n' "$file"
-    done | sort | uniq |
+    done |
     fzf \
       --reverse \
       --prompt='  ' \
