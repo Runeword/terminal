@@ -108,6 +108,32 @@ func TestStashWholeFiles(t *testing.T) {
 	}
 }
 
+// TestStashWholeFileIsLiteral stashes the untracked f[1].txt, whose name is
+// also a glob that matches the tracked, modified f1.txt: f1.txt must stay put.
+func TestStashWholeFileIsLiteral(t *testing.T) {
+	setupRepo(t)
+
+	write(t, "f1.txt", "one\n")
+	mustGit(t, "add", "f1.txt")
+	mustGit(t, "commit", "-qm", "f1")
+	write(t, "f1.txt", "ONE\n")       // tracked, unstaged change
+	write(t, "f[1].txt", "bracket\n") // untracked
+
+	if err := run(nil, []string{"f[1].txt"}, "literal"); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	if got := read(t, "f1.txt"); got != "ONE\n" {
+		t.Errorf("f1.txt = %q, want its change left in place", got)
+	}
+	if _, err := os.Stat("f[1].txt"); !os.IsNotExist(err) {
+		t.Errorf("f[1].txt should have been removed from the worktree (err=%v)", err)
+	}
+	if show := mustGit(t, "stash", "show", "-p", "stash@{0}"); !strings.Contains(show, "+bracket") || strings.Contains(show, "ONE") {
+		t.Errorf("stash should hold f[1].txt alone:\n%s", show)
+	}
+}
+
 func write(t *testing.T, name, content string) {
 	t.Helper()
 	if err := os.WriteFile(name, []byte(content), 0o644); err != nil {
