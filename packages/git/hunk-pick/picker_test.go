@@ -395,4 +395,25 @@ func TestFinalizedCommand(t *testing.T) {
 			t.Errorf("command succeeded (%v), want it to fail", err)
 		}
 	})
+
+	t.Run("a glob character in a name is literal", func(t *testing.T) {
+		// f[1].txt is also a glob that matches f1.txt: a drill into it must
+		// list its own hunk alone.
+		for _, name := range []string{"f[1].txt", "f1.txt"} {
+			if err := os.WriteFile(name, []byte("a\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			git(t, "add", name)
+			if err := os.WriteFile(name, []byte("b\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		p := picker{dir: t.TempDir(), getenv: func(string) string { return "" }, git: runGit}
+		if _, err := p.key(pickOps["stage"], "enter", "", "f[1].txt", nil); err != nil {
+			t.Fatal(err)
+		}
+		if hunks, err := readList(p.path(".hunks")); err != nil || len(hunks) != 1 {
+			t.Errorf("drilling into f[1].txt lists %q (%v), want its one hunk", hunks, err)
+		}
+	})
 }
