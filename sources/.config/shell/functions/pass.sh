@@ -31,7 +31,9 @@ __pass_rm() {
     --preview '[ -f {} ] && bat --style=plain --color=always {}' \
     --preview-window right,70%,noborder) || return 0
 
+  # pass asks y/N only when its stdin is a terminal, which this pipe is not: without
+  # </dev/tty it would remove every pick unasked.
   echo "$selected_files" | while IFS= read -r i; do
-    pass rm "$i"
+    pass rm "$i" </dev/tty
   done
 }
