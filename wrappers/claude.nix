@@ -11,7 +11,6 @@
 
 let
   claudeStatusline = import ../packages/claude/statusline { inherit pkgs; };
-  claudeSessionStatus = import ../packages/claude/session-status { inherit pkgs; };
   claudeDocsGuard = import ../packages/claude/docs-guard { inherit pkgs; };
   claudeContext = import ../packages/claude/context { inherit pkgs; };
   gitAllowlistHook = claudeSandbox.git-allowlist-hook;
@@ -47,7 +46,6 @@ let
 
   tools = [
     claudeStatusline
-    claudeSessionStatus
     claudeDocsGuard
     claudeContext
     gitAllowlistHook
@@ -70,17 +68,19 @@ let
     # packages/commons.nix for the interactive shell (usually inherited here too),
     # but listed explicitly so availability doesn't depend on the caller's PATH.
     # Auth is a scoped service account, not your personal `firebase login`:
-    # CLAUDE_SANDBOX_ALLOW_FIREBASE=1 (leader alias `cf`, wired through claude.bash)
-    # makes claude-sandbox.bash read the least-privilege SA key from `pass`
-    # (entry claude/firebase-sa-key) and mount it read-only as Application
-    # Default Credentials for that session; ~/.config/configstore stays masked.
-    # On macOS, claude-macos.bash hands it over instead.
+    # CLAUDE_SANDBOX_ALLOW_FIREBASE=1 (`firebase` in the leader `cc` picker,
+    # wired through claude.bash) makes claude-sandbox.bash read the
+    # least-privilege SA key from `pass` (entry claude/firebase-sa-key) and mount
+    # it read-only as Application Default Credentials for that session;
+    # ~/.config/configstore stays masked. On macOS, claude-macos.bash hands it
+    # over instead.
     pkgs.firebase-tools
     # jira-cli, listed for the same reason. Auth: CLAUDE_SANDBOX_ALLOW_JIRA=1
-    # (leader alias `cj`) makes claude-sandbox.bash export claude's own API token
-    # from `pass` (entry claude/jira-token, not your alias's JIRA_API_TOKEN) as
-    # JIRA_API_TOKEN and point JIRA_CONFIG_FILE at the session's own config,
-    # ~/.config/.jira/claude.yml. On macOS, claude-macos.bash does.
+    # (`jira` in the `cc` picker) makes claude-sandbox.bash export claude's own
+    # API token from `pass` (entry claude/jira-token, not your alias's
+    # JIRA_API_TOKEN) as JIRA_API_TOKEN and point JIRA_CONFIG_FILE at the
+    # session's own config, ~/.config/.jira/claude.yml. On macOS,
+    # claude-macos.bash does.
     pkgs.jira-cli-go
     # comma with nix-index-database's prebuilt index: `, -p <cmd>` names the
     # nixpkgs packages that ship bin/<cmd>, offline. The always-on rule
@@ -115,6 +115,10 @@ let
     ".claude/rules"
     ".claude/plugins"
     ".claude/settings.json"
+    # The per-OS sandbox overlays claude.bash merges into each profile; bundled
+    # mode provisions profiles from this copy (zsh's own bundle has no .claude).
+    ".claude/settings.linux.json"
+    ".claude/settings.darwin.json"
     ".claude/git-allowlist.toml"
 
     # Renamed and installed under bin/ so it's PATH-resolvable from
@@ -131,12 +135,13 @@ let
   # into $out/bin, so the user's interactive shell still sees the wrapped git.
   # Prefixed first so it wins over git-with-config within claude's process
   # tree. The shim enforces the same allowlist policy as git-allowlist-hook,
-  # then exec's the real git.
+  # then exec's the real git. One directory per element: permeance rejects a
+  # ':'-joined makeBinPath string.
   pathPrefix = [
     "${gitShim}/bin"
     "@OUT@/bin"
-    "${pkgs.lib.makeBinPath tools}"
-  ];
+  ]
+  ++ map (pkg: "${pkgs.lib.getBin pkg}/bin") tools;
 
   self = pkgs.symlinkJoin {
     name = "claude-with-config";
@@ -331,7 +336,7 @@ let
       ''
       # The macOS launcher is plain bash, so its dry run works on every platform.
       + ''
-        # claude-macos.bash for `cj` + `cf`, with a personal `firebase login`
+        # claude-macos.bash for jira + firebase, with a personal `firebase login`
         # planted in ~/.config/configstore: claude gets the jira token and the SA
         # key (not in its argv, which `ps` shows), and firebase-tools a
         # configstore without that login. Output goes to files: the launcher
