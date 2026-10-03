@@ -220,10 +220,8 @@ cs  = { cmd = '__claude_sessions', desc = 'sessions' }
 cpl = { cmd = '__claude_plugins', desc = 'plugins' }
 cpr = { cmd = '__claude_plugins --resume', desc = 'plugins › resume' }
 cd  = { cmd = '__claude_debug', desc = 'debug' }
-cf  = { cmd = 'CLAUDE_SANDBOX_ALLOW_FIREBASE=1 __claude', desc = 'firebase' }
-cfr = { cmd = 'CLAUDE_SANDBOX_ALLOW_FIREBASE=1 __claude --resume', desc = 'firebase › resume' }
-cj  = { cmd = 'CLAUDE_SANDBOX_ALLOW_JIRA=1 __claude', desc = 'jira' }
-cjr = { cmd = 'CLAUDE_SANDBOX_ALLOW_JIRA=1 __claude --resume', desc = 'jira › resume' }
+cc  = { cmd = '__claude_connect', desc = 'connections' }
+ccr = { cmd = '__claude_connect --resume', desc = 'connections › resume' }
 
 [chezmoi]
 chd  = { cmd = 'chezmoi diff --reverse', desc = 'diff --reverse' }
