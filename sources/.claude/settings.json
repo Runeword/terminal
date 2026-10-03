@@ -7,32 +7,12 @@
     ]
   },
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "claude-session-status hook",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
     "UserPromptSubmit": [
       {
         "hooks": [
           {
             "type": "command",
             "command": "claude-docs-guard",
-            "timeout": 5
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "claude-session-status hook",
             "timeout": 5
           }
         ]
@@ -53,16 +33,6 @@
             "timeout": 5
           }
         ]
-      },
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "claude-session-status hook",
-            "timeout": 5
-          }
-        ]
       }
     ],
     "PostToolUse": [
@@ -73,38 +43,6 @@
             "type": "command",
             "command": "claude-format",
             "timeout": 30
-          }
-        ]
-      },
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "claude-session-status hook",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "claude-session-status hook",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "Notification": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "claude-session-status hook",
-            "timeout": 5
           }
         ]
       }
@@ -125,6 +63,14 @@
   },
     "skillOverrides": {
       "code-review": "off",
-      "ultrareview": "off"
+      "ultrareview": "off",
+      "anthropic-skills:docs": "off",
+      "anthropic-skills:docx": "off",
+      "anthropic-skills:google-workspace": "off",
+      "anthropic-skills:import-memory": "off",
+      "anthropic-skills:morning": "off",
+      "anthropic-skills:pptx": "off",
+      "anthropic-skills:skill-creator": "off",
+      "anthropic-skills:xlsx": "off"
     }
 }
