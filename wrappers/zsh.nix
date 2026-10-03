@@ -42,7 +42,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, the leader table renders, and god/godc name and clear Go dev builds";
+      description = "Verify zsh wrapper exec's the real binary, the leader table renders, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, and the claude connection picker launches what was picked";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -85,6 +85,41 @@ let
         else
           fail "god does not name dev builds after their go.mod module"
         fi
+
+        # Bundled mode: this bundle has no .claude, so a claude profile comes from
+        # the claude wrapper's, with this OS's sandbox overlay merged in; an overlay
+        # that does not merge refuses the launch instead.
+        os=$(uname -s | tr '[:upper:]' '[:lower:]')
+        provision='. ${self}/.config/shell/functions/claude.bash; __claude_instance=1; __claude_provision_config'
+        if PATH=${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$provision" \
+          && [ "$(${pkgs.jq}/bin/jq -c .sandbox "$HOME/.claude-1/settings.json")" \
+            = "$(${pkgs.jq}/bin/jq -c .sandbox ${claude}/.claude/settings.$os.json)" ]; then
+          ok "bundled mode provisions the claude profile with the $os sandbox overlay"
+        else
+          fail "bundled mode does not provision the claude profile with its sandbox overlay"
+        fi
+        mkdir -p "$TMPDIR/tree/.claude"
+        echo '{}' > "$TMPDIR/tree/.claude/settings.json"
+        echo 'not json' > "$TMPDIR/tree/.claude/settings.$os.json"
+        if PATH=${pkgs.jq}/bin:$PATH PERMEANCE_ROOT=$TMPDIR/tree ${self}/bin/zsh -f -c "$provision" 2> /dev/null; then
+          fail "a sandbox overlay that does not merge still provisions the claude profile"
+        else
+          ok "a sandbox overlay that does not merge refuses the launch"
+        fi
+
+        # The connection picker (leader cc) launches a plain session plus what
+        # was picked: a credential as the launcher's opt-in flag, an MCP plugin
+        # on top of the default ones. A stand-in fzf picks jira and figma-mcp.
+        connect='. ${self}/.config/shell/functions/claude.bash
+          fzf() { printf "jira\nfigma-mcp\n"; }
+          __claude_run() { printf "%s\n" "$__CLAUDE_CMD"; }
+          __claude_connect'
+        case "$(CLAUDE_SANDBOX=0 PATH=${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$connect")" in
+          "CLAUDE_SANDBOX_ALLOW_JIRA=1 "*/nix-lsp\ *--plugin-dir\ */figma-mcp\ *)
+            ok "the connection picker launches jira and figma-mcp on top of the default plugins"
+            ;;
+          *) fail "the connection picker does not launch what was picked" ;;
+        esac
       '';
     };
   };
