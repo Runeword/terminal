@@ -162,8 +162,8 @@ Entries from peers are delivered to you automatically. You never need to poll.
 // clean strips C0/C1 control bytes and DEL. Journal text is model-authored and
 // is rendered both into another model's context and into a terminal by `log`,
 // so an unstripped escape could drive the cursor or write the clipboard via
-// OSC 52 — the same reasoning as claude-session-status's clean. It also
-// flattens a multi-line note into one line, which is what the format wants.
+// OSC 52. It also flattens a multi-line note into one line, which is what the
+// format wants.
 func clean(s string) string {
 	return strings.Map(func(r rune) rune {
 		if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) {
