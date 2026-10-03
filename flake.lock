@@ -1,43 +1,5 @@
 {
   "nodes": {
-    "ast-grep-skill": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1769044697,
-        "narHash": "sha256-LgGFtPieyKtoru22AhHW8hvkJ8kCHO2Cr8rBOWGuxvY=",
-        "owner": "ast-grep",
-        "repo": "agent-skill",
-        "rev": "577f4d4507678f2c8cee150fae25e6ce309f70b1",
-        "type": "github"
-      },
-      "original": {
-        "owner": "ast-grep",
-        "repo": "agent-skill",
-        "type": "github"
-      }
-    },
-    "claude": {
-      "inputs": {
-        "ast-grep-skill": "ast-grep-skill",
-        "lefthook": "lefthook",
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1779138618,
-        "narHash": "sha256-tG3U/kFyGYOOV1AgJ9GUWcdz/ndFiQeMuQZH3jfeGJE=",
-        "owner": "Runeword",
-        "repo": "claude",
-        "rev": "90cb8981bb2c3a823e17c4063cc77fd43daf2634",
-        "type": "github"
-      },
-      "original": {
-        "owner": "Runeword",
-        "repo": "claude",
-        "type": "github"
-      }
-    },
     "claude-sandbox": {
       "inputs": {
         "lefthook": [
@@ -48,11 +10,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790807711,
-        "narHash": "sha256-RIwXBR5VOGvrYqEfPs47KqWeJ/CWMspe5NDa9sI6cTs=",
+        "lastModified": 1790977512,
+        "narHash": "sha256-CfyiGaRap2NRy24VxElwGrmxh40pk2AWrtlqy9hp380=",
         "owner": "Runeword",
         "repo": "claude-sandbox",
-        "rev": "5d817f52e46cbc79b1416b27e174fb9ce9ad0297",
+        "rev": "384b706ba61caeeb218355b7fb9524d0158a49d5",
         "type": "github"
       },
       "original": {
@@ -82,16 +44,15 @@
     "lefthook": {
       "inputs": {
         "nixpkgs": [
-          "claude",
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1774819702,
-        "narHash": "sha256-lL8oz8Tr+TDPbWUdQq1du76L6Ohjdf7t8zWY+cZGvWo=",
+        "lastModified": 1786826527,
+        "narHash": "sha256-1w1VdN6vciuxz4f8GvuxGXiH0/2bjiZJzZ9zlPc/3jg=",
         "owner": "Runeword",
         "repo": "lefthook",
-        "rev": "b458d33e097310bbef1c77a19a19fd64abe87d8d",
+        "rev": "8a98352a549e2ce058aa57f8cbce34ad622d774e",
         "type": "github"
       },
       "original": {
@@ -103,15 +64,16 @@
     "lefthook_2": {
       "inputs": {
         "nixpkgs": [
+          "permeance",
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1786826527,
-        "narHash": "sha256-1w1VdN6vciuxz4f8GvuxGXiH0/2bjiZJzZ9zlPc/3jg=",
+        "lastModified": 1785073849,
+        "narHash": "sha256-9x8SN4VqNGSfMYbOTouwYNL4bG4+qvzbugtj2tjo6/A=",
         "owner": "Runeword",
         "repo": "lefthook",
-        "rev": "8a98352a549e2ce058aa57f8cbce34ad622d774e",
+        "rev": "5142d15f7b825799bc104ea23b75682478e7b420",
         "type": "github"
       },
       "original": {
@@ -174,16 +136,17 @@
     },
     "permeance": {
       "inputs": {
+        "lefthook": "lefthook_2",
         "nixpkgs": [
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1784673190,
-        "narHash": "sha256-uDH38jMsCjXEkr3myu47wx1CZEHmQAwTzq0JN85uOP0=",
+        "lastModified": 1790452393,
+        "narHash": "sha256-PoZNoIpp0VdEz9W8fMoj5sSSb5CleFwfNU/J2ZRjL/w=",
         "owner": "Runeword",
         "repo": "permeance",
-        "rev": "02f9d85ad14535c31a72724e344da90757cd0794",
+        "rev": "d9b692fa920be800b167dc91e7a006552ea560ae",
         "type": "github"
       },
       "original": {
@@ -194,10 +157,9 @@
     },
     "root": {
       "inputs": {
-        "claude": "claude",
         "claude-sandbox": "claude-sandbox",
         "flake-utils": "flake-utils",
-        "lefthook": "lefthook_2",
+        "lefthook": "lefthook",
         "nix-index-database": "nix-index-database",
         "nixpkgs": "nixpkgs",
         "nixpkgs-24-05": "nixpkgs-24-05",
