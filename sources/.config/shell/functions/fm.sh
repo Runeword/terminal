@@ -30,25 +30,31 @@ __open_file() {
         --bind='ctrl-o:execute(nohup setsid cursor {} > /dev/null 2>&1 &)'
   ) || return 1
 
-  # If single directory selected, cd into it
-  if [ "$(echo "$selected_files" | wc -l)" -eq 1 ] && [ -d "$selected_files" ]; then
+  # If single directory selected, cd into it. History entries quote each name, so
+  # recalling one reaches the same path, spaces and quotes included.
+  local quoted
+  if [ "$(printf '%s\n' "$selected_files" | wc -l)" -eq 1 ] && [ -d "$selected_files" ]; then
     cd "$selected_files" || return 1
-    [ "$BASH_VERSION" ] && history -s "cd $selected_files"
-    [ "$ZSH_VERSION" ] && print -s "cd $selected_files"
+    quoted=$(printf '%s\n' "$selected_files" | sed "s/'/'\\\\''/g; s/.*/'&'/")
+    [ "$BASH_VERSION" ] && history -s "cd $quoted"
+    [ "$ZSH_VERSION" ] && print -rs -- "cd $quoted"
     return 0
   fi
 
   # Else open files in editor
   local files_only
-  files_only=$(echo "$selected_files" | while IFS= read -r item; do
-    [ -f "$item" ] && echo "$item"
+  files_only=$(printf '%s\n' "$selected_files" | while IFS= read -r item; do
+    [ -f "$item" ] && printf '%s\n' "$item"
   done)
 
   [ "$files_only" = "" ] && return 1
 
-  echo "$files_only" | xargs "$EDITOR" || return 1
-  [ "$BASH_VERSION" ] && history -s "$EDITOR $(echo "$files_only" | xargs)"
-  [ "$ZSH_VERSION" ] && print -s "$EDITOR $(echo "$files_only" | xargs)"
+  # One argument per line: plain xargs splits a name at its spaces and stops at a
+  # quote in it.
+  printf '%s\n' "$files_only" | tr '\n' '\0' | xargs -0 "$EDITOR" || return 1
+  quoted=$(printf '%s\n' "$files_only" | sed "s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' ')
+  [ "$BASH_VERSION" ] && history -s "$EDITOR ${quoted% }"
+  [ "$ZSH_VERSION" ] && print -rs -- "$EDITOR ${quoted% }"
 }
 
 # find -L . \
