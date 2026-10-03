@@ -51,7 +51,7 @@ func TestRun(t *testing.T) {
 		lastTurn = `"current_usage":{"input_tokens":2,"output_tokens":428,"cache_creation_input_tokens":2116,"cache_read_input_tokens":155115}`
 		limits   = "5h ━──── 23% 2h13m  7d ━━─── 41% 5d"
 		tokens   = "↓2 ↑428 W2.1k R155k =158k"
-		location = "proj  main"
+		location = "proj main"
 	)
 	fiveHour := `"five_hour":{"used_percentage":23.5,"resets_at":` + resetsIn(2*time.Hour+13*time.Minute) + `}`
 	sevenDay := `"seven_day":{"used_percentage":41.2,"resets_at":` + resetsIn(5*24*time.Hour) + `}`
