@@ -9,11 +9,8 @@ let
   config = files.mkConfig "tmux-config" [
     ".config/tmux/tmux.conf"
     ".config/tmux/scripts/toggle-pane.sh"
-    ".config/tmux/scripts/scratch.sh"
-    # Bound in tmux.conf (claude-sessions.sh on M-s; watch-build.sh on a
-    # currently-commented M-b) — bundle both so the bindings resolve in
-    # bundled mode, not just under $PERMEANCE_ROOT.
-    ".config/tmux/scripts/claude-sessions.sh"
+    # Bound in tmux.conf on a currently-commented M-b — bundled so the binding
+    # resolves in bundled mode, not just under $PERMEANCE_ROOT.
     ".config/tmux/scripts/watch-build.sh"
     ".config/shell/functions/tmux.sh"
     # tmux-resurrect plugin tree, supplied by nixpkgs instead of vendored
@@ -43,14 +40,17 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config syntax is valid, uses the zsh wrapper, enables resurrect pane-content capture, limits passthrough to visible panes, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, and toggles global, per-session and per-window scratch terminals kept on their own server";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, limits passthrough to visible panes, yanks via copy-selection, reorders windows by dragging their status-bar name, and renders sessions sorted-by-number so they can be dragged to reorder too";
       script = ''
         # No explicit -f — let the launcher's flags = [ "-f" "$PERMEANCE_ROOT/.config/tmux/tmux.conf" ]
-        # provide it, so the smoke exercises the launcher's flag routing.
-        if ${self}/bin/tmux start-server \; kill-server 2>/dev/null; then
-          ok "config syntax valid (via launcher -f routing)"
+        # provide it, so the smoke exercises the launcher's flag routing. start-server
+        # exits 0 and prints nothing even when that load fails: tmux keeps its parse
+        # and command errors until the next source-file prints them, so source
+        # /dev/null.
+        if err=$(${self}/bin/tmux start-server \; source-file /dev/null \; kill-server 2>&1) && [ -z "$err" ]; then
+          ok "tmux.conf loads without errors (via launcher -f routing)"
         else
-          fail "config syntax error"
+          fail "tmux.conf: ''${err:-tmux exited non-zero}"
         fi
 
         tmux_shell=$(${self}/bin/tmux start-server \; show-option -gv default-shell \; kill-server 2>/dev/null)
@@ -65,6 +65,14 @@ let
           ok "resurrect pane-content capture enabled"
         else
           fail "@resurrect-capture-pane-contents is '$cap', expected 'on'"
+        fi
+
+        # M-S/M-R call save.sh/restore.sh directly. resurrect.tmux only binds prefix
+        # keys, unreachable with prefix None, and running it took most of every load.
+        if grep -q '^[[:space:]]*run-shell.*resurrect\.tmux' ${self}/.config/tmux/tmux.conf; then
+          fail "tmux.conf runs resurrect.tmux at every load"
+        else
+          ok "tmux.conf loads without running resurrect.tmux"
         fi
 
         # allow-passthrough is a pane option; its global default lives in the
@@ -116,12 +124,56 @@ let
           *) fail "MouseDrag1Pane is '$pdrag', expected @wdrag-gated copy-mode" ;;
         esac
 
+        # Below the bar mouse_x counts from the pane's left edge, so the window drag
+        # adds pane_left; and a pane border it crosses doesn't start a pane resize.
+        below="$pdrag $(binding root MouseDrag1Border)"
+        case "$below" in
+          *"#{e|+:#{mouse_x},#{pane_left}}"*"if-shell -F \"#{||:#{@wdrag},#{@sdrag}}\" {  } { resize-pane -M }"*) ok "window drags below the bar count screen columns and skip border resizes" ;;
+          *) fail "MouseDrag1Pane / MouseDrag1Border are '$below'" ;;
+        esac
+
+        # A release over a pane that ends no status-bar drag is passed on to the
+        # pane's program (nvim, fzf --mouse), as tmux does with nothing bound.
+        release="$(binding root MouseUp1Pane) $(binding root MouseDragEnd1Pane)"
+        case "$release" in
+          *"} { send-keys -M }"*"} { send-keys -M }"*) ok "mouse releases outside a drag reach the pane" ;;
+          *) fail "MouseUp1Pane / MouseDragEnd1Pane swallow the release: '$release'" ;;
+        esac
+
+        # Mouse handlers reset the drag flags only while one is set: setting any
+        # option redraws every attached client in full, on every click.
+        guarded='#{||:#{@wdrag},#{@sdrag}}" { set-option -g @wdrag 0'
+        keys=$(${self}/bin/tmux start-server \; list-keys -T root \; kill-server 2>/dev/null)
+        case "''${keys//"$guarded"/}" in
+          "$keys" | *"@wdrag 0"*) fail "a mouse handler resets the drag flags outside a drag" ;;
+          *) ok "mouse handlers reset the drag flags only during a drag" ;;
+        esac
+
+        # M-w/M-W close a pane or window in tmux alone (step, then kill {last}, the
+        # one just left); only a session's last window goes through the shell.
+        close="$(binding root M-w) $(binding root M-W)"
+        case "$close" in
+          *__tmux_kill_pane*) fail "M-w/M-W still close panes and windows through the shell" ;;
+          *"kill-pane -t "?"{last}"*"kill-window -t "?"{last}"*__tmux_kill_session*"kill-pane -t "?"{last}"*"kill-window -t "?"{last}"*__tmux_kill_session*) ok "M-w/M-W close panes and windows without a shell" ;;
+          *) fail "M-w/M-W are '$close'" ;;
+        esac
+
         # Sessions render sorted by their number (not #{S:}'s creation order) so a
         # drag can reorder them; the sort is unrolled one filtered pass per number.
         sl=$(${self}/bin/tmux start-server \; show -gv status-left \; kill-server 2>/dev/null)
         case "$sl" in
           *"session_name},1}"*"session_name},2}"*"session_name},3}"*) ok "status-left renders sessions sorted by number" ;;
           *) fail "status-left is not the number-sorted unroll: '$sl'" ;;
+        esac
+
+        # A session label's range stops after its first space (tmux ends a range a
+        # cell late, so one over both spaces took the next label's first cell), and
+        # a click or a drag along the bar goes by the range under the pointer, not
+        # by mouse_x, which counts from a pane.
+        slabel="$sl $(binding root MouseDown1Status) $(binding root MouseDrag1Status)"
+        case "$slabel" in
+          *"#{session_name} #[norange] "*"session}\" { switch-client -t = ;"*"#{!=:#{session_name},#{client_session}}"*) ok "a click or drag on a session label resolves the label under the pointer" ;;
+          *) fail "session label ranges / MouseDown1Status / MouseDrag1Status are '$slabel'" ;;
         esac
 
         # Dragging a session name reorders it by swapping numbers (tmux has no
@@ -132,44 +184,12 @@ let
           *) fail "MouseDrag1Pane lacks __tmux_drag_session session wiring" ;;
         esac
 
-        # C-Space, M-Space and C-M-Space toggle a global, a per-session and a
-        # per-window scratch terminal, kept on their own server (-L scratch) out of
-        # the main session flow. That server loads this config too, minus the
-        # resurrect save, which would overwrite the main server's.
-        scratch=$(${self}/bin/tmux -L scratch start-server \; list-keys -T root \; kill-server 2>/dev/null)
-        case "$scratch" in
-          *save.sh*) fail "the scratch server binds the resurrect save" ;;
-          *) ok "the scratch server skips the resurrect save" ;;
-        esac
-        for scope in global session window; do
-          case "$scratch" in
-            *"scratch.sh $scope"*) ok "a key toggles the $scope scratch" ;;
-            *) fail "no key toggles the $scope scratch" ;;
-          esac
-        done
-
-        # Closing a window only starts the scratch gc when the window owns a
-        # scratch (listed in @scratch-owners), so other closes cost no process.
-        hooks=$(${self}/bin/tmux start-server \; show-hooks -g \; kill-server 2>/dev/null)
-        case "$hooks" in
-          *window-unlinked*@scratch-owners*"scratch.sh gc"*) ok "window closes start the scratch gc only for scratch owners" ;;
-          *) fail "window-unlinked does not gate the scratch gc on @scratch-owners" ;;
-        esac
-
         # Programs inside tmux can neither set nor read the clipboard through it,
         # and messages still clear the status line they are drawn over (tmux 3.7+).
         opts=$(${self}/bin/tmux start-server \; show -sv set-clipboard \; show -sv get-clipboard \; show -gv message-style \; kill-server 2>/dev/null)
         case "$opts" in
           external*off*fill=terminal*) ok "panes can't set or read the clipboard; messages clear the status line" ;;
           *) fail "set-clipboard / get-clipboard / message-style are '$opts'" ;;
-        esac
-
-        # The scratch server's copies would reach the main server as a program's,
-        # so it pipes them to the system clipboard itself.
-        copy=$(${self}/bin/tmux -L scratch start-server \; show -sv copy-command \; kill-server 2>/dev/null)
-        case "$copy" in
-          *wl-copy*) ok "the scratch server copies to the system clipboard itself" ;;
-          *) fail "the scratch server's copy-command is '$copy'" ;;
         esac
       '';
     };
