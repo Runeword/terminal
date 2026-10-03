@@ -48,7 +48,7 @@ fail() {
   failures=$((failures + 1))
 }
 
-# claude-macos.bash for `cj` + `cf`. The stand-in claude records what it was
+# claude-macos.bash for jira + firebase. The stand-in claude records what it was
 # handed, then waits, so its workspace can be checked under Seatbelt while
 # "claude" runs.
 mac="$w/mac"
