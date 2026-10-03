@@ -1,6 +1,5 @@
 {
   pkgs,
-  astGrepShell,
   lefthook,
 }:
 # Composition point for the dev shell. Each owned sub-shell exposes its helper
@@ -37,10 +36,7 @@ let
 in
 pkgs.mkShell {
   packages = [ h ];
-  inputsFrom = ownedShells ++ [
-    astGrepShell
-    lefthookShell
-  ];
+  inputsFrom = ownedShells ++ [ lefthookShell ];
   shellHook = "h";
   # Exposed for `checks.unit-tests` (lib/tests-unit.nix) to assert the registry.
   passthru.helpers = helpers;
