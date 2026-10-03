@@ -42,7 +42,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, the leader table renders, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, and the claude connection picker launches what was picked";
+      description = "Verify zsh wrapper exec's the real binary, the leader table renders, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, and __open_recent offers nvim's recent files newest first";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -120,6 +120,26 @@ let
             ;;
           *) fail "the connection picker does not launch what was picked" ;;
         esac
+
+        # __open_recent offers nvim's oldfiles newest first, read from the
+        # viminfofile the nvim config keeps under $XDG_CACHE_HOME: a stand-in
+        # nvim answers for that file only, a stand-in fzf picks the first line.
+        touch "$HOME/a" "$HOME/b"
+        recent='. ${self}/.config/shell/functions/fm.sh
+          nvim() {
+            if [ "$1 $2 $3" = "-es -i $XDG_CACHE_HOME/nvim/viminfo" ]; then
+              printf "1: %s\n2: %s\n" "$HOME/b" "$HOME/a" > "''${4#+redir! > }"
+            else
+              printf "%s\n" "$*"
+            fi
+          }
+          fzf() { head -n 1; }
+          __open_recent'
+        if [ "$(XDG_CACHE_HOME=$HOME/cache ${self}/bin/zsh -f -c "$recent")" = "$HOME/b" ]; then
+          ok "__open_recent offers nvim's recent files newest first"
+        else
+          fail "__open_recent does not offer nvim's recent files newest first"
+        fi
       '';
     };
   };
