@@ -1,10 +1,12 @@
-#!/bin/sh
-# shellcheck disable=SC3003,SC3024
+#!/bin/bash
 
 __run_alias() {
-  local selected
+  local name
 
-  selected=$(alias |
+  # Only the name comes from the picked line (bash lists `alias name='value'`, zsh
+  # `name='value'`); the value comes from the shell's own alias table, so one
+  # holding an `=` or a quote runs whole.
+  name=$(alias |
     fzf \
       --delimiter='=' \
       --height 70% \
@@ -12,9 +14,15 @@ __run_alias() {
       --prompt='  ' \
       --no-separator \
       --info=inline:'' |
-    awk -F'=' '{print $2}' | sed "s/^'//;s/'$//") || return 0
+    sed 's/^alias //;s/=.*//') || return 0
+  [ -n "$name" ] || return 0
 
-  sh -c "$selected"
+  # shellcheck disable=SC2154 # aliases is zsh's alias table
+  if [ -n "$ZSH_VERSION" ]; then
+    sh -c "${aliases[$name]}"
+  else
+    sh -c "${BASH_ALIASES[$name]}"
+  fi
 }
 
 # Leader-key picker. leader-aliases (packages/leader-aliases) renders leader.toml
