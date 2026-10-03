@@ -6,6 +6,8 @@
 // applies to stage, unstage or discard exactly those hunks, and the picker
 // subcommands (picker.go) list the files, keep the picker's state as it switches
 // between the files list and one file's hunks, and print the final command.
+// paths and quote (paths.go) back git.bash's other file pickers: they list
+// the paths each one picks from, and quote the picked ones for its command.
 //
 // Only whole, unmodified hunks are ever emitted, so the reconstructed patch is
 // always valid: each hunk's b-side line numbers are absolute, so any subset
@@ -18,6 +20,8 @@
 //	git-hunk-pick list                          <diff   # INDEX<TAB>LABEL per hunk, 1-based
 //	git-hunk-pick assemble [--sum SUM] INDEX... <diff   # patch of those hunks
 //	git-hunk-pick files|key|load|hint|finalize SD ...   # the file picker (picker.go)
+//	git-hunk-pick paths KIND [REV]                      # a kind's paths, NUL-separated (paths.go)
+//	git-hunk-pick quote [PREFIX]                <picked # the picked paths as shell words
 //
 // With --sum, assemble refuses (exit 1, no output) unless the patch it would
 // print has that digest (patchSum): the picker's command passes the digest of
@@ -247,12 +251,17 @@ func fatal(msg string) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fatal("usage: git-hunk-pick <list|assemble [--sum SUM] INDEX...>  (diff on stdin), or <files|key|load|hint|finalize> SD ...")
+		fatal("usage: git-hunk-pick <list|assemble [--sum SUM] INDEX...>  (diff on stdin), <files|key|load|hint|finalize> SD ..., paths KIND [REV], or quote [PREFIX]")
 	}
 
 	switch os.Args[1] {
 	case "files", "key", "load", "hint", "finalize":
 		if err := runPicker(os.Args[1], os.Args[2:], os.Stdout); err != nil {
+			fatal(err.Error())
+		}
+		return
+	case "paths", "quote":
+		if err := runPaths(os.Args[1], os.Args[2:], os.Stdin, os.Stdout); err != nil {
 			fatal(err.Error())
 		}
 		return
