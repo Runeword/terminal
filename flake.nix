@@ -6,9 +6,6 @@
 
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
-  inputs.claude.url = "github:Runeword/claude";
-  inputs.claude.inputs.nixpkgs.follows = "nixpkgs";
-
   inputs.lefthook.url = "github:Runeword/lefthook";
   inputs.lefthook.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -88,7 +85,6 @@
 
           devShell = import ./devshells {
             inherit pkgs;
-            astGrepShell = inputs.claude.devShells.${system}.ast-grep;
             inherit (inputs) lefthook;
           };
 
