@@ -43,7 +43,7 @@ const (
 	// A session counts as present if it touched the roster this recently.
 	// Deliberately timestamp-based rather than PID-based: a dead session
 	// lingering a few minutes in the roster is harmless, and the alternative
-	// is duplicating claude-session-status's process-tree climb.
+	// is climbing the process tree to find claude's PID.
 	presenceWindow = 5 * time.Minute
 )
 
