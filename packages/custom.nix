@@ -7,10 +7,6 @@
     src = ./git/branches;
     vendorHash = "sha256-uqVw/+79vkCQCF4QdP5LIo8CWdUoXRDaWFhYwr5QbT4=";
   })
-  # Renderer for the tmux Claude-sessions dashboard; also the hook writer (wired
-  # into claude's PATH via wrappers/claude.nix). Here so it lands in
-  # packages.tools and is on the interactive/tmux PATH inside the terminal.
-  (import ./claude/session-status { inherit pkgs; })
   # Shared-context journal for Claude sessions in the same CLAUDE_CONTEXT_GROUP.
   # The hook half is wired into claude's PATH via wrappers/claude.nix; here so
   # `claude-context log` is runnable from a shell or tmux pane.
