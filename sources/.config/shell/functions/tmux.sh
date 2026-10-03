@@ -54,6 +54,8 @@ __tmux_switch_window() {
   window_id=$(tmux display-message -p '#{window_id}')
   item_pos=$(tmux list-windows -a -F '#{window_id}' | awk '{if ($1 == "'"$window_id"'") print NR}')
 
+  # A row is "<session><window> <window id> <session id>": three fields, read
+  # from the end ({-1}, {-2}) because a window name can hold spaces.
   tmux list-windows -a -F '#{session_name}#{window_name} #{window_id} #{session_id}' 2>/dev/null | fzf \
     --with-nth='1,2' \
     --reverse \
@@ -65,29 +67,9 @@ __tmux_switch_window() {
     --no-separator \
     --info=inline:'' \
     --bind='tab:down,btab:up' \
-    "${TMUX:+--bind="focus:execute-silent(tmux switch-client -t {4}; tmux select-window -t {3})"}" \
+    "${TMUX:+--bind="focus:execute-silent(tmux switch-client -t {-1}; tmux select-window -t {-2})"}" \
     "${TMUX:+--bind="load:pos($item_pos)"}" \
     >/dev/null
-}
-
-__tmux_goto_window() {
-  local target_index="$1"
-  local current_index max_index
-  current_index=$(tmux display-message -p '#{window_index}')
-
-  # Clamp past-the-end presses onto the last window: C-9 in a 3-window session
-  # selects window 3 instead of doing nothing.
-  max_index=$(tmux list-windows -F '#{window_index}' | sort -n | tail -1)
-  [ "$max_index" != "" ] && [ "$target_index" -gt "$max_index" ] && target_index="$max_index"
-
-  if [ "$current_index" = "$target_index" ]; then
-    tmux last-window
-    return
-  fi
-
-  if tmux list-windows -F '#{window_index}' | grep -qx "$target_index"; then
-    tmux select-window -t "$target_index"
-  fi
 }
 
 __tmux_swap_or_create_window() {
@@ -182,7 +164,7 @@ __tmux_drag_session() {
 # the first back to the last), batching switch + kill so there is no flicker. The
 # focused, lower-numbered survivor keeps its number, so nothing needs renaming in
 # the batch; the session-closed hook then compacts the hole the kill leaves behind.
-# Reached via __tmux_kill_pane (M-w / M-W) when the last window of a session closes.
+# Reached from M-w / M-W (tmux.conf) when the last window of a session closes.
 __tmux_kill_session() {
   local session_count current_session session_list current_index prev_index target
   session_count=$(tmux list-sessions | wc -l)
@@ -228,81 +210,6 @@ __tmux_attach_session() {
   fi
 }
 
-# Close the current pane -- or its window when it is the last pane, or the whole
-# session when that is its last window -- then focus a neighbour. $1 picks which:
-# "next" (M-w, the default) or "prev" (M-W). Neither wraps: with nothing in that
-# direction (next from the last pane/window, prev from the first), step the other
-# way instead.
-__tmux_kill_pane() {
-  local direction="${1:-next}" pane_count window_count session_count step
-  pane_count=$(tmux display-message -p '#{window_panes}')
-  window_count=$(tmux display-message -p '#{session_windows}')
-  session_count=$(tmux list-sessions | wc -l)
-
-  if [ "$pane_count" -gt 1 ]; then
-    # "next" keeps focus on the current index: step to the NEXT pane -- the one that
-    # slides into this slot once we kill -- then kill the pane we left, so killing
-    # pane 1 of 1|2|3 lands on the old pane 2 (now pane 1), not on the pane we came
-    # from. "prev" steps to the PREVIOUS pane instead, which keeps its index.
-    local current_pane current_index first_index last_index
-    current_pane=$(tmux display-message -p '#{pane_id}')
-    current_index=$(tmux display-message -p '#{pane_index}')
-    first_index=$(tmux list-panes -F '#{pane_index}' | sort -n | head -1)
-    last_index=$(tmux list-panes -F '#{pane_index}' | sort -n | tail -1)
-    step='{next}'
-    case "$direction" in
-      prev) [ "$current_index" -le "$first_index" ] || step='{previous}' ;;
-      *) [ "$current_index" -lt "$last_index" ] || step='{previous}' ;;
-    esac
-    tmux select-pane -t "$step" \; kill-pane -t "$current_pane"
-  elif [ "$window_count" -gt 1 ]; then
-    # Same rules for windows: "next" steps to the NEXT window (renumber-windows then
-    # slides it into our old index) and kills the one we left, so killing window 1
-    # lands on the old window 2, now renumbered to 1; "prev" steps to the PREVIOUS.
-    local current_window first_window last_window
-    current_window=$(tmux display-message -p '#{window_index}')
-    first_window=$(tmux list-windows -F '#{window_index}' | sort -n | head -1)
-    last_window=$(tmux list-windows -F '#{window_index}' | sort -n | tail -1)
-    step=-n
-    case "$direction" in
-      prev) [ "$current_window" -le "$first_window" ] || step=-p ;;
-      *) [ "$current_window" -lt "$last_window" ] || step=-p ;;
-    esac
-    tmux select-window "$step" \; kill-window -t:"$current_window"
-  elif [ "$session_count" -gt 1 ]; then
-    # Last window/pane of this session -> kill the whole session. Focus moves to
-    # the previous session; see __tmux_kill_session.
-    __tmux_kill_session
-  else
-    tmux kill-pane
-  fi
-}
-
-__tmux_nvim_copy_mode() {
-  local tmpfile
-  tmpfile=$(mktemp /tmp/tmux-buffer-XXXXXX)
-
-  local cursor_x cursor_y scroll_position history_size
-  cursor_x=$(tmux display-message -p '#{cursor_x}')
-  cursor_y=$(tmux display-message -p '#{cursor_y}')
-  scroll_position=$(tmux display-message -p '#{scroll_position}')
-  history_size=$(tmux display-message -p '#{history_size}')
-
-  tmux capture-pane -epJS - | sed 's/ \{10,\}.*$//' >"$tmpfile"
-
-  local target_line target_col
-  target_line=$((history_size - scroll_position + cursor_y + 1))
-  target_col=$((cursor_x + 1))
-
-  nvim -u ~/neovim/config/init-scrollback.lua \
-    -c 'set clipboard=unnamedplus nonumber norelativenumber laststatus=0 cmdheight=0 noshowmode noruler signcolumn=no foldcolumn=0 nolist' \
-    -c 'lua vim.o.winbar = "" vim.g.baleia.once(0)' \
-    -c "normal! ${target_line}G${target_col}|" \
-    "$tmpfile"
-
-  rm -f "$tmpfile"
-}
-
 __tmux_move_window_to_session() {
   local direction="${1:-next}"
   local current_session target_session session_count current_index target_index
@@ -334,8 +241,12 @@ __tmux_move_window_to_session() {
 
   target_session=$(tmux list-sessions -F '#{session_name}' | sort -V | sed -n "${target_index}p")
 
-  tmux move-window -t "$target_session:"
-  tmux switch-client -t "$target_session"
+  # Switch first, in the same command: moving a session's only window destroys
+  # that session, and detach-on-destroy (on by default) detaches the clients
+  # still on it, so a switch-client after the move would have no client left.
+  # -s names the window up front, since the switch makes the target current.
+  tmux switch-client -t "=$target_session" \; \
+    move-window -s "$(tmux display-message -p '#{window_id}')" -t "=$target_session:"
 }
 
 # Move the current window to the numerically-named session $1 (the M-S-<n> range in
@@ -345,7 +256,7 @@ __tmux_move_window_to_session() {
 # nothing past the last session rather than clamping to it). Resolve the target to its
 # session_id up front: moving the current session's last window empties and destroys it,
 # and the session-closed hook then renumbers survivors, so the target's *name* can change
-# mid-operation while its id cannot -- the follow-switch below must use the id.
+# mid-operation while its id cannot -- the switch and move below must use the id.
 __tmux_move_window_to_session_number() {
   local target="$1" current_session target_id src_win src_idx
   case "$target" in '' | *[!0-9]*) return 0 ;; esac
@@ -362,12 +273,14 @@ __tmux_move_window_to_session_number() {
   # Keep the window's own index number in the destination: if that index is taken, insert
   # before the occupant (-b) so the window takes it and the rest shift up; otherwise drop it
   # at exactly that index -- even past the session's end, leaving a gap, so the window always
-  # keeps its number. Chain the follow-switch into the same command so tmux redraws once (a
-  # separate switch-client would repaint the source session, then the target, which flickers).
+  # keeps its number. Switch first, in the same command: tmux redraws once (a separate
+  # switch-client would repaint the source session, then the target, which flickers), and
+  # the client has left the source session before the move can empty it -- detach-on-destroy,
+  # on by default, would otherwise detach it along with the session.
   if tmux list-windows -t "$target_id" -F '#{window_index}' | grep -qx "$src_idx"; then
-    tmux move-window -s "$src_win" -b -t "$target_id:$src_idx" \; switch-client -t "$target_id"
+    tmux switch-client -t "$target_id" \; move-window -s "$src_win" -b -t "$target_id:$src_idx"
   else
-    tmux move-window -s "$src_win" -t "$target_id:$src_idx" \; switch-client -t "$target_id"
+    tmux switch-client -t "$target_id" \; move-window -s "$src_win" -t "$target_id:$src_idx"
   fi
 }
 
@@ -391,87 +304,6 @@ __tmux_open_url() {
     echo "$urls" | while IFS= read -r url; do
       setsid xdg-open "$url" >/dev/null 2>&1 || setsid open "$url" >/dev/null 2>&1 &
     done
-  fi
-}
-
-__tmux_save_window_state() {
-  local history_file="${XDG_DATA_HOME:-$HOME/.local/share}/tmux-window-history"
-  local pane_path="$1"
-  local pane_command="$2"
-
-  # Create directory if it doesn't exist
-  mkdir -p "$(dirname "$history_file")"
-
-  # Save path and command separated by ||| delimiter
-  # Format: path|||command
-  echo "$pane_path|||$pane_command" >>"$history_file"
-  tail -20 "$history_file" >"$history_file.tmp" && mv "$history_file.tmp" "$history_file"
-}
-
-__tmux_reopen_window() {
-  local history_file="${XDG_DATA_HOME:-$HOME/.local/share}/tmux-window-history"
-
-  # Check if history file exists and has content
-  if [ ! -f "$history_file" ] || [ ! -s "$history_file" ]; then
-    tmux display-message "No closed windows to restore"
-    return 0
-  fi
-
-  # Get the last closed window entry
-  local last_entry last_path last_command
-  last_entry=$(tail -1 "$history_file")
-
-  # Remove the last entry from history
-  sed -i '$ d' "$history_file" 2>/dev/null || sed -i '' '$ d' "$history_file" 2>/dev/null
-
-  # Parse path and command (handle both old and new format)
-  if echo "$last_entry" | grep -q '|||'; then
-    last_path=$(echo "$last_entry" | cut -d'|' -f1)
-    last_command=$(echo "$last_entry" | cut -d'|' -f4-)
-  else
-    # Old format - just path
-    last_path="$last_entry"
-    last_command=""
-  fi
-
-  # Create new window with the saved path
-  if [ "$last_path" != "" ] && [ -d "$last_path" ]; then
-    if [ "$last_command" = "claude" ]; then
-      # The saved name comes from pane_current_command, and the sandbox launcher
-      # deliberately execs into bwrap as "claude" so autorename and this
-      # save/restore flow see the payload name. Restoring it verbatim therefore
-      # runs the *binary* on PATH: no bubblewrap, and no CLAUDE_CONFIG_DIR, so it
-      # falls back to the ~/.claude profile whose credentials the sandbox exists
-      # to keep masked. Rebuild the real launch command instead, from the restored
-      # path, so the launcher's cwd gate judges the directory the window will
-      # actually open in.
-      local claude_cmd
-      # shellcheck disable=SC1091 # sourced from $PERMEANCE_TREE, resolved at runtime
-      claude_cmd=$(
-        cd "$last_path" &&
-          . "$PERMEANCE_TREE/.config/shell/functions/claude.bash" &&
-          __claude_init "" >/dev/null &&
-          printf '%s' "$__CLAUDE_CMD"
-      )
-      if [ "$claude_cmd" = "" ]; then
-        tmux new-window -a -c "$last_path"
-        tmux display-message "Restored: $last_path (shell - claude refused to launch here)"
-      else
-        tmux new-window -a -c "$last_path" "$claude_cmd"
-        tmux display-message "Restored: $last_path (claude)"
-      fi
-    elif [ "$last_command" != "" ] && [ "$last_command" != "zsh" ] && [ "$last_command" != "bash" ] && [ "$last_command" != "sh" ]; then
-      # Create window and run the command
-      tmux new-window -a -c "$last_path" "$last_command"
-      tmux display-message "Restored: $last_path ($last_command)"
-    else
-      # Just create a shell window
-      tmux new-window -a -c "$last_path"
-      tmux display-message "Restored: $last_path (shell)"
-    fi
-  else
-    tmux new-window -a
-    tmux display-message "Restored (path invalid)"
   fi
 }
 
