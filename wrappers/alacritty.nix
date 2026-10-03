@@ -49,7 +49,7 @@ let
             "TMUX"
             "TMUX_PANE"
           ];
-          pathPrefix = [ (pkgs.lib.makeBinPath tools) ];
+          pathPrefix = map (pkg: "${pkgs.lib.getBin pkg}/bin") tools;
           staticEnv = pkgs.lib.optionalAttrs (fonts != [ ]) {
             FONTCONFIG_FILE = "${pkgs.makeFontsConf { fontDirectories = fonts; }}";
           };
