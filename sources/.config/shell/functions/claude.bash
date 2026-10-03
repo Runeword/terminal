@@ -43,11 +43,11 @@ __claude_sandbox_prefix() {
     echo "claude: claude-seccomp-bpf not found on PATH; it emits the TIOCSTI seccomp filter the sandbox needs and the launcher fails closed without it. Refusing to launch — rebuild the terminal to pick it up, or CLAUDE_SANDBOX=0 to override." >&2
     return 1
   fi
-  # cf/cj sessions run behind claude-egress-proxy's network filter, and the
-  # launcher refuses them without it: pre-checked here for the same reason.
+  # jira/firebase sessions run behind claude-egress-proxy's network filter, and
+  # the launcher refuses them without it: pre-checked here for the same reason.
   if { [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ] || [ "${CLAUDE_SANDBOX_ALLOW_JIRA:-0}" = "1" ]; } &&
     ! command -v claude-egress-proxy >/dev/null 2>&1; then
-    echo "claude: claude-egress-proxy not found on PATH; cf/cj sessions run behind its network filter, and the launcher refuses them without it. Rebuild the terminal to pick it up, or launch without the credential." >&2
+    echo "claude: claude-egress-proxy not found on PATH; jira/firebase sessions run behind its network filter, and the launcher refuses them without it. Rebuild the terminal to pick it up, or launch without the credential." >&2
     return 1
   fi
   # Resolved here and handed on as a full path: the command runs in a
@@ -115,8 +115,9 @@ __claude_build_cmd() {
   # claude-sandbox.bash, or claude-macos.bash on macOS). Only the flag is carried
   # here; the pass read happens in the launcher.
   [ "${CLAUDE_SANDBOX_ALLOW_JIRA:-0}" = "1" ] && flags="${flags}CLAUDE_SANDBOX_ALLOW_JIRA=1 "
-  # Extra hosts for a cf/cj session's network filter (see CLAUDE_SANDBOX_NET_ALLOW
-  # in claude-sandbox.bash). Quoted: it holds spaces, and `*` must not glob.
+  # Extra hosts for a jira/firebase session's network filter (see
+  # CLAUDE_SANDBOX_NET_ALLOW in claude-sandbox.bash). Quoted: it holds spaces,
+  # and `*` must not glob.
   [ -n "${CLAUDE_SANDBOX_NET_ALLOW:-}" ] && flags="${flags}CLAUDE_SANDBOX_NET_ALLOW=$(printf '%q' "$CLAUDE_SANDBOX_NET_ALLOW") "
   # Some MCP plugins need a secret in claude's env, pulled from pass — the same
   # entries their interactive counterparts use — but only when that plugin is
@@ -153,12 +154,20 @@ __claude_build_cmd() {
 # settings load via the `user` setting source (which the claude wrapper must enable),
 # while per-profile state (auth, sessions) stays separate. rules/ is a symlink;
 # settings.json is a refreshed copy so Claude's writes can't pollute sources/ or a read-only store.
+# The config is the live tree's .claude (dev); in bundled mode $PERMEANCE_TREE is
+# zsh's own bundle, which has none, so it is the claude wrapper's, as for the plugins
+# in __claude_init. Fails when neither exists, like the overlay below: a profile left
+# unprovisioned would launch without its sandbox settings.
 __claude_provision_config() {
-  [ "$PERMEANCE_TREE" != "" ] || return 0
-  [ -d "$PERMEANCE_TREE/.claude" ] || return 0
+  local src="$PERMEANCE_TREE/.claude"
+  [ -d "$src" ] || src="$NIX_OUT_SHELL/paths/claude/.claude"
+  if [ ! -d "$src" ]; then
+    echo "claude: neither PERMEANCE_TREE nor the bundled claude has a .claude config; refusing to launch without its settings" >&2
+    return 1
+  fi
   local dir="$HOME/.claude-$__claude_instance"
   mkdir -p "$dir"
-  if [ -d "$PERMEANCE_TREE/.claude/rules" ]; then
+  if [ -d "$src/rules" ]; then
     # `ln -sfn` onto a *real directory* does not replace it — it creates the link
     # inside it (rules/rules -> …) and exits 0. So a rules/ directory planted in
     # a profile once survives every later re-provision, for every project, and
@@ -167,10 +176,10 @@ __claude_provision_config() {
     if [ -e "$dir/rules" ] && [ ! -L "$dir/rules" ]; then
       rm -rf "$dir/rules"
     fi
-    ln -sfn "$PERMEANCE_TREE/.claude/rules" "$dir/rules"
+    ln -sfn "$src/rules" "$dir/rules"
   fi
-  [ -f "$PERMEANCE_TREE/.claude/settings.json" ] && install -m644 "$PERMEANCE_TREE/.claude/settings.json" "$dir/settings.json"
-  __claude_provision_sandbox_overlay "$dir"
+  [ -f "$src/settings.json" ] && install -m644 "$src/settings.json" "$dir/settings.json"
+  __claude_provision_sandbox_overlay "$src" "$dir"
 }
 
 # Per-OS sandbox overlay, deep-merged (jq `*`) over the provisioned user
@@ -192,23 +201,19 @@ __claude_provision_config() {
 # User scope is load-bearing: the shared settings.json also rides --settings
 # (CLI tier, above user), so a sandbox key there would leak across platforms
 # — the Linux "off" would override Darwin's user-tier "on".
+# Fails closed, like the sandbox gate: on macOS the overlay is the sandbox, so a
+# merge that fails (no jq, no overlay, bad JSON) refuses the launch.
 __claude_provision_sandbox_overlay() {
-  local dir="$1" overlay
+  local src="$1" dir="$2" overlay merged
   case "$(uname -s)" in
-    Darwin) overlay="$PERMEANCE_TREE/.claude/settings.darwin.json" ;;
-    Linux) overlay="$PERMEANCE_TREE/.claude/settings.linux.json" ;;
+    Darwin) overlay="$src/settings.darwin.json" ;;
+    Linux) overlay="$src/settings.linux.json" ;;
     *) return 0 ;;
   esac
-  [ -f "$overlay" ] && [ -f "$dir/settings.json" ] || return 0
-  if ! command -v jq >/dev/null 2>&1; then
-    echo "claude: jq not found; skipping sandbox settings overlay" >&2
-    return 0
+  if ! merged=$(jq -s '.[0] * .[1]' "$dir/settings.json" "$overlay"); then
+    echo "claude: could not merge $overlay into $dir/settings.json; refusing to launch without the sandbox settings" >&2
+    return 1
   fi
-  local merged
-  merged=$(jq -s '.[0] * .[1]' "$dir/settings.json" "$overlay") || {
-    echo "claude: failed to merge sandbox settings overlay" >&2
-    return 0
-  }
   printf '%s\n' "$merged" >"$dir/settings.json"
 }
 
@@ -229,7 +234,7 @@ __claude_init() {
     [ -d "$plugins_dir/$p" ] && __claude_plugins="$__claude_plugins --plugin-dir $plugins_dir/$p"
   done
 
-  __claude_provision_config
+  __claude_provision_config || return 1
   __claude_build_cmd
 }
 
@@ -251,7 +256,7 @@ __claude_init_fzf() {
     [ "$p" != "" ] && printf ' --plugin-dir %s/%s' "$plugins_dir" "$p"
   done)
 
-  __claude_provision_config
+  __claude_provision_config || return 1
   __claude_build_cmd
 }
 
@@ -271,6 +276,43 @@ __claude() {
 __claude_plugins() {
   __claude_init_fzf "$@" || return 0
   __claude_run
+}
+
+# Pick the session's connections with fzf, then launch a normal session (default
+# plugins included) with them added: one leader chord (cc) instead of one per
+# credential and per combination. A connection is a credential the sandbox
+# launcher hands a single session (firebase, jira, gh: the CLAUDE_SANDBOX_ALLOW_*
+# flags in __claude_build_cmd) or an MCP plugin (a plugin with a .mcp.json).
+# Picked with firebase or jira, an MCP plugin sits behind their network filter
+# too, so the hosts it calls go in CLAUDE_SANDBOX_NET_ALLOW. Takes what __claude
+# takes: the instance, then claude's arguments.
+__claude_connect() {
+  local plugins_dir="$NIX_OUT_SHELL/paths/claude/.claude/plugins"
+  # Live tree (dev) → plugin .mcp.json edits apply without a rebuild; baked copy otherwise.
+  [ -d "$PERMEANCE_TREE/.claude/plugins" ] && plugins_dir="$PERMEANCE_TREE/.claude/plugins"
+  local selected c
+  selected=$(
+    {
+      printf '%s\n' firebase jira gh
+      find -L "$plugins_dir" -mindepth 2 -maxdepth 2 -name .mcp.json 2>/dev/null |
+        sed 's|/\.mcp\.json$||; s|.*/||' | sort
+    } | eval fzf --multi "$__CLAUDE_FZF"
+  ) || return 0
+  # Locals: __claude reads them (a function sees its caller's locals), and the
+  # shell drops them on return, so the next plain launch gets none of them. The
+  # session gets exactly what was picked: a credential sets the launcher's
+  # opt-in flag, an MCP plugin joins the default plugins.
+  local CLAUDE_SANDBOX_ALLOW_FIREBASE=0 CLAUDE_SANDBOX_ALLOW_JIRA=0 CLAUDE_SANDBOX_ALLOW_GH=0
+  local -a __CLAUDE_DEFAULT_PLUGINS=("${__CLAUDE_DEFAULT_PLUGINS[@]}")
+  while IFS= read -r c; do
+    case "$c" in
+      firebase) CLAUDE_SANDBOX_ALLOW_FIREBASE=1 ;;
+      jira) CLAUDE_SANDBOX_ALLOW_JIRA=1 ;;
+      gh) CLAUDE_SANDBOX_ALLOW_GH=1 ;;
+      ?*) __CLAUDE_DEFAULT_PLUGINS+=("$c") ;;
+    esac
+  done <<<"$selected"
+  __claude "$@"
 }
 
 __claude_debug() {
