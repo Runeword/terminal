@@ -69,9 +69,11 @@ func fatal(m string) {
 }
 
 // git runs a git command with extra env and optional stdin, returning raw
-// stdout. A non-zero exit becomes an error carrying git's stderr.
+// stdout. A non-zero exit becomes an error carrying git's stderr. Pathspecs are
+// literal: git reads a path after -- as a glob, so --whole foo[1].txt would
+// take foo1.txt's changes too.
 func git(env []string, stdin []byte, args ...string) ([]byte, error) {
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command("git", append([]string{"--literal-pathspecs"}, args...)...)
 	cmd.Env = append(os.Environ(), env...)
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
