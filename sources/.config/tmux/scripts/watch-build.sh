@@ -2,8 +2,8 @@
 # Toggle a bottom pane running the flake watcher (`watch` with no args, which
 # defaults to `nix flake check` — rebuild every wrapper + the terminal and run
 # the smoke tests on each .nix write). The pane id is tracked in the
-# window-local option @watch_pane, mirroring the @claude_pane pattern in
-# scripts/claude-sessions.sh, so each window toggles its own build pane.
+# window-local option @watch_pane, mirroring the @toggle_pane pattern in
+# scripts/toggle-pane.sh, so each window toggles its own build pane.
 
 height="${1:-8}"
 
