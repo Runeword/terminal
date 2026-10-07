@@ -32,6 +32,10 @@
 # .git/hooks lock, and core.fsmonitor, `!` aliases and filters run commands
 # outright.
 .config/git
+# delta, git's core.pager, runs the command its config's `pager` key names, at
+# every paged git diff, log or show on the host: the `git diff -- sources` that
+# reviews a session included.
+.config/delta
 # direnvrc runs in the host shell at every cd; the launcher's .direnv and CAS
 # locks guard direnv's outputs, this guards its input.
 .config/direnv
