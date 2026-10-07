@@ -6,6 +6,8 @@
     version = "0.1.0";
     src = ./git/branches;
     vendorHash = "sha256-uqVw/+79vkCQCF4QdP5LIo8CWdUoXRDaWFhYwr5QbT4=";
+    # TestStashApplyCmd runs the printed command in a real repo.
+    nativeCheckInputs = [ pkgs.git ];
   })
   # Shared-context journal for Claude sessions in the same CLAUDE_CONTEXT_GROUP.
   # The hook half is wired into claude's PATH via wrappers/claude.nix; here so
