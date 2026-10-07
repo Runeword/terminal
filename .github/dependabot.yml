@@ -4,6 +4,11 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # A revision is proposed once it is a week old: long enough for a
+    # compromised or broken upstream commit to be noticed and reverted before
+    # dependabot-auto-merge.yml lands it.
+    cooldown:
+      default-days: 7
     ignore:
       # Pinned channels — we manually decide when to bump these.
       # Bumping the channel ref defeats the purpose of the pin
@@ -18,3 +23,5 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
