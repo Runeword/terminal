@@ -71,9 +71,12 @@ else
   # did. The slice keeps the original basename in a temp dir so language detection
   # -- by extension OR full name (Makefile, go.mod, .gitignore) -- still fires.
   # Empty output => no grammar for this file type; fall back to bat below.
+  # The slice is the file's text, and the rm below never runs when fzf kills a
+  # preview it no longer shows, so it goes in the per-user runtime dir: the
+  # claude sandbox shares /tmp, while it has a private $XDG_RUNTIME_DIR.
   ts_out=""
   if command -v tree-sitter >/dev/null 2>&1; then
-    tsdir=$(mktemp -d "${TMPDIR:-/tmp}/fm_ts.XXXXXX")
+    tsdir=$(mktemp -d "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/fm_ts.XXXXXX")
     tsf="$tsdir/$(basename -- "$1")"
     sed -n "${start},${end}p" -- "$1" >"$tsf" 2>/dev/null
     ts_out=$(tree-sitter highlight -q "$tsf" 2>/dev/null)
