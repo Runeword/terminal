@@ -180,6 +180,43 @@ func TestPickerHint(t *testing.T) {
 	}
 }
 
+// TestPickerDistrustsState plants in state.json what something else that can
+// write it might: an fzf action queued for load, and a spec and a digest that
+// would run a command once spliced in. Neither load, a drill into foo.txt nor
+// finalize may pass any of it on.
+func TestPickerDistrustsState(t *testing.T) {
+	tests := []struct{ name, state string }{
+		{"a queued action", `{"pending":{"actions":"execute-silent(touch pwned)"}}`},
+		{"a spec", `{"specs":{"foo.txt":"1)+execute-silent(touch${IFS}pwned)+pos(1"},"accepted":["foo.txt"]}`},
+		{"a digest", `{"specs":{"foo.txt":"1"},"sums":{"foo.txt":"0; touch pwned #"},"accepted":["foo.txt"]}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := picker{
+				dir:    t.TempDir(),
+				getenv: func(string) string { return "" },
+				git:    fakeGit(map[string]string{"diff --unified=0 -- foo.txt": fooDiff}),
+			}
+			if err := os.WriteFile(p.path("state.json"), []byte(tt.state), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			var outs []string
+			for _, step := range []func() (string, error){
+				p.load,
+				func() (string, error) { return p.key(pickOps["stage"], "enter", "", "foo.txt", nil) },
+				p.load,
+				func() (string, error) { return p.finalize(pickOps["stage"], "git") },
+			} {
+				out, _ := step()
+				outs = append(outs, out)
+			}
+			if got := strings.Join(outs, "\n"); strings.Contains(got, "pwned") {
+				t.Errorf("state.json's text came out as an action or a command:\n%s", got)
+			}
+		})
+	}
+}
+
 // TestPickerFiles lists each op's files verbatim (git -z), sorted and
 // deduplicated, and saves them for a return.
 func TestPickerFiles(t *testing.T) {
@@ -214,9 +251,9 @@ func TestPickerFiles(t *testing.T) {
 // marked, a.txt was only Tab-marked.
 func TestPickerFinalize(t *testing.T) {
 	const (
-		h    = "git -C . diff --unified=0 -- 'h.txt' | git-hunk-pick assemble --sum aaa 1 3"
-		it   = `git -C . diff --unified=0 -- 'it'\''s.txt' | git-hunk-pick assemble --sum bbb 2`
-		hIdx = "git -C . diff --cached --unified=0 -- 'h.txt' | git-hunk-pick assemble --sum aaa 1 3"
+		h    = "git -C . diff --unified=0 -- 'h.txt' | git-hunk-pick assemble --sum aaaaaaaaaaaa 1 3"
+		it   = `git -C . diff --unified=0 -- 'it'\''s.txt' | git-hunk-pick assemble --sum bbbbbbbbbbbb 2`
+		hIdx = "git -C . diff --cached --unified=0 -- 'h.txt' | git-hunk-pick assemble --sum aaaaaaaaaaaa 1 3"
 	)
 	tests := []struct {
 		name, op string
@@ -250,7 +287,7 @@ func TestPickerFinalize(t *testing.T) {
 			p := picker{dir: t.TempDir()}
 			st := pickerState{
 				Specs:    map[string]string{"h.txt": "1 3", "all.txt": "ALL", "it's.txt": "2"},
-				Sums:     map[string]string{"h.txt": "aaa", "it's.txt": "bbb"},
+				Sums:     map[string]string{"h.txt": "aaaaaaaaaaaa", "it's.txt": "bbbbbbbbbbbb"},
 				Accepted: tt.accepted,
 			}
 			if err := p.saveState(st); err != nil {
