@@ -11,11 +11,13 @@
 //     the captured patch) or untracked (added to the stash tree as a new file).
 //
 // It mirrors what `git stash create` does internally: the stash's worktree tree
-// is built in a TEMPORARY index seeded from HEAD (GIT_INDEX_FILE), so the real
-// index / staged changes are never read or written; the stash is the usual
-// two-parent commit (base = HEAD, index = HEAD) stored via `git stash store`.
-// The captured changes are then reverse-applied out of the working tree (and
-// untracked files removed), so `git stash pop` re-applies exactly them.
+// is built in a TEMPORARY index (GIT_INDEX_FILE) seeded from the real index's
+// tree, which the captured diff is relative to, so the staged changes are
+// never touched; the stash is the usual two-parent commit stored via `git stash
+// store`, based on HEAD, or with something staged, on a commit of the index's
+// tree, so that it holds the captured changes alone. The captured changes are
+// then reverse-applied out of the working tree (and untracked files removed),
+// so `git stash pop` re-applies exactly them.
 //
 // Scope: because a coherent per-hunk stash can only come from the working tree,
 // this stashes UNSTAGED changes only; anything staged is left staged.
@@ -139,6 +141,15 @@ func run(hunks []byte, whole []string, msg string) error {
 		}
 	}
 
+	// The captured diff is the worktree's against the index (git diff, which the
+	// picker's hunks come from too), so it goes onto the index's tree. Onto
+	// HEAD's, a staged change above a hunk shifts its lines, and a zero-context
+	// hunk lands at the wrong ones; `git stash pop` then puts it back there.
+	itree, err := line(nil, "write-tree")
+	if err != nil {
+		return err
+	}
+
 	tmp, err := os.CreateTemp("", "git-stash-hunks-index-*")
 	if err != nil {
 		return err
@@ -149,9 +160,9 @@ func run(hunks []byte, whole []string, msg string) error {
 	defer func() { _ = os.Remove(tmp.Name()) }()
 	idxEnv := append([]string{"GIT_INDEX_FILE=" + tmp.Name()}, ident...)
 
-	// Build the stash's worktree tree in the temp index: HEAD + captured changes.
-	// The real index is never read or written.
-	if _, err := git(idxEnv, nil, "read-tree", "HEAD"); err != nil {
+	// Build the stash's worktree tree in the temp index: the index's tree +
+	// captured changes.
+	if _, err := git(idxEnv, nil, "read-tree", itree); err != nil {
 		return err
 	}
 	if hasPatch {
@@ -169,8 +180,11 @@ func run(hunks []byte, whole []string, msg string) error {
 		return err
 	}
 
-	// Two-parent stash commit; index tree = HEAD, so nothing staged is recorded.
-	head, err := line(ident, "rev-parse", "HEAD")
+	// Two-parent stash commit on base: HEAD, or with something staged, a commit
+	// of the index's tree on HEAD, which the captured changes are relative to.
+	// The index commit's tree is base's, so nothing staged is recorded: pop
+	// merges base..stash, the captured changes alone, and --index adds nothing.
+	base, err := line(ident, "rev-parse", "HEAD")
 	if err != nil {
 		return err
 	}
@@ -178,11 +192,16 @@ func run(hunks []byte, whole []string, msg string) error {
 	if err != nil {
 		return err
 	}
-	icommit, err := line(ident, "commit-tree", htree, "-p", head, "-m", "index on "+msg)
+	if itree != htree {
+		if base, err = line(ident, "commit-tree", itree, "-p", base, "-m", "staged on "+msg); err != nil {
+			return err
+		}
+	}
+	icommit, err := line(ident, "commit-tree", itree, "-p", base, "-m", "index on "+msg)
 	if err != nil {
 		return err
 	}
-	wcommit, err := line(ident, "commit-tree", wtree, "-p", head, "-p", icommit, "-m", msg)
+	wcommit, err := line(ident, "commit-tree", wtree, "-p", base, "-p", icommit, "-m", msg)
 	if err != nil {
 		return err
 	}
