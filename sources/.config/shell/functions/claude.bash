@@ -43,11 +43,11 @@ __claude_sandbox_prefix() {
     echo "claude: claude-seccomp-bpf not found on PATH; it emits the TIOCSTI seccomp filter the sandbox needs and the launcher fails closed without it. Refusing to launch — rebuild the terminal to pick it up, or CLAUDE_SANDBOX=0 to override." >&2
     return 1
   fi
-  # jira/firebase sessions run behind claude-egress-proxy's network filter, and
+  # gh/jira/firebase sessions run behind claude-egress-proxy's network filter, and
   # the launcher refuses them without it: pre-checked here for the same reason.
-  if { [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ] || [ "${CLAUDE_SANDBOX_ALLOW_JIRA:-0}" = "1" ]; } &&
+  if { [ "${CLAUDE_SANDBOX_ALLOW_GH:-0}" = "1" ] || [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ] || [ "${CLAUDE_SANDBOX_ALLOW_JIRA:-0}" = "1" ]; } &&
     ! command -v claude-egress-proxy >/dev/null 2>&1; then
-    echo "claude: claude-egress-proxy not found on PATH; jira/firebase sessions run behind its network filter, and the launcher refuses them without it. Rebuild the terminal to pick it up, or launch without the credential." >&2
+    echo "claude: claude-egress-proxy not found on PATH; gh/jira/firebase sessions run behind its network filter, and the launcher refuses them without it. Rebuild the terminal to pick it up, or launch without the credential." >&2
     return 1
   fi
   # Resolved here and handed on as a full path: the command runs in a
@@ -100,6 +100,11 @@ __claude_build_cmd() {
   # Every sandbox variable the launcher reads has to be listed here. ALLOW_GH was
   # not, so the documented per-session opt-in did nothing on the normal launch
   # path and the only thing that appeared to work was CLAUDE_SANDBOX=0.
+  # GitHub: CLAUDE_SANDBOX_ALLOW_GH=1 makes the launcher read claude's own token
+  # from `pass` (entry claude/gh-token, not the GH_TOKEN entry your `gh` alias
+  # reads) and export it as GH_TOKEN, with your own `gh auth login` left masked
+  # (see CLAUDE_SANDBOX_ALLOW_GH in claude-sandbox.bash; Linux only). Only the
+  # flag is carried here; the pass read happens in the launcher.
   [ "${CLAUDE_SANDBOX_ALLOW_GH:-0}" = "1" ] && flags="${flags}CLAUDE_SANDBOX_ALLOW_GH=1 "
   # Firebase: scoped service-account auth. CLAUDE_SANDBOX_ALLOW_FIREBASE=1 makes the
   # launcher mount a least-privilege SA key from `pass` (entry
@@ -115,7 +120,7 @@ __claude_build_cmd() {
   # claude-sandbox.bash, or claude-macos.bash on macOS). Only the flag is carried
   # here; the pass read happens in the launcher.
   [ "${CLAUDE_SANDBOX_ALLOW_JIRA:-0}" = "1" ] && flags="${flags}CLAUDE_SANDBOX_ALLOW_JIRA=1 "
-  # Extra hosts for a jira/firebase session's network filter (see
+  # Extra hosts for a gh/jira/firebase session's network filter (see
   # CLAUDE_SANDBOX_NET_ALLOW in claude-sandbox.bash). Quoted: it holds spaces,
   # and `*` must not glob.
   [ -n "${CLAUDE_SANDBOX_NET_ALLOW:-}" ] && flags="${flags}CLAUDE_SANDBOX_NET_ALLOW=$(printf '%q' "$CLAUDE_SANDBOX_NET_ALLOW") "
@@ -144,6 +149,9 @@ __claude_build_cmd() {
       secrets="${secrets}"'GOOGLE_OAUTH_CLIENT_ID=$(pass show "${GOOGLE_OAUTH_CLIENT_ID_PASS:-GOOGLE_OAUTH_CLIENT_ID}" 2>/dev/null) '
       # shellcheck disable=SC2016
       secrets="${secrets}"'GOOGLE_OAUTH_CLIENT_SECRET=$(pass show "${GOOGLE_OAUTH_CLIENT_SECRET_PASS:-GOOGLE_OAUTH_CLIENT_SECRET}" 2>/dev/null) '
+      # Its OAuth token store, ~/.google_workspace_mcp, is masked in a session
+      # that doesn't set this (see claude-sandbox.bash).
+      flags="${flags}CLAUDE_SANDBOX_ALLOW_GOOGLE_WORKSPACE=1 "
       ;;
   esac
   # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
@@ -217,6 +225,55 @@ __claude_provision_sandbox_overlay() {
   printf '%s\n' "$merged" >"$dir/settings.json"
 }
 
+# A session can write its profile and the directory it runs in, and the next
+# session loads what it left there without asking: MCP servers in the profile's
+# .claude.json (user and local scope) start with no approval prompt, and
+# .claude/settings.local.json can carry hooks, apiKeyHelper, env or plugins. The
+# next session may hold a credential the first never had (cc), run unsandboxed,
+# or run on macOS, where hooks and MCP servers are outside Seatbelt. So each
+# launch empties those server lists and cuts the local settings to what claude
+# writes there itself: its "don't ask again" permission rules and the Show tips
+# toggle. MCP servers belong in a plugin under sources/.claude/plugins and
+# project hooks in .claude/settings.json, both pinned in the sandbox. A file jq
+# can't read refuses the launch.
+__claude_scrub_planted() {
+  local f names
+  f="$HOME/.claude-$__claude_instance/.claude.json"
+  if [ -e "$f" ]; then
+    names=$(jq -r '[.mcpServers // {}, (.projects // {} | .[].mcpServers // {})] | map(keys[]) | unique | join(", ")' "$f") || {
+      echo "claude: could not read $f; refusing to launch with the MCP servers it may name" >&2
+      return 1
+    }
+    if [ -n "$names" ]; then
+      __claude_rewrite_json "$f" 'if .mcpServers then .mcpServers = {} else . end | if .projects then .projects[] |= (if .mcpServers then .mcpServers = {} else . end) else . end' || return 1
+      echo "claude: removed the MCP servers $names from $f: they would start without approval" >&2
+    fi
+  fi
+  f="$PWD/.claude/settings.local.json"
+  if [ -e "$f" ]; then
+    names=$(jq -r '[(keys_unsorted[] | select(. != "permissions" and . != "spinnerTipsEnabled")), (.permissions // {} | keys_unsorted[] | select(. != "allow" and . != "deny" and . != "ask") | "permissions." + .)] | join(", ")' "$f") || {
+      echo "claude: could not read $f; refusing to launch with the settings it may hold" >&2
+      return 1
+    }
+    if [ -n "$names" ]; then
+      __claude_rewrite_json "$f" 'with_entries(select(.key == "permissions" or .key == "spinnerTipsEnabled")) | if .permissions then .permissions |= with_entries(select(.key == "allow" or .key == "deny" or .key == "ask")) else . end' || return 1
+      echo "claude: dropped $names from $f: claude writes only its permission rules there" >&2
+    fi
+  fi
+}
+
+# Rewrite the JSON file $1 through the jq filter $2, atomically.
+__claude_rewrite_json() {
+  local tmp
+  tmp=$(mktemp "$1.XXXXXX") || return 1
+  if jq "$2" "$1" >"$tmp" && mv -f "$tmp" "$1"; then
+    return 0
+  fi
+  rm -f "$tmp"
+  echo "claude: could not rewrite $1; refusing to launch" >&2
+  return 1
+}
+
 __claude_init() {
   __claude_instance=1
   if [ "$1" != "" ] && [ "$1" -eq "$1" ] 2>/dev/null; then
@@ -235,7 +292,8 @@ __claude_init() {
   done
 
   __claude_provision_config || return 1
-  __claude_build_cmd
+  __claude_build_cmd || return 1
+  __claude_scrub_planted
 }
 
 __claude_init_fzf() {
@@ -257,7 +315,8 @@ __claude_init_fzf() {
   done)
 
   __claude_provision_config || return 1
-  __claude_build_cmd
+  __claude_build_cmd || return 1
+  __claude_scrub_planted
 }
 
 __claude_run() {
@@ -283,9 +342,9 @@ __claude_plugins() {
 # credential and per combination. A connection is a credential the sandbox
 # launcher hands a single session (firebase, jira, gh: the CLAUDE_SANDBOX_ALLOW_*
 # flags in __claude_build_cmd) or an MCP plugin (a plugin with a .mcp.json).
-# Picked with firebase or jira, an MCP plugin sits behind their network filter
-# too, so the hosts it calls go in CLAUDE_SANDBOX_NET_ALLOW. Takes what __claude
-# takes: the instance, then claude's arguments.
+# Picked with gh, firebase or jira, an MCP plugin sits behind their network
+# filter too, so the hosts it calls go in CLAUDE_SANDBOX_NET_ALLOW. Takes what
+# __claude takes: the instance, then claude's arguments.
 __claude_connect() {
   local plugins_dir="$NIX_OUT_SHELL/paths/claude/.claude/plugins"
   # Live tree (dev) → plugin .mcp.json edits apply without a rebuild; baked copy otherwise.
