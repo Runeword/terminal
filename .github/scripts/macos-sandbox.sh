@@ -5,8 +5,9 @@
 # inside a Nix build, and there is no Mac at hand. So this drives srt itself,
 # with sources/.claude/settings.darwin.json turned into srt settings the way
 # Claude Code applies them: Read deny rules become filesystem.denyRead,
-# sandbox.network and sandbox.filesystem the same keys, and the cwd plus the
-# configstore claude-macos.bash passes with --add-dir filesystem.allowWrite.
+# sandbox.network, sandbox.filesystem and enableWeakerNetworkIsolation the same
+# keys, and the cwd plus the configstore claude-macos.bash passes with
+# --add-dir filesystem.allowWrite.
 # claude-macos.bash itself, from the claude-sandbox revision flake.lock pins,
 # runs under Apple's /bin/bash 3.2 and BSD tools, with stand-ins for pass and
 # claude.
@@ -26,6 +27,9 @@ trap 'rm -rf "$w"' EXIT
 nixpkgs=$(jq -r '.nodes.nixpkgs.locked | "github:\(.owner)/\(.repo)/\(.rev)"' "$repo/flake.lock")
 sandbox=$(jq -r '.nodes[.nodes.root.inputs["claude-sandbox"]].locked | "github:\(.owner)/\(.repo)/\(.rev)"' "$repo/flake.lock")
 sandbox_src=$(nix flake prefetch --json "$sandbox" | jq -r .storePath)
+# The access token ci.yml hands this step is for that prefetch alone: nothing
+# below needs it, least of all the commands run under Seatbelt.
+unset NIX_CONFIG
 for p in sandbox-runtime ripgrep go; do
   PATH="$(nix build --no-link --print-out-paths "$nixpkgs#$p" | head -1)/bin:$PATH"
 done
@@ -94,6 +98,7 @@ fi
 # srt settings from settings.darwin.json, plus what claude-macos.bash's
 # --add-dir grants.
 jq --arg store "$store" '{
+  enableWeakerNetworkIsolation: (.sandbox.enableWeakerNetworkIsolation // false),
   network: {
     allowedDomains: .sandbox.network.allowedDomains,
     deniedDomains: [],
@@ -121,6 +126,18 @@ check() {
   fi
 }
 
+# Each Read deny rule hides what it names, as the Linux launcher's masks do: a
+# file planted at every denied file and in every denied directory, and not one
+# of them readable.
+jq -r '.permissions.deny[] | select(startswith("Read(")) | ltrimstr("Read(") | rtrimstr(")")
+  | sub("^~"; env.HOME) | sub("/\\*\\*$"; "/probe")' \
+  "$repo/sources/.claude/settings.darwin.json" >"$w/probes"
+while IFS= read -r f; do
+  mkdir -p "$(dirname "$f")"
+  echo secret >"$f"
+done <"$w/probes"
+check "every Read deny rule hides what it names ($(wc -l <"$w/probes" | tr -d ' ') paths)" deny \
+  "while IFS= read -r f; do cat \"\$f\" >/dev/null 2>&1 && { echo \"readable: \$f\"; exit 0; }; done <'$w/probes'; exit 1"
 check "the firebase login in ~/.config/configstore is unreadable" deny \
   "cat ~/.config/configstore/firebase-tools.json"
 check "the gcloud credentials are unreadable" deny "cat ~/.config/gcloud/credentials.db"
@@ -146,9 +163,9 @@ check "a listed host is reachable" allow \
   "curl -sS --retry 3 --retry-all-errors --max-time 30 -o /dev/null https://github.com"
 check "an unlisted host is refused" deny "curl -sS --max-time 30 -o /dev/null https://example.com"
 
-# Why settings.darwin.json runs `jira` outside Seatbelt: Go programs verify
-# TLS through the system trust service, which Seatbelt blocks. Reported, not
-# checked: if this starts working, the exclusion can go.
+# gh, tofu and terraform run under Seatbelt, so Go has to verify TLS there: it
+# asks the system trust service, com.apple.trustd.agent, which only
+# enableWeakerNetworkIsolation lets a sandboxed command reach.
 cat >"$w/gotls.go" <<'EOF'
 package main
 
@@ -169,11 +186,7 @@ func main() {
 }
 EOF
 (cd "$w" && GOCACHE="$w/gocache" GOPATH="$w/gopath" go build -o gotls gotls.go)
-if srt --settings "$w/srt.json" -c "$w/gotls https://github.com" >"$w/out" 2>&1; then
-  echo "note: Go verifies TLS under Seatbelt ($(tail -1 "$w/out")): jira could run inside it"
-else
-  echo "note: Go fails TLS under Seatbelt ($(tail -1 "$w/out")): jira stays in excludedCommands"
-fi
+check "Go verifies TLS under Seatbelt (gh, tofu, terraform)" allow "$w/gotls https://github.com"
 
 # Let "claude" exit: claude-macos.bash's watcher then removes the workspace,
 # SA key included, within its 15-second poll.
