@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestWorktreeChoice(t *testing.T) {
@@ -94,7 +95,8 @@ func TestEditorCmd(t *testing.T) {
 // TestStashApplyCmd stashes f.txt's first line, then runs the command gsy
 // prints from a subdirectory: it applies the line to the file as stashed from,
 // and refuses a file edited since, keeping the edit (git restore --source
-// replaced the file with the stash's copy).
+// replaced the file with the stash's copy). Each case leaves f.txt a second
+// newer than the index has it, so apply's stat check can't settle either one.
 func TestStashApplyCmd(t *testing.T) {
 	repo := t.TempDir()
 	t.Setenv("HOME", repo)
@@ -148,6 +150,10 @@ func TestStashApplyCmd(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			git(t, "reset", "-q", "--hard")
 			writeF(t, tt.before)
+			later := time.Now().Add(2 * time.Second)
+			if err := os.Chtimes("f.txt", later, later); err != nil {
+				t.Fatal(err)
+			}
 			sh := exec.Command("sh", "-c", cmd)
 			sh.Dir = "sub"
 			out, err := sh.CombinedOutput()
