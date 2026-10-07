@@ -40,7 +40,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, limits passthrough to visible panes, yanks via copy-selection, reorders windows by dragging their status-bar name, and renders sessions sorted-by-number so they can be dragged to reorder too";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, and renders sessions sorted-by-number so they can be dragged to reorder too";
       script = ''
         # No explicit -f — let the launcher's flags = [ "-f" "$PERMEANCE_ROOT/.config/tmux/tmux.conf" ]
         # provide it, so the smoke exercises the launcher's flag routing. start-server
@@ -76,12 +76,14 @@ let
         fi
 
         # allow-passthrough is a pane option; its global default lives in the
-        # window/pane table, so -gw (a plain -g comes back empty).
+        # window/pane table, so -gw (a plain -g comes back empty). Off: a pane
+        # could otherwise pass an OSC 52 straight to the terminal and set the
+        # clipboard, around set-clipboard external.
         passthrough=$(${self}/bin/tmux start-server \; show-options -gwv allow-passthrough \; kill-server 2>/dev/null)
-        if [ "$passthrough" = "on" ]; then
-          ok "allow-passthrough limited to visible panes"
+        if [ "$passthrough" = "off" ]; then
+          ok "panes can't pass escape sequences through to the terminal"
         else
-          fail "allow-passthrough is '$passthrough', expected 'on'"
+          fail "allow-passthrough is '$passthrough', expected 'off'"
         fi
 
         # The binding of one key, read from its whole table: since tmux 3.7 a
