@@ -129,14 +129,17 @@ __git_diff_tracked() {
   printf '{ %s && %s; }' "$check" "$diff"
 }
 
+# The path goes after -- here as everywhere: git diff obeys an option even after
+# its paths, so an untracked file named --output=flake.nix, merely previewed,
+# would truncate flake.nix.
 __git_diff_untracked() {
   local ph="$1" root quoted
   [ -n "$ph" ] || ph='{}'
   root="$(git rev-parse --show-toplevel)"
   quoted="$(__shell_quote "$root")"
-  local link="cd $quoted && test -L $ph && readlink $ph"
+  local link="cd $quoted && test -L $ph && readlink -- $ph"
   local dir="cd $quoted && test -d $ph && ls -la -- $ph"
-  local diff="cd $quoted && ! test -L $ph && git diff --ignore-space-change --no-index --color=always /dev/null $ph | $_GIT_PAGER"
+  local diff="cd $quoted && ! test -L $ph && git diff --ignore-space-change --no-index --color=always -- /dev/null $ph | $_GIT_PAGER"
   printf '{ %s || %s || %s; }' "$link" "$dir" "$diff"
 }
 
@@ -318,8 +321,10 @@ __git_ignore() {
 
   local action="${1:-open}"
   local cmd
+  # Every $EDITOR command gets its paths after --: nvim runs a +cmd argument
+  # as an Ex command, so a file named "+so x.vim" would source x.vim.
   case "$action" in
-    open) cmd="$EDITOR" ;;
+    open) cmd="$EDITOR --" ;;
     remove | rm) cmd="rm --" ;;
     *)
       echo "Usage: __git_ignore [open|remove]"
@@ -373,7 +378,7 @@ __git_diff() {
 
   local args
   args=$(__git_fzf_select "$kind" "$repo_cdup" "${preview[@]}")
-  [ "$args" != "" ] && echo "$EDITOR $args"
+  [ "$args" != "" ] && echo "$EDITOR -- $args"
 }
 
 __git_diff_branches() {
@@ -536,7 +541,7 @@ __git_log() {
   args=$(git-hunk-pick paths commit "$commit" </dev/null |
     fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "${file_preview[@]}" |
     git-hunk-pick quote "$repo_cdup")
-  [ "$args" != "" ] && echo "$EDITOR $args"
+  [ "$args" != "" ] && echo "$EDITOR -- $args"
 }
 
 __git_install_lefthook() {
