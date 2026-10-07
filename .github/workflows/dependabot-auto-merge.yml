@@ -14,7 +14,21 @@ jobs:
     steps:
       - id: metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3
-      - if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+      # An update that edits flake.nix changes an input's ref, not only its
+      # locked revision: that is how nixpkgs-24-05 was moved to nixos-25.11
+      # (#5). It waits for a person, like a major version. A failed lookup
+      # fails the job, so nothing merges.
+      - id: files
+        run: |
+          files=$(gh pr diff --name-only "$PR_URL")
+          case "$files" in
+            *flake.nix*) echo "edits-flake-nix=true" ;;
+            *) echo "edits-flake-nix=false" ;;
+          esac >>"$GITHUB_OUTPUT"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - if: steps.metadata.outputs.update-type != 'version-update:semver-major' && steps.files.outputs.edits-flake-nix == 'false'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
