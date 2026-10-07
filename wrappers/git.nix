@@ -8,10 +8,6 @@ let
   config = files.mkConfig "git-config" [
     ".config/git/config"
     ".config/git/ignore"
-    # Bundled here too so [include] path = ../delta/config resolves within
-    # this wrapper's own output. Otherwise the include silently misses and
-    # delta.* keys aren't visible via `git config`.
-    ".config/delta/config"
   ];
   self = pkgs.symlinkJoin {
     name = "git-with-config";
@@ -58,17 +54,6 @@ let
           ok "core.pager=delta loaded"
         else
           fail "core.pager is '$pager', expected 'delta'"
-        fi
-
-        # The [include] should pull delta.* keys into git config. --global
-        # requires explicit --includes to follow include directives, but
-        # unrestricted lookups (which is what delta does when reading config)
-        # follow them by default. Verify with --includes here.
-        theme=$(${self}/bin/git config --global --includes --get delta.syntax-theme 2>/dev/null)
-        if [ "$theme" = "none" ]; then
-          ok "delta.* keys reachable via [include] path = ../delta/config"
-        else
-          fail "delta.syntax-theme is '$theme', expected 'none' via include"
         fi
 
         # SSH-signing scaffolding is wired (gpg.format + user.signingkey), but
