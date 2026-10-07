@@ -161,6 +161,10 @@ _profile "xdg: %.0fms, variables: %.0fms, dircolors: %.0fms\n" \
 typeset -F __T11="$SECONDS"
 [[ -d $XDG_STATE_HOME/zsh ]] || mkdir -p "$XDG_STATE_HOME/zsh"
 HISTFILE="$XDG_STATE_HOME/zsh/history"
+# xdg.sh exports HISTFILE for bash, and assigning it keeps the export: every
+# child would get zsh's file, and a bash among them (nix develop's) cuts it to
+# its own 500 lines on exit.
+typeset +x HISTFILE
 HISTSIZE=100000
 SAVEHIST=100000
 setopt EXTENDED_HISTORY
@@ -401,7 +405,9 @@ __on_empty_buffer() {
   zle reset-prompt
 }
 
-__last_command_or_delete() { __on_empty_buffer "BUFFER=${history[$((HISTCMD-1))]}; zle accept-line" 'zle backward-delete-char'; }
+# Single-quoted: eval expands the history entry as a value. Spliced into the
+# eval string, the entry ran as code: `echo touch f` became BUFFER=echo touch f.
+__last_command_or_delete() { __on_empty_buffer 'BUFFER=${history[$((HISTCMD-1))]}; zle accept-line' 'zle backward-delete-char'; }
 zle -N __last_command_or_delete
 bindkey "${KEYS[SHIFT_DELETE]}" __last_command_or_delete
 
