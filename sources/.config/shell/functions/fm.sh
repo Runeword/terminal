@@ -27,7 +27,7 @@ __open_file() {
         --preview "$PERMEANCE_TREE/.config/shell/scripts/fm_preview.sh {}" \
         --preview-window right,55%,border-none,~2 \
         --bind='ctrl-a:select-all' \
-        --bind='ctrl-o:execute(nohup setsid cursor {} > /dev/null 2>&1 &)'
+        --bind='ctrl-o:execute(nohup setsid cursor ./{} > /dev/null 2>&1 &)'
   ) || return 1
 
   # If single directory selected, cd into it. History entries quote each name, so
@@ -50,11 +50,14 @@ __open_file() {
   [ "$files_only" = "" ] && return 1
 
   # One argument per line: plain xargs splits a name at its spaces and stops at a
-  # quote in it.
-  printf '%s\n' "$files_only" | tr '\n' '\0' | xargs -0 "$EDITOR" || return 1
+  # quote in it. After --: fd's names are relative (--strip-cwd-prefix drops its
+  # ./), and nvim runs a +cmd argument, so a file named "+so x.vim" would source
+  # x.vim. ctrl-o hands cursor ./{} instead: it reads a leading tunnel as its
+  # subcommand too.
+  printf '%s\n' "$files_only" | tr '\n' '\0' | xargs -0 "$EDITOR" -- || return 1
   quoted=$(printf '%s\n' "$files_only" | sed "s/'/'\\\\''/g; s/.*/'&'/" | tr '\n' ' ')
-  [ "$BASH_VERSION" ] && history -s "$EDITOR ${quoted% }"
-  [ "$ZSH_VERSION" ] && print -rs -- "$EDITOR ${quoted% }"
+  [ "$BASH_VERSION" ] && history -s "$EDITOR -- ${quoted% }"
+  [ "$ZSH_VERSION" ] && print -rs -- "$EDITOR -- ${quoted% }"
 }
 
 # find -L . \
