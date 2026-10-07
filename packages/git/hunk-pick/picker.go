@@ -21,6 +21,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -80,9 +81,17 @@ type pickerState struct {
 	Accepted []string `json:"accepted,omitempty"`
 }
 
+// listSwitch is what must land with the reloaded list, kept as data that load
+// renders as fzf actions. With specs and digests parsed before use, no text
+// from state.json reaches fzf as an action (execute runs a command) or the
+// printed command unquoted.
 type listSwitch struct {
-	Drill   string `json:"drill,omitempty"` // path drilled into; empty for the files list
-	Actions string `json:"actions"`         // fzf actions to run before the list is painted
+	Drill        string `json:"drill,omitempty"`        // path drilled into; empty for the files list
+	ClearQuery   bool   `json:"clearQuery,omitempty"`   // clear the query before marking rows
+	SelectAll    bool   `json:"selectAll,omitempty"`    // mark every row
+	Select       []int  `json:"select,omitempty"`       // 1-based rows to mark
+	Cursor       int    `json:"cursor,omitempty"`       // 1-based row for the cursor; a drill starts at the first
+	RestoreQuery bool   `json:"restoreQuery,omitempty"` // bring back the saved files query, tracking the cursor's row
 }
 
 // picker runs the subcommands against state directory dir. getenv and git are
@@ -151,6 +160,40 @@ func readList(name string) ([]string, error) {
 // shellQuote quotes s for a shell: the sh -c that fzf runs action commands
 // through, and the shell that runs the printed command.
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+
+// parseSpec reads a stored hunk spec: all for "ALL", else its 1-based hunk
+// indices; an empty spec has none.
+func parseSpec(spec string) (all bool, idx []int, err error) {
+	if spec == "" || spec == "ALL" {
+		return spec == "ALL", nil, nil
+	}
+	for _, f := range strings.Fields(spec) {
+		n, err := strconv.Atoi(f)
+		if err != nil || n < 1 {
+			return false, nil, fmt.Errorf("invalid hunk spec %q", spec)
+		}
+		idx = append(idx, n)
+	}
+	if len(idx) == 0 {
+		return false, nil, fmt.Errorf("invalid hunk spec %q", spec)
+	}
+	return false, idx, nil
+}
+
+// specOf is the spec of the 1-based hunk indices idx.
+func specOf(idx []int) string {
+	parts := make([]string, len(idx))
+	for i, n := range idx {
+		parts[i] = strconv.Itoa(n)
+	}
+	return strings.Join(parts, " ")
+}
+
+// validSum reports whether s is a digest patchSum could have made.
+func validSum(s string) bool {
+	_, err := hex.DecodeString(s)
+	return err == nil && len(s) == len(patchSum(nil))
+}
 
 // files lists op's changed files, relative to the repo root, sorted and
 // without duplicates, and saves the list for a return to reload.
@@ -248,29 +291,22 @@ func (p picker) filesKey(st pickerState, op pickOp, key, selFile, item string, c
 	// Drill: save what the files list needs back, and queue the hunks list's
 	// header and preselection: the saved spec, or every hunk for a Tab-marked
 	// file without one, so a drill can't silently drop it.
+	spec := st.Specs[item]
+	if spec == "" && slices.Contains(marks, item) {
+		spec = "ALL"
+	}
+	all, idx, err := parseSpec(spec)
+	if err != nil {
+		return "", err
+	}
 	query := p.getenv("FZF_QUERY")
 	for name, data := range map[string]string{".diff": diff, ".hunks": joinList(hunks), ".query": query} {
 		if err := os.WriteFile(p.path(name), []byte(data), 0o600); err != nil {
 			return "", err
 		}
 	}
-	spec := st.Specs[item]
-	if spec == "" && slices.Contains(marks, item) {
-		spec = "ALL"
-	}
-	actions := []string{"change-header(" + p.getenv("GFS_HEADER_HUNKS") + ")"}
-	if query != "" {
-		actions = append(actions, "change-query()", "wait")
-	}
-	if spec == "ALL" {
-		actions = append(actions, "select-all")
-	} else {
-		for _, i := range strings.Fields(spec) {
-			actions = append(actions, "pos("+i+")", "select")
-		}
-	}
 	st.Marks = marks
-	st.Pending = &listSwitch{Drill: item, Actions: strings.Join(append(actions, "first"), "+")}
+	st.Pending = &listSwitch{Drill: item, ClearQuery: query != "", SelectAll: all, Select: idx}
 	if err := p.saveState(st); err != nil {
 		return "", err
 	}
@@ -303,11 +339,7 @@ func (p picker) hunksKey(st pickerState, key, drilled string, count int, sel []i
 			idx[i] = n + 1
 		}
 		slices.Sort(idx)
-		parts := make([]string, len(idx))
-		for i, n := range idx {
-			parts[i] = strconv.Itoa(n)
-		}
-		spec = strings.Join(parts, " ")
+		spec = specOf(idx)
 		if sum, err = p.sum(idx); err != nil {
 			return "", err
 		}
@@ -331,28 +363,18 @@ func (p picker) hunksKey(st pickerState, key, drilled string, count int, sel []i
 	if err != nil {
 		return "", err
 	}
-	actions := []string{"change-header(" + p.getenv("GFS_HEADER_FILES") + ")"}
-	if p.getenv("FZF_QUERY") != "" {
-		actions = append(actions, "change-query()", "wait")
-	}
-	at := ""
+	sw := listSwitch{ClearQuery: p.getenv("FZF_QUERY") != ""}
 	for i, f := range files {
-		pos := "pos(" + strconv.Itoa(i+1) + ")"
 		if slices.Contains(marked, f) {
-			actions = append(actions, pos, "select")
+			sw.Select = append(sw.Select, i+1)
 		}
 		if f == drilled {
-			at = pos
+			sw.Cursor = i + 1
 		}
 	}
-	if at != "" {
-		actions = append(actions, at)
-	}
-	if q, _ := os.ReadFile(p.path(".query")); len(q) > 0 {
-		restore := "transform-query(cat " + shellQuote(p.path(".query")) + ")"
-		actions = append(actions, "track-current", restore, "wait", "untrack-current")
-	}
-	st.Pending = &listSwitch{Actions: strings.Join(actions, "+")}
+	q, _ := os.ReadFile(p.path(".query"))
+	sw.RestoreQuery = len(q) > 0
+	st.Pending = &sw
 	if err := p.saveState(st); err != nil {
 		return "", err
 	}
@@ -407,7 +429,37 @@ func (p picker) load() (string, error) {
 		return "", err
 	}
 	st.Pending = nil
-	return sw.Actions, p.saveState(st)
+	return p.actions(*sw), p.saveState(st)
+}
+
+// actions renders sw as fzf actions: the new list's header, the query cleared,
+// the marks, the cursor, then the saved files query back.
+func (p picker) actions(sw listSwitch) string {
+	header := p.getenv("GFS_HEADER_FILES")
+	if sw.Drill != "" {
+		header = p.getenv("GFS_HEADER_HUNKS")
+	}
+	a := []string{"change-header(" + header + ")"}
+	if sw.ClearQuery {
+		a = append(a, "change-query()", "wait")
+	}
+	if sw.SelectAll {
+		a = append(a, "select-all")
+	}
+	for _, n := range sw.Select {
+		a = append(a, "pos("+strconv.Itoa(n)+")", "select")
+	}
+	switch {
+	case sw.Drill != "":
+		a = append(a, "first")
+	case sw.Cursor > 0:
+		a = append(a, "pos("+strconv.Itoa(sw.Cursor)+")")
+	}
+	if sw.RestoreQuery {
+		restore := "transform-query(cat " + shellQuote(p.path(".query")) + ")"
+		a = append(a, "track-current", restore, "wait", "untrack-current")
+	}
+	return strings.Join(a, "+")
 }
 
 // finalize returns the command for the accepted selection, git being the
@@ -424,17 +476,20 @@ func (p picker) finalize(op pickOp, git string) (string, error) {
 	}
 	var whole, picks []string
 	for _, path := range st.Accepted {
-		spec := st.Specs[path]
-		if spec == "" || spec == "ALL" {
+		all, idx, err := parseSpec(st.Specs[path])
+		if err != nil {
+			return "", err
+		}
+		if all || len(idx) == 0 {
 			whole = append(whole, shellQuote(path))
 			continue
 		}
 		sum := st.Sums[path]
-		if sum == "" {
-			return "", fmt.Errorf("no digest recorded for %q's hunks", path)
+		if !validSum(sum) {
+			return "", fmt.Errorf("no valid digest recorded for %q's hunks", path)
 		}
 		picks = append(picks, git+" "+strings.Join(op.diff(), " ")+" -- "+shellQuote(path)+
-			" | git-hunk-pick assemble --sum "+sum+" "+spec)
+			" | git-hunk-pick assemble --sum "+sum+" "+specOf(idx))
 	}
 	if op.stash {
 		var flags strings.Builder
@@ -513,8 +568,8 @@ func runPicker(cmd string, args []string, w io.Writer) error {
 		var st pickerState
 		st, err = p.loadState()
 		// Whole files need no hint: fzf's own marker shows them.
-		if spec := st.Specs[args[1]]; spec != "" && spec != "ALL" {
-			out = "◐ hunks: " + spec + "\n"
+		if _, idx, perr := parseSpec(st.Specs[args[1]]); perr == nil && len(idx) > 0 {
+			out = "◐ hunks: " + specOf(idx) + "\n"
 		}
 	case "finalize":
 		if out, err = p.finalize(op, args[2]); out != "" {
