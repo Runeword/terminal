@@ -10,11 +10,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790977512,
-        "narHash": "sha256-CfyiGaRap2NRy24VxElwGrmxh40pk2AWrtlqy9hp380=",
+        "lastModified": 1791321506,
+        "narHash": "sha256-hg6noUVHYV66rg7nmtWmuQ4Hey6FvaIKNDcZYOVNq20=",
         "owner": "Runeword",
         "repo": "claude-sandbox",
-        "rev": "384b706ba61caeeb218355b7fb9524d0158a49d5",
+        "rev": "cc76d417c6e12df09e2ee158dbe125f696e1388a",
         "type": "github"
       },
       "original": {
