@@ -36,6 +36,19 @@ __git_cmd_prefix() {
   fi
 }
 
+# cd to the repo root and export GIT_DIR/GIT_WORK_TREE, in the subshell a picker
+# runs git-hunk-pick and fzf in (it changes the calling shell): the lists are
+# relative to the root, and git there, including fzf's preview and bind commands,
+# must still find a git dir that isn't discoverable from the toplevel (e.g.
+# ~/.dotfiles with core.worktree=$HOME).
+__git_cd_root() {
+  local root git_dir
+  root="$(git rev-parse --show-toplevel)" || return 1
+  git_dir="$(git rev-parse --absolute-git-dir)" || return 1
+  builtin cd "$root" || return 1
+  export GIT_DIR="$git_dir" GIT_WORK_TREE="$root"
+}
+
 __git_clone() {
   local repo_url="${2:-$(wl-paste)}" # Use clipboard content if no URL is provided
   local base_dir="${HOME}/${1}"
@@ -146,19 +159,12 @@ __git_diff_staged() {
 # invocation cwd, like $EDITOR. NUL-separated end to end (--read0/--print0,
 # then `git-hunk-pick quote`), so a path git would quote (café.txt, a tab or
 # newline in it, a space in a status line) reaches the command as is.
-# GIT_DIR/GIT_WORK_TREE are exported in the subshell so the list command and
-# fzf preview commands still resolve the repo when its git dir isn't
-# discoverable from the toplevel (e.g. ~/.dotfiles with core.worktree=$HOME).
 __git_fzf_select() {
   local kind="$1" prefix="$2"
   shift 2
-  local repo_root git_dir
-  repo_root="$(git rev-parse --show-toplevel)"
-  git_dir="$(git rev-parse --absolute-git-dir)"
 
   (
-    builtin cd "$repo_root" || exit 1
-    export GIT_DIR="$git_dir" GIT_WORK_TREE="$repo_root"
+    __git_cd_root || exit 1
     git-hunk-pick paths "$kind" </dev/null |
       fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "$@"
   ) | git-hunk-pick quote "$prefix"
@@ -203,12 +209,14 @@ __git_pick_files() {
     *) return 1 ;;
   esac
 
-  local git_cmd repo_root
+  local git_cmd
   git_cmd="$(__git_cmd_prefix)"
-  repo_root="$(git rev-parse --show-toplevel)"
 
+  # The state the picker turns into fzf actions and the printed command lives in
+  # the per-user runtime dir: the claude sandbox shares /tmp, while it has a
+  # private $XDG_RUNTIME_DIR.
   local sd sdq
-  sd="$(mktemp -d)" || return 1
+  sd="$(mktemp -d "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/git-pick.XXXXXX")" || return 1
   sdq="$(__shell_quote "$sd")"
 
   # One preview for both lists: a hunk ($sd/.drill exists while drilled) shows that
@@ -230,7 +238,7 @@ __git_pick_files() {
   local key_cmd="git-hunk-pick key $sdq $1"
   # shellcheck disable=SC2016
   (
-    builtin cd "$repo_root" || exit 1
+    __git_cd_root || exit 1
     export GFS_HEADER_HUNKS="← back · tab hunk · ⏎ $1"
     git-hunk-pick files "$sd" "$1" </dev/null |
       fzf "${_GIT_FZF_DEFAULT[@]}" \
