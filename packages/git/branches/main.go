@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -619,15 +620,22 @@ func diffBranches() error {
 		editor = "vi"
 	}
 
+	fmt.Print(editorCmd(editor, cdup, strings.Split(selectedFiles, "\n")))
+	return nil
+}
+
+// editorCmd is the command diff-branches prints to open the picked files: each
+// root-relative path prefixed with cdup so it resolves from the user's CWD, and
+// all of them after --, since nvim runs a +cmd argument as an Ex command (a
+// file named "+so x.vim", at the root where cdup is empty, would source x.vim).
+func editorCmd(editor, cdup string, files []string) string {
 	var quoted []string
-	for _, f := range strings.Split(selectedFiles, "\n") {
+	for _, f := range files {
 		if f != "" {
 			quoted = append(quoted, shellQuote(cdup+f))
 		}
 	}
-
-	fmt.Printf("%s %s", editor, strings.Join(quoted, " "))
-	return nil
+	return editor + " -- " + strings.Join(quoted, " ")
 }
 
 func worktreeAdd() error {
@@ -911,7 +919,8 @@ func worktreeSwitch() error {
 	return nil
 }
 
-// stashApply picks a stash then files from it, and outputs a git restore command.
+// stashApply picks a stash then files from it, and outputs the command that
+// applies the stash's changes to them (stashApplyCmd).
 func stashApply() error {
 	var stashes []string
 	var pager string
@@ -989,16 +998,29 @@ func stashApply() error {
 		return nil
 	}
 
-	var quoted []string
-	for _, f := range strings.Split(selectedFiles, "\n") {
-		if f != "" {
-			quoted = append(quoted, shellQuote(cdup+f))
-		}
-	}
-
 	// Use the resolved sha (not stash@{N}) so the command stays correct even if
 	// another stash is pushed/popped between selection and execution — stash
 	// reflog indices shift, but the sha doesn't move.
-	fmt.Printf("git restore --source=%s -- %s && git status", shellQuote(stashRef), strings.Join(quoted, " "))
+	fmt.Print(stashApplyCmd(stashRef, cdup, strings.Split(selectedFiles, "\n")))
 	return nil
+}
+
+// stashApplyCmd is the command that applies what the stash at sha changed in
+// files (repo-root-relative; cdup leads from the cwd to the root) to those
+// files as they are now. git restore --source=<stash> replaced each file with
+// the stash's copy, dropping every edit made since. apply --3way stages what
+// it applies, refuses (applying nothing) when a file's worktree differs from
+// its index, and leaves conflict markers where the stashed change overlaps a
+// commit since. Both git runs start at the root: apply skips paths outside
+// its cwd.
+func stashApplyCmd(sha, cdup string, files []string) string {
+	git := "git -C " + shellQuote(cmp.Or(cdup, "."))
+	var quoted []string
+	for _, f := range files {
+		if f != "" {
+			quoted = append(quoted, shellQuote(f))
+		}
+	}
+	return fmt.Sprintf("%s --literal-pathspecs diff --binary %s %s -- %s | %s apply --3way && git status",
+		git, shellQuote(sha+"^1"), shellQuote(sha), strings.Join(quoted, " "), git)
 }
