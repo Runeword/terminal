@@ -294,7 +294,7 @@ let
         }
         for p in .claude .config/zsh .config/bash .config/shell/xdg.sh \
           .config/shell/variables.sh .config/shell/aliases.sh .config/shell/functions \
-          .config/shell/leader.toml .config/git .config/direnv; do
+          .config/shell/leader.toml .config/git .config/delta .config/direnv; do
           pinned "$tree/$p"
         done
         anchored "$tree" "$tree/.claude"
