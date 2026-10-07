@@ -17,7 +17,6 @@ with pkgs;
   gh
   google-cloud-sdk
   firebase-tools
-  acli
   jira-cli-go
 
   # _______________________________ AI
