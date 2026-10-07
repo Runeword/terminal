@@ -80,6 +80,34 @@ func TestStashHunkLeavesIndexUntouched(t *testing.T) {
 	}
 }
 
+// TestStashHunkPopsBackInPlace stashes a zero-context insertion below two
+// staged lines, then pops it: the line must come back where it was, with the
+// staged lines still staged. Built on HEAD's tree, the stash held it two lines
+// off.
+func TestStashHunkPopsBackInPlace(t *testing.T) {
+	setupRepo(t)
+
+	write(t, "f.txt", "S1\nS2\na\nb\nc\nd\ne\nf\ng\n")
+	mustGit(t, "add", "f.txt")
+	staged := mustGit(t, "show", ":f.txt")
+	const worktree = "S1\nS2\na\nb\nc\nd\ne\nNEW\nf\ng\n"
+	write(t, "f.txt", worktree)
+
+	// The zero-context hunk git diff gives for NEW, after the index's line 7.
+	patch := "diff --git a/f.txt b/f.txt\n--- a/f.txt\n+++ b/f.txt\n@@ -7,0 +8 @@\n+NEW\n"
+	if err := run([]byte(patch), nil, "partial"); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	mustGit(t, "stash", "pop", "-q")
+
+	if got := read(t, "f.txt"); got != worktree {
+		t.Errorf("f.txt after pop = %q, want %q", got, worktree)
+	}
+	if got := mustGit(t, "show", ":f.txt"); got != staged {
+		t.Errorf("index after pop = %q, want %q", got, staged)
+	}
+}
+
 // TestStashWholeFiles stashes a whole tracked file plus a whole untracked file
 // and asserts both leave the worktree and land in the stash.
 func TestStashWholeFiles(t *testing.T) {
