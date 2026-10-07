@@ -1011,7 +1011,10 @@ func stashApply() error {
 // the stash's copy, dropping every edit made since. apply --3way stages what
 // it applies, refuses (applying nothing) when a file's worktree differs from
 // its index, and leaves conflict markers where the stashed change overlaps a
-// commit since. Both git runs start at the root: apply skips paths outside
+// commit since. apply tells a worktree file from its index by the stat data
+// cached there, to the second, so update-index --refresh goes first: a file
+// saved or touched since the index last saw it, its contents unchanged, would
+// be refused too. Every git run starts at the root: apply skips paths outside
 // its cwd.
 func stashApplyCmd(sha, cdup string, files []string) string {
 	git := "git -C " + shellQuote(cmp.Or(cdup, "."))
@@ -1021,6 +1024,6 @@ func stashApplyCmd(sha, cdup string, files []string) string {
 			quoted = append(quoted, shellQuote(f))
 		}
 	}
-	return fmt.Sprintf("%s --literal-pathspecs diff --binary %s %s -- %s | %s apply --3way && git status",
-		git, shellQuote(sha+"^1"), shellQuote(sha), strings.Join(quoted, " "), git)
+	return fmt.Sprintf("%s update-index -q --refresh && %s --literal-pathspecs diff --binary %s %s -- %s | %s apply --3way && git status",
+		git, git, shellQuote(sha+"^1"), shellQuote(sha), strings.Join(quoted, " "), git)
 }
