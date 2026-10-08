@@ -31,18 +31,18 @@ let
       binName = "tmux";
       staticEnv = {
         TMUX_SHELL = "${zsh}/bin/zsh";
-        NIX_OUT_TMUX = "@OUT@";
+        NIX_OUT_TMUX = permeance.out;
       };
       flags = [
         "-f"
-        "$PERMEANCE_ROOT/.config/tmux/tmux.conf"
+        "${permeance.root}/.config/tmux/tmux.conf"
       ];
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
       description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, and renders sessions sorted-by-number so they can be dragged to reorder too";
       script = ''
-        # No explicit -f — let the launcher's flags = [ "-f" "$PERMEANCE_ROOT/.config/tmux/tmux.conf" ]
+        # No explicit -f — let the launcher's flags = [ "-f" "''${permeance.root}/.config/tmux/tmux.conf" ]
         # provide it, so the smoke exercises the launcher's flag routing. start-server
         # exits 0 and prints nothing even when that load fails: tmux keeps its parse
         # and command errors until the next source-file prints them, so source
