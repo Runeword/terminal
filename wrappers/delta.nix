@@ -16,7 +16,7 @@ let
       binName = "delta";
       flags = [
         "--config"
-        "$PERMEANCE_ROOT/.config/delta/config"
+        "${permeance.root}/.config/delta/config"
       ];
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
