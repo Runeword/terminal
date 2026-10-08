@@ -55,7 +55,7 @@ let
           };
           flags = [
             "--config-file"
-            "$PERMEANCE_ROOT/.config/alacritty/alacritty.toml"
+            "${permeance.root}/.config/alacritty/alacritty.toml"
           ];
         }}
       '';
