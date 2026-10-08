@@ -35,7 +35,7 @@ let
           DIRENV_CONFIG = ".config/direnv";
         };
         staticEnv = {
-          NIX_OUT_SHELL = "@OUT@";
+          NIX_OUT_SHELL = permeance.out;
         };
         flags = [ "--no-global-rcs" ];
       }}
