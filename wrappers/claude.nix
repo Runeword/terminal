@@ -129,7 +129,7 @@ let
     }
   ];
 
-  # claude's PATH, ahead of the inherited one (@OUT@ is the launcher's own $out).
+  # claude's PATH, ahead of the inherited one (permeance.out: the launcher's $out).
   # gitShim ships a binary named `git`. It is injected only into claude's own
   # PATH (and inherited by its subprocesses: bash, Python, Make, …), not merged
   # into $out/bin, so the user's interactive shell still sees the wrapped git.
@@ -139,7 +139,7 @@ let
   # ':'-joined makeBinPath string.
   pathPrefix = [
     "${gitShim}/bin"
-    "@OUT@/bin"
+    "${permeance.out}/bin"
   ]
   ++ map (pkg: "${pkgs.lib.getBin pkg}/bin") tools;
 
@@ -172,7 +172,7 @@ let
       unsetEnv = [ "TMUX" ];
       flags = [
         "--settings"
-        "$PERMEANCE_ROOT/.claude/settings.json"
+        "${permeance.root}/.claude/settings.json"
         "--setting-sources"
         "user,project,local"
       ];
@@ -194,7 +194,10 @@ let
         # must resolve on claude's PATH; at runtime a missing one fails silently
         # (the status line just goes blank).
         claudePath=${
-          pkgs.lib.concatMapStringsSep ":" (builtins.replaceStrings [ "@OUT@" ] [ "${self}" ]) pathPrefix
+          pkgs.lib.concatMapStringsSep ":" (builtins.replaceStrings
+            [ permeance.out ]
+            [ "${self}" ]
+          ) pathPrefix
         }
         settings=${self}/.claude/settings.json
         for cmd in $(${pkgs.jq}/bin/jq -r '[.statusLine.command] + [.hooks[][].hooks[] | .command // empty] | .[] | split(" ")[0]' "$settings" | sort -u); do
