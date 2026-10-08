@@ -21,7 +21,6 @@ with pkgs;
 
   # _______________________________ AI
   antigravity-cli
-  cursor-cli
 
   # _______________________________ Coreutils
   coreutils-full
@@ -44,11 +43,11 @@ with pkgs;
 
   # _______________________________ Development
   cowsay
-  atac
+  # atac
   ngrok
   awscli2
   sqlite
-  ast-grep
+  # ast-grep
   watchexec # file watcher (powers the `gow` go dev loop)
 
   # _______________________________ Archivers
@@ -57,7 +56,7 @@ with pkgs;
 
   # _______________________________ Git
   gitleaks # security scan
-  lazygit # tui
+  # lazygit # tui
   onefetch # info
   lefthook # hooks
   git-absorb # auto git commit --fixup
@@ -65,7 +64,7 @@ with pkgs;
 
   # _______________________________ Infra
   opentofu
-  lazydocker
+  # lazydocker
   docker-compose
   # terraform
 
@@ -77,18 +76,18 @@ with pkgs;
   fastfetch # System info
 
   # _______________________________ Nix
-  nix-prefetch-docker
-  nix-search-tv
-  nix-init
-  nix-update
+  # nix-prefetch-docker
+  # nix-search-tv
+  # nix-init
+  # nix-update
   cachix
   devenv
   direnv
 
   # _______________________________ Multimedia
-  asciinema # Terminal recorder
-  lux # Video downloader
-  qrcp # mobile QR files transfer
+  # asciinema # Terminal recorder
+  # lux # Video downloader
+  # qrcp # mobile QR files transfer
 
   # _______________________________ Disk
   ncdu # Disk usage tui
