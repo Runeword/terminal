@@ -23,7 +23,7 @@ let
         };
         flags = [
           "-c"
-          "core.excludesFile=$PERMEANCE_ROOT/.config/git/ignore"
+          "core.excludesFile=${permeance.root}/.config/git/ignore"
         ];
       }
       # git-upload-pack / -receive-pack / -upload-archive ship as relative
