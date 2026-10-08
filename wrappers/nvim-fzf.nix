@@ -87,10 +87,10 @@ let
       # the $* capture; forwardArgs=false drops "$@" from the exec line.
       ${permeance.installLauncher {
         binName = "nvim-fzf";
-        realBin = "@OUT@/bin/.nvim-fzf-inner";
+        realBin = "${permeance.out}/bin/.nvim-fzf-inner";
         flags = [
           "-u"
-          "$PERMEANCE_ROOT/.config/nvim-fzf/init.lua"
+          "${permeance.root}/.config/nvim-fzf/init.lua"
         ];
         preExecLines = [ ''export NVIM_FZF_ARGS="$*"'' ];
         forwardArgs = false;
