@@ -61,27 +61,6 @@
         "type": "github"
       }
     },
-    "lefthook_2": {
-      "inputs": {
-        "nixpkgs": [
-          "permeance",
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1785073849,
-        "narHash": "sha256-9x8SN4VqNGSfMYbOTouwYNL4bG4+qvzbugtj2tjo6/A=",
-        "owner": "Runeword",
-        "repo": "lefthook",
-        "rev": "5142d15f7b825799bc104ea23b75682478e7b420",
-        "type": "github"
-      },
-      "original": {
-        "owner": "Runeword",
-        "repo": "lefthook",
-        "type": "github"
-      }
-    },
     "nix-index-database": {
       "inputs": {
         "nixpkgs": [
@@ -136,17 +115,16 @@
     },
     "permeance": {
       "inputs": {
-        "lefthook": "lefthook_2",
         "nixpkgs": [
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1790452393,
-        "narHash": "sha256-PoZNoIpp0VdEz9W8fMoj5sSSb5CleFwfNU/J2ZRjL/w=",
+        "lastModified": 1791490491,
+        "narHash": "sha256-uHGgnvtw9ARgIbKcyzc65R9uXVMuDJk1MECI/FrwR8k=",
         "owner": "Runeword",
         "repo": "permeance",
-        "rev": "d9b692fa920be800b167dc91e7a006552ea560ae",
+        "rev": "f13e61c658643eaab1937fe5126597661624cd81",
         "type": "github"
       },
       "original": {
