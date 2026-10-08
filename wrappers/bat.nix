@@ -52,11 +52,12 @@ let
         BAT_CONFIG_PATH = ".config/bat/config";
       };
       staticEnv = {
-        # Point at the build-time cache above (@OUT@ is the wrapper's own out,
-        # so this stays a fixed, version-matched store artifact in both bundled
-        # and dev modes — theme edits take effect on rebuild, like any compiled
-        # asset, while the config file itself still follows $PERMEANCE_ROOT).
-        BAT_CACHE_PATH = "@OUT@/.cache/bat";
+        # Point at the build-time cache above (permeance.out is the wrapper's
+        # own out, so this stays a fixed, version-matched store artifact in both
+        # bundled and dev modes — theme edits take effect on rebuild, like any
+        # compiled asset, while the config file itself still follows
+        # $PERMEANCE_ROOT).
+        BAT_CACHE_PATH = "${permeance.out}/.cache/bat";
       };
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
