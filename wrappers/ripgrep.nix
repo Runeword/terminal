@@ -22,7 +22,7 @@ let
       };
       flags = [
         "--ignore-file"
-        "$PERMEANCE_ROOT/.config/ignore"
+        "${permeance.root}/.config/ignore"
       ];
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
