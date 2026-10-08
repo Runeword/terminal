@@ -24,11 +24,11 @@ let
         DIRENV_CONFIG = ".config/direnv";
       };
       staticEnv = {
-        NIX_OUT_SHELL = "@OUT@";
+        NIX_OUT_SHELL = permeance.out;
       };
       flags = [
         "--rcfile"
-        "$PERMEANCE_ROOT/.config/bash/.bashrc"
+        "${permeance.root}/.config/bash/.bashrc"
       ];
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
