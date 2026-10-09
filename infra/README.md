@@ -7,7 +7,7 @@ GitHub repository settings managed with OpenTofu.
 - Repository visibility, features, security analysis (`repository.tf`)
 - Actions permissions: allowed actions, SHA pinning, default token scope (`actions.tf`)
 - Branch protection on `main` (`branch-protection.tf`)
-- Actions secrets (`secrets.tf`) — currently `PERMEANCE_TOKEN`, used by `.github/workflows/ci.yml` to fetch the private `Runeword/permeance` and `Runeword/claude-sandbox` flake inputs
+- No secrets: see [Actions & Dependabot secrets](#actions--dependabot-secrets)
 
 ## Usage
 
@@ -43,45 +43,52 @@ that would clobber settings that drifted intentionally via the UI.
 
 ## Actions & Dependabot secrets
 
-`secrets.tf` provisions `PERMEANCE_TOKEN` twice — once as a
-`github_actions_secret` (for push/PR runs) and once as a
-`github_dependabot_secret` (for runs triggered by Dependabot PRs, which run
-with a separate secret namespace). Both pull the value from
-`var.permeance_token`. Create the PAT in the GitHub UI (browser-only — GitHub
-doesn't expose PAT creation via API), then feed it to OpenTofu via env:
+CI fetches the private `Runeword/permeance` and `Runeword/claude-sandbox` flake
+inputs with `PERMEANCE_TOKEN`, which exists twice: as an Actions secret (push
+and PR runs) and as a Dependabot secret (runs triggered by Dependabot PRs get a
+separate secret namespace, where `${{ secrets.PERMEANCE_TOKEN }}` would
+otherwise expand to empty and every GitHub fetch 401).
+
+**Neither is managed here.** OpenTofu writes every managed resource's
+attributes to `terraform.tfstate` in plaintext, a secret's value included, and
+the state goes wherever this directory is copied: a `path:` flake input, for
+one, copies ignored files too, into the world-readable Nix store. `secrets.tf`
+only holds the `removed` blocks that take the two secrets once managed here out
+of state without deleting them on GitHub, and `lib/tests-unit.nix` fails if a
+`github_*_secret` resource comes back.
+
+Set or rotate the token with `gh`, which prompts for the value and keeps it
+nowhere but GitHub:
 
 ```sh
-TF_VAR_permeance_token='<pat>' infra apply
+gh secret set PERMEANCE_TOKEN --repo Runeword/terminal
+gh secret set PERMEANCE_TOKEN --repo Runeword/terminal --app dependabot
 ```
 
-The PAT needs read access to public repos (for nixpkgs / flake-utils fetches)
-**and** to the private `Runeword/permeance` and `Runeword/claude-sandbox`. A
-**classic PAT with `repo` scope** covers all of them; a fine-grained PAT scoped
-only to the private repos would 401 on public fetches because the `access-tokens` per-path scoping isn't reliable in
-the Nix version shipped by `cachix/install-nix-action@v31` (Nix 2.34.7).
-
-The plaintext value lands in local `terraform.tfstate` (gitignored). If the
-secret already exists in GitHub (e.g. you ran `gh secret set` first), import
-before applying: `infra import github_actions_secret.permeance_token
-terminal/PERMEANCE_TOKEN`. Import only restores metadata — the next `apply`
-will overwrite the value with whatever `TF_VAR_permeance_token` resolves to.
+Create the PAT in the GitHub UI (browser-only — GitHub doesn't expose PAT
+creation via API). It needs read access to public repos (for nixpkgs /
+flake-utils fetches) **and** to the private `Runeword/permeance` and
+`Runeword/claude-sandbox`. A **classic PAT with `repo` scope** covers all of
+them; a fine-grained PAT scoped only to the private repos would 401 on public
+fetches because the `access-tokens` per-path scoping isn't reliable in the Nix
+version shipped by `cachix/install-nix-action@v31` (Nix 2.34.7). `repo` scope
+also grants write to every repository the owner can access, so on any exposure
+revoke it at once: `POST https://api.github.com/credentials/revoke`
+(unauthenticated, body `{"credentials": ["<token>"]}`) revokes a token by its
+value.
 
 ## State
 
-State is local (`infra/terraform.tfstate`) and gitignored. It **contains a
-secret in plaintext**: OpenTofu records every managed resource's attributes, so
-the `PERMEANCE_TOKEN` value is stored in `terraform.tfstate` (and in
-`terraform.tfstate.backup`). Keep both owner-only — `chmod 600
-infra/terraform.tfstate*` — and never copy them anywhere unencrypted.
+State is local (`infra/terraform.tfstate`) and gitignored. It holds no secret
+as long as none is managed here (see above); keep it owner-only anyway —
+`chmod 600 infra/terraform.tfstate*`.
 
 Losing the state means redoing the import workflow above — tedious, not a
-disaster. If you must back it up, encrypt it (`age`, `gpg`, or a
-password-manager attachment) — never a plaintext `cp` to disk or USB.
+disaster.
 
 To graduate to a remote backend (S3, HCP Terraform, etc.), add a `backend`
 block to `versions.tf` and run `infra init -migrate-state`. A remote backend
-keeps the secret out of the working tree and is the prerequisite for any
-scheduled drift-detection job (see below).
+is the prerequisite for any scheduled drift-detection job (see below).
 
 ## `prevent_destroy` semantics
 
