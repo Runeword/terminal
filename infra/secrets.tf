@@ -1,14 +1,18 @@
-resource "github_actions_secret" "permeance_token" {
-  repository  = github_repository.terminal.name
-  secret_name = "PERMEANCE_TOKEN"
-  value       = var.permeance_token
+# PERMEANCE_TOKEN, the Actions and the Dependabot secret CI fetches the private
+# flake inputs with, is set with `gh secret set` (README.md), never here:
+# OpenTofu writes every managed attribute to terraform.tfstate in plaintext, a
+# secret's value included. These blocks take the two secrets that used to be
+# managed here out of state, without deleting them on GitHub.
+removed {
+  from = github_actions_secret.permeance_token
+  lifecycle {
+    destroy = false
+  }
 }
 
-# Dependabot's PR workflows run with a separate secrets namespace from Actions.
-# Without this, ${{ secrets.PERMEANCE_TOKEN }} expands to empty in dependabot
-# PR runs and `nix flake check` 401s on every GitHub fetch.
-resource "github_dependabot_secret" "permeance_token" {
-  repository  = github_repository.terminal.name
-  secret_name = "PERMEANCE_TOKEN"
-  value       = var.permeance_token
+removed {
+  from = github_dependabot_secret.permeance_token
+  lifecycle {
+    destroy = false
+  }
 }
