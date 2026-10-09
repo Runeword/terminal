@@ -15,10 +15,12 @@ updates:
       # (see overlays/default.nix for what they pin).
       - dependency-name: "nixpkgs-24-05"
       - dependency-name: "nixpkgs-25-11"
-      # Private repo; Dependabot's repo-scoped token can't
-      # reach it → git_dependencies_not_reachable, which reddened the weekly
-      # "nix in /." job. Bump this input manually.
+      # Private repos; Dependabot's repo-scoped token can't
+      # reach them → git_dependencies_not_reachable, which reddens the weekly
+      # "nix in /." job. Bump these inputs manually (`nixtok nix flake update
+      # <input>` from a plain terminal).
       - dependency-name: "permeance"
+      - dependency-name: "claude-sandbox"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
