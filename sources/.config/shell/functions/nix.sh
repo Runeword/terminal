@@ -84,21 +84,22 @@ __use_flake_template() {
   direnv allow
 }
 
-# Updates local path inputs in the home-manager flake then switches
+# Updates the local inputs (path: and git+file:) of the home-manager flake,
+# then switches
 __home_manager_switch() {
   local hm_path="${HOME_MANAGER_PATH:-$HOME/.config/home-manager}"
   local metadata
   metadata=$(nix flake metadata "$hm_path" --json)
 
-  local path_inputs
-  path_inputs=$(echo "$metadata" | jq -r '
+  local local_inputs
+  local_inputs=$(echo "$metadata" | jq -r '
     .locks.nodes as $nodes |
     $nodes.root.inputs // {} | keys[] |
-    select($nodes[.].locked.type == "path")
+    select($nodes[.].locked | .type == "path" or (.type == "git" and (.url | startswith("file:"))))
   ')
 
-  if [ -n "$path_inputs" ]; then
-    echo "$path_inputs" | while read -r input; do
+  if [ -n "$local_inputs" ]; then
+    echo "$local_inputs" | while read -r input; do
       nix flake update --flake "$hm_path" "$input"
     done
   fi
