@@ -42,7 +42,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, the leader table renders, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, a launch drops what a session planted for the next one, the untracked-file preview and __open_file pass paths after --, and __open_recent offers nvim's recent files newest first";
+      description = "Verify zsh wrapper exec's the real binary, the leader table renders, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, a launch drops what a session planted for the next one, the untracked-file preview and __open_file pass paths after --, __open_recent offers nvim's recent files newest first, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -188,6 +188,21 @@ let
           ok "__open_recent offers nvim's recent files newest first"
         else
           fail "__open_recent does not offer nvim's recent files newest first"
+        fi
+
+        # hs (__home_manager_switch) refreshes the home-manager flake's local
+        # inputs before switching: path: ones and git+file: ones, never remote
+        # ones. A stand-in nix answers the metadata query and prints each input
+        # it is asked to update.
+        printf '%s' '{"locks":{"nodes":{"root":{"inputs":{"f":"f","n":"n","t":"t"}},"f":{"locked":{"type":"git","url":"file:///f","ref":"main"}},"n":{"locked":{"type":"git","url":"https://n"}},"t":{"locked":{"type":"path","path":"/t"}}}}}' > "$HOME/hm.json"
+        hmswitch='. ${self}/.config/shell/functions/nix.sh
+          nix() { case "$2" in metadata) cat "$HOME/hm.json" ;; update) printf "%s\n" "$5" ;; esac; }
+          home-manager() { :; }
+          __home_manager_switch'
+        if [ "$(PATH=${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$hmswitch")" = "$(printf 'f\nt')" ]; then
+          ok "hs refreshes the home-manager flake's local path: and git+file: inputs, not remote ones"
+        else
+          fail "hs does not refresh exactly the home-manager flake's local inputs"
         fi
       '';
     };
