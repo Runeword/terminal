@@ -37,4 +37,22 @@
     expr = lib.any (helper: helper.name == "infra") devShellHelpers;
     expected = true;
   };
+  # infra/ manages no GitHub secret: OpenTofu writes a managed value to
+  # terraform.tfstate in plaintext, and the state goes wherever infra/ is copied
+  # (infra/README.md, "Actions & Dependabot secrets"). Lists the .tf files that
+  # declare one.
+  testInfraManagesNoSecrets = {
+    expr =
+      let
+        declaresSecret =
+          file:
+          lib.any (
+            line: builtins.match ''[[:space:]]*resource[[:space:]]+"github_[a-z_]*secret".*'' line != null
+          ) (lib.splitString "\n" (builtins.readFile (../infra + "/${file}")));
+      in
+      lib.filter declaresSecret (
+        lib.filter (lib.hasSuffix ".tf") (lib.attrNames (builtins.readDir ../infra))
+      );
+    expected = [ ];
+  };
 }
