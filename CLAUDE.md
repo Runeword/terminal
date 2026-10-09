@@ -50,7 +50,7 @@ The pinned set above needs a plain terminal. The rest of the repo — `CLAUDE.md
 
 ### Infrastructure (`infra/`)
 
-OpenTofu config for this repository's GitHub settings. State is local (`*.tfstate` gitignored) — bootstrap is import-based, not greenfield apply, since the repository already exists; see `infra/README.md` for the import sequence.
+OpenTofu config for this repository's GitHub settings. State is local (`*.tfstate` gitignored) — bootstrap is import-based, not greenfield apply, since the repository already exists; see `infra/README.md` for the import sequence. It manages no secret: OpenTofu writes a managed value to state in plaintext, so CI's `PERMEANCE_TOKEN` is set with `gh secret set` (`lib/tests-unit.nix` fails if a `github_*_secret` resource comes back).
 
 ### CI (`.github/workflows/`)
 
