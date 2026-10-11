@@ -2,7 +2,10 @@
 
 __open_file() {
   # Select file(s) with fzf, if no selection do nothing
-  local selected_files
+  local selected_files sd ret
+  # The preview's temp files go in a dir of this session, removed when fzf
+  # exits: fzf SIGKILLs a superseded preview, which can't clean up itself.
+  sd=$(mktemp -d "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/fm_open.XXXXXX") || sd=
   selected_files=$(
     fd \
       -0 \
@@ -10,7 +13,7 @@ __open_file() {
       --strip-cwd-prefix \
       --no-ignore-vcs \
       --color never |
-      fzf \
+      FM_SESSION_DIR=$sd fzf \
         --read0 \
         --height 70% \
         --border none \
@@ -28,7 +31,10 @@ __open_file() {
         --preview-window right,55%,border-none,~2 \
         --bind='ctrl-a:select-all' \
         --bind='ctrl-o:execute(nohup setsid cursor ./{} > /dev/null 2>&1 &)'
-  ) || return 1
+  )
+  ret=$?
+  [ -n "$sd" ] && rm -rf -- "$sd"
+  [ "$ret" -eq 0 ] || return 1
 
   # If single directory selected, cd into it. History entries quote each name, so
   # recalling one reaches the same path, spaces and quotes included.
@@ -80,39 +86,91 @@ __open_file() {
 #   -prune -o -printf '%P\n' 2>/dev/null |
 #   tail -n +2 |
 
+# Interactive ripgrep search (Shift+Tab on an empty command line). It prints the
+# command that opens the picks, for the caller to run like a typed one: one pick
+# is `nvim +LINE -- PATH`, several a quickfix list (`nvim -q FILE`). Esc prints
+# nothing and returns fzf's status.
 __ripgrep() {
-  local statefile
-  statefile=$(mktemp "${TMPDIR:-/tmp}/fm_rg_ignore.XXXXXX") || return 1
-  : >"$statefile"
-  fzf \
-    --ansi \
-    --disabled \
-    --query "${*:-}" \
-    --bind "start:unbind(j,k,g,G,f,i,q,y)+transform-header($PERMEANCE_TREE/.config/shell/scripts/fm_rg_ignore.sh header $statefile)+reload($PERMEANCE_TREE/.config/shell/scripts/fm_rg.sh {q} $statefile)" \
-    --bind "change:reload:sleep 0.1; $PERMEANCE_TREE/.config/shell/scripts/fm_rg.sh {q} $statefile" \
-    --bind "ctrl-g:execute-silent($PERMEANCE_TREE/.config/shell/scripts/fm_rg_ignore.sh flip $statefile)+transform-header($PERMEANCE_TREE/.config/shell/scripts/fm_rg_ignore.sh header $statefile)+reload(sleep 0.1; $PERMEANCE_TREE/.config/shell/scripts/fm_rg.sh {q} $statefile)" \
-    --multi \
-    --delimiter '\t' \
-    --with-nth 1 \
-    --reverse \
-    --border none \
-    --prompt='  ' \
-    --cycle \
-    --info=hidden \
-    --height 70% \
-    --no-separator \
-    --header-first \
-    --preview "$PERMEANCE_TREE/.config/shell/scripts/fm_preview.sh {2} {3} {q}" \
-    --preview-window 'right,55%,border-none,~2' \
-    --bind 'ctrl-j:down+transform([ {4} = H ] && echo down)' \
-    --bind 'ctrl-k:up+transform([ {4} = H ] && echo up)' \
-    --bind 'down:down+transform([ {4} = H ] && echo down)' \
-    --bind 'up:up+transform([ {4} = H ] && echo up)' \
-    --bind 'load:transform([ {4} = H ] && echo down)' \
-    --bind 'esc:abort' \
-    --bind 'enter:become(nvim -- {+2})' \
-    </dev/null
-  rm -f "$statefile"
+  local sd selected ret qf file lnum
+  # A dir per session holds the ctrl-g state and the preview's temp files (fzf
+  # SIGKILLs a superseded preview, which can't clean up itself).
+  sd=$(mktemp -d "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/fm_rg.XXXXXX") || return 1
+  # The binds and the preview read the scripts and that dir from the
+  # environment, so no path is spliced into a command string. start:+ adds to
+  # the global start binding (FZF_DEFAULT_OPTS unbinds the nav keys there).
+  # focus and load step off the file header rows (field 4 = H): an upward move
+  # keeps going up (Up on the first match still wraps), anything else down.
+  # alt-i/i toggle only the nav keys: fzf's own filter stays off (--disabled).
+  # shellcheck disable=SC2016
+  selected=$(
+    FM_SESSION_DIR=$sd fzf \
+      --ansi \
+      --disabled \
+      --query "${*:-}" \
+      --bind 'start:+transform-header("$PERMEANCE_TREE"/.config/shell/scripts/fm_rg_ignore.sh header "$FM_SESSION_DIR"/ignore)+reload("$PERMEANCE_TREE"/.config/shell/scripts/fm_rg.sh {q} "$FM_SESSION_DIR"/ignore)' \
+      --bind 'change:reload:sleep 0.1; "$PERMEANCE_TREE"/.config/shell/scripts/fm_rg.sh {q} "$FM_SESSION_DIR"/ignore' \
+      --bind 'ctrl-g:execute-silent("$PERMEANCE_TREE"/.config/shell/scripts/fm_rg_ignore.sh flip "$FM_SESSION_DIR"/ignore)+transform-header("$PERMEANCE_TREE"/.config/shell/scripts/fm_rg_ignore.sh header "$FM_SESSION_DIR"/ignore)+reload(sleep 0.1; "$PERMEANCE_TREE"/.config/shell/scripts/fm_rg.sh {q} "$FM_SESSION_DIR"/ignore)' \
+      --multi \
+      --delimiter '\t' \
+      --with-nth 1 \
+      --reverse \
+      --border none \
+      --prompt='  ' \
+      --cycle \
+      --info=inline-right \
+      --height 70% \
+      --no-separator \
+      --header-first \
+      --preview '"$PERMEANCE_TREE"/.config/shell/scripts/fm_preview.sh {2} {3} {q}' \
+      --preview-window 'right,55%,border-none,~2' \
+      --bind 'focus:transform:[ {4} = H ] || exit 0; case {fzf:action} in up | up-match) echo up ;; page-up | half-page-up) [ "$FZF_POS" -gt 1 ] && echo up || echo down ;; *) echo down ;; esac' \
+      --bind 'load:transform:[ {4} = H ] && echo down' \
+      --bind 'ctrl-j:down,ctrl-k:up' \
+      --bind 'alt-i:toggle-bind(j,k,g,G,f,i,q,y),i:toggle-bind(j,k,g,G,f,i,q,y)' \
+      --bind "y:execute-silent(printf '%s:%s' {2} {3} | wl-copy)" \
+      --bind 'ctrl-z:ignore' \
+      --bind 'esc:abort' \
+      </dev/null
+  )
+  ret=$?
+  rm -rf -- "$sd"
+  [ "$ret" -eq 0 ] || return "$ret"
+
+  # PATH<TAB>LINE<TAB>TEXT per pick. Match rows win over file headers (a header
+  # stands for its file's first match), and a match picked twice counts once.
+  # TEXT is the matched code (a header's is its path): nvim's quickfix parser
+  # drops an entry with an empty message.
+  selected=$(printf '%s\n' "$selected" | awk -F '\t' '
+    { n++; kind[n] = $4; path[n] = $2; line[n] = $3; text[n] = $1; m += ($4 == "M") }
+    END {
+      for (i = 1; i <= n; i++) {
+        if (kind[i] != (m ? "M" : "H") || (path[i], line[i]) in seen) continue
+        seen[path[i], line[i]]
+        code = text[i]
+        if (kind[i] == "M") sub(/^ *[0-9]*:/, "", code)
+        if (code == "") code = " "
+        print path[i] "\t" line[i] "\t" code
+      }
+    }')
+  [ -n "$selected" ] || return 1
+
+  case $selected in
+    *"
+"*)
+      # Several picks: a quickfix list, in a file the command can still reach
+      # when it is run again from history.
+      qf=$(mktemp "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/fm_rg_qf.XXXXXX") || return 1
+      printf '%s\n' "$selected" | awk -F '\t' '{ print $1 ":" $2 ":" $3 }' >"$qf"
+      printf 'nvim -q %s\n' "$(printf '%s\n' "$qf" | sed "s/'/'\\\\''/g; s/.*/'&'/")"
+      ;;
+    *)
+      file=${selected%%"	"*}
+      lnum=${selected#*"	"}
+      lnum=${lnum%%"	"*}
+      [ -n "$lnum" ] && lnum="+$lnum "
+      printf 'nvim %s-- %s\n' "$lnum" "$(printf '%s\n' "$file" | sed "s/'/'\\\\''/g; s/.*/'&'/")"
+      ;;
+  esac
 }
 
 __mkdir_cd() {
