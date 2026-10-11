@@ -10,6 +10,8 @@ let
   # bundled .config/shell/leader.toml through this binary; the smoke test
   # exercises that path against the wrapper's own copy of the table.
   leaderAliases = import ../packages/leader-aliases { inherit pkgs; };
+  # Shift+Tab's search (.config/shell/scripts/fm_rg.sh) matches through it.
+  fmQuery = import ../packages/fm-query { inherit pkgs; };
   config = files.mkConfig "zsh-config" [
     ".config/zsh"
     ".config/shell"
@@ -42,7 +44,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, the leader table renders, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, a launch drops what a session planted for the next one, the untracked-file preview and __open_file pass paths after --, __open_recent offers nvim's recent files newest first, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, the leader table renders, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, a launch drops what a session planted for the next one, the untracked-file preview and __open_file pass paths after --, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -189,6 +191,32 @@ let
         else
           fail "__open_recent does not offer nvim's recent files newest first"
         fi
+
+        # Shift+Tab's search (fm_rg.sh) lists dotfiles too, as the rows fm.sh's
+        # binds read: a header per file, then each match; fields 2-4 are path,
+        # line, H|M.
+        mkdir -p "$HOME/rg/.hidden" && printf 'x\nhello world\n' > "$HOME/rg/.hidden/a.txt"
+        if [ "$(cd "$HOME/rg" && PATH=${pkgs.ripgrep}/bin:${fmQuery}/bin:$PATH sh ${self}/.config/shell/scripts/fm_rg.sh 'hel wor' | cut -f2-4)" = "$(printf '.hidden/a.txt\t2\tH\n.hidden/a.txt\t2\tM')" ]; then
+          ok "Shift+Tab's search lists a dotfile's match under its header, with its path and line"
+        else
+          fail "Shift+Tab's search does not list a dotfile's match as header and match rows"
+        fi
+
+        # Its preview strips a file's escape sequences (an OSC 8 link here), so
+        # nothing in a searched file can drive the terminal through fzf.
+        printf 'x \033]8;;http://e.x\033\\link\033]8;;\033\\ y\n' > "$HOME/esc.txt"
+        if FZF_PREVIEW_LINES=10 sh ${self}/.config/shell/scripts/fm_preview.sh "$HOME/esc.txt" 1 "" | grep -q "$(printf '\033]')"; then
+          fail "the search preview passes a file's escape sequences to fzf"
+        else
+          ok "the search preview strips a file's escape sequences"
+        fi
+
+        # The bundled .zshrc loads and binds Shift+Tab to that search (zsh -i
+        # also prints .zshrc's timing line, hence the case).
+        case "$(${self}/bin/zsh -i -c 'bindkey "^[[Z"' 2>/dev/null)" in
+          *'"^[[Z" __ripgrep_or_menu_'*) ok "the bundled .zshrc binds Shift+Tab to the search" ;;
+          *) fail "the bundled .zshrc does not bind Shift+Tab to the search" ;;
+        esac
 
         # hs (__home_manager_switch) refreshes the home-manager flake's local
         # inputs before switching: path: ones and git+file: ones, never remote
