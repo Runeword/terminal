@@ -52,13 +52,20 @@ var pickOps = map[string]pickOp{
 }
 
 // diff is the git diff a drill shows, and the printed command re-reads, for a
-// file: zero-context, of the index (staged) or the worktree.
+// file: zero-context, of the index (staged) or the worktree. The flags keep
+// the user's diff config out of what is parsed and applied: an external diff
+// or a textconv driver shows text that is not in the file, and color codes or
+// another prefix (diff.mnemonicPrefix, diff.noprefix) break the parse.
 func (o pickOp) diff() []string {
+	args := []string{"diff"}
 	if o.staged {
-		return []string{"diff", "--cached", "--unified=0"}
+		args = append(args, "--cached")
 	}
-	return []string{"diff", "--unified=0"}
+	return append(args, diffFlags...)
 }
+
+// diffFlags make a git diff the same whatever the user's config says.
+var diffFlags = []string{"--no-ext-diff", "--no-textconv", "--no-color", "--src-prefix=a/", "--dst-prefix=b/", "--unified=0"}
 
 // pickerState is the picker's own state, rewritten by key and load.
 type pickerState struct {
