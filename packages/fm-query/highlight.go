@@ -1,154 +1,413 @@
 package main
 
-// The highlighters behind `fm-query rows` (fm_rg.sh's result list) and
-// `fm-query mark` (fm_preview.sh's preview). Both mark the query's positive
-// terms with one matcher: an exact term covers every occurrence of its text
-// (overlaps included), a fuzzy term the leftmost run of its characters in
-// order (like fzf), and only if all of them are found. Text is matched per
-// character, and invalid UTF-8 bytes count as one character each and are copied
-// through unchanged.
+// The two outputs: `fm-query rows` (fm_rg.sh's result list) and `fm-query
+// mark` (fm_preview.sh's preview), both marking what query.go matches.
 
 import (
 	"bufio"
 	"io"
+	"sort"
 	"strings"
-	"unicode"
+	"time"
 	"unicode/utf8"
 )
 
-// term is one positive query term, folded to lower case when the search is
-// case-insensitive.
-type term struct {
-	fuzzy bool
-	text  []rune
-}
+// A long match line is shown as a window: its head is cut when the first mark
+// starts past winFrom characters, keeping winLead before it, and at most
+// winMax characters are shown.
+const (
+	winFrom = 40
+	winLead = 16
+	winMax  = 400
+)
 
-// highlighter holds a query's terms and its case rule.
-type highlighter struct {
-	terms []term
-	fold  bool
-}
+// Rows are held back and listed by path while the search ends within sortMax
+// rows and sortWait, so a small search keeps its order from one keystroke to
+// the next; past either, they stream in rg's order, handed to fzf every
+// flushEvery. Variables for the tests.
+var (
+	sortMax    = 5000
+	sortWait   = 150 * time.Millisecond
+	flushEvery = 50 * time.Millisecond
+)
 
-// newHighlighter compiles query and keeps its highlight terms. Smart-case is
-// global, as for rg in fm_rg.sh: any ASCII uppercase letter anywhere (its
-// `*[A-Z]*` test) makes the whole query case-sensitive.
-func newHighlighter(query string) highlighter {
-	h := highlighter{fold: !strings.ContainsAny(query, "ABCDEFGHIJKLMNOPQRSTUVWXYZ")}
-	_, spec := compile(query)
-	for _, e := range strings.Split(spec, "\t") {
-		if len(e) < 3 {
-			continue
-		}
-		h.terms = append(h.terms, term{fuzzy: e[0] == 'F', text: h.runes(e[2:])})
+// rows turns `rg --null --line-number` output (PATH NUL LINE:CODE per match)
+// into fm_rg.sh's tab-delimited rows, keeping the lines that match the query:
+// a bold header row per file, then one indented "line:code" row per match with
+// the terms in bold cyan. Fields 2-4 carry the path, the line and the row's
+// kind (H header, M match).
+//
+// It splits on the NUL, not the first colon, so a path holding ":" survives. A
+// record without a NUL (rg's binary-file note, or the head of a name holding a
+// newline, which fm_rg.sh excludes) is dropped, and so is a path holding a
+// tab, a control character or invalid UTF-8: shown, it would name another
+// file. A match's code is matched as rg read it, less a trailing CR, and shown
+// with its control characters as symbols (see visible).
+func rows(r io.Reader, out io.Writer, query string) error {
+	q := parse(query)
+	if !q.positive() {
+		return nil
 	}
-	return h
-}
-
-// runes decodes s into its characters, folded if the search ignores case.
-func (h highlighter) runes(s string) []rune {
-	rs := []rune(s)
-	if h.fold {
-		for i, r := range rs {
-			rs[i] = unicode.ToLower(r)
+	s := &rowsState{q: q, w: bufio.NewWriterSize(out, 64<<10), sorting: true}
+	done := make(chan struct{})
+	defer close(done)
+	batches, errc := records(r, done)
+	wait, tick := time.NewTimer(sortWait), time.NewTicker(flushEvery)
+	defer wait.Stop()
+	defer tick.Stop()
+loop:
+	for {
+		var waitC <-chan time.Time
+		if s.sorting {
+			waitC = wait.C
 		}
-	}
-	return rs
-}
-
-// marks reports, per character of text (as split by chars), whether a term
-// covers it.
-func (h highlighter) marks(text []rune) []bool {
-	m := make([]bool, len(text))
-	for _, t := range h.terms {
-		n := len(t.text)
-		if !t.fuzzy {
-			for i := 0; i+n <= len(text); i++ {
-				if equalRunes(text[i:i+n], t.text) {
-					for j := i; j < i+n; j++ {
-						m[j] = true
-					}
+		select {
+		case batch, ok := <-batches:
+			if !ok {
+				break loop
+			}
+			for len(batch) > 0 {
+				rec := batch
+				if i := strings.IndexByte(batch, '\n'); i >= 0 {
+					rec, batch = batch[:i], batch[i+1:]
+				} else {
+					batch = ""
 				}
+				s.record(rec)
 			}
-			continue
+			if s.sorting && s.held > sortMax {
+				s.stream()
+			}
+		case <-waitC:
+			s.stream()
+		case <-tick.C:
+			if !s.sorting && s.err == nil {
+				s.err = s.w.Flush()
+			}
 		}
-		seq := make([]int, 0, n)
-		p := 0
-		for _, c := range t.text {
-			for p < len(text) && text[p] != c {
-				p++
-			}
-			if p == len(text) {
-				seq = nil
-				break
-			}
-			seq = append(seq, p)
-			p++
-		}
-		for _, i := range seq {
-			m[i] = true
+		if s.err != nil {
+			return s.err
 		}
 	}
+	if err := <-errc; err != nil {
+		return err
+	}
+	if s.sorting {
+		sort.SliceStable(s.blocks, func(i, j int) bool { return s.blocks[i].path < s.blocks[j].path })
+		s.stream()
+	}
+	if s.err != nil {
+		return s.err
+	}
+	return s.w.Flush()
+}
+
+// records reads r into batches of whole newline-terminated records, each
+// sent once 32 KiB are read or nothing more is buffered, then reports the
+// read error (nil at EOF). It stops early when done is closed. The batches
+// are buffered so reading runs ahead of matching.
+func records(r io.Reader, done <-chan struct{}) (<-chan string, <-chan error) {
+	batches, errc := make(chan string, 64), make(chan error, 1)
+	go func() {
+		defer close(batches)
+		br := bufio.NewReaderSize(r, 64<<10)
+		var batch []byte
+		for {
+			frag, err := br.ReadSlice('\n')
+			batch = append(batch, frag...)
+			if err == bufio.ErrBufferFull {
+				continue // the rest of a long record follows
+			}
+			if len(batch) > 0 && (err != nil || len(batch) >= 32<<10 || br.Buffered() == 0) {
+				select {
+				case batches <- string(batch):
+				case <-done:
+					return
+				}
+				batch = batch[:0]
+			}
+			if err != nil {
+				if err == io.EOF {
+					err = nil
+				}
+				errc <- err
+				return
+			}
+		}
+	}()
+	return batches, errc
+}
+
+// block is one file's rows, held back while sorting.
+type block struct {
+	path string
+	buf  []byte
+}
+
+type rowsState struct {
+	q       query
+	w       *bufio.Writer
+	err     error
+	sorting bool
+	blocks  []block
+	held    int
+	path    string // the file of the last row
+	headed  bool   // its header is out
+	l       line
+	m       []bool
+	row     []byte
+	out     []byte
+}
+
+// record turns one rg record (its newline removed) into a row, if its line
+// matches.
+func (s *rowsState) record(rec string) {
+	path, rest, ok := strings.Cut(rec, "\x00")
+	if !ok || !validPath(path) {
+		return
+	}
+	num, code, ok := strings.Cut(rest, ":")
+	if !ok {
+		num, code = "", rest
+	}
+	s.l.reset(strings.TrimSuffix(code, "\r"))
+	if !s.q.accepts(&s.l) {
+		return
+	}
+	s.m = marks(s.m, len(s.l.raw))
+	s.q.mark(&s.l, s.m)
+
+	n, first := len(s.l.raw), -1
+	for i, on := range s.m {
+		if on {
+			first = i
+			break
+		}
+	}
+	from := 0
+	if first > winFrom {
+		from = first - winLead
+	}
+	to := min(n, from+winMax)
+	row := append(s.row[:0], "  "...)
+	row = append(row, num...)
+	row = append(row, ':')
+	if from > 0 {
+		row = append(row, "…"...)
+	}
+	row = s.l.paint(row, s.m, from, to, "\033[1;36m", "\033[0m")
+	if to < n {
+		row = append(row, "…"...)
+	}
+	row = append(row, '\t')
+	row = append(row, path...)
+	row = append(row, '\t')
+	row = append(row, num...)
+	row = append(row, "\tM\n"...)
+	s.row = row
+	s.add(path, num, row)
+}
+
+// add puts row out, after its file's header when it is the file's first.
+func (s *rowsState) add(path, num string, row []byte) {
+	if path != s.path {
+		s.path, s.headed = path, false
+		if s.sorting {
+			s.blocks = append(s.blocks, block{path: path})
+		}
+	}
+	b := s.out[:0]
+	if s.sorting {
+		b = s.blocks[len(s.blocks)-1].buf
+	}
+	if !s.headed {
+		// The header carries the first match's line, for the preview.
+		b = append(b, "\033[1;35m"...)
+		b = append(b, path...)
+		b = append(b, "\033[0m\t"...)
+		b = append(b, path...)
+		b = append(b, '\t')
+		b = append(b, num...)
+		b = append(b, "\tH\n"...)
+		s.headed = true
+	}
+	b = append(b, row...)
+	if s.sorting {
+		s.blocks[len(s.blocks)-1].buf = b
+		s.held++
+		return
+	}
+	s.write(b)
+	s.out = b
+}
+
+// stream puts out the rows held back, in their current order, and lets the
+// next ones through as they come.
+func (s *rowsState) stream() {
+	s.sorting = false
+	for _, b := range s.blocks {
+		s.write(b.buf)
+	}
+	s.blocks, s.held = nil, 0
+}
+
+func (s *rowsState) write(b []byte) {
+	if s.err == nil {
+		_, s.err = s.w.Write(b)
+	}
+}
+
+// marks returns n cleared flags, reusing m.
+func marks(m []bool, n int) []bool {
+	if cap(m) < n {
+		return make([]bool, n)
+	}
+	m = m[:n]
+	clear(m)
 	return m
 }
 
-func equalRunes(a, b []rune) bool {
-	for i := range b {
-		if a[i] != b[i] {
+// paint appends characters [from, to) of l to b as visible text, every
+// marked run wrapped in on/off.
+func (l *line) paint(b []byte, m []bool, from, to int, on, off string) []byte {
+	in := false
+	for i := from; i < to; i++ {
+		if m[i] != in {
+			in = m[i]
+			if in {
+				b = append(b, on...)
+			} else {
+				b = append(b, off...)
+			}
+		}
+		b = utf8.AppendRune(b, visible(l.raw[i]))
+	}
+	if in {
+		b = append(b, off...)
+	}
+	return b
+}
+
+// visible is the character a row shows for r: a tab as a space (it would add
+// a field), another C0 control or DEL as its Control Pictures symbol (␛), a C1
+// control as U+FFFD -- so no escape sequence from a file reaches fzf, and
+// every character keeps its place for the marks. Invalid UTF-8 was decoded to
+// U+FFFD already.
+func visible(r rune) rune {
+	switch {
+	case r == '\t':
+		return ' '
+	case r < 0x20:
+		return 0x2400 + r
+	case r == 0x7f:
+		return 0x2421
+	case r >= 0x80 && r < 0xa0:
+		return utf8.RuneError
+	}
+	return r
+}
+
+// validPath reports whether p can be listed as is: valid UTF-8 without
+// control characters.
+func validPath(p string) bool {
+	if !utf8.ValidString(p) {
+		return false
+	}
+	for _, r := range p {
+		if r < 0x20 || r == 0x7f || r >= 0x80 && r < 0xa0 {
 			return false
 		}
 	}
 	return true
 }
 
-// chars splits s into characters: the runes to match (folded as the search
-// requires) and each one's byte offset in s, plus len(s), so s[at[i]:at[i+1]]
-// is character i verbatim.
-func (h highlighter) chars(s string) (text []rune, at []int) {
-	for i := 0; i < len(s); {
-		r, size := utf8.DecodeRuneInString(s[i:])
-		if h.fold {
-			r = unicode.ToLower(r)
-		}
-		text = append(text, r)
-		at = append(at, i)
-		i += size
+// mark reverse-videos the query's terms in already-colored text (fm_preview.sh's
+// tree-sitter or bat output), line by line. Escape sequences are copied verbatim
+// and never matched inside (see escLen); reverse is re-asserted after one inside
+// a run, so a mid-run reset can't drop it. A query without positive terms
+// copies r as is.
+func mark(r io.Reader, out io.Writer, query string) error {
+	q := parse(query)
+	if !q.positive() {
+		_, err := io.Copy(out, r)
+		return err
 	}
-	return text, append(at, len(s))
-}
-
-// paint appends s to b with every marked run wrapped in on/off.
-func (h highlighter) paint(b *strings.Builder, s, on, off string) {
-	text, at := h.chars(s)
-	m := h.marks(text)
-	in := false
-	for i := range text {
-		if m[i] != in {
-			in = m[i]
-			if in {
-				b.WriteString(on)
-			} else {
-				b.WriteString(off)
-			}
-		}
-		b.WriteString(s[at[i]:at[i+1]])
+	const on, off = "\033[7m", "\033[27m"
+	type piece struct {
+		esc      bool
+		s        string
+		from, to int // a plain piece's characters in the line's text
 	}
-	if in {
-		b.WriteString(off)
-	}
-}
-
-// eachLine writes to out what fn makes of every line of r, given without its
-// newline and whether it had one (only a final line can lack it).
-func eachLine(r io.Reader, out io.Writer, fn func(b *strings.Builder, line string, nl bool)) error {
 	br := bufio.NewReaderSize(r, 64<<10)
 	w := bufio.NewWriterSize(out, 64<<10)
-	var b strings.Builder
+	var (
+		l      line
+		plain  strings.Builder
+		pieces []piece
+		m      []bool
+		buf    []byte
+	)
 	for {
-		line, err := br.ReadString('\n')
-		if len(line) > 0 {
-			b.Reset()
-			fn(&b, strings.TrimSuffix(line, "\n"), strings.HasSuffix(line, "\n"))
-			if _, werr := w.WriteString(b.String()); werr != nil {
+		s, err := br.ReadString('\n')
+		if len(s) > 0 {
+			nl := strings.HasSuffix(s, "\n")
+			s = strings.TrimSuffix(s, "\n")
+			// The plain pieces are matched as one text, so a term can span a
+			// color change; each is decoded on its own, so no character spans
+			// an escape.
+			pieces = pieces[:0]
+			l.begin()
+			plain.Reset()
+			for rest := s; rest != ""; {
+				if rest[0] == '\033' {
+					n := escLen(rest)
+					pieces = append(pieces, piece{esc: true, s: rest[:n]})
+					rest = rest[n:]
+					continue
+				}
+				n := strings.IndexByte(rest, '\033')
+				if n < 0 {
+					n = len(rest)
+				}
+				from := len(l.raw)
+				l.add(rest[:n], plain.Len())
+				plain.WriteString(rest[:n])
+				pieces = append(pieces, piece{s: rest[:n], from: from, to: len(l.raw)})
+				rest = rest[n:]
+			}
+			l.s = plain.String()
+			l.end()
+			m = marks(m, len(l.raw))
+			q.mark(&l, m)
+			buf = buf[:0]
+			in := false
+			for _, p := range pieces {
+				if p.esc {
+					buf = append(buf, p.s...)
+					if in {
+						buf = append(buf, on...)
+					}
+					continue
+				}
+				for i := p.from; i < p.to; i++ {
+					if m[i] != in {
+						in = m[i]
+						if in {
+							buf = append(buf, on...)
+						} else {
+							buf = append(buf, off...)
+						}
+					}
+					buf = append(buf, l.s[l.at[i]:l.at[i+1]]...)
+				}
+			}
+			if in {
+				buf = append(buf, off...)
+			}
+			if nl {
+				buf = append(buf, '\n')
+			}
+			if _, werr := w.Write(buf); werr != nil {
 				return werr
 			}
 		}
@@ -161,119 +420,46 @@ func eachLine(r io.Reader, out io.Writer, fn func(b *strings.Builder, line strin
 	}
 }
 
-// rows turns `rg --null --line-number` output (PATH NUL LINE:CODE per match)
-// into fm_rg.sh's tab-delimited rows: a bold header row per file, then one
-// indented "line:code" row per match with the terms in bold cyan. Fields 2-4
-// carry the path, the line and the row's kind (H header, M match). It splits
-// on the NUL, not the first colon, so a path holding ":" survives, and squashes
-// tabs in path and code so neither adds fields. A record without a NUL is the
-// head of a file name holding a newline (rg still ends records with one), and
-// is dropped rather than shown as a phantom row.
-func rows(r io.Reader, out io.Writer, query string) error {
-	h := newHighlighter(query)
-	cur := ""
-	return eachLine(r, out, func(b *strings.Builder, rec string, _ bool) {
-		path, rest, ok := strings.Cut(rec, "\x00")
-		if !ok {
-			return
-		}
-		path = strings.ReplaceAll(path, "\t", " ")
-		line, code, ok := strings.Cut(rest, ":")
-		if !ok {
-			line, code = "", rest
-		}
-		if path != cur {
-			cur = path
-			b.WriteString("\033[1;35m" + path + "\033[0m\t" + path + "\t" + line + "\tH\n")
-		}
-		b.WriteString("  " + line + ":")
-		h.paint(b, strings.ReplaceAll(code, "\t", " "), "\033[1;36m", "\033[0m")
-		b.WriteString("\t" + path + "\t" + line + "\tM\n")
-	})
-}
-
-// mark reverse-videos the terms in already-colored text (fm_preview.sh's
-// tree-sitter or bat output). Escape sequences (CSI, or a lone ESC) are copied
-// verbatim and never matched inside; reverse is re-asserted after one inside a
-// run, so a mid-run reset can't drop it. A query without terms copies r as is.
-func mark(r io.Reader, out io.Writer, query string) error {
-	h := newHighlighter(query)
-	if len(h.terms) == 0 {
-		_, err := io.Copy(out, r)
-		return err
+// escLen is the length of the escape sequence s starts with (s[0] is ESC), per
+// ECMA-48: a CSI (parameter bytes, intermediate bytes, a final byte), a
+// string (OSC, DCS, SOS, PM, APC) up to BEL or ST, or a two-byte or nF escape.
+// A malformed one counts as a lone ESC; an unterminated string runs to the end.
+func escLen(s string) int {
+	if len(s) < 2 {
+		return 1
 	}
-	const on, off = "\033[7m", "\033[27m"
-	type piece struct {
-		esc  bool
-		s    string
-		at   []int // a plain piece's character offsets (see chars)
-		from int   // the index of its first character in the line's text
-	}
-	return eachLine(r, out, func(b *strings.Builder, line string, nl bool) {
-		// Split the line into escapes and the plain text between them; the
-		// plain pieces are matched as one text, so a term can span a color
-		// change.
-		var pieces []piece
-		var text []rune
-		for s := line; s != ""; {
-			if s[0] == '\033' {
-				n := max(csiLen(s), 1)
-				pieces = append(pieces, piece{esc: true, s: s[:n]})
-				s = s[n:]
-				continue
-			}
-			n := strings.IndexByte(s, '\033')
-			if n < 0 {
-				n = len(s)
-			}
-			t, at := h.chars(s[:n])
-			pieces = append(pieces, piece{s: s[:n], at: at, from: len(text)})
-			text = append(text, t...)
-			s = s[n:]
+	switch c := s[1]; {
+	case c == '[':
+		i := 2
+		for i < len(s) && s[i] >= 0x30 && s[i] <= 0x3f {
+			i++
 		}
-		m := h.marks(text)
-		in := false
-		for _, p := range pieces {
-			if p.esc {
-				b.WriteString(p.s)
-				if in {
-					b.WriteString(on)
-				}
-				continue
+		for i < len(s) && s[i] >= 0x20 && s[i] <= 0x2f {
+			i++
+		}
+		if i < len(s) && s[i] >= 0x40 && s[i] <= 0x7e {
+			return i + 1
+		}
+	case c == ']' || c == 'P' || c == 'X' || c == '^' || c == '_':
+		for i := 2; i < len(s); i++ {
+			if s[i] == 0x07 {
+				return i + 1
 			}
-			for i := 0; i+1 < len(p.at); i++ {
-				if m[p.from+i] != in {
-					in = m[p.from+i]
-					if in {
-						b.WriteString(on)
-					} else {
-						b.WriteString(off)
-					}
-				}
-				b.WriteString(p.s[p.at[i]:p.at[i+1]])
+			if s[i] == '\033' && i+1 < len(s) && s[i+1] == '\\' {
+				return i + 2
 			}
 		}
-		if in {
-			b.WriteString(off)
+		return len(s)
+	case c >= 0x20 && c <= 0x2f:
+		i := 2
+		for i < len(s) && s[i] >= 0x20 && s[i] <= 0x2f {
+			i++
 		}
-		if nl {
-			b.WriteString("\n")
+		if i < len(s) && s[i] >= 0x30 && s[i] <= 0x7e {
+			return i + 1
 		}
-	})
-}
-
-// csiLen is the length of the CSI sequence (ESC [ params letter, params being
-// digits, ';' and '?') that s starts with, or 0 if it starts with none.
-func csiLen(s string) int {
-	if len(s) < 2 || s[0] != '\033' || s[1] != '[' {
-		return 0
+	case c >= 0x30 && c <= 0x7e:
+		return 2
 	}
-	i := 2
-	for i < len(s) && (s[i] >= '0' && s[i] <= '9' || s[i] == ';' || s[i] == '?') {
-		i++
-	}
-	if i < len(s) && (s[i] >= 'A' && s[i] <= 'Z' || s[i] >= 'a' && s[i] <= 'z') {
-		return i + 1
-	}
-	return 0
+	return 1
 }
