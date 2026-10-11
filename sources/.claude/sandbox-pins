@@ -40,7 +40,7 @@
 # locks guard direnv's outputs, this guards its input.
 .config/direnv
 #
-# Left writable on purpose: on-demand tool config (bat, navi, ripgrep, readline,
+# Left writable on purpose: on-demand tool config (bat, ripgrep, readline,
 # nvim-fzf, tree-sitter), the fzf scripts under shell/scripts/, and — the repo's
 # main editing target, though the host runs them unprompted too — the tmux,
 # starship and alacritty configs. Add them here if that trade-off changes.
