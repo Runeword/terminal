@@ -186,7 +186,7 @@ gc = [
   { cmd = 'gcloud config set project <project>', desc = 'project › set', run = false },
   { cmd = 'gcloud secrets list', desc = 'secret › list', run = false },
   { cmd = 'gcloud secrets versions access latest --secret=<secret>', desc = 'secret › get', run = false },
-  { cmd = 'echo <value> | gcloud secrets versions add <secret> --data-file=-', desc = 'secret › set', run = false },
+  { cmd = 'IFS= read -rs "__secret?value: " && echo && printf %s "$__secret" | gcloud secrets versions add <secret> --data-file=-; unset __secret', desc = 'secret › set', run = false },
 ]
 
 [task]
