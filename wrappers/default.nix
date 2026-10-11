@@ -91,13 +91,6 @@ in
       permeance
       ;
   };
-  navi = import ./navi.nix {
-    inherit
-      pkgs
-      files
-      permeance
-      ;
-  };
   nvim-fzf = import ./nvim-fzf.nix {
     inherit
       pkgs
