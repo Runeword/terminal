@@ -179,7 +179,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "claude";
-      description = "Verify claude binary executes, settings.json commands resolve, the status line renders, comma looks packages up offline, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
+      description = "Verify claude binary executes, settings.json commands resolve and keep CLAUDE.local.md files out of context, the status line renders, comma looks packages up offline, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
       script = ''
         # claude-code does not expose a config-loading probe that works in a
         # sandbox without auth/network. This only verifies the wrapper's binary
@@ -207,6 +207,15 @@ let
             fail "settings.json command not on claude's PATH: $cmd"
           fi
         done
+
+        # CLAUDE.local.md is git-ignored, so one a session plants, at the root
+        # or in a subdirectory, would steer every later session without ever
+        # showing in git status. settings.json keeps them all out of context.
+        if ${pkgs.jq}/bin/jq -e '.claudeMdExcludes | index("**/CLAUDE.local.md")' "$settings" > /dev/null; then
+          ok "settings.json keeps CLAUDE.local.md files out of context"
+        else
+          fail "settings.json lets CLAUDE.local.md files into context"
+        fi
 
         # Run the status line the way Claude Code does (sh -c, claude's PATH) on
         # a fixed payload. No rate_limits, so the line doesn't depend on the clock.
