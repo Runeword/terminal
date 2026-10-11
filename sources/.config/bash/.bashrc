@@ -9,7 +9,11 @@
 # export LS_COLORS
 # export EDITOR=nvim
 
-export HISTFILE="${XDG_STATE_HOME}"/bash/history
+# Not exported: a child bash that does not read this file (nix develop's,
+# nix-shell's) would inherit it and cut the file to its default 500 lines.
+# export -n also drops an export inherited from the parent.
+HISTFILE="${XDG_STATE_HOME}"/bash/history
+export -n HISTFILE
 HISTSIZE=100000
 HISTFILESIZE=100000
 
