@@ -242,7 +242,6 @@ nixtok() {
 # "dir": "contrib", "owner": "sourcegraph", "repo": "src-cli", "type": "github" type:owner/repo?dir=dir
 # templates=$(nix flake metadata "$flake_path" --json | jq -r .path)
 # --preview '[ -f {} ] && bat --style=plain --color=always {}' \
-# chezmoi diff --reverse --color=true
 # nix-instantiate --parse templates/firebase/flake.nix | bat --language=nix
 # cat templates/firebase/flake.nix | bat --language nix
 # "nix flake update $HOME/flake"; # update all inputs
