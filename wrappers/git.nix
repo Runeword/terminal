@@ -76,12 +76,13 @@ let
         fi
 
         # Dashed builtins must bypass the launcher — its `-c` prefix would
-        # break them, and ssh-served fetch/push with them.
-        if ${self}/bin/git-upload-pack -h 2>&1 | grep -q "unknown switch"; then
-          fail "git-upload-pack hits the launcher -c prefix"
-        else
-          ok "git-upload-pack bypasses the launcher"
-        fi
+        # break them, and ssh-served fetch/push with them. `-h` exits 129, so
+        # its output is captured: piped under pipefail, the check could never fail.
+        usage=$(${self}/bin/git-upload-pack -h 2>&1 || true)
+        case "$usage" in
+          *"unknown switch"*) fail "git-upload-pack hits the launcher -c prefix" ;;
+          *) ok "git-upload-pack bypasses the launcher" ;;
+        esac
       '';
     };
   };
