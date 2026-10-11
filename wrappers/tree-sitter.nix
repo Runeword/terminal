@@ -29,8 +29,10 @@
 #
 #   * Everything else the CLI needs -- filename->language detection and the highlight
 #     queries -- the grammar *source* already ships (`tree-sitter.json` + `queries/`),
-#     so we read detection metadata from it and symlink its queries straight in
-#     rather than re-emitting them; the parser's exported symbol name (which the CLI
+#     so we read detection metadata from it and point at its query files rather
+#     than re-emitting them: per query type, the ones its tree-sitter.json lists
+#     (typescript's and tsx's take javascript's too, via node_modules/), else its
+#     own queries/<type>.scm. The parser's exported symbol name (which the CLI
 #     dlopens by) is read from the object with the host's `nm`. `TREE_SITTER_DIR`
 #     points the CLI at the generated `config.json` (parser-directories + theme).
 #     The metadata keeps each grammar's `injection-regex`: the CLI finds the grammar
@@ -38,7 +40,7 @@
 #
 # The theme lives in sources/.config/tree-sitter/theme.json (mirroring the user's
 # Neovim nightfly colorscheme, resolved capture-by-capture, so the preview matches
-# the editor; highlight queries come from each grammar's own queries/). In dev mode
+# the editor; highlight queries come from each grammar's source). In dev mode
 # $PERMEANCE_ROOT points at the working sources/ tree, so the launcher below re-reads
 # that file each launch and synthesises the CLI config: colour edits take effect on
 # the next preview with no rebuild. The copy read at build time is the fallback
@@ -175,8 +177,8 @@ let
     if builtins.pathExists themeFile then builtins.readFile themeFile else builtins.toJSON defaultTheme;
 
   # Build-time assembly. One grammar dir per language, each reusing the grammar
-  # source's own tree-sitter.json metadata + queries (symlinked), plus a stub src/
-  # and the parser `.so` in the libdir. No compiler, no query rewriting.
+  # source's own tree-sitter.json metadata + query files (by path), plus a stub
+  # src/ and the parser `.so` in the libdir. No compiler, no query rewriting.
   bundle =
     pkgs.runCommand "tree-sitter-bundle"
       {
@@ -245,16 +247,38 @@ let
                 for key, tkey in regexes.items():
                     if g.get(tkey):
                         m.setdefault(key, g[tkey])
+                m["queries"] = {q: g[q] for q in ("highlights", "injections", "locals") if g.get(q)}
             m["fileTypes"] = m.get("fileTypes", []) + m.pop("extraFileTypes", [])
+            m.setdefault("queries", {})
             return m
+
+        def resolve(attr, path):
+            # A query path from tree-sitter.json, relative to the grammar's source.
+            # node_modules/tree-sitter-<x>/ names another grammar's source: that is
+            # how typescript and tsx take javascript's queries.
+            dep = "node_modules/tree-sitter-"
+            if path.startswith(dep):
+                x, rest = path[len(dep):].split("/", 1)
+                return f"{srcs[x]}/{rest}" if x in srcs else None
+            return f"{srcs[attr]}/{path}"
 
         def build(attr):
             name = name_of(parsers[attr])
             m = meta(attr, srcs[attr])
             qdir = f"{srcs[attr]}/queries"
-            qtypes = [q for q in ("highlights", "injections", "locals")
-                      if os.path.exists(f"{qdir}/{q}.scm")]
-            if not (m.get("scope") and m.get("fileTypes")) or "highlights" not in qtypes:
+            # Per query type, the files the grammar's tree-sitter.json lists, in
+            # order (typescript's highlights: its own, then javascript's), else its
+            # own queries/<type>.scm. `own` alone is the fallback should the listed
+            # ones not load.
+            own = {q: f"queries/{q}.scm" for q in ("highlights", "injections", "locals")
+                   if os.path.exists(f"{qdir}/{q}.scm")}
+            listed = dict(own)
+            for q, paths in m["queries"].items():
+                paths = [resolve(attr, p) for p in ([paths] if isinstance(paths, str) else paths)]
+                paths = [p for p in paths if p and os.path.exists(p)]
+                if paths:
+                    listed[q] = paths
+            if not (m.get("scope") and m.get("fileTypes")) or "highlights" not in listed:
                 return None
             gd = f"{out}/grammars/tree-sitter-{attr}"
             os.makedirs(f"{gd}/src")
@@ -267,12 +291,16 @@ let
             os.utime(f"{gd}/src/parser.c", (0, 0))
             g = {"name": name, "scope": m["scope"], "file-types": m["fileTypes"]}
             g.update({tkey: m[key] for key, tkey in regexes.items() if m.get(key)})
-            g.update({q: f"queries/{q}.scm" for q in qtypes})
-            open(f"{gd}/tree-sitter.json", "w").write(
-                json.dumps({"grammars": [g], "metadata": {"version": "0.0.1"}})
-            )
+
+            def write(queries):
+                open(f"{gd}/tree-sitter.json", "w").write(
+                    json.dumps({"grammars": [dict(g, **queries)], "metadata": {"version": "0.0.1"}})
+                )
+
+            write(listed)
             os.symlink(parsers[attr], f"{out}/libdir/{name}.{dylib_ext}")
-            return {"name": name, "scope": m["scope"]}
+            fallback = (lambda: write(own)) if listed != own and "highlights" in own else None
+            return {"name": name, "scope": m["scope"], "fallback": fallback}
 
         built = {attr: build(attr) for attr in srcs}
 
@@ -309,6 +337,11 @@ let
             if m is None:
                 dropped.append(attr)
                 continue
+            if not loads_ok(m["scope"]) and m["fallback"]:
+                # Another grammar's queries can name a node type this pin's parser
+                # lacks: keep the grammar's own rather than lose it.
+                m["fallback"]()
+                print(f"{attr}: its listed queries do not load, kept its own")
             if not loads_ok(m["scope"]):
                 shutil.rmtree(f"{out}/grammars/tree-sitter-{attr}", ignore_errors=True)
                 os.remove(f"{out}/libdir/{m['name']}.{dylib_ext}")
@@ -366,7 +399,7 @@ let
       {
         passthru.tests.smoke = permeance.tests.mkSmoke {
           name = "tree-sitter";
-          description = "Verify the wrapped tree-sitter highlights via the baked libdir, embedded languages and zsh files included, and keeps the baked config when the dev-mode cache is read-only";
+          description = "Verify the wrapped tree-sitter highlights via the baked libdir, embedded languages, TypeScript's inherited JavaScript queries and zsh files included, and keeps the baked config when the dev-mode cache is read-only";
           script = ''
             sample="$TMPDIR/sample.nix"
             printf 'let x = { a = "hi"; }; in x.a\n' > "$sample"
@@ -393,6 +426,17 @@ let
               ok "a <script> body in HTML is highlighted as JavaScript"
             else
               fail "a <script> body in HTML is not highlighted (injection-regex dropped?)"
+            fi
+
+            # typescript's tree-sitter.json takes its base highlights from
+            # javascript's (node_modules/tree-sitter-javascript/): without them a
+            # .ts file's comments and keywords stay uncoloured.
+            tsfile="$TMPDIR/sample.ts"
+            printf '// note\nconst x = 1;\n' > "$tsfile"
+            if ${self}/bin/tree-sitter highlight -q "$tsfile" 2>/dev/null | sed -n 1p | grep -q $'\033\['; then
+              ok "a TypeScript comment is highlighted (javascript's queries inherited)"
+            else
+              fail "a TypeScript comment is not highlighted (javascript's queries not inherited?)"
             fi
 
             zshrc="$TMPDIR/.zshrc"
