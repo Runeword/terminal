@@ -44,7 +44,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, the leader table renders, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, a launch drops what a session planted for the next one, the untracked-file preview and __open_file pass paths after --, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, the leader table renders and gc's secret › set reads its value silently, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -60,6 +60,15 @@ let
           ok "bundled leader.toml renders and binds gt to git status"
         else
           fail "bundled leader.toml does not render the gt chord"
+        fi
+
+        # gc's secret › set reads the value silently, so it never reaches the
+        # command line or the shell history.
+        if ${leaderAliases}/bin/leader-aliases ${self}/.config/shell/leader.toml \
+          | awk -F "$sep" '$5 ~ /gcloud secrets versions add/ && $5 ~ /read -rs/ { found = 1 } END { exit !found }'; then
+          ok "gc's secret › set reads the value silently"
+        else
+          fail "gc's secret › set takes the value on the command line"
         fi
 
         # godc (and gow when it stops) clears the Go dev builds that shadow the
@@ -145,6 +154,19 @@ let
           ok "a launch drops the MCP servers and local settings a session planted, keeping claude's permission rules"
         else
           fail "a launch keeps what a session planted for the next one"
+        fi
+
+        # The same launch removes the user-level instructions a session can
+        # plant in its profile, which load into every later session: what
+        # sources/.claude does not provide, and skills/ whole (claude downloads
+        # its synced ones again at start).
+        p=$HOME/.claude-1
+        mkdir -p "$p/agents" "$p/skills/x" && : > "$p/agents/a.md" && : > "$p/CLAUDE.md" && : > "$p/skills/x/SKILL.md"
+        (cd "$HOME/proj" && CLAUDE_SANDBOX=0 PATH=${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$launch" 2>/dev/null)
+        if [ ! -e "$p/agents" ] && [ ! -e "$p/CLAUDE.md" ] && [ ! -e "$p/skills" ] && [ -L "$p/rules" ]; then
+          ok "a launch removes the agents, CLAUDE.md and skills a session planted in its profile"
+        else
+          fail "a launch keeps instructions a session planted in its profile"
         fi
 
         # The untracked-file preview hands git diff its path after --: git obeys
