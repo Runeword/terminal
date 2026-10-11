@@ -11,14 +11,14 @@ import (
 // clean's dry run unquoted, all sorted and deduplicated.
 func TestListPaths(t *testing.T) {
 	git := fakeGit(map[string]string{
-		"diff --cached --name-only -z":            "s.txt\x00b.txt\x00",
-		"diff --name-only -z":                     "b.txt\x00café.txt\x00",
-		"ls-files --others --exclude-standard -z": "a b.txt\x00new\nline\x00",
+		"diff --cached --name-only --no-renames -z": "s.txt\x00b.txt\x00",
+		"diff --name-only --no-renames -z":          "b.txt\x00café.txt\x00",
+		"ls-files --others --exclude-standard -z":   "a b.txt\x00new\nline\x00",
 		"clean --dry-run -d": "Would remove a b.txt\nWould remove \"caf\\303\\251\\tx.txt\"\n" +
 			"Would remove dir/\nWould skip repository sub/\n",
-		"ls-files --others --ignored --exclude-standard --directory -z":          "build/\x00debug run.log\x00",
-		"diff-tree --root --no-commit-id --name-only -r -z --end-of-options abc": "x.go\x00y.go\x00",
-		"ls-tree -r --full-tree --name-only -z --end-of-options abc":             "a\x00b/c\x00",
+		"ls-files --others --ignored --exclude-standard --directory -z":                                     "build/\x00debug run.log\x00",
+		"diff-tree --root --no-commit-id --name-only --diff-merges=first-parent -r -z --end-of-options abc": "x.go\x00y.go\x00",
+		"ls-tree -r --full-tree --name-only -z --end-of-options abc":                                        "a\x00b/c\x00",
 	})
 	tests := []struct {
 		kind, rev string
@@ -154,5 +154,68 @@ func TestPathsRealGit(t *testing.T) {
 				t.Errorf("paths %s = %q, want %q", strings.Join(tt.args, " "), b.String(), joinList(tt.want))
 			}
 		})
+	}
+}
+
+// TestPathsRenamesAndMerges: a staged rename lists both of its sides, both of
+// which unstaging it needs, and a merge commit lists what it brought in over
+// its first parent.
+func TestPathsRenamesAndMerges(t *testing.T) {
+	repo := t.TempDir()
+	t.Setenv("HOME", repo)
+	t.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+	t.Setenv("GIT_CONFIG_SYSTEM", "/dev/null")
+	for _, v := range []string{"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"} {
+		t.Setenv(v, "t")
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+	if err := os.Chdir(repo); err != nil {
+		t.Fatal(err)
+	}
+	git := func(args ...string) {
+		t.Helper()
+		if _, err := runGit(args...); err != nil {
+			t.Fatalf("git %s: %v", strings.Join(args, " "), err)
+		}
+	}
+	write := func(name, s string) {
+		t.Helper()
+		if err := os.WriteFile(name, []byte(s), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git("init", "-q")
+	write("old.txt", "o\n")
+	write("m.txt", "1\n")
+	git("add", "-A")
+	git("commit", "-qm", "base")
+	git("checkout", "-qb", "side")
+	write("m.txt", "2\n")
+	git("commit", "-qam", "side")
+	git("checkout", "-q", "-")
+	write("n.txt", "n\n")
+	git("add", "n.txt")
+	git("commit", "-qm", "main")
+	git("merge", "-q", "--no-ff", "--no-edit", "side")
+	git("mv", "old.txt", "new.txt")
+
+	for _, tt := range []struct {
+		args []string
+		want []string
+	}{
+		{[]string{"staged"}, []string{"new.txt", "old.txt"}},
+		{[]string{"commit", "HEAD"}, []string{"m.txt"}},
+	} {
+		var b strings.Builder
+		if err := runPaths("paths", tt.args, nil, &b); err != nil {
+			t.Fatal(err)
+		}
+		if b.String() != joinList(tt.want) {
+			t.Errorf("paths %s = %q, want %q", strings.Join(tt.args, " "), b.String(), joinList(tt.want))
+		}
 	}
 }
