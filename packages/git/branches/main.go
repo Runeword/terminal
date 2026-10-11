@@ -190,6 +190,7 @@ type branchInfo struct {
 	branches  []string
 	worktrees map[string]string // branch → worktree path
 	remote    map[string]bool   // branch → true iff it came from refs/remotes
+	local     map[string]string // remote branch → its name without the remote
 	pager     string
 }
 
@@ -301,6 +302,7 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 
 	var all []string
 	remoteSet := map[string]bool{}
+	localNames := map[string]string{}
 	for _, name := range locals {
 		if excludeCurrent && name == current {
 			continue
@@ -313,6 +315,9 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 		}
 		all = append(all, rb.display)
 		remoteSet[rb.display] = true
+		if rb.logical != rb.display {
+			localNames[rb.display] = rb.logical
+		}
 	}
 
 	return &branchInfo{
@@ -321,6 +326,7 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 		branches:  all,
 		worktrees: worktrees,
 		remote:    remoteSet,
+		local:     localNames,
 		pager:     pager,
 	}, nil
 }
@@ -506,7 +512,8 @@ func cherryPick() error {
 	}
 
 	// Step 2: pick commits from that branch that are not in HEAD.
-	commits, err := gitLines("log", "--oneline", branch, "--not", "HEAD")
+	// --no-color: cherryPickCmd finds the picked commits by their first field.
+	commits, err := gitLines("log", "--oneline", "--no-color", branch, "--not", "HEAD")
 	if err != nil {
 		return err
 	}
@@ -531,21 +538,31 @@ func cherryPick() error {
 		return nil
 	}
 
-	var hashes []string
+	fmt.Print(cherryPickCmd(commits, selected))
+	return nil
+}
+
+// cherryPickCmd is the command for the commits selected from commits (git log
+// --oneline, newest first): oldest first, the order they were made in, since
+// each may build on the one before. fzf returns a selection in list order, or
+// in the order it was made, so its order is not used.
+func cherryPickCmd(commits []string, selected string) string {
+	picked := map[string]bool{}
 	for _, line := range strings.Split(selected, "\n") {
 		if fields := strings.Fields(line); len(fields) > 0 {
-			hashes = append(hashes, fields[0])
+			picked[fields[0]] = true
 		}
 	}
-
-	if len(hashes) > 0 {
-		quoted := make([]string, len(hashes))
-		for i, h := range hashes {
-			quoted[i] = shellQuote(h)
+	var quoted []string
+	for i := len(commits) - 1; i >= 0; i-- {
+		if fields := strings.Fields(commits[i]); len(fields) > 0 && picked[fields[0]] {
+			quoted = append(quoted, shellQuote(fields[0]))
 		}
-		fmt.Printf("git cherry-pick %s", strings.Join(quoted, " "))
 	}
-	return nil
+	if len(quoted) == 0 {
+		return ""
+	}
+	return "git cherry-pick " + strings.Join(quoted, " ")
 }
 
 // diffBranches picks 1-2 branches, then files from their diff, and outputs an editor command.
@@ -729,9 +746,21 @@ func worktreeAdd() error {
 		return fmt.Errorf("worktree-add: no free directory name under %s within %d tries", baseDir, maxAttempts)
 	}
 
-	fmt.Printf("git worktree add --end-of-options %s %s && builtin cd %s ",
-		shellQuote(worktreePath), shellQuote(selected), shellQuote(worktreePath))
+	fmt.Print(worktreeAddCmd(worktreePath, selected, info.local[selected]))
 	return nil
+}
+
+// worktreeAddCmd is the command gwa prints for branch at path. local is a
+// remote-only branch's name without its remote, and empty for a local branch:
+// given origin/feat as is, git worktree add checks the remote-tracking ref out
+// detached, so it gets a local branch tracking it instead, as gbs's git switch
+// --track does.
+func worktreeAddCmd(path, branch, local string) string {
+	add := "git worktree add --end-of-options " + shellQuote(path) + " " + shellQuote(branch)
+	if local != "" {
+		add = "git worktree add --track -b " + shellQuote(local) + " --end-of-options " + shellQuote(path) + " " + shellQuote(branch)
+	}
+	return add + " && builtin cd " + shellQuote(path) + " "
 }
 
 // worktreeRemove picks worktrees to remove and outputs the shell commands to execute.
@@ -814,33 +843,42 @@ func worktreeRemove() error {
 	}
 
 	var selectedPaths []string
-	needsCd := false
 	for _, line := range strings.Split(selected, "\n") {
 		parts := strings.SplitN(line, "\t", 5)
 		if len(parts) < 4 {
 			continue
 		}
-		p := parts[3]
-		selectedPaths = append(selectedPaths, p)
-		if p == currentDir {
-			needsCd = true
-		}
+		selectedPaths = append(selectedPaths, parts[3])
 	}
 	if len(selectedPaths) == 0 {
 		return nil
 	}
 
-	var cmds []string
-	if needsCd {
-		cmds = append(cmds, fmt.Sprintf("builtin cd %s", shellQuote(mainWorktree)))
-	}
-	for _, p := range selectedPaths {
-		cmds = append(cmds, fmt.Sprintf("git worktree remove --end-of-options %s", shellQuote(p)))
-	}
-	cmds = append(cmds, "ls")
-
-	fmt.Print(strings.Join(cmds, " && "))
+	fmt.Print(worktreeRemoveCmd(currentDir, mainWorktree, selectedPaths))
 	return nil
+}
+
+// worktreeRemoveCmd is the command gwr prints to remove paths. It cds to the
+// main worktree first when the shell's directory, cwd, is one of them or lies
+// below one: removing it would leave the shell in a deleted directory.
+func worktreeRemoveCmd(cwd, mainWorktree string, paths []string) string {
+	var cmds []string
+	for _, p := range paths {
+		if within(cwd, p) {
+			cmds = append(cmds, "builtin cd "+shellQuote(mainWorktree))
+			break
+		}
+	}
+	for _, p := range paths {
+		cmds = append(cmds, "git worktree remove --end-of-options "+shellQuote(p))
+	}
+	return strings.Join(append(cmds, "ls"), " && ")
+}
+
+// within reports whether dir is root or lies below it.
+func within(dir, root string) bool {
+	rel, err := filepath.Rel(root, dir)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // worktreeSwitch lists existing worktrees and outputs a `cd` into the selected
