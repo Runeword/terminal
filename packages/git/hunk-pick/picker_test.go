@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -26,6 +27,12 @@ var fooDiff = fooHeader + fooHunk1 + fooHunk2
 
 // fakeGit answers the picker's git calls from a table keyed by the joined
 // arguments; anything else prints nothing.
+// The diffs every op runs, as fakeGit and the printed commands spell them.
+const (
+	wtDiff  = "diff --no-ext-diff --no-textconv --no-color --src-prefix=a/ --dst-prefix=b/ --unified=0"
+	idxDiff = "diff --cached --no-ext-diff --no-textconv --no-color --src-prefix=a/ --dst-prefix=b/ --unified=0"
+)
+
 func fakeGit(out map[string]string) func(args ...string) (string, error) {
 	return func(args ...string) (string, error) { return out[strings.Join(args, " ")], nil }
 }
@@ -123,7 +130,7 @@ func TestPickerKeyAndLoad(t *testing.T) {
 			p := picker{
 				dir:    dir,
 				getenv: func(k string) string { return env[k] },
-				git:    fakeGit(map[string]string{"diff --unified=0 -- foo.txt": fooDiff}),
+				git:    fakeGit(map[string]string{wtDiff + " -- foo.txt": fooDiff}),
 			}
 			if err := p.saveState(tt.state); err != nil {
 				t.Fatal(err)
@@ -195,7 +202,7 @@ func TestPickerDistrustsState(t *testing.T) {
 			p := picker{
 				dir:    t.TempDir(),
 				getenv: func(string) string { return "" },
-				git:    fakeGit(map[string]string{"diff --unified=0 -- foo.txt": fooDiff}),
+				git:    fakeGit(map[string]string{wtDiff + " -- foo.txt": fooDiff}),
 			}
 			if err := os.WriteFile(p.path("state.json"), []byte(tt.state), 0o600); err != nil {
 				t.Fatal(err)
@@ -221,9 +228,9 @@ func TestPickerDistrustsState(t *testing.T) {
 // deduplicated, and saves them for a return.
 func TestPickerFiles(t *testing.T) {
 	git := fakeGit(map[string]string{
-		"diff --name-only -z":                     "b.txt\x00café.txt\x00",
-		"diff --cached --name-only -z":            "s.txt\x00",
-		"ls-files --others --exclude-standard -z": "a b.txt\x00b.txt\x00new\nline\x00",
+		"diff --name-only --no-renames -z":          "b.txt\x00café.txt\x00",
+		"diff --cached --name-only --no-renames -z": "s.txt\x00",
+		"ls-files --others --exclude-standard -z":   "a b.txt\x00b.txt\x00new\nline\x00",
 	})
 	tests := []struct{ op, want string }{
 		{"stage", "a b.txt\x00b.txt\x00café.txt\x00new\nline\x00"},
@@ -251,9 +258,9 @@ func TestPickerFiles(t *testing.T) {
 // marked, a.txt was only Tab-marked.
 func TestPickerFinalize(t *testing.T) {
 	const (
-		h    = "git -C . diff --unified=0 -- 'h.txt' | git-hunk-pick assemble --sum aaaaaaaaaaaa 1 3"
-		it   = `git -C . diff --unified=0 -- 'it'\''s.txt' | git-hunk-pick assemble --sum bbbbbbbbbbbb 2`
-		hIdx = "git -C . diff --cached --unified=0 -- 'h.txt' | git-hunk-pick assemble --sum aaaaaaaaaaaa 1 3"
+		h    = "git -C . " + wtDiff + " -- 'h.txt' | git-hunk-pick assemble --sum aaaaaaaaaaaa 1 3"
+		it   = "git -C . " + wtDiff + ` -- 'it'\''s.txt' | git-hunk-pick assemble --sum bbbbbbbbbbbb 2`
+		hIdx = "git -C . " + idxDiff + " -- 'h.txt' | git-hunk-pick assemble --sum aaaaaaaaaaaa 1 3"
 	)
 	tests := []struct {
 		name, op string
@@ -301,6 +308,20 @@ func TestPickerFinalize(t *testing.T) {
 				t.Errorf("finalize =\n%q\nwant\n%q", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestPickOpDiffKeepsUserConfigOut: every op's diff, the one a drill parses
+// and the printed command re-reads, sets all that the user's config could
+// change in it.
+func TestPickOpDiffKeepsUserConfigOut(t *testing.T) {
+	for name, op := range pickOps {
+		got := " " + strings.Join(op.diff(), " ") + " "
+		for _, flag := range []string{"--no-ext-diff", "--no-textconv", "--no-color", "--src-prefix=a/", "--dst-prefix=b/", "--unified=0"} {
+			if !strings.Contains(got, " "+flag+" ") {
+				t.Errorf("%s: diff%slacks %s", name, got, flag)
+			}
+		}
 	}
 }
 
@@ -430,6 +451,25 @@ func TestFinalizedCommand(t *testing.T) {
 		var exit *exec.ExitError
 		if !errors.As(err, &exit) {
 			t.Errorf("command succeeded (%v), want it to fail", err)
+		}
+	})
+
+	t.Run("the user's diff config changes nothing", func(t *testing.T) {
+		// Color codes, another prefix and an external diff that prints
+		// nothing: neither the drill nor the printed command may see them.
+		for i, kv := range [][2]string{{"color.ui", "always"}, {"diff.mnemonicPrefix", "true"}, {"diff.external", "true"}} {
+			t.Setenv("GIT_CONFIG_KEY_"+strconv.Itoa(i), kv[0])
+			t.Setenv("GIT_CONFIG_VALUE_"+strconv.Itoa(i), kv[1])
+		}
+		t.Setenv("GIT_CONFIG_COUNT", "3")
+		writeF(t, base)
+		git(t, "add", "f.txt")
+		writeF(t, edited)
+		if err := run(t, pickSecond(t, "stage")); err != nil {
+			t.Fatalf("command failed: %v", err)
+		}
+		if got := git(t, "show", ":f.txt"); got != second {
+			t.Errorf("index f.txt = %q, want %q", got, second)
 		}
 	})
 
