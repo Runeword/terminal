@@ -490,7 +490,6 @@ __deferred_compdefs() {
   (( __compinit_loaded )) || return
   compdef _cd __cd 2>/dev/null
   compdef _cd __mkdir_cd 2>/dev/null
-  compdef _files __chezmoi add 2>/dev/null
   compdef _files __cp 2>/dev/null
   add-zsh-hook -d precmd __deferred_compdefs
 }
