@@ -34,13 +34,21 @@ __run_alias() {
 # chord that matches nothing is inserted into the line as typed. A table that
 # fails to render (parse error, binary missing) is reported in the status
 # line instead of silently offering nothing.
+# A press starts as few processes as it can, since a process start can cost
+# tens of milliseconds (macOS behind endpoint security): the rows are rendered
+# once (__aliases_rows), the pick is read with parameter expansions, and an
+# accepted line fetches no suggestion. It always fails, which tells
+# __on_empty_buffer the prompt is unchanged, so the line is only redrawn.
 __aliases() {
   local table="${1:-$PERMEANCE_TREE/.config/shell/leader.toml}"
+  # leader-aliases separates a row's fields with U+00A0 (no-break space).
+  local sep=$'\302\240'
   local rows
-  if ! rows=$(leader-aliases -width "${COLUMNS:-0}" "$table" 2>&1); then
-    zle -M "${rows:-leader-aliases: failed to render $table}"
+  if ! __aliases_rows "$table"; then
+    zle -M "${REPLY:-leader-aliases: failed to render $table}"
     return 1
   fi
+  rows=$REPLY
 
   local selected
   if selected=$(
@@ -53,7 +61,7 @@ __aliases() {
         --nth=1 \
         --no-info \
         --no-separator \
-        --delimiter=$' ' \
+        --delimiter="$sep" \
         --cycle \
         --no-preview \
         --reverse \
@@ -63,30 +71,66 @@ __aliases() {
         --bind 'space:put(\ )' \
         --height 70%
   ); then
-    local cmd mode
-    cmd=$(printf '%s\n' "$selected" | awk -F $' ' 'NR == 2 { print $5 }')
-    mode=$(printf '%s\n' "$selected" | awk -F $' ' 'NR == 2 { print $6 }')
+    # fzf printed the query, then the picked row, whose last two fields are the
+    # raw command and the mode: leader-aliases keeps the separator out of every
+    # field.
+    local row cmd mode
+    row=${selected#*$'\n'}
+    mode=${row##*"$sep"}
+    row=${row%"$sep"*}
+    cmd=${row##*"$sep"}
 
     case "$mode" in
       eval-run | eval-insert)
         local output
-        zle reset-prompt
+        zle redisplay
         output=$(eval "$cmd")
         if [ -n "$output" ]; then
           LBUFFER+=$output
-          [ "$mode" = eval-run ] && zle accept-line
+          if [ "$mode" = eval-run ]; then
+            zle accept-line
+            return 1
+          fi
         fi
         ;;
       *)
         LBUFFER+="$cmd "
-        [ "$mode" = run ] && zle accept-line
+        if [ "$mode" = run ]; then
+          zle accept-line
+          return 1
+        fi
         ;;
     esac
   elif [ "$selected" ]; then
-    LBUFFER+=$(printf '%s\n' "$selected" | sed -n '1p' | sed 's/^\^//')
+    # Nothing matched: the query as typed, without its leading ^.
+    local query=${selected%%$'\n'*}
+    LBUFFER+=${query#"^"}
   fi
 
   zle autosuggest-fetch
 
   return 1
+}
+
+# Sets REPLY to the table's rendered rows, or fails with REPLY set to the
+# renderer's error. The rows are kept per shell until the renderer, the table
+# or the terminal width changes, so a press renders them again only after an
+# edit or a resize; zstat (zsh/stat) reads the table's identity without
+# starting a process. A save that keeps the size within the same second goes
+# unseen until the next change.
+__aliases_rows() {
+  # The renderer's name goes through a variable: as a bare subscript, shfmt
+  # would read leader-aliases as arithmetic and rewrite it to leader - aliases.
+  local table=$1 renderer=leader-aliases key=
+  local -A st
+  # shellcheck disable=SC2154 # commands is zsh's command table
+  if zmodload -F zsh/stat b:zstat 2>/dev/null && zstat -H st -- "$table" 2>/dev/null; then
+    key="${commands[$renderer]} $table ${COLUMNS:-0} ${st[inode]} ${st[size]} ${st[mtime]} ${st[ctime]}"
+    if [ "$key" = "${__aliases_rows_key-}" ]; then
+      REPLY=$__aliases_rows
+      return 0
+    fi
+  fi
+  REPLY=$(leader-aliases -width "${COLUMNS:-0}" "$table" 2>&1) || return 1
+  typeset -g __aliases_rows_key="$key" __aliases_rows="$REPLY"
 }
