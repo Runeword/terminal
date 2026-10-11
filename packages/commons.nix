@@ -8,7 +8,6 @@ with pkgs;
   gmailctl
   progress
   # qmk
-  chezmoi
   xdg-ninja
   pass
   httrack
