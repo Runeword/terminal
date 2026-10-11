@@ -8,7 +8,6 @@ flake-inputs
 /.config/Slack/Cache
 /.config/Slack/Service Worker
 /.config/google-chrome
-/.local/share/navi/cheats
 /.local/share/containers/storage/overlay
 /go/pkg
 .cache
