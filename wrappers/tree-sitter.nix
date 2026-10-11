@@ -33,6 +33,8 @@
 #     rather than re-emitting them; the parser's exported symbol name (which the CLI
 #     dlopens by) is read from the object with the host's `nm`. `TREE_SITTER_DIR`
 #     points the CLI at the generated `config.json` (parser-directories + theme).
+#     The metadata keeps each grammar's `injection-regex`: the CLI finds the grammar
+#     for an embedded language (an HTML <script>, bash in a Nix string) only by it.
 #
 # The theme lives in sources/.config/tree-sitter/theme.json (mirroring the user's
 # Neovim nightfly colorscheme, resolved capture-by-capture, so the preview matches
@@ -100,9 +102,20 @@ let
 
   # Only the exceptions to what each grammar's own tree-sitter.json provides.
   # dockerfile/fish/gomod ship none; tsx's mislabels it as `.ts` (which would also
-  # collide with typescript, whose entry omits `.mts`/`.cts`). The `.so` symbol name
-  # is read from the parser with `nm`, so it is never listed here.
+  # collide with typescript, whose entry omits `.mts`/`.cts`), and claims
+  # typescript's injection-regex, so an injected `typescript` could pick either.
+  # `extraFileTypes` extends the grammar's own list: zsh files get the bash grammar
+  # (close enough to colour them). The `.so` symbol name is read from the parser
+  # with `nm`, so it is never listed here.
   overrides = {
+    bash.extraFileTypes = [
+      "zsh"
+      ".zshrc"
+      ".zshenv"
+      ".zprofile"
+      ".zlogin"
+      ".zlogout"
+    ];
     dockerfile = {
       scope = "source.dockerfile";
       fileTypes = [
@@ -121,6 +134,7 @@ let
     tsx = {
       scope = "source.tsx";
       fileTypes = [ "tsx" ];
+      injectionRegex = "^tsx$";
     };
     typescript.fileTypes = [
       "ts"
@@ -209,15 +223,29 @@ let
                 raise SystemExit("no tree_sitter_* symbol in " + parser)
             return min(cands, key=len)
 
+        # Override keys -> the tree-sitter.json keys they stand for.
+        regexes = {
+            "injectionRegex": "injection-regex",
+            "contentRegex": "content-regex",
+            "firstLineRegex": "first-line-regex",
+        }
+
         def meta(attr, src):
-            # scope + file-types: an override if given, else the grammar's own
-            # tree-sitter.json (absent for a few grammars -> they need an override).
+            # scope, file-types and the regexes: an override if given, else the
+            # grammar's own tree-sitter.json (absent for a few grammars -> they
+            # need an override), taking the entry with the override's scope when
+            # it ships several (typescript's: ts, tsx, flow).
             m = dict(overrides.get(attr, {}))
             tj = f"{src}/tree-sitter.json"
             if os.path.exists(tj):
-                g = json.load(open(tj))["grammars"][0]
+                gs = json.load(open(tj))["grammars"]
+                g = next((x for x in gs if x.get("scope") == m.get("scope")), gs[0])
                 m.setdefault("scope", g.get("scope"))
                 m.setdefault("fileTypes", g.get("file-types", []))
+                for key, tkey in regexes.items():
+                    if g.get(tkey):
+                        m.setdefault(key, g[tkey])
+            m["fileTypes"] = m.get("fileTypes", []) + m.pop("extraFileTypes", [])
             return m
 
         def build(attr):
@@ -238,6 +266,7 @@ let
             os.utime(f"{gd}/src/grammar.json", (0, 0))
             os.utime(f"{gd}/src/parser.c", (0, 0))
             g = {"name": name, "scope": m["scope"], "file-types": m["fileTypes"]}
+            g.update({tkey: m[key] for key, tkey in regexes.items() if m.get(key)})
             g.update({q: f"queries/{q}.scm" for q in qtypes})
             open(f"{gd}/tree-sitter.json", "w").write(
                 json.dumps({"grammars": [g], "metadata": {"version": "0.0.1"}})
@@ -291,30 +320,41 @@ let
 
   # The wrapped binary. TREE_SITTER_LIBDIR (baked; must be set, see header) makes the
   # CLI dlopen the prebuilt parsers. For the theme: in dev mode $PERMEANCE_ROOT points
-  # at the working sources/ tree, so re-read .config/tree-sitter/theme.json there and
+  # at the working sources/ tree, so read .config/tree-sitter/theme.json there and
   # synthesise config.json (parser-directories is a store path, so it can't live in
-  # the static sources file) -- colour edits then need no rebuild. Otherwise fall back
-  # to the config baked into the bundle.
+  # the static sources file) -- colour edits then need no rebuild. The synthesised
+  # config is cached per bundle and rebuilt only when theme.json is newer than it.
+  # Otherwise, or when the cache can't be written (read-only, as in the claude
+  # sandbox), the config baked into the bundle is used.
   launcher = pkgs.writeShellApplication {
     name = "tree-sitter";
     runtimeInputs = [ pkgs.coreutils ];
     text = ''
       export TREE_SITTER_LIBDIR=${bundle}/libdir
+      export TREE_SITTER_DIR=${bundle}/tsdir
+
+      # refresh DIR THEME: (re)write DIR/config.json for THEME; fails without
+      # leaving anything behind.
+      refresh() {
+        mkdir -p "$1" 2>/dev/null || return 1
+        tmp=$(mktemp "$1/config.XXXXXX" 2>/dev/null) || return 1
+        if {
+          printf '{"parser-directories":["%s"],"theme":' "${bundle}/grammars"
+          cat "$2"
+          printf '}\n'
+        } >"$tmp" 2>/dev/null && mv -f "$tmp" "$1/config.json"; then
+          return 0
+        fi
+        rm -f "$tmp"
+        return 1
+      }
 
       theme="''${PERMEANCE_ROOT:-}/.config/tree-sitter/theme.json"
       if [ -n "''${PERMEANCE_ROOT:-}" ] && [ -f "$theme" ]; then
-        dir="''${XDG_CACHE_HOME:-''${HOME:-/tmp}/.cache}/fm-tree-sitter"
-        mkdir -p "$dir" 2>/dev/null || dir="$(mktemp -d)"
-        tmp="$(mktemp "$dir/config.XXXXXX")"
-        {
-          printf '{"parser-directories":["%s"],"theme":' "${bundle}/grammars"
-          cat "$theme"
-          printf '}\n'
-        } >"$tmp"
-        mv -f "$tmp" "$dir/config.json"
-        export TREE_SITTER_DIR="$dir"
-      else
-        export TREE_SITTER_DIR=${bundle}/tsdir
+        dir="''${XDG_CACHE_HOME:-''${HOME:-/tmp}/.cache}/fm-tree-sitter/${baseNameOf bundle}"
+        if [ "$dir/config.json" -nt "$theme" ] || refresh "$dir" "$theme"; then
+          export TREE_SITTER_DIR="$dir"
+        fi
       fi
 
       exec ${ts}/bin/tree-sitter "$@"
@@ -326,7 +366,7 @@ let
       {
         passthru.tests.smoke = permeance.tests.mkSmoke {
           name = "tree-sitter";
-          description = "Verify the wrapped tree-sitter highlights via the baked libdir";
+          description = "Verify the wrapped tree-sitter highlights via the baked libdir, embedded languages and zsh files included, and keeps the baked config when the dev-mode cache is read-only";
           script = ''
             sample="$TMPDIR/sample.nix"
             printf 'let x = { a = "hi"; }; in x.a\n' > "$sample"
@@ -343,6 +383,36 @@ let
               ok "go sample highlighted with ANSI"
             else
               fail "go sample not highlighted"
+            fi
+
+            # HTML hands a <script> body to the JavaScript grammar, found by its
+            # injection-regex: without it the body has no colour at all.
+            html="$TMPDIR/page.html"
+            printf '<script>\nvar x = 1;\n</script>\n' > "$html"
+            if ${self}/bin/tree-sitter highlight -q "$html" 2>/dev/null | sed -n 2p | grep -q $'\033\['; then
+              ok "a <script> body in HTML is highlighted as JavaScript"
+            else
+              fail "a <script> body in HTML is not highlighted (injection-regex dropped?)"
+            fi
+
+            zshrc="$TMPDIR/.zshrc"
+            printf 'if true; then echo hi; fi\n' > "$zshrc"
+            if ${self}/bin/tree-sitter highlight -q "$zshrc" 2>/dev/null | grep -q $'\033\['; then
+              ok ".zshrc is highlighted with the bash grammar"
+            else
+              fail ".zshrc is not highlighted"
+            fi
+
+            # Dev mode with a cache it can't write (read-only, as in the claude
+            # sandbox) keeps the baked config instead of failing.
+            mkdir -p "$TMPDIR/root/.config/tree-sitter" "$TMPDIR/rocache/fm-tree-sitter"
+            printf '{"keyword": "#ff0000"}\n' > "$TMPDIR/root/.config/tree-sitter/theme.json"
+            chmod 555 "$TMPDIR/rocache/fm-tree-sitter"
+            if PERMEANCE_ROOT="$TMPDIR/root" XDG_CACHE_HOME="$TMPDIR/rocache" \
+              ${self}/bin/tree-sitter highlight "$sample" 2>/dev/null | grep -q $'\033\['; then
+              ok "dev mode with a read-only cache still highlights"
+            else
+              fail "dev mode with a read-only cache does not highlight"
             fi
           '';
         };
