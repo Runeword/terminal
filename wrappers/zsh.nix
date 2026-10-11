@@ -44,7 +44,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, the leader table renders and gc's secret › set reads its value silently, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, the leader table renders and gc's secret › set reads its value silently, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -70,6 +70,61 @@ let
         else
           fail "gc's secret › set takes the value on the command line"
         fi
+
+        # The picker renders the table once per shell and width: a second press
+        # reuses the rows, a resize or an edited table renders them again. A
+        # stand-in leader-aliases counts the renders.
+        mkdir -p "$HOME/leader/bin"
+        cp ${self}/.config/shell/leader.toml "$HOME/leader/leader.toml"
+        chmod u+w "$HOME/leader/leader.toml"
+        printf '#!/bin/sh\necho >> "%s"\nexec %s "$@"\n' "$HOME/leader/renders" ${leaderAliases}/bin/leader-aliases > "$HOME/leader/bin/leader-aliases"
+        chmod +x "$HOME/leader/bin/leader-aliases"
+        rows='. ${self}/.config/shell/functions/aliases.sh
+          t=$HOME/leader/leader.toml
+          COLUMNS=100; __aliases_rows "$t"; first=$REPLY
+          __aliases_rows "$t"; [ "$REPLY" = "$first" ] && print same
+          COLUMNS=90; __aliases_rows "$t"
+          print "# edited" >> "$t"; __aliases_rows "$t"'
+        if [ "$(PATH=$HOME/leader/bin:$PATH ${self}/bin/zsh -f -c "$rows")" = same ] \
+          && [ "$(wc -l < "$HOME/leader/renders")" -eq 3 ]; then
+          ok "the leader picker renders its table once, then again only after a resize or an edit"
+        else
+          fail "the leader picker does not reuse its rows until a resize or an edit"
+        fi
+
+        # The picker reads its pick without starting a process, and as it
+        # always fails, __on_empty_buffer only redraws the line: reset-prompt
+        # would re-expand the prompt, rerunning starship twice, before an
+        # accepted command even starts. Nor does an accepted line fetch a
+        # suggestion. A stand-in zle records the widgets called; a stand-in fzf
+        # prints what fzf --print-query would, the query and the chord's row.
+        # leader-aliases goes on the path inside the script: zsh -i reads
+        # /etc/zshenv, and nix-darwin's (in an unsandboxed build) resets PATH.
+        stubs='path=(${leaderAliases}/bin $path)
+          zle() { print -r -- "zle $*"; }
+          pick() { print -r -- "^$1"; grep -m 1 "^$1 *$SEP"; }
+          __nix_package() { print -r -- "nix $1 nixpkgs#hello"; }'
+        picker() {
+          SEP=$sep ${self}/bin/zsh -i -c "$stubs
+            $1"'
+            BUFFER= PREBUFFER=; __on_empty_buffer __aliases :
+            print -r -- "LBUFFER=$LBUFFER"' 2>/dev/null
+        }
+        picked=$(picker 'fzf() { pick gt; }')
+        case "$picked" in
+          *"$(printf 'zle accept-line\nzle redisplay\nLBUFFER=git status ')") ok "a run chord (gt) accepts its command, then only redraws the line" ;;
+          *) fail "a run chord (gt) does not accept its command with a bare redraw: $picked" ;;
+        esac
+        picked=$(picker 'fzf() { pick nps; }')
+        case "$picked" in
+          *"$(printf 'zle redisplay\nzle accept-line\nzle redisplay\nLBUFFER=nix shell nixpkgs#hello')") ok "an eval chord (nps) runs its helper and accepts its output between bare redraws" ;;
+          *) fail "an eval chord (nps) re-expands the prompt or does not accept its helper's output: $picked" ;;
+        esac
+        picked=$(picker 'fzf() { print -r -- "^zz"; return 1; }')
+        case "$picked" in
+          *"$(printf 'zle autosuggest-fetch\nzle redisplay\nLBUFFER=zz')") ok "a chord that matches nothing is inserted as typed, without its ^" ;;
+          *) fail "a chord that matches nothing is not inserted as typed: $picked" ;;
+        esac
 
         # godc (and gow when it stops) clears the Go dev builds that shadow the
         # Nix copies: every compiled binary in .direnv/bin, not nix-direnv's script.
