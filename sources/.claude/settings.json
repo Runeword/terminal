@@ -1,4 +1,7 @@
 {
+  "claudeMdExcludes": [
+    "**/CLAUDE.local.md"
+  ],
   "permissions": {
     "ask": [
       "Bash(gh *)",
