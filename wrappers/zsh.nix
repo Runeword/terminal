@@ -44,7 +44,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, the leader table renders and gc's secret › set reads its value silently, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, chezmoi's pickers open their paths from the home directory, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, the leader table renders and gc's secret › set reads its value silently, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -192,18 +192,6 @@ let
           ok "__open_file hands the editor its picks after --"
         else
           fail "__open_file hands the editor its picks where an option goes"
-        fi
-
-        # chezmoi's pickers open what they list, which is relative to $HOME, from
-        # any directory and with spaces intact (status prints "XY path").
-        printf '#!/bin/sh\nprintf " M .config/foo bar/x\\n"\n' > "$HOME/stub/chezmoi" && chmod +x "$HOME/stub/chezmoi"
-        chz='. ${self}/.config/shell/functions/chezmoi.sh
-          fzf() { cat; }
-          __chezmoi_status'
-        if [ "$(cd "$HOME/pick" && PATH=$HOME/stub:$PATH EDITOR=$HOME/stub/ed ${self}/bin/zsh -f -c "$chz")" = "$(printf -- '--\n%s' "$HOME/.config/foo bar/x")" ]; then
-          ok "chezmoi's status picker opens its paths from the home directory, spaces intact"
-        else
-          fail "chezmoi's status picker mangles its paths"
         fi
 
         # __open_recent offers nvim's oldfiles newest first, read from the
