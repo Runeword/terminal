@@ -23,6 +23,10 @@ typeset -F __T1="$SECONDS"
 # at different depths (tmux pane, nested zsh) invalidated each other's dump and
 # rebuilt it before their first prompt (~1s, slower still over the duplicates).
 typeset -gU fpath
+# The terminal's tools ship their own completions (rg, fd, gh, nix, …), which the
+# alacritty launcher exports as one directory. Appended, so zsh's own functions
+# (its _git, say) still win.
+[[ -n $TERMINAL_ZSH_COMPLETIONS ]] && fpath+=("$TERMINAL_ZSH_COMPLETIONS")
 typeset -g ZCOMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
 [[ -d ${ZCOMPDUMP:h} ]] || mkdir -p "${ZCOMPDUMP:h}"
 
@@ -275,7 +279,7 @@ _profile "completion-setup: %.0fms\n" $(( (__TC2 - __TC1) * 1000 ))
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#7f7f7f"
 # Wrap the zle widgets once, on the first precmd, instead of re-wrapping every
 # widget before every prompt (~10-15ms each time). All widgets exist by then:
-# this file defines them (navi/zoxide/fzf included, see Plugins) and the
+# this file defines them (zoxide/fzf included, see Plugins) and the
 # compinit precmd hook runs before autosuggestions' own.
 ZSH_AUTOSUGGEST_MANUAL_REBIND=1
 
@@ -391,7 +395,9 @@ _profile "functions: %.0fms\n" $(( (__TF2 - __TF1) * 1000 ))
 
 __on_empty_buffer() {
   local precmd_function
-  if [[ -n "$BUFFER" ]]; then
+  # On a continuation line (an open quote, a loop, a heredoc) BUFFER is empty
+  # but the lines above it are in PREBUFFER: that is not an empty prompt.
+  if [[ -n "$BUFFER" || -n "$PREBUFFER" ]]; then
       eval "$2"
       return
   fi
@@ -411,9 +417,9 @@ __last_command_or_delete() { __on_empty_buffer 'BUFFER=${history[$((HISTCMD-1))]
 zle -N __last_command_or_delete
 bindkey "${KEYS[SHIFT_DELETE]}" __last_command_or_delete
 
-__navi_or_space() { __on_empty_buffer _navi_widget; }
-zle -N __navi_or_space
-bindkey "${KEYS[SHIFT_SPACE]}" __navi_or_space
+# Shift+Space types a space, as Space does: alacritty and tmux send it as a
+# CSI-u code of its own, which zsh has no binding for.
+bindkey -s "${KEYS[SHIFT_SPACE]}" ' '
 
 # __ls_or_escape() { __on_empty_buffer 'echo ls; __ls'; }
 __ls_or_escape() {
@@ -434,11 +440,6 @@ __tmux_attach_session_() {
 }
 zle -N __tmux_attach_session_
 bindkey "${KEYS[ALT_T]}" __tmux_attach_session_
-
-# _zsh_autosuggest_strategy_custom() {
-#   # suggestion=$(grep -h -m1 -E "^[^#%]*$(printf '%s' "$1" | sed 's/[]\[\^\$\.\*\{\}\(\)\\]/\\&/g')" ~/.config/navi/* | head -n 1)
-#   # suggestion=$(navi --query "$1" --best-match --print) # navi does not support non-interactive mode https://github.com/denisidoro/navi/issues/808
-# }
 
 _zsh_autosuggest_strategy_custom() {
   emulate -L zsh
@@ -545,21 +546,18 @@ _profile "direnv: %.0fms\n" $(( (__T8 - __T7) * 1000 ))
 # their widgets must exist when autosuggestions wraps widgets (only once, on
 # the first precmd, with ZSH_AUTOSUGGEST_MANUAL_REBIND).
 typeset -F __TD1="$SECONDS"
-__init_cache navi navi widget zsh && source "$REPLY"
-typeset -F __TD2="$SECONDS"
 __init_cache zoxide zoxide init --no-cmd zsh && source "$REPLY"
-typeset -F __TD3="$SECONDS"
+typeset -F __TD2="$SECONDS"
 # fzf's own share dir, resolved from its binary: no `fzf-share` spawn.
 if [[ ${options[zle]} = on && -n ${commands[fzf]} ]]; then
   __fzf_bin="${commands[fzf]:A}"
   source "${__fzf_bin%/bin/fzf}/share/fzf/key-bindings.zsh"
   unset __fzf_bin
 fi
-typeset -F __TD4="$SECONDS"
-_profile "navi: %.0fms, zoxide: %.0fms, fzf: %.0fms\n" \
+typeset -F __TD3="$SECONDS"
+_profile "zoxide: %.0fms, fzf: %.0fms\n" \
   $(( (__TD2 - __TD1) * 1000 )) \
-  $(( (__TD3 - __TD2) * 1000 )) \
-  $(( (__TD4 - __TD3) * 1000 ))
+  $(( (__TD3 - __TD2) * 1000 ))
 
 # __open_file_or_autosuggest() {
 #   if [[ -z "$BUFFER" ]]; then
@@ -574,13 +572,35 @@ _profile "navi: %.0fms, zoxide: %.0fms, fzf: %.0fms\n" \
 # zle -N __open_file_or_autosuggest
 # bindkey "${KEYS[TAB]}" __open_file_or_autosuggest
 
-__ripgrep_or_menu_complete() { __on_empty_buffer __ripgrep 'zle menu-complete'; }
-zle -N __ripgrep_or_menu_complete
-bindkey "${KEYS[SHIFT_TAB]}" __ripgrep_or_menu_complete
+# Shift+Tab on an empty command line: the ripgrep search. Its pick comes back as
+# an nvim command line, run like a typed one, so it lands in history and the
+# prompt, precmd hooks and bracketed paste come back as after any command. Esc
+# just redraws the prompt. With text on the line (or a continuation line in
+# progress), the completion menu, as Tab.
+__ripgrep_or_menu_select() {
+  if [[ -n $BUFFER || -n $PREBUFFER ]]; then
+    zle menu-select
+    return
+  fi
+  local cmd
+  cmd=$(__ripgrep)
+  if [[ -n $cmd ]]; then
+    BUFFER=$cmd
+    zle accept-line
+  else
+    zle reset-prompt
+  fi
+}
+zle -N __ripgrep_or_menu_select
+bindkey "${KEYS[SHIFT_TAB]}" __ripgrep_or_menu_select
 
 __tab_handler() {
-  if [[ -z "$BUFFER" ]]; then
+  if [[ -z "$BUFFER" && -z "$PREBUFFER" ]]; then
     __open_file
+    # An editor run from here turns bracketed paste off as it exits, and zle
+    # turns it back on only at the next prompt: until then a multi-line paste
+    # would run its first line.
+    print -rn -- "${zle_bracketed_paste[1]}"
     # if [[ -z "$BUFFER" ]]; then
     #   # __ripgrep
     #   # zle reset-prompt
@@ -630,10 +650,6 @@ bindkey "${KEYS[SHIFT_ESCAPE]}" __ls_or_shift_escape
 # bindkey '^?' __history_or_delete
 # # bindkey '^[[3;2~' __history_or_delete
 
-# __navi_custom_or_space() { __on_empty_buffer navi "LBUFFER+=' '; zle autosuggest-fetch"; }
-# zle -N __navi_custom_or_space
-# bindkey ' ' __navi_custom_or_space
-
 # __leader() { __on_empty_buffer __leader_widget; }
 # zle -N __leader
 # bindkey '^[' __leader
@@ -665,10 +681,6 @@ bindkey "${KEYS[SHIFT_ESCAPE]}" __ls_or_shift_escape
 # __history_or_esc() { __on_empty_buffer "zle fzf-history-widget && zle accept-line"; }
 # zle -N __history_or_esc
 # bindkey '\u001B[27;2u' __history_or_esc
-
-# __navi_or_space() { __on_empty_buffer "navi --path ~/.local/share/navi/cheats" "LBUFFER+=' '; zle autosuggest-fetch"; }
-# zle -N __navi_or_space
-# bindkey '\x1b[32;2u' __navi_or_space
 
 # __yazi() { __on_empty_buffer "yazi < $TTY"; }
 # zle -N __yazi
