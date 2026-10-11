@@ -224,27 +224,6 @@ cd  = { cmd = '__claude_debug', desc = 'debug' }
 cc  = { cmd = '__claude_connect', desc = 'connections' }
 ccr = { cmd = '__claude_connect --resume', desc = 'connections › resume' }
 
-[chezmoi]
-chd  = { cmd = 'chezmoi diff --reverse', desc = 'diff --reverse' }
-chi  = { cmd = 'chezmoi ignored', desc = 'ignored' }
-chc  = { cmd = '__chezmoi_cd', desc = 'cd' }
-che  = { cmd = 'chezmoi --refresh-externals apply', desc = 'apply --refresh-externals' }
-chr  = { cmd = 'chezmoi state reset', desc = 'reset chezmoi local state', run = false }
-cha  = { cmd = '__chezmoi add', desc = 'add' }
-xcha = { cmd = '__chezmoi add', desc = 'add', run = false }
-chy  = { cmd = '__chezmoi apply', desc = 'apply' }
-xchy = { cmd = '__chezmoi apply', desc = 'apply', run = false }
-chf  = { cmd = '__chezmoi_forget', desc = 'forget' }
-xchf = { cmd = '__chezmoi_forget', desc = 'forget', run = false }
-cht  = { cmd = '__chezmoi_status', desc = 'status' }
-chm  = { cmd = '__chezmoi_managed', desc = 'managed' }
-chp  = { cmd = '__chezmoi_private', desc = 'private', run = false }
-chpa = { cmd = '__chezmoi_private add', desc = 'private › add', run = false }
-chpy = { cmd = '__chezmoi_private apply', desc = 'private › apply', run = false }
-chs  = { cmd = '__chezmoi_shared', desc = 'shared', run = false }
-chsa = { cmd = '__chezmoi_shared add', desc = 'shared › add', run = false }
-chsy = { cmd = '__chezmoi_shared apply', desc = 'shared › apply', run = false }
-
 [aws]
 al = { cmd = '__aws_login', desc = 'sso › login' }
 ap = { cmd = 'aws configure list-profiles', desc = 'profiles › list', run = false }
