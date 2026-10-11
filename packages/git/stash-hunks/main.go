@@ -119,7 +119,10 @@ func run(hunks []byte, whole []string, msg string) error {
 			untracked = append(untracked, w)
 			continue
 		}
-		d, err := git(nil, nil, "diff", "--unified=0", "--", w)
+		// The same diff whatever the user's config says (no external diff,
+		// textconv, color or other prefix), and binary files as patches apply
+		// can use.
+		d, err := git(nil, nil, "diff", "--binary", "--no-ext-diff", "--no-textconv", "--no-color", "--src-prefix=a/", "--dst-prefix=b/", "--unified=0", "--", w)
 		if err != nil {
 			return err
 		}
