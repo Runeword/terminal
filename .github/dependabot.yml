@@ -10,11 +10,6 @@ updates:
     cooldown:
       default-days: 7
     ignore:
-      # Pinned channels — we manually decide when to bump these.
-      # Bumping the channel ref defeats the purpose of the pin
-      # (see overlays/default.nix for what they pin).
-      - dependency-name: "nixpkgs-24-05"
-      - dependency-name: "nixpkgs-25-11"
       # Private repos; Dependabot's repo-scoped token can't
       # reach them → git_dependencies_not_reachable, which reddens the weekly
       # "nix in /." job. Bump these inputs manually (`nixtok nix flake update
