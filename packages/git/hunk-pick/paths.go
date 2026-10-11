@@ -21,10 +21,11 @@ import (
 
 // The git commands behind the changed-files lists, which the file picker
 // (files) shares: their -z outputs are verbatim paths relative to the repo
-// root.
+// root. --no-renames lists both sides of a rename: staging or unstaging only
+// its new name would leave the old one's deletion behind.
 var (
-	gitStaged    = []string{"diff", "--cached", "--name-only", "-z"}
-	gitModified  = []string{"diff", "--name-only", "-z"}
+	gitStaged    = []string{"diff", "--cached", "--name-only", "--no-renames", "-z"}
+	gitModified  = []string{"diff", "--name-only", "--no-renames", "-z"}
 	gitUntracked = []string{"ls-files", "--others", "--exclude-standard", "-z"}
 )
 
@@ -46,8 +47,9 @@ var pathKinds = map[string]pathKind{
 	"untracked": {cmds: [][]string{{"clean", "--dry-run", "-d"}}, parse: cleanList},
 	// Ignored files, an ignored directory as one dir/ entry.
 	"ignored": {cmds: [][]string{{"ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z"}}},
-	// The files a commit changed.
-	"commit": {cmds: [][]string{{"diff-tree", "--root", "--no-commit-id", "--name-only", "-r", "-z"}}, rev: true},
+	// The files a commit changed; for a merge, what it brought in over its first
+	// parent (diff-tree lists nothing for a merge otherwise).
+	"commit": {cmds: [][]string{{"diff-tree", "--root", "--no-commit-id", "--name-only", "--diff-merges=first-parent", "-r", "-z"}}, rev: true},
 	// Every file in a revision: the whole tree, from any directory.
 	"tree": {cmds: [][]string{{"ls-tree", "-r", "--full-tree", "--name-only", "-z"}}, rev: true},
 }
