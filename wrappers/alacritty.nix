@@ -14,16 +14,23 @@ let
 
   # The tools' own zsh completions (rg, fd, gh, nix, …), merged into one
   # directory that .zshrc puts on fpath: zsh would otherwise see only its own.
-  # A name two tools ship keeps the first one's.
-  zshCompletions = pkgs.runCommand "terminal-zsh-completions" { } ''
-    mkdir -p $out
-    for dir in ${pkgs.lib.concatMapStringsSep " " (pkg: "${pkg}/share/zsh/site-functions") tools}; do
-      for f in "$dir"/*; do
-        [ -e "$f" ] && [ ! -e "$out/''${f##*/}" ] && ln -s "$f" "$out/"
-      done
-    done
-    true
-  '';
+  # A name two tools ship keeps the first one's. The directory sits below the
+  # store path rather than being it: compinit asks before loading an fpath
+  # directory whose parent is group-writable, as /nix/store is.
+  zshCompletions =
+    let
+      merged = pkgs.runCommand "terminal-zsh-completions" { } ''
+        dest=$out/share/zsh/site-functions
+        mkdir -p "$dest"
+        for dir in ${pkgs.lib.concatMapStringsSep " " (pkg: "${pkg}/share/zsh/site-functions") tools}; do
+          for f in "$dir"/*; do
+            [ -e "$f" ] && [ ! -e "$dest/''${f##*/}" ] && ln -s "$f" "$dest/"
+          done
+        done
+        true
+      '';
+    in
+    "${merged}/share/zsh/site-functions";
 
   fonts = pkgs.lib.optionals (!pkgs.stdenv.hostPlatform.isDarwin) [
     pkgs.nerd-fonts.sauce-code-pro
@@ -55,6 +62,16 @@ let
               ok "the launcher exports the tools' zsh completions, _rg included"
             else
               fail "the tools' zsh completions are not exported (or lack _rg)"
+            fi
+
+            # compinit audits fpath before loading it, and asks at the first
+            # prompt if a directory or its parent is group-writable, as
+            # /nix/store is. The audit trusts a user's own group, and the build
+            # user's owns the build's /nix/store: LOGNAME names someone else.
+            if LOGNAME=nobody ${pkgs.zsh}/bin/zsh -fc 'autoload -Uz compaudit && compaudit "$1"' zsh ${zshCompletions} > /dev/null 2>&1; then
+              ok "zsh's compaudit accepts the completions directory"
+            else
+              fail "zsh's compaudit rejects the completions directory, so compinit would ask"
             fi
           '';
         };
