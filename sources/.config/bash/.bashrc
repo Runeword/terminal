@@ -43,7 +43,6 @@ if [ -d "$PERMEANCE_TREE/.config/shell/functions" ]; then
   done
 fi
 
-command -v navi >/dev/null 2>&1 && eval "$(navi widget bash)"
 command -v starship >/dev/null 2>&1 && eval "$(starship init bash)"
 command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init --no-cmd bash)"
 command -v direnv >/dev/null 2>&1 && eval "$(direnv hook bash)"
