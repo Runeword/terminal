@@ -92,6 +92,69 @@ func TestEditorCmd(t *testing.T) {
 	}
 }
 
+// TestCherryPickCmd: the picked commits come out oldest first, whatever order
+// fzf returned them in, so each lands on the one it was made after.
+func TestCherryPickCmd(t *testing.T) {
+	commits := []string{"c3 third", "c2 second", "c1 first"} // git log order
+	tests := []struct {
+		name, selected, want string
+	}{
+		{"ctrl-a returns list order, newest first", "c3 third\nc2 second\nc1 first", "git cherry-pick 'c1' 'c2' 'c3'"},
+		{"a selection made out of order", "c1 first\nc3 third", "git cherry-pick 'c1' 'c3'"},
+		{"nothing picked", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := cherryPickCmd(commits, tt.selected); got != tt.want {
+				t.Errorf("got  %s\nwant %s", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestWorktreeAddCmd: a remote-only branch gets a local branch tracking it,
+// not a detached checkout of the remote-tracking ref.
+func TestWorktreeAddCmd(t *testing.T) {
+	tests := []struct {
+		name, branch, local, want string
+	}{
+		{"a local branch", "feat", "", "git worktree add --end-of-options '/r_1' 'feat' && builtin cd '/r_1' "},
+		{
+			"a remote-only branch", "origin/feat/x", "feat/x",
+			"git worktree add --track -b 'feat/x' --end-of-options '/r_1' 'origin/feat/x' && builtin cd '/r_1' ",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := worktreeAddCmd("/r_1", tt.branch, tt.local); got != tt.want {
+				t.Errorf("got  %s\nwant %s", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestWorktreeRemoveCmd: the shell leaves a removed worktree first from
+// anywhere inside it, not only from its top.
+func TestWorktreeRemoveCmd(t *testing.T) {
+	tests := []struct {
+		name, cwd string
+		paths     []string
+		want      string
+	}{
+		{"from its top", "/r_1", []string{"/r_1"}, "builtin cd '/r' && git worktree remove --end-of-options '/r_1' && ls"},
+		{"from a subdirectory", "/r_1/a/b", []string{"/r_2", "/r_1"}, "builtin cd '/r' && git worktree remove --end-of-options '/r_2' && git worktree remove --end-of-options '/r_1' && ls"},
+		{"from a sibling that shares its prefix", "/r_10", []string{"/r_1"}, "git worktree remove --end-of-options '/r_1' && ls"},
+		{"from the main worktree", "/r", []string{"/r_1"}, "git worktree remove --end-of-options '/r_1' && ls"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := worktreeRemoveCmd(tt.cwd, "/r", tt.paths); got != tt.want {
+				t.Errorf("got  %s\nwant %s", got, tt.want)
+			}
+		})
+	}
+}
+
 // TestStashApplyCmd stashes f.txt's first line, then runs the command gsy
 // prints from a subdirectory: it applies the line to the file as stashed from,
 // and refuses a file edited since, keeping the edit (git restore --source
