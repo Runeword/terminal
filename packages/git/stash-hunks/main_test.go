@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -159,6 +160,50 @@ func TestStashWholeFileIsLiteral(t *testing.T) {
 	}
 	if show := mustGit(t, "stash", "show", "-p", "stash@{0}"); !strings.Contains(show, "+bracket") || strings.Contains(show, "ONE") {
 		t.Errorf("stash should hold f[1].txt alone:\n%s", show)
+	}
+}
+
+// TestStashWholeBinaryFile stashes a modified binary file whole: its diff must
+// be a binary patch apply can use, and pop must bring the new bytes back.
+func TestStashWholeBinaryFile(t *testing.T) {
+	setupRepo(t)
+	write(t, "b.bin", "\x00\x01old\x00")
+	mustGit(t, "add", "b.bin")
+	mustGit(t, "commit", "-qm", "bin")
+	write(t, "b.bin", "\x00\x02new\x00")
+
+	if err := run(nil, []string{"b.bin"}, "binary"); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if got := read(t, "b.bin"); got != "\x00\x01old\x00" {
+		t.Fatalf("b.bin = %q, want it back at HEAD", got)
+	}
+	mustGit(t, "stash", "pop", "-q")
+	if got := read(t, "b.bin"); got != "\x00\x02new\x00" {
+		t.Errorf("b.bin after pop = %q, want the stashed bytes", got)
+	}
+}
+
+// TestStashWholeFileIgnoresDiffConfig stashes a whole file under color codes,
+// another prefix and an external diff that prints nothing: what it captures
+// must be git's own diff.
+func TestStashWholeFileIgnoresDiffConfig(t *testing.T) {
+	setupRepo(t)
+	for i, kv := range [][2]string{{"color.ui", "always"}, {"diff.mnemonicPrefix", "true"}, {"diff.external", "true"}} {
+		t.Setenv("GIT_CONFIG_KEY_"+strconv.Itoa(i), kv[0])
+		t.Setenv("GIT_CONFIG_VALUE_"+strconv.Itoa(i), kv[1])
+	}
+	t.Setenv("GIT_CONFIG_COUNT", "3")
+	write(t, "f.txt", "a\nb\nc\nd\ne\nf\nG\n")
+
+	if err := run(nil, []string{"f.txt"}, "config"); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if got := read(t, "f.txt"); got != "a\nb\nc\nd\ne\nf\ng\n" {
+		t.Fatalf("f.txt = %q, want it back at HEAD", got)
+	}
+	if show := mustGit(t, "stash", "show", "-p", "--no-ext-diff", "--no-color", "stash@{0}"); !strings.Contains(show, "+G") {
+		t.Errorf("stash missing the change:\n%s", show)
 	}
 }
 
