@@ -44,7 +44,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, the leader table renders and gc's secret › set reads its value silently, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, the leader table renders and gc's secret › set reads its value silently, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, chezmoi's pickers open their paths from the home directory, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -194,6 +194,18 @@ let
           fail "__open_file hands the editor its picks where an option goes"
         fi
 
+        # chezmoi's pickers open what they list, which is relative to $HOME, from
+        # any directory and with spaces intact (status prints "XY path").
+        printf '#!/bin/sh\nprintf " M .config/foo bar/x\\n"\n' > "$HOME/stub/chezmoi" && chmod +x "$HOME/stub/chezmoi"
+        chz='. ${self}/.config/shell/functions/chezmoi.sh
+          fzf() { cat; }
+          __chezmoi_status'
+        if [ "$(cd "$HOME/pick" && PATH=$HOME/stub:$PATH EDITOR=$HOME/stub/ed ${self}/bin/zsh -f -c "$chz")" = "$(printf -- '--\n%s' "$HOME/.config/foo bar/x")" ]; then
+          ok "chezmoi's status picker opens its paths from the home directory, spaces intact"
+        else
+          fail "chezmoi's status picker mangles its paths"
+        fi
+
         # __open_recent offers nvim's oldfiles newest first, read from the
         # viminfofile the nvim config keeps under $XDG_CACHE_HOME: a stand-in
         # nvim answers for that file only, a stand-in fzf picks the first line.
@@ -213,6 +225,13 @@ let
         else
           fail "__open_recent does not offer nvim's recent files newest first"
         fi
+
+        # Shift+Space types a space, as Space does (zsh -i also prints .zshrc's
+        # timing line, hence the case).
+        case "$(${self}/bin/zsh -i -c 'bindkey "^[[32;2u"' 2>/dev/null)" in
+          *'"^[[32;2u" " "'*) ok "the bundled .zshrc has Shift+Space type a space" ;;
+          *) fail "the bundled .zshrc does not have Shift+Space type a space" ;;
+        esac
 
         # Shift+Tab's search (fm_rg.sh) lists dotfiles too, as the rows fm.sh's
         # binds read: a header per file, then each match; fields 2-4 are path,
@@ -238,6 +257,21 @@ let
         case "$(${self}/bin/zsh -i -c 'bindkey "^[[Z"' 2>/dev/null)" in
           *'"^[[Z" __ripgrep_or_menu_'*) ok "the bundled .zshrc binds Shift+Tab to the search" ;;
           *) fail "the bundled .zshrc does not bind Shift+Tab to the search" ;;
+        esac
+
+        # A continuation line (an open quote, a loop, a heredoc) has an empty
+        # BUFFER but is not an empty prompt: the shortcuts that act on one
+        # (Enter's leader picker, Space, Esc, …) must leave it alone.
+        case "$(${self}/bin/zsh -i -c 'BUFFER=; PREBUFFER="cat <<EOF"; __on_empty_buffer "print EMPTY" "print LINE"' 2>/dev/null)" in
+          *LINE*) ok "the empty-prompt shortcuts leave a continuation line alone" ;;
+          *) fail "an empty-prompt shortcut fires on a continuation line" ;;
+        esac
+
+        # The tools' completions, which the alacritty launcher exports as one
+        # directory, go on fpath.
+        case "$(TERMINAL_ZSH_COMPLETIONS=/tools-completions ${self}/bin/zsh -i -c 'print -l -- $fpath' 2>/dev/null)" in
+          *"/tools-completions"*) ok "the tools' completions directory is on fpath" ;;
+          *) fail "the tools' completions directory is not on fpath" ;;
         esac
 
         # hs (__home_manager_switch) refreshes the home-manager flake's local
