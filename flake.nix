@@ -2,7 +2,6 @@
   description = "Alacritty with configuration";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-  inputs.nixpkgs-24-05.url = "github:NixOS/nixpkgs/nixpkgs-24.05-darwin";
 
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
@@ -55,17 +54,10 @@
 
       mkPkgs =
         system:
-        let
-          pkgs-24-05 = import inputs.nixpkgs-24-05 {
-            inherit system;
-            config.allowUnfree = true;
-            overlays = [ ];
-          };
-        in
         import inputs.nixpkgs {
           inherit system;
           config.allowUnfree = true;
-          overlays = import ./overlays { inherit pkgs-24-05; };
+          overlays = import ./overlays;
         };
     in
     inputs.flake-utils.lib.eachSystem
