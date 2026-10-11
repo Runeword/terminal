@@ -1,218 +1,61 @@
-// Command fm-query compiles an fzf-style extended-search query into a PCRE2
-// filter pattern (for `rg -P`) and a tab-separated highlight spec, printed as
-// two lines on stdout: the pattern, then the spec. It also highlights the
-// query's terms (highlight.go): `fm-query rows QUERY` turns fm_rg.sh's rg
-// output into its result rows, and `fm-query mark QUERY` marks them in
-// fm_preview.sh's preview. It is the single parser and matcher shared by both
-// scripts, so the list, the preview and the search can't drift apart.
+// Command fm-query is the matcher behind the interactive search (fm_rg.sh)
+// and its preview (fm_preview.sh), so the search, the list and the preview
+// share one parser and one matcher:
 //
-// Usage:
+//	fm-query prefilter QUERY     # the regex fm_rg.sh hands rg
+//	fm-query rows QUERY  <rg     # the matching lines, as fm_rg.sh's rows
+//	fm-query mark QUERY  <text   # the preview, the query's terms reverse-videoed
 //
-//	fm-query QUERY              # pattern, then spec
-//	fm-query rows QUERY  <rg    # fm_rg.sh's rows (see rows)
-//	fm-query mark QUERY  <text  # the preview with the terms reverse-videoed
+// The query is fzf's extended-search syntax, matched as fzf 0.74 matches it:
+// whitespace separates AND terms; a bare term is fuzzy ("cfg" finds
+// "config"); 'term is an exact substring and 'term' an exact word; ^term and
+// term$ anchor to the start and end of the line, past its surrounding
+// whitespace; !term excludes (!'term fuzzily); a lone | ORs the terms on either
+// side of it; "foo\ bar" is one term holding a space; a Latin letter finds its
+// accented forms unless the term holds one. One difference, the header's
+// "global smart-case": any ASCII uppercase letter makes the whole query
+// case-sensitive, where fzf decides per term.
 //
-// Query grammar (fzf-compatible): whitespace separates AND terms; a bare term
-// is fuzzy ("cfg" matches "config"); 'term is an exact substring; ^term / term$
-// anchor to line start/end; !term excludes; a lone | ORs the terms on either
-// side of it; a backslash escapes a space, so "foo\ bar" is one term with a
-// literal space. Each AND term (or |-joined OR group) becomes a lookahead so
-// they combine on one line. A query with no positive term (empty, or only
-// exclusions) compiles to an empty pattern, which the caller treats as "no
-// results" rather than dumping the whole tree. Smart-case is decided from the
-// raw query as a whole -- any uppercase anywhere makes the entire query
-// case-sensitive -- NOT per-term as fzf does. That is an intentional
-// simplification so rg, the list highlight, and the preview stay in lockstep.
+// rg only narrows the search, with one condition every matching line meets
+// (see prefilter); rows applies the whole query in Go, in linear time, so no
+// regex engine limit can drop a file. A query without a positive term (empty,
+// or exclusions only) has no prefilter, and fm_rg.sh lists nothing rather than
+// every line of the tree.
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
-	"strings"
 )
 
-// meta is the set of PCRE metacharacters escape and fuzzy backslash-escape.
-const meta = ".^$*+?()[]{}|\\"
-
-// sen stands in for a backslash-escaped space while the query is split on
-// whitespace, so "foo\ bar" survives as one token. It is a byte an fzf query
-// cannot contain.
-const sen = "\x01"
-
-// escape backslash-escapes every regex metacharacter in s, turning it into a
-// literal-match fragment.
-func escape(s string) string {
-	var b strings.Builder
-	for _, c := range s {
-		if strings.ContainsRune(meta, c) {
-			b.WriteByte('\\')
-		}
-		b.WriteRune(c)
-	}
-	return b.String()
-}
-
-// fuzzy turns s into a fuzzy PCRE fragment: its characters in order, each
-// escaped, joined by ".*?" (fzf-style, so "cfg" matches "config").
-func fuzzy(s string) string {
-	var b strings.Builder
-	first := true
-	for _, c := range s {
-		if !first {
-			b.WriteString(".*?")
-		}
-		if strings.ContainsRune(meta, c) {
-			b.WriteByte('\\')
-		}
-		b.WriteRune(c)
-		first = false
-	}
-	return b.String()
-}
-
-// group is one accumulated term's lookahead body plus whether it is negated.
-// Terms buffer here so a run joined by "|" can be emitted as one alternation.
-type group struct {
-	body string
-	neg  bool
-}
-
-// compile turns an fzf-style query into a PCRE2 pattern and a tab-separated
-// highlight spec ("L:text" exact, "F:text" fuzzy; positive terms only). It
-// returns "", "" when the query has no positive term.
-func compile(query string) (pattern, spec string) {
-	q := strings.ReplaceAll(query, `\ `, sen)
-	tokens := strings.FieldsFunc(q, func(r rune) bool {
-		return r == ' ' || r == '\t'
-	})
-
-	var look strings.Builder
-	var specParts []string
-	var grp []group
-	pos := false
-	orNext := false
-
-	// flush emits the buffered group as a single lookahead: a lone term keeps
-	// the plain (?=b)/(?!b) form; a |-joined group alternates the bodies inside
-	// one (?=b1|b2|...) (negated members become nested (?!b) branches).
-	flush := func() {
-		if len(grp) == 0 {
-			return
-		}
-		if len(grp) == 1 {
-			if grp[0].neg {
-				look.WriteString("(?!" + grp[0].body + ")")
-			} else {
-				look.WriteString("(?=" + grp[0].body + ")")
-			}
-			grp = grp[:0]
-			return
-		}
-		var alts []string
-		for _, g := range grp {
-			if g.neg {
-				alts = append(alts, "(?!"+g.body+")")
-			} else {
-				alts = append(alts, g.body)
-			}
-		}
-		look.WriteString("(?=" + strings.Join(alts, "|") + ")")
-		grp = grp[:0]
-	}
-
-	for _, w := range tokens {
-		if w == "|" {
-			orNext = true
-			continue
-		}
-
-		neg := false
-		if strings.HasPrefix(w, "!") {
-			neg = true
-			w = w[1:]
-		}
-		pre, suf, ex := false, false, false
-		if w != "" {
-			if strings.HasPrefix(w, "'") {
-				ex = true
-				w = w[1:]
-			} else {
-				if strings.HasPrefix(w, "^") {
-					pre = true
-					w = w[1:]
-				}
-				if w != "" && strings.HasSuffix(w, "$") {
-					suf = true
-					w = w[:len(w)-1]
-				}
-			}
-		}
-		if w == "" {
-			continue
-		}
-		w = strings.ReplaceAll(w, sen, " ")
-
-		if !orNext && len(grp) > 0 {
-			flush()
-		}
-		orNext = false
-
-		core := fuzzy(w)
-		if ex || pre || suf || neg {
-			core = escape(w)
-		}
-		var body string
-		switch {
-		case pre && suf:
-			body = core + "$"
-		case pre:
-			body = core
-		case suf:
-			body = ".*" + core + "$"
-		default:
-			body = ".*" + core
-		}
-		grp = append(grp, group{body: body, neg: neg})
-
-		if !neg {
-			pos = true
-			kind := "F:"
-			if ex || pre || suf {
-				kind = "L:"
-			}
-			specParts = append(specParts, kind+w)
-		}
-	}
-	flush()
-
-	if !pos {
-		return "", ""
-	}
-	return "^" + look.String(), strings.Join(specParts, "\t")
-}
+var errUsage = errors.New("usage: fm-query prefilter|rows|mark QUERY")
 
 func main() {
-	args := os.Args[1:]
-	var err error
-	switch {
-	case len(args) <= 1:
-		// One argument is always a query, even one spelled "rows" or "mark".
-		query := ""
-		if len(args) == 1 {
-			query = args[0]
-		}
-		pattern, spec := compile(query)
-		fmt.Println(pattern)
-		fmt.Println(spec)
-	case len(args) == 2 && args[0] == "rows":
-		err = rows(os.Stdin, os.Stdout, args[1])
-	case len(args) == 2 && args[0] == "mark":
-		err = mark(os.Stdin, os.Stdout, args[1])
-	default:
-		err = fmt.Errorf("usage: fm-query QUERY | fm-query rows|mark QUERY")
-	}
-	if err != nil {
+	if err := run(os.Args[1:], os.Stdin, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, "fm-query:", err)
 		os.Exit(1)
 	}
+}
+
+// run is the command line: an older fm_rg.sh's one-argument form is refused,
+// as is anything but a subcommand and its query.
+func run(args []string, stdin io.Reader, stdout io.Writer) error {
+	if len(args) != 2 {
+		return errUsage
+	}
+	switch args[0] {
+	case "prefilter":
+		if re, ok := parse(args[1]).prefilter(); ok {
+			_, err := fmt.Fprintln(stdout, re)
+			return err
+		}
+		return nil
+	case "rows":
+		return rows(stdin, stdout, args[1])
+	case "mark":
+		return mark(stdin, stdout, args[1])
+	}
+	return errUsage
 }
