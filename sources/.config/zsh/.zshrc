@@ -402,13 +402,19 @@ __on_empty_buffer() {
       return
   fi
 
+  # $1 succeeding means it ran something whose effect the prompt may show: the
+  # precmd hooks run and reset-prompt re-expands the prompt. Failing (as the
+  # leader picker always does, even when it accepts a line) it changed nothing
+  # the prompt shows, so the line is only redrawn: reset-prompt is redisplay
+  # plus re-expansion, which reruns the prompt's commands (starship, twice).
   if eval "$1"; then
     for precmd_function in "${precmd_functions[@]}"; do
       "$precmd_function"
     done
+    zle reset-prompt
+  else
+    zle redisplay
   fi
-
-  zle reset-prompt
 }
 
 # Single-quoted: eval expands the history entry as a value. Spliced into the
