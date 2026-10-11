@@ -10,14 +10,17 @@
 #
 #   fm_rg_ignore.sh flip   <statefile>   # flip the state (no output)
 #   fm_rg_ignore.sh header <statefile>   # print the fzf header for the state
+#
+# The state leads the header: the list column is too narrow for all of it, and
+# fzf cuts the end.
 sf="$2"
-help='fzf-style: '\''exact !not [!]^prefix [!]suffix$ a|b, global smart-case'
+help='fzf syntax: '\''exact '\''word'\'' !not ^prefix suffix$ a|b, global smart-case'
 case "$1" in
   flip)
     if [ -s "$sf" ]; then : >"$sf"; else printf 1 >"$sf"; fi
     ;;
   header)
     if [ -s "$sf" ]; then g=shown; else g=hidden; fi
-    printf '%s   ctrl-g gitignored:%s\n' "$help" "$g"
+    printf 'ctrl-g gitignored:%s   %s\n' "$g" "$help"
     ;;
 esac
