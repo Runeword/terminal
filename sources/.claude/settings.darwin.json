@@ -1,9 +1,50 @@
 {
   "permissions": {
-    "deny": ["Read(~/.config/configstore/**)", "Read(~/.config/gcloud/**)"]
+    "deny": [
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.config/aws/**)",
+      "Read(~/.gnupg/**)",
+      "Read(~/.config/gnupg/**)",
+      "Read(~/.config/gcloud/**)",
+      "Read(~/.netrc)",
+      "Read(~/.docker/**)",
+      "Read(~/.config/docker/**)",
+      "Read(~/.kube/**)",
+      "Read(~/.config/kube/**)",
+      "Read(~/.npmrc)",
+      "Read(~/.config/npm/npmrc)",
+      "Read(~/.git-credentials)",
+      "Read(~/.terraform.d/**)",
+      "Read(~/.pki/**)",
+      "Read(~/.local/share/pki/**)",
+      "Read(~/Library/Keychains/**)",
+      "Read(~/Library/Application Support/Firefox/**)",
+      "Read(~/Library/Application Support/Google/Chrome/**)",
+      "Read(~/Library/Application Support/Chromium/**)",
+      "Read(~/Library/Application Support/BraveSoftware/**)",
+      "Read(~/Library/Application Support/Code/User/globalStorage/**)",
+      "Read(~/Library/Thunderbird/**)",
+      "Read(~/.gemini/**)",
+      "Read(~/.config/cachix/**)",
+      "Read(~/.gmailctl/**)",
+      "Read(~/.supabase/**)",
+      "Read(~/.config/configstore/**)",
+      "Read(~/.password-store/**)",
+      "Read(~/.local/share/password-store/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.google_workspace_mcp/**)",
+      "Read(~/.bash_history)",
+      "Read(~/.zsh_history)",
+      "Read(~/.local/share/zsh/history)",
+      "Read(~/.local/state/zsh/**)",
+      "Read(~/.local/state/bash/**)",
+      "Read(~/.local/state/tmux/**)"
+    ]
   },
   "sandbox": {
     "enabled": true,
+    "enableWeakerNetworkIsolation": true,
     "network": {
       "allowUnixSockets": ["/nix/var/nix/daemon-socket/socket"],
       "allowedDomains": [
@@ -18,6 +59,6 @@
     "filesystem": {
       "allowWrite": ["~/.cache/nix", "~/.local/state/nix", "~/.cache/direnv"]
     },
-    "excludedCommands": ["gh *", "tofu *", "terraform *", "jira *"]
+    "excludedCommands": ["jira *"]
   }
 }
