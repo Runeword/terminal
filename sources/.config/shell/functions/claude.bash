@@ -173,18 +173,38 @@ __claude_provision_config() {
     echo "claude: neither PERMEANCE_TREE nor the bundled claude has a .claude config; refusing to launch without its settings" >&2
     return 1
   fi
-  local dir="$HOME/.claude-$__claude_instance"
+  local dir="$HOME/.claude-$__claude_instance" name planted
   mkdir -p "$dir"
-  if [ -d "$src/rules" ]; then
-    # `ln -sfn` onto a *real directory* does not replace it — it creates the link
-    # inside it (rules/rules -> …) and exits 0. So a rules/ directory planted in
-    # a profile once survives every later re-provision, for every project, and
-    # keeps feeding its own instructions to the model. Anything that is not
-    # already a symlink is removed first.
-    if [ -e "$dir/rules" ] && [ ! -L "$dir/rules" ]; then
-      rm -rf "$dir/rules"
+  # The profile's user-level instructions load into every session, in every
+  # project: CLAUDE.md, rules/, agents/, commands/ and skills/. A session can
+  # write its profile, so what one leaves there would steer every later one, a
+  # credential or unsandboxed session included. sources/.claude owns them: each
+  # is a symlink to its copy there, and one that sources/.claude lacks is
+  # removed. `ln -sfn` onto a *real directory* does not replace it — it creates
+  # the link inside it (rules/rules -> …) and exits 0 — so a real one is removed
+  # first.
+  for name in rules agents commands CLAUDE.md; do
+    if [ -e "$src/$name" ]; then
+      if [ -e "$dir/$name" ] && [ ! -L "$dir/$name" ]; then
+        rm -rf "${dir:?}/${name:?}"
+      fi
+      ln -sfn "$src/$name" "$dir/$name"
+    elif [ -e "$dir/$name" ] || [ -L "$dir/$name" ]; then
+      rm -rf "${dir:?}/${name:?}"
+      echo "claude: removed $dir/$name: sources/.claude has none, and a session can plant one for every later session" >&2
     fi
-    ln -sfn "$src/rules" "$dir/rules"
+  done
+  # skills/ cannot be a link into sources/: claude downloads the claude.ai
+  # account's skills into skills/synced at every start. That download is also
+  # why removing all of skills/ is safe; only what else was there is reported.
+  if [ -e "$dir/skills" ] || [ -L "$dir/skills" ]; then
+    planted=$(find "$dir/skills" -mindepth 1 -maxdepth 1 ! -name synced 2>/dev/null | sed 's|.*/||' | tr '\n' ' ')
+    planted=${planted% }
+    [ -L "$dir/skills" ] && planted="a link to $(readlink "$dir/skills")"
+    rm -rf "${dir:?}/skills"
+    if [ -n "$planted" ]; then
+      echo "claude: removed $planted from $dir/skills: a session can plant skills there for every later session" >&2
+    fi
   fi
   [ -f "$src/settings.json" ] && install -m644 "$src/settings.json" "$dir/settings.json"
   __claude_provision_sandbox_overlay "$src" "$dir"
