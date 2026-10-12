@@ -65,7 +65,7 @@
     "DISABLE_AUTOUPDATER": "1"
   },
     "skillOverrides": {
-      "code-review": "off",
+      "code-review": "on",
       "ultrareview": "off",
       "anthropic-skills:docs": "off",
       "anthropic-skills:docx": "off",
