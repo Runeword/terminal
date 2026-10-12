@@ -12,7 +12,6 @@
 let
   claudeStatusline = import ../packages/claude/statusline { inherit pkgs; };
   claudeDocsGuard = import ../packages/claude/docs-guard { inherit pkgs; };
-  claudeContext = import ../packages/claude/context { inherit pkgs; };
   gitAllowlistHook = claudeSandbox.git-allowlist-hook;
   # Stand-in bwrap for that dry run: prints the argv it was handed, one per line,
   # and saves the environment it inherited to $BWRAP_ENV.
@@ -47,7 +46,6 @@ let
   tools = [
     claudeStatusline
     claudeDocsGuard
-    claudeContext
     gitAllowlistHook
     pkgs.nixfmt
     pkgs.shfmt
