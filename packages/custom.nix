@@ -9,10 +9,6 @@
     # TestStashApplyCmd runs the printed command in a real repo.
     nativeCheckInputs = [ pkgs.git ];
   })
-  # Shared-context journal for Claude sessions in the same CLAUDE_CONTEXT_GROUP.
-  # The hook half is wired into claude's PATH via wrappers/claude.nix; here so
-  # `claude-context log` is runnable from a shell or tmux pane.
-  (import ./claude/context { inherit pkgs; })
   # Lists, previews and erases Claude Code sessions (Claude Code can't delete
   # one). Backs the session picker behind the cs leader alias
   # (sources/.config/shell/functions/claude.bash). Here so it lands in
