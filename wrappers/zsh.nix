@@ -44,7 +44,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, the leader table renders and gc's secret › set reads its value silently, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, the leader table renders and gc's secret › set reads its value silently, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -193,6 +193,24 @@ let
             ;;
           *) fail "the connection picker does not launch what was picked" ;;
         esac
+
+        # The session eraser (leader cx) hands every marked session to one
+        # `claude-sessions rm -ask`, which asks about them all at once. A
+        # stand-in fzf, given --multi, marks every row and presses enter: it
+        # runs the become() bound to enter on their ids.
+        mkdir -p "$HOME/sessions/bin"
+        printf '#!/bin/sh\nif [ "$1" = list ]; then printf "a\\tA\\nb\\tB\\n"; else echo "$*"; fi\n' \
+          > "$HOME/sessions/bin/claude-sessions"
+        chmod +x "$HOME/sessions/bin/claude-sessions"
+        erase='. ${self}/.config/shell/functions/claude.bash
+          fzf() { for o; do case $o in --multi) m=1 ;; --bind=enter:become*) c=$o ;; esac; done
+            [ "$m" ] || return 1; c=''${c#*"become("}; c=''${c%")"}; eval "''${c/"{+1}"/$(cut -f1 | tr "\n" " ")}"; }
+          __claude_sessions_rm'
+        if [ "$(PATH=$HOME/sessions/bin:$PATH ${self}/bin/zsh -f -c "$erase")" = "rm -ask a b" ]; then
+          ok "the session eraser hands claude-sessions rm every marked session at once"
+        else
+          fail "the session eraser does not hand claude-sessions rm the marked sessions"
+        fi
 
         # A launch drops what a session can leave for the next one to run: MCP
         # servers in the profile's .claude.json, and the local settings claude
