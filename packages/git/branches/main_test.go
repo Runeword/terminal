@@ -64,6 +64,34 @@ func TestWorktreeChoice(t *testing.T) {
 	}
 }
 
+// TestRunFzf drives runFzf through fzf's non-interactive --filter mode: the
+// lines reach fzf, the matches come back one per line, a query that matches
+// nothing selects nothing, and $FZF_DEFAULT_OPTS applies as it does to the
+// fzf command.
+func TestRunFzf(t *testing.T) {
+	lines := []string{"main", "feat/x", "origin/feat/x"}
+	tests := []struct {
+		name, defaults, query, want string
+	}{
+		{name: "matches in list order", query: "fx", want: "feat/x\norigin/feat/x"},
+		{name: "no match selects nothing", query: "zzz", want: ""},
+		{name: "FZF_DEFAULT_OPTS applies", defaults: "--exact", query: "fx", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("FZF_DEFAULT_OPTS_FILE", "")
+			t.Setenv("FZF_DEFAULT_OPTS", tt.defaults)
+			got, err := runFzf(lines, "--no-sort", "--filter="+tt.query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestEditorCmd(t *testing.T) {
 	tests := []struct {
 		name  string
