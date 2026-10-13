@@ -313,7 +313,7 @@ func TestRm(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := rm(&out, strings.NewReader(""), cfg, idA, false, time.Now()); err != nil {
+	if err := rm(&out, strings.NewReader(""), cfg, []string{idA}, false, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	want := "erased " + idA + ": transcript, subagents and tool results, file history, hook env, debug log, 2 prompts, 1 paste, 1 plan\n"
@@ -354,7 +354,7 @@ func TestRmAsk(t *testing.T) {
 		path := filepath.Join(cfg, "projects", "-p", idA+".jsonl")
 		write(t, path, `{"type":"ai-title","aiTitle":"Alpha"}`)
 		var out bytes.Buffer
-		if err := rm(&out, strings.NewReader(tt.answer), cfg, idA, true, time.Now()); err != nil {
+		if err := rm(&out, strings.NewReader(tt.answer), cfg, []string{idA}, true, time.Now()); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := os.Stat(path); tt.erased != errors.Is(err, fs.ErrNotExist) {
@@ -366,12 +366,62 @@ func TestRmAsk(t *testing.T) {
 	}
 }
 
+func TestRmAskMany(t *testing.T) {
+	cfg := t.TempDir()
+	proj := filepath.Join(cfg, "projects", "-p")
+	write(t, filepath.Join(proj, idA+".jsonl"), `{"type":"ai-title","aiTitle":"Alpha"}`)
+	write(t, filepath.Join(proj, idB+".jsonl"), `{"type":"ai-title","aiTitle":"Beta"}`)
+	var out bytes.Buffer
+	if err := rm(&out, strings.NewReader("n\n"), cfg, []string{idA, idB}, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	want := "Erase these 2 sessions?\n" +
+		"  \"Alpha\" (active just now)\n" +
+		"  \"Beta\" (active just now)\n" +
+		"Close them first if they are still open. [y/N] kept\n"
+	if out.String() != want {
+		t.Errorf("rm said %q, want %q", out.String(), want)
+	}
+	for _, id := range []string{idA, idB} {
+		if _, err := os.Stat(filepath.Join(proj, id+".jsonl")); err != nil {
+			t.Errorf("a no erased %s: %v", id, err)
+		}
+	}
+}
+
+// Sessions erased together are each reported, once however often they are
+// named, and what only they shared goes with the last of them.
+func TestRmMany(t *testing.T) {
+	cfg := t.TempDir()
+	proj := filepath.Join(cfg, "projects", "-p")
+	for _, id := range []string{idA, idB} {
+		write(t, filepath.Join(proj, id+".jsonl"),
+			`{"type":"user","sessionId":"`+id+`","slug":"shared","message":{"content":"hi"}}`)
+	}
+	write(t, filepath.Join(proj, idC+".jsonl"), `{"aiTitle":"Gamma"}`)
+	write(t, filepath.Join(cfg, "plans", "shared.md"), "x")
+
+	var out bytes.Buffer
+	if err := rm(&out, strings.NewReader(""), cfg, []string{idA, strings.ToUpper(idB), idA}, false, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	want := "erased " + idA + ": transcript\n" +
+		"erased " + idB + ": transcript, 1 plan\n"
+	if out.String() != want {
+		t.Errorf("rm said %q, want %q", out.String(), want)
+	}
+	if _, err := os.Stat(filepath.Join(proj, idC+".jsonl")); err != nil {
+		t.Errorf("rm erased a session it wasn't given: %v", err)
+	}
+}
+
 func TestRmRefuses(t *testing.T) {
 	cfg := t.TempDir()
 	write(t, filepath.Join(cfg, "projects", "-p", idA+".jsonl"), `{"aiTitle":"Alpha"}`)
-	for _, id := range []string{"", "../../etc/passwd", "aaaaaaaa-1111-4111-8111-aaaaaaaaaaa*", idC} {
-		if err := rm(io.Discard, strings.NewReader(""), cfg, id, false, time.Now()); err == nil {
-			t.Errorf("rm(%q) succeeded", id)
+	// The last one names A first: one id that names no session refuses all.
+	for _, ids := range [][]string{{""}, {"../../etc/passwd"}, {"aaaaaaaa-1111-4111-8111-aaaaaaaaaaa*"}, {idC}, {idA, idC}} {
+		if err := rm(io.Discard, strings.NewReader(""), cfg, ids, false, time.Now()); err == nil {
+			t.Errorf("rm(%q) succeeded", ids)
 		}
 	}
 	if _, err := os.Stat(filepath.Join(cfg, "projects", "-p", idA+".jsonl")); err != nil {
