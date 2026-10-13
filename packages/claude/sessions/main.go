@@ -1,14 +1,15 @@
 // Command claude-sessions lists, previews and erases Claude Code sessions for
-// the fzf picker behind __claude_sessions (sources/.config/shell/functions/
-// claude.bash). Claude Code's own /resume picker can't be scripted and can't
-// delete a session, and `claude project purge` wipes a whole project, its
-// auto-memory included.
+// the fzf pickers behind __claude_sessions and __claude_sessions_rm
+// (sources/.config/shell/functions/claude.bash). Claude Code's own /resume
+// picker can't be scripted and can't delete a session, and `claude project
+// purge` wipes a whole project, its auto-memory included.
 //
-//	claude-sessions list            one row per session of the current
-//	                                directory, newest first: the id, a tab,
-//	                                then age, git branch and title
-//	claude-sessions preview <id>    the session's conversation, for fzf
-//	claude-sessions rm [-ask] <id>  erase the session and what only it uses
+//	claude-sessions list               one row per session of the current
+//	                                   directory, newest first: the id, a
+//	                                   tab, then age, git branch and title
+//	claude-sessions preview <id>       the session's conversation, for fzf
+//	claude-sessions rm [-ask] <id>...  erase the sessions and what only
+//	                                   they use
 //
 // Transcripts live in $CLAUDE_CONFIG_DIR (else ~/.claude) at
 // projects/<project>/<id>.jsonl, <project> being the working directory with
@@ -82,7 +83,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: claude-sessions list | preview <id> | rm [-ask] <id>")
+	fmt.Fprintln(os.Stderr, "usage: claude-sessions list | preview <id> | rm [-ask] <id>...")
 	os.Exit(2)
 }
 
@@ -109,12 +110,12 @@ func run(cmd string, args []string, cfg string, now time.Time) error {
 		}
 	case "rm":
 		flags := flag.NewFlagSet("rm", flag.ExitOnError)
-		ask := flags.Bool("ask", false, "show the session and erase it only on a yes from stdin")
+		ask := flags.Bool("ask", false, "show the sessions and erase them only on a yes from stdin")
 		_ = flags.Parse(args) // ExitOnError: exits itself
-		if flags.NArg() != 1 {
+		if flags.NArg() == 0 {
 			usage()
 		}
-		return rm(os.Stdout, os.Stdin, cfg, flags.Arg(0), *ask, now)
+		return rm(os.Stdout, os.Stdin, cfg, flags.Args(), *ask, now)
 	default:
 		usage()
 	}
@@ -568,22 +569,47 @@ func prompt(b block) string {
 	return text
 }
 
-// rm erases session id: its transcript and the directory beside it (subagent
-// transcripts, large tool results), its /rewind snapshots, hook environment
-// and debug log, its prompts in history.jsonl, and the plans and pastes no
-// other session refers to. With ask it first shows the session on out and
-// erases it only on a yes from in. A session still open writes its
-// transcript back, so it has to be closed first.
-func rm(out io.Writer, in io.Reader, cfg, id string, ask bool, now time.Time) error {
-	id = strings.ToLower(id)
-	paths, err := transcripts(cfg, id)
-	if err != nil {
-		return err
+// target is a session rm erases: its id and its transcript files.
+type target struct {
+	id    string
+	paths []string
+}
+
+// rm erases the sessions ids name, one after the other as erase does. It
+// finds them all before it erases any, so an id that names no session leaves
+// every one in place. With ask it first shows them on out and erases them
+// only on a yes from in. A session still open writes its transcript back, so
+// it has to be closed first.
+func rm(out io.Writer, in io.Reader, cfg string, ids []string, ask bool, now time.Time) error {
+	targets := make([]target, 0, len(ids))
+	for _, id := range ids {
+		id = strings.ToLower(id)
+		if slices.ContainsFunc(targets, func(tg target) bool { return tg.id == id }) {
+			continue
+		}
+		paths, err := transcripts(cfg, id)
+		if err != nil {
+			return err
+		}
+		targets = append(targets, target{id: id, paths: paths})
 	}
-	if ask && !confirm(out, in, paths[0], id, now) {
+	if ask && !confirm(out, in, targets, now) {
 		_, _ = fmt.Fprintln(out, "kept")
 		return nil
 	}
+	errs := make([]error, 0, len(targets))
+	for _, tg := range targets {
+		errs = append(errs, erase(out, cfg, tg.id, tg.paths))
+	}
+	return errors.Join(errs...)
+}
+
+// erase erases session id, whose transcripts are at paths: each transcript
+// and the directory beside it (subagent transcripts, large tool results), its
+// /rewind snapshots, hook environment and debug log, its prompts in
+// history.jsonl, and the plans and pastes no other session refers to. What
+// several erased sessions shared goes with the last of them.
+func erase(out io.Writer, cfg, id string, paths []string) error {
 	slugs, err := slugsOf(paths)
 	if err != nil {
 		return err
@@ -650,22 +676,37 @@ func (e *eraser) remove(what string, paths ...string) {
 	}
 }
 
-// confirm shows the session on out and reports whether the answer on in is yes.
-func confirm(out io.Writer, in io.Reader, path, id string, now time.Time) bool {
-	title, when := id, "?"
-	if l, err := readLite(path); err == nil {
-		if s, ok := parse(id, l); ok {
-			title = s.title
+// confirm shows the sessions on out and reports whether the answer on in is
+// yes.
+func confirm(out io.Writer, in io.Reader, targets []target, now time.Time) bool {
+	if len(targets) == 1 {
+		_, _ = fmt.Fprintf(out, "Erase %s?\nClose it first if it is still open. [y/N] ", describe(targets[0], now))
+	} else {
+		_, _ = fmt.Fprintf(out, "Erase these %d sessions?\n", len(targets))
+		for _, tg := range targets {
+			_, _ = fmt.Fprintf(out, "  %s\n", describe(tg, now))
 		}
-		when = ago(now.Sub(l.mod))
+		_, _ = fmt.Fprint(out, "Close them first if they are still open. [y/N] ")
 	}
-	_, _ = fmt.Fprintf(out, "Erase %q (active %s)?\nClose it first if it is still open. [y/N] ", title, when)
 	answer, _ := bufio.NewReader(in).ReadString('\n') // no answer is a no
 	switch strings.ToLower(strings.TrimSpace(answer)) {
 	case "y", "yes":
 		return true
 	}
 	return false
+}
+
+// describe names session tg for confirm: its title and when it was last
+// active.
+func describe(tg target, now time.Time) string {
+	title, when := tg.id, "?"
+	if l, err := readLite(tg.paths[0]); err == nil {
+		if s, ok := parse(tg.id, l); ok {
+			title = s.title
+		}
+		when = ago(now.Sub(l.mod))
+	}
+	return fmt.Sprintf("%q (active %s)", title, when)
 }
 
 // slugsOf is the plan slugs the transcripts at paths name, sorted.
