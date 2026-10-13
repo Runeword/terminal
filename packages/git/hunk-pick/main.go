@@ -8,6 +8,8 @@
 // between the files list and one file's hunks, and print the final command.
 // paths and quote (paths.go) back git.bash's other file pickers: they list
 // the paths each one picks from, and quote the picked ones for its command.
+// tree and tree-quote (tree.go) do the same for the log picker's file step,
+// which shows a commit's files as a tree.
 //
 // Only whole, unmodified hunks are ever emitted, so the reconstructed patch is
 // always valid: each hunk's b-side line numbers are absolute, so any subset
@@ -22,6 +24,8 @@
 //	git-hunk-pick files|key|load|hint|finalize SD ...   # the file picker (picker.go)
 //	git-hunk-pick paths KIND [REV]                      # a kind's paths, NUL-separated (paths.go)
 //	git-hunk-pick quote [PREFIX]                <picked # the picked paths as shell words
+//	git-hunk-pick tree KIND REV                         # a revision's paths as tree rows (tree.go)
+//	git-hunk-pick tree-quote KIND REV [PREFIX]  <picked # the picked rows' paths as shell words
 //
 // With --sum, assemble refuses (exit 1, no output) unless the patch it would
 // print has that digest (patchSum): the picker's command passes the digest of
@@ -251,7 +255,7 @@ func fatal(msg string) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fatal("usage: git-hunk-pick <list|assemble [--sum SUM] INDEX...>  (diff on stdin), <files|key|load|hint|finalize> SD ..., paths KIND [REV], or quote [PREFIX]")
+		fatal("usage: git-hunk-pick <list|assemble [--sum SUM] INDEX...>  (diff on stdin), <files|key|load|hint|finalize> SD ..., paths KIND [REV], quote [PREFIX], tree KIND REV, or tree-quote KIND REV [PREFIX]")
 	}
 
 	switch os.Args[1] {
@@ -262,6 +266,11 @@ func main() {
 		return
 	case "paths", "quote":
 		if err := runPaths(os.Args[1], os.Args[2:], os.Stdin, os.Stdout); err != nil {
+			fatal(err.Error())
+		}
+		return
+	case "tree", "tree-quote":
+		if err := runTree(os.Args[1], os.Args[2:], runGit, os.Stdin, os.Stdout); err != nil {
 			fatal(err.Error())
 		}
 		return
