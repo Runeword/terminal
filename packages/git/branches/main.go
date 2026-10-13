@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	fzf "github.com/junegunn/fzf/src"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -331,47 +332,55 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 	}, nil
 }
 
-// runFzf pipes lines into fzf with the given args and returns the selection.
-// Returns "" on no match, and errFzfCancel when the user dismisses fzf
-// (Esc/Ctrl-C) so callers can unwind cleanly.
+// runFzf runs fzf on lines, in-process through its library, and returns the
+// selection, one item per line. args apply after $FZF_DEFAULT_OPTS_FILE and
+// $FZF_DEFAULT_OPTS, as they do on the fzf command line. Returns "" on no
+// match, and errFzfCancel when the user dismisses fzf (Esc/Ctrl-C) so callers
+// can unwind cleanly.
 func runFzf(lines []string, args ...string) (string, error) {
-	fzf := exec.Command("fzf", args...)
-	fzf.Stderr = os.Stderr
-
-	stdin, err := fzf.StdinPipe()
+	opts, err := fzf.ParseOptions(true, args)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("fzf: %w", err)
 	}
+
+	// The whole list is queued before fzf starts, so no goroutine is left
+	// blocked on a send when fzf exits before reading every line.
+	in := make(chan string, len(lines))
+	for _, line := range lines {
+		in <- line
+	}
+	close(in)
+	opts.Input = in
+
+	// fzf sends each selected item on Output before Run returns, so closing
+	// it after Run ends the collector with the whole selection.
+	out := make(chan string)
+	opts.Output = out
+	done := make(chan []string)
 	go func() {
-		// Ignored deliberately: fzf.Output() calls Wait(), which closes this pipe
-		// itself, so the close here races it and routinely returns os.ErrClosed.
-		// Nothing actionable reaches this goroutine either — a real failure to
-		// feed fzf surfaces as the error from fzf.Output() below.
-		defer func() { _ = stdin.Close() }()
-		// Bail on the first write error (EPIPE when fzf exits quickly on a
-		// long list) — keeping the loop running would just queue more dead
-		// writes against a closed pipe.
-		for _, line := range lines {
-			if _, err := fmt.Fprintln(stdin, line); err != nil {
-				return
-			}
+		var selected []string
+		for item := range out {
+			selected = append(selected, item)
 		}
+		done <- selected
 	}()
 
-	output, err := fzf.Output()
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			switch exitErr.ExitCode() {
-			case 130:
-				return "", errFzfCancel
-			case 1:
-				return "", nil
-			}
-		}
-		return "", err
-	}
+	code, err := fzf.Run(opts)
+	close(out)
+	selected := <-done
 
-	return strings.TrimRight(string(output), "\n"), nil
+	switch code {
+	case fzf.ExitOk:
+		return strings.Join(selected, "\n"), nil
+	case fzf.ExitNoMatch:
+		return "", nil
+	case fzf.ExitInterrupt:
+		return "", errFzfCancel
+	}
+	if err == nil {
+		err = fmt.Errorf("exit status %d", code)
+	}
+	return "", fmt.Errorf("fzf: %w", err)
 }
 
 // worktreeList emits branches not already checked out as a worktree,
