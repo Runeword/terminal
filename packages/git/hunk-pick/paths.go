@@ -5,7 +5,8 @@ package main
 // the log and diff-revs pickers) each pick from one kind of path list (see
 // pathKinds): paths prints it NUL-separated for fzf --read0, and quote turns
 // fzf's --print0 selection into the shell words of the command the picker
-// prints. No line-based tool sits in between, so a name git would quote
+// prints; the log picker shows its list as a tree instead (tree.go). No
+// line-based tool sits in between, so a name git would quote
 // (café.txt under the default core.quotePath, a tab or newline in it, a space
 // in a status line) reaches the printed command as is.
 
