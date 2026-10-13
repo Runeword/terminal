@@ -408,28 +408,46 @@ __claude_debug() {
   eval "$__CLAUDE_CMD"
 }
 
-# Pick a past session of the current directory: Enter resumes it, ctrl-x erases
-# it (after a y/N), the preview shows its conversation. The builtin picker (cr)
-# can't delete one, and `claude project purge` wipes the whole project, its
-# auto-memory included. claude-sessions (packages/claude/sessions) reads the
-# transcripts; the instance is the first argument, as for __claude.
+# fzf over the past sessions of the current directory, each previewed as its
+# conversation, for the two pickers below: the instance, then fzf options for
+# eval. claude-sessions (packages/claude/sessions) reads the transcripts.
+__claude_sessions_fzf() {
+  if ! command -v claude-sessions >/dev/null; then
+    echo "claude-sessions is not on PATH: rebuild, then open a new terminal" >&2
+    return 1
+  fi
+  (
+    export CLAUDE_CONFIG_DIR="$HOME/.claude-$1"
+    shift
+    claude-sessions list | eval fzf "$__CLAUDE_FZF" \
+      "--delimiter='\t' --with-nth=2.." \
+      "--preview='claude-sessions preview {1}'" \
+      "--preview-window='right,60%,border-none,wrap'" "$*"
+  )
+}
+
+# Pick a past session of the current directory and resume it. The instance is
+# the first argument, as for __claude.
 __claude_sessions() {
   local instance=1 id
   if [ "$1" != "" ] && [ "$1" -eq "$1" ] 2>/dev/null; then
     instance="$1"
   fi
-  if ! command -v claude-sessions >/dev/null; then
-    echo "claude-sessions is not on PATH: rebuild, then open a new terminal" >&2
-    return 1
-  fi
-  id=$(
-    export CLAUDE_CONFIG_DIR="$HOME/.claude-$instance"
-    claude-sessions list | eval fzf "$__CLAUDE_FZF" \
-      "--delimiter='\t' --with-nth=2.. --accept-nth=1" \
-      "--header='enter: resume · ctrl-x: erase'" \
-      "--preview='claude-sessions preview {1}'" \
-      "--preview-window='right,60%,border-none,wrap'" \
-      "--bind='ctrl-x:execute(claude-sessions rm -ask {1})+reload(claude-sessions list)'"
-  ) || return 0
+  id=$(__claude_sessions_fzf "$instance" --accept-nth=1 "--header='enter: resume'") || return 0
   __claude "$instance" --resume "$id"
+}
+
+# Pick past sessions of the current directory and erase them, after one y/N:
+# tab marks several, enter erases the marked ones (else the one under the
+# cursor). The builtin picker (cr) can't delete a session, and `claude project
+# purge` wipes the whole project, its auto-memory included. fzf becomes
+# `claude-sessions rm`, which reads the y/N from the terminal and leaves what
+# it erased on screen. The instance is the first argument, as for __claude.
+__claude_sessions_rm() {
+  local instance=1
+  if [ "$1" != "" ] && [ "$1" -eq "$1" ] 2>/dev/null; then
+    instance="$1"
+  fi
+  __claude_sessions_fzf "$instance" --multi "--header='tab: mark · enter: erase'" \
+    "--bind='enter:become(claude-sessions rm -ask {+1})'" || return 0
 }
