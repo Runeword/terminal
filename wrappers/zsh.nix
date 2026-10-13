@@ -44,7 +44,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, the leader table renders and gc's secret › set reads its value silently, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, the leader table renders and gc's secret › set reads its value silently, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, gl's file step lists a commit as tree rows and opens the picked rows' files, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -252,6 +252,20 @@ let
           *"--no-index --color=always -- /dev/null {} "*) ok "the untracked-file preview hands git diff its path after --" ;;
           *) fail "the untracked-file preview hands git diff its path where an option goes" ;;
         esac
+
+        # gl's file step (__git_log) hands fzf the commit's tree rows and the
+        # editor what tree-quote makes of the row numbers fzf accepts: the
+        # stand-ins pick the commit and a row, and say what they were asked.
+        gl='. ${self}/.config/shell/functions/git.bash
+          git() { case $1 in log) echo "abc subject" ;; rev-parse) [ "$2" != --show-cdup ] || echo ../ ;; esac; }
+          git-hunk-pick() { case $1 in tree) printf "%s\0" "$*" ;; tree-quote) printf "%s<%s" "$*" "$(tr "\0" ,)" ;; esac; }
+          fzf() { case "$*" in *"--accept-nth={n}"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *) head -n 1 ;; esac; }
+          EDITOR=ed __git_log'
+        if [ "$(${self}/bin/zsh -f -c "$gl")" = "ed -- tree-quote commit abc ../<4," ]; then
+          ok "gl's file step lists the commit as tree rows and opens the files of the rows picked"
+        else
+          fail "gl's file step does not hand the rows fzf picks from its tree to tree-quote"
+        fi
 
         # __open_file hands the editor its picks after --: nvim runs a +cmd
         # argument, so a file named "+so x.vim" would source x.vim.
