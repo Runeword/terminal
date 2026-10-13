@@ -528,19 +528,34 @@ __git_log() {
 
   local -a file_preview=(
     --header='select files to open'
-    # `:(top,literal)` anchors the pathspec to the repo root (the listed paths
-    # are root-relative but this fzf runs from the invocation cwd) and reads it
-    # as a path, not a glob.
-    --preview "$_GIT_FZF_PREVIEW_CMD git show --color=always $commit -- ':(top,literal)'{} | $_GIT_PAGER"
+    # {2..} is the row's path, a directory's ending in /, so that its preview
+    # is every change below it. `:(top,literal)` anchors the pathspec to the
+    # repo root (the listed paths are root-relative but this fzf runs from the
+    # invocation cwd) and reads it as a path, not a glob.
+    --preview "echo {2..}; git show --color=always $commit -- ':(top,literal)'{2..} | $_GIT_PAGER"
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
+  )
+
+  # git-hunk-pick tree prints a row per directory and file of the commit: the
+  # tree's row and the path, 0x1f-separated (tree.go). Raw mode keeps the whole
+  # tree on screen while a query is typed and dims the rows that don't match:
+  # the cursor goes to the best match, the arrows and Tab step between
+  # matches, and Enter waits while nothing matches or is marked. fzf prints
+  # the picked rows' indices, which tree-quote turns back into paths: a
+  # directory's row into every file below it. y copies the row's path.
+  local -a tree_view=(
+    --ansi --raw --gutter-raw=' ' --delimiter=$'\x1f' --with-nth='{1}' --accept-nth='{n}'
+    --bind 'result:best,up:up-match,down:down-match,tab:select+down-match,btab:deselect+up-match'
+    --bind 'enter:transform:[ "$FZF_MATCH_COUNT" = 0 ] && [ "$FZF_SELECT_COUNT" = 0 ] || echo accept'
+    --bind 'y:execute-silent(wl-copy -- {2..})'
   )
 
   local repo_cdup
   repo_cdup="$(git rev-parse --show-cdup)"
   local args
-  args=$(git-hunk-pick paths commit "$commit" </dev/null |
-    fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "${file_preview[@]}" |
-    git-hunk-pick quote "$repo_cdup")
+  args=$(git-hunk-pick tree commit "$commit" </dev/null |
+    fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "${tree_view[@]}" "${file_preview[@]}" |
+    git-hunk-pick tree-quote commit "$commit" "$repo_cdup")
   [ "$args" != "" ] && echo "$EDITOR -- $args"
 }
 
