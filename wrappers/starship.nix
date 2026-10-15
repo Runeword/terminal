@@ -14,6 +14,7 @@ let
     ];
     postBuild = permeance.installLauncher {
       binName = "starship";
+      compiled = true;
       configEnv = {
         STARSHIP_CONFIG = ".config/starship/starship.toml";
       };
