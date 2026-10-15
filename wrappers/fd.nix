@@ -14,6 +14,7 @@ let
     ];
     postBuild = permeance.installLauncher {
       binName = "fd";
+      compiled = true;
       flags = [
         "--ignore-file"
         "${permeance.root}/.config/ignore"
