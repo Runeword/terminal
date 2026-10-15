@@ -17,6 +17,7 @@ let
     ];
     postBuild = permeance.installLauncher {
       binName = "rg";
+      compiled = true;
       configEnv = {
         RIPGREP_CONFIG_PATH = ".config/ripgrep/ripgreprc";
       };
