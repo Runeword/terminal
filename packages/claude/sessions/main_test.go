@@ -251,28 +251,23 @@ func TestPreview(t *testing.T) {
 	write(t, filepath.Join(cfg, "projects", "-p", idA+".jsonl"),
 		`{"type":"user","message":{"content":"fix it"}}`,
 		`{"type":"user","isMeta":true,"message":{"content":"meta text"}}`,
-		`{"type":"assistant","message":{"content":[{"type":"thinking","thinking":"hmm"},{"type":"text","text":"On it."},{"type":"tool_use","name":"Bash"}]}}`,
-		`{"type":"user","message":{"content":[{"type":"tool_result","content":"tool output"}]}}`,
-		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read"},{"type":"tool_use","name":"Read"}]}}`,
-		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read"},{"type":"tool_use","name":"Grep"}]}}`,
-		`{"type":"assistant","message":{"content":[{"type":"text","text":"x\u001b]52;c;eA==\u0007done"}]}}`,
+		`{"type":"assistant","message":{"content":[{"type":"thinking","thinking":"hmm"},{"type":"text","text":"x\u001b]52;c;eA==\u0007done"}]}}`,
 		`{"type":"user","message":{"content":"<command-name>/compact</command-name>\n<command-args>keep tests</command-args>"}}`,
 		`{"type":"ai-title","aiTitle":"Fixing"}`)
 	var out bytes.Buffer
-	if err := preview(&out, cfg, idA, time.Now()); err != nil {
+	if err := preview(&out, cfg, idA, 0, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	got := out.String()
 	for _, want := range []string{
-		bold + "Fixing" + reset, bold + "❯ fix it" + reset, "On it.",
-		"· Bash" + reset, "· Read ×3" + reset + "\n" + dim + "· Grep" + reset,
-		"x]52;c;eA==done", "❯ /compact keep tests",
+		bold + "Fixing" + reset + "\n" + dim + idA + " · - · just now · ",
+		promptBlock("fix it", 0), "✻ Thinking…", "● x]52;c;eA==done", promptBlock("/compact keep tests", 0),
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("preview lacks %q:\n%s", want, got)
 		}
 	}
-	for _, unwanted := range []string{"meta text", "hmm", "tool output", "\x1b]", "\x07"} {
+	for _, unwanted := range []string{"meta text", "\x1b]", "\x07"} {
 		if strings.Contains(got, unwanted) {
 			t.Errorf("preview shows %q:\n%s", unwanted, got)
 		}
