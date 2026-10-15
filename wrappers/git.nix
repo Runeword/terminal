@@ -15,29 +15,23 @@ let
       pkgs.git
       config
     ];
-    postBuild =
-      permeance.installLauncher {
-        binName = "git";
-        configEnv = {
-          GIT_CONFIG_GLOBAL = ".config/git/config";
-        };
-        flags = [
-          "-c"
-          "core.excludesFile=${permeance.root}/.config/git/ignore"
-        ];
-      }
+    postBuild = permeance.installLauncher {
+      binName = "git";
+      compiled = true;
+      configEnv = {
+        GIT_CONFIG_GLOBAL = ".config/git/config";
+      };
+      flags = [
+        "-c"
+        "core.excludesFile=${permeance.root}/.config/git/ignore"
+      ];
       # git-upload-pack / -receive-pack / -upload-archive ship as relative
       # symlinks to `git`, which now resolves to the launcher. The launcher's
-      # `-c core.excludesFile=…` prefix then reaches these plumbing commands,
-      # which reject `-c` ("unknown switch `c'"), breaking ssh-served
-      # fetch/push. Repoint every dashed-builtin symlink at the real git.
-      + ''
-        for l in "$out"/bin/*; do
-          if [ -L "$l" ] && [ "$(readlink "$l")" = "git" ]; then
-            ln -sf .git-real "$l"
-          fi
-        done
-      '';
+      # `-c core.excludesFile=…` prefix would then reach these plumbing
+      # commands, which reject `-c` ("unknown switch `c'"), breaking
+      # ssh-served fetch/push: bypass points each one at the real git.
+      aliasLinks = "bypass";
+    };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "git";
       description = "Verify git loads bundled global config";
