@@ -29,6 +29,7 @@ let
     ];
     postBuild = permeance.installLauncher {
       binName = "tmux";
+      compiled = true;
       staticEnv = {
         TMUX_SHELL = "${zsh}/bin/zsh";
         NIX_OUT_TMUX = permeance.out;
