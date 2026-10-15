@@ -29,7 +29,7 @@ When writing, reviewing, or modifying Nix code, enforce the following rules deri
 - **File names**: Lowercase with hyphens between words (e.g., `all-packages.nix`, `default.nix`). Never camelCase for file names.
 - **Package names**: `pname` must not contain uppercase letters. Should match upstream name. Use hyphens as separators.
 - **Attribute names**: Should match `pname`. Prefix with underscore only if `pname` starts with a digit. Use underscores for version variants (e.g., `json-c_0_9`).
-- **Formatting**: Use `nixfmt-rfc-style` as the canonical formatter. Use 2 spaces per indentation level in Nix expressions. Never use tabs. Shell code embedded in Nix uses 2 spaces (project convention) — otherwise nixpkgs convention is 4 spaces for embedded shell.
+- **Formatting**: Use `nixfmt` as the canonical formatter. Use 2 spaces per indentation level in Nix expressions. Never use tabs. Shell code embedded in Nix uses 2 spaces (project convention) — otherwise nixpkgs convention is 4 spaces for embedded shell.
 - **Attribute set style**: Multi-line sets have one attribute per line. Short sets may be on one line. Align attributes within a set.
 - **`meta` placement**: The `meta` attribute set should always be placed last in derivations.
 
