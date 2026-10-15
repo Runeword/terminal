@@ -14,4 +14,7 @@ pre-push:
         - "wrappers/**"
         - "packages/**"
         - "overlays/**"
-      run: nix flake check -L --keep-going -j auto
+      # Check the commit being pushed (HEAD), not the working tree, whose
+      # uncommitted edits (another session's work) would fail the push. A stale
+      # committed flake.lock fails rather than being silently rewritten.
+      run: nix flake check "git+file://$(git rev-parse --show-toplevel)?rev=$(git rev-parse HEAD)" --no-update-lock-file -L --keep-going -j auto
