@@ -85,6 +85,8 @@ let
       # nvim-fzf captures CLI args into NVIM_FZF_ARGS for init.lua to read,
       # then execs nvim with only -u (no positional args). preExecLines does
       # the $* capture; forwardArgs=false drops "$@" from the exec line.
+      # The one wrapper on permeance's bash launcher: preExecLines are lines of
+      # bash, which the compiled launcher the others use refuses.
       ${permeance.installLauncher {
         binName = "nvim-fzf";
         realBin = "${permeance.out}/bin/.nvim-fzf-inner";
