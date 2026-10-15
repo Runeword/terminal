@@ -9,11 +9,13 @@ package main
 //
 //	TREE 0x1f PATH
 //
-// TREE draws the row in the tree, which is all fzf shows and searches. PATH
-// is what the preview shows: the file, or the directory with a trailing
-// slash, which git reads as every file below it. A directory whose only entry
-// is a directory shares its row (git/hunk-pick/, as lazygit's tree does), and
-// a directory's row stands for every file below it.
+// TREE draws the row in the tree, which is all fzf shows and searches; a
+// directory's ends in "/", a file's never does. PATH is what the preview
+// shows: the file, or the directory with a trailing slash, which git reads as
+// every file below it. A directory whose only entry is a directory shares its
+// row (git/hunk-pick/, as lazygit's tree does). A directory's row is the
+// tree's structure, not a pick: the picker keeps it out of its matches, and
+// tree-quote drops it.
 //
 // fzf hands back the accepted rows' indices (--accept-nth '{n}'), not their
 // text: TREE carries colour escapes (--ansi), and a name may hold any byte but
@@ -156,10 +158,10 @@ func treeList(git func(args ...string) (string, error), kind, rev string) ([]tre
 	return treeRows(paths), nil
 }
 
-// treeQuote returns the shell words of the rows whose indices are on r (fzf's
-// --print0 output of --accept-nth '{n}'): each file's path, or every file
-// below a directory, prefixed with prefix and shell-quoted, once each, in the
-// order picked. It lists nothing when nothing was picked.
+// treeQuote returns the shell words of the files among the rows whose indices
+// are on r (fzf's --print0 output of --accept-nth '{n}'), in the order picked:
+// each path prefixed with prefix and shell-quoted. A directory's row adds
+// nothing. It lists nothing when nothing was picked.
 func treeQuote(git func(args ...string) (string, error), r io.Reader, kind, rev, prefix string) (string, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {
@@ -174,30 +176,13 @@ func treeQuote(git func(args ...string) (string, error), r io.Reader, kind, rev,
 		return "", err
 	}
 	var words []string
-	seen := map[string]bool{}
-	add := func(p string) {
-		if !seen[p] {
-			seen[p] = true
-			words = append(words, shellQuote(prefix+p))
-		}
-	}
 	for _, s := range picked {
 		n, err := strconv.Atoi(s)
 		if err != nil || n < 0 || n >= len(rows) {
 			return "", fmt.Errorf("no row %q (have %d)", s, len(rows))
 		}
 		if !rows[n].isDir() {
-			add(rows[n].path)
-			continue
-		}
-		// The rows below a directory come right after it, depth first.
-		for _, below := range rows[n+1:] {
-			if !strings.HasPrefix(below.path, rows[n].path) {
-				break
-			}
-			if !below.isDir() {
-				add(below.path)
-			}
+			words = append(words, shellQuote(prefix+rows[n].path))
 		}
 	}
 	return strings.Join(words, " "), nil
