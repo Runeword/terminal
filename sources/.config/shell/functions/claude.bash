@@ -409,7 +409,7 @@ __claude_debug() {
 }
 
 # fzf over the past sessions of the current directory, each previewed as its
-# conversation, for the two pickers below: the instance, then fzf options for
+# conversation, for the three pickers below: the instance, then fzf options for
 # eval. claude-sessions (packages/claude/sessions) reads the transcripts.
 __claude_sessions_fzf() {
   if ! command -v claude-sessions >/dev/null; then
@@ -435,6 +435,19 @@ __claude_sessions() {
   fi
   id=$(__claude_sessions_fzf "$instance" --accept-nth=1 "--header='enter: resume'") || return 0
   __claude "$instance" --resume "$id"
+}
+
+# Pick a past session of the current directory and fork it: claude resumes a
+# copy of its conversation under a new session ID, and the original stays as it
+# was, for cs to resume later. The instance is the first argument, as for
+# __claude.
+__claude_sessions_fork() {
+  local instance=1 id
+  if [ "$1" != "" ] && [ "$1" -eq "$1" ] 2>/dev/null; then
+    instance="$1"
+  fi
+  id=$(__claude_sessions_fzf "$instance" --accept-nth=1 "--header='enter: fork'") || return 0
+  __claude "$instance" --resume "$id" --fork-session
 }
 
 # Pick past sessions of the current directory and erase them, after one y/N:
