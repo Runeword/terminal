@@ -19,6 +19,10 @@ let
     ];
     postBuild = permeance.installLauncher {
       binName = "bash";
+      compiled = true;
+      # bash's sh, a relative link to it, keeps running the launcher: the
+      # config's environment suits it, and bash accepts --rcfile as sh too.
+      aliasLinks = "wrap";
       configEnv = {
         INPUTRC = ".config/readline/inputrc";
         DIRENV_CONFIG = ".config/direnv";
