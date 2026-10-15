@@ -105,8 +105,8 @@ func TestTreeRecord(t *testing.T) {
 }
 
 // TestTree lists a commit as rows and maps the picked rows' indices back to
-// shell words: a directory's row to every file below it. The rows are
-// 0 a/, 1 a/b/, 2 a/b/x, 3 a/y, 4 it's, 5 z.
+// shell words, a directory's row to none. The rows are 0 a/, 1 a/b/, 2 a/b/x,
+// 3 a/y, 4 it's, 5 z.
 func TestTree(t *testing.T) {
 	calls := 0
 	list := fakeGit(map[string]string{
@@ -132,11 +132,10 @@ func TestTree(t *testing.T) {
 
 	tests := []struct{ name, in, prefix, want string }{
 		{"a file", "5\x00", "", "'z'\n"},
-		{"a directory", "0\x00", "", "'a/b/x' 'a/y'\n"},
-		{"a directory inside another", "1\x00", "", "'a/b/x'\n"},
+		{"a directory adds nothing", "0\x00", "", ""},
 		{
-			"each file once, in the order picked, with a cd-up prefix",
-			"3\x000\x004\x00", "../", `'../a/y' '../a/b/x' '../it'\''s'` + "\n",
+			"the files in the order picked, with a cd-up prefix",
+			"3\x001\x004\x002\x00", "../", `'../a/y' '../it'\''s' '../a/b/x'` + "\n",
 		},
 		{"no final NUL", "5", "", "'z'\n"},
 	}
