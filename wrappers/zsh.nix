@@ -31,6 +31,7 @@ let
 
       ${permeance.installLauncher {
         binName = "zsh";
+        compiled = true;
         configEnv = {
           ZDOTDIR = ".config/zsh";
           INPUTRC = ".config/readline/inputrc";
@@ -44,12 +45,21 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, the leader table renders and gc's secret › set reads its value silently, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, gl's file step lists a commit as tree rows and opens the picked rows' files, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders and gc's secret › set reads its value silently, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
         else
           fail "wrapper does not exec real zsh"
+        fi
+
+        # A login shell started through the wrapper is one: the compiled
+        # launcher hands zsh the "-zsh" argv[0] its caller gave it, as tmux
+        # gives every pane's shell (a bash launcher never sees it).
+        if [ "$(exec -a -zsh ${self}/bin/zsh -c '[[ -o login ]] && print login')" = login ]; then
+          ok "a login shell started through the wrapper is a login shell"
+        else
+          fail "the wrapper loses a login shell's -zsh"
         fi
 
         # A leader.toml that fails to render leaves every chord dead, so check
@@ -212,6 +222,17 @@ let
           fail "the session eraser does not hand claude-sessions rm the marked sessions"
         fi
 
+        # The fork picker (leader cf) resumes the picked session under a new
+        # session ID: a stand-in fzf picks session a.
+        fork='. ${self}/.config/shell/functions/claude.bash
+          fzf() { echo a; }
+          __claude_run() { printf "%s\n" "$__CLAUDE_CMD"; }
+          __claude_sessions_fork'
+        case "$(CLAUDE_SANDBOX=0 PATH=$HOME/sessions/bin:${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$fork")" in
+          *" --resume a --fork-session ") ok "the fork picker resumes the picked session as a fork" ;;
+          *) fail "the fork picker does not fork the picked session" ;;
+        esac
+
         # A launch drops what a session can leave for the next one to run: MCP
         # servers in the profile's .claude.json, and the local settings claude
         # does not write itself (hooks here), keeping its permission rules.
@@ -253,16 +274,18 @@ let
           *) fail "the untracked-file preview hands git diff its path where an option goes" ;;
         esac
 
-        # gl's file step (__git_log) hands fzf the commit's tree rows and the
-        # editor what tree-quote makes of the row numbers fzf accepts: the
-        # stand-ins pick the commit and a row, and say what they were asked.
+        # gl's file step (__git_log) hands fzf the commit's tree rows, searched
+        # with !/$ so that no directory's row matches, and the count of its
+        # files for the info line, and the editor what tree-quote makes of the
+        # row numbers fzf accepts: the stand-ins pick the commit and a row, and
+        # say what they were asked.
         gl='. ${self}/.config/shell/functions/git.bash
           git() { case $1 in log) echo "abc subject" ;; rev-parse) [ "$2" != --show-cdup ] || echo ../ ;; esac; }
-          git-hunk-pick() { case $1 in tree) printf "%s\0" "$*" ;; tree-quote) printf "%s<%s" "$*" "$(tr "\0" ,)" ;; esac; }
-          fzf() { case "$*" in *"--accept-nth={n}"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *) head -n 1 ;; esac; }
+          git-hunk-pick() { case $1 in tree) printf "%s\0" "$*" ;; paths) printf "x\0y\0" ;; tree-quote) printf "%s<%s" "$*" "$(tr "\0" ,)" ;; esac; }
+          fzf() { case "$TREE_FILES $*" in "2 "*"--accept-nth={n}"*"start:+search(!/\$)"*"--info-command="*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *) head -n 1 ;; esac; }
           EDITOR=ed __git_log'
         if [ "$(${self}/bin/zsh -f -c "$gl")" = "ed -- tree-quote commit abc ../<4," ]; then
-          ok "gl's file step lists the commit as tree rows and opens the files of the rows picked"
+          ok "gl's file step lists the commit as tree rows, directories unpickable and uncounted, and opens the files of the rows picked"
         else
           fail "gl's file step does not hand the rows fzf picks from its tree to tree-quote"
         fi
