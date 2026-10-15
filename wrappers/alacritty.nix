@@ -82,6 +82,7 @@ let
 
         ${permeance.installLauncher {
           binName = "alacritty";
+          compiled = true;
           realBin = "${pkgs.alacritty}/bin/alacritty";
           unsetEnv = [
             "TMUX"
