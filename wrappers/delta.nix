@@ -14,6 +14,7 @@ let
     ];
     postBuild = permeance.installLauncher {
       binName = "delta";
+      compiled = true;
       flags = [
         "--config"
         "${permeance.root}/.config/delta/config"
