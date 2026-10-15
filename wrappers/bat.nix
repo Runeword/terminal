@@ -48,6 +48,7 @@ let
     ];
     postBuild = permeance.installLauncher {
       binName = "bat";
+      compiled = true;
       configEnv = {
         BAT_CONFIG_PATH = ".config/bat/config";
       };
