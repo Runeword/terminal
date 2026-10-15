@@ -80,7 +80,6 @@ with pkgs;
   # nix-init
   # nix-update
   cachix
-  devenv
   direnv
 
   # _______________________________ Multimedia
