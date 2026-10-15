@@ -538,23 +538,33 @@ __git_log() {
 
   # git-hunk-pick tree prints a row per directory and file of the commit: the
   # tree's row and the path, 0x1f-separated (tree.go). Raw mode keeps the whole
-  # tree on screen while a query is typed and dims the rows that don't match:
-  # the cursor goes to the best match, the arrows and Tab step between
-  # matches, and Enter waits while nothing matches or is marked. fzf prints
-  # the picked rows' indices, which tree-quote turns back into paths: a
-  # directory's row into every file below it. y copies the row's path.
+  # tree on screen while a query is typed and dims the rows that don't match.
+  # Every search also requires !/$ (doesn't end in /), so a directory's row
+  # never matches and can't be picked: the cursor goes to the best match, the
+  # arrows, j/k and Tab step between matches, and Tab, Enter, f's jump and the
+  # mouse's clicks act on a match only (Enter on the marks too). fzf counts
+  # every row, so the info line counts the files instead: matches over
+  # TREE_FILES, the commit's files. fzf prints the picked rows' indices, which
+  # tree-quote turns back into paths. y copies the row's path.
+  local accept='[ "$FZF_RAW" = 1 ] || [ "$FZF_SELECT_COUNT" != 0 ] && echo accept'
   local -a tree_view=(
     --ansi --raw --gutter-raw=' ' --delimiter=$'\x1f' --with-nth='{1}' --accept-nth='{n}'
-    --bind 'result:best,up:up-match,down:down-match,tab:select+down-match,btab:deselect+up-match'
-    --bind 'enter:transform:[ "$FZF_MATCH_COUNT" = 0 ] && [ "$FZF_SELECT_COUNT" = 0 ] || echo accept'
+    --bind 'start:+search(!/$),change:transform-search:printf "%s !/$" "$FZF_QUERY"'
+    --bind 'result:best,up:up-match,down:down-match,j:down-match,k:up-match,btab:deselect+up-match'
+    --bind 'tab:transform:[ "$FZF_RAW" = 1 ] && echo select+down-match || echo down-match'
+    --bind 'right-click:transform:[ "$FZF_RAW" = 1 ] && echo toggle'
+    --bind "enter:transform:$accept" --bind "double-click:transform:$accept"
+    --bind "f:jump,jump:transform:$accept"
     --bind 'y:execute-silent(wl-copy -- {2..})'
+    --info-command='printf "%s/%s (%s)" "$FZF_MATCH_COUNT" "$TREE_FILES" "$FZF_SELECT_COUNT"'
   )
 
-  local repo_cdup
+  local repo_cdup files
   repo_cdup="$(git rev-parse --show-cdup)"
+  files=$(($(git-hunk-pick paths commit "$commit" </dev/null | tr -cd '\000' | wc -c)))
   local args
   args=$(git-hunk-pick tree commit "$commit" </dev/null |
-    fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "${tree_view[@]}" "${file_preview[@]}" |
+    TREE_FILES=$files fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "${tree_view[@]}" "${file_preview[@]}" |
     git-hunk-pick tree-quote commit "$commit" "$repo_cdup")
   [ "$args" != "" ] && echo "$EDITOR -- $args"
 }
