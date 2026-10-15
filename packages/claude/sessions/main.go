@@ -7,7 +7,8 @@
 //	claude-sessions list               one row per session of the current
 //	                                   directory, newest first: the id, a
 //	                                   tab, then age, git branch and title
-//	claude-sessions preview <id>       the session's conversation, for fzf
+//	claude-sessions preview <id>       the session's conversation in
+//	                                   Claude Code's colors, for fzf
 //	claude-sessions rm [-ask] <id>...  erase the sessions and what only
 //	                                   they use
 //
@@ -35,6 +36,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -105,7 +107,9 @@ func run(cmd string, args []string, cfg string, now time.Time) error {
 		if len(args) != 1 {
 			usage()
 		}
-		if err := preview(&out, cfg, args[0], now); err != nil {
+		// fzf hands a preview command its width, which a prompt's band spans.
+		width, _ := strconv.Atoi(os.Getenv("FZF_PREVIEW_COLUMNS"))
+		if err := preview(&out, cfg, args[0], width, now); err != nil {
 			return err
 		}
 	case "rm":
@@ -383,9 +387,16 @@ type entry struct {
 
 // block is one element of a message's content array.
 type block struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-	Name string `json:"name"`
+	Type      string          `json:"type"`
+	Text      string          `json:"text"`
+	Thinking  string          `json:"thinking"`
+	Name      string          `json:"name"`        // a tool call's tool
+	ID        string          `json:"id"`          // a tool call's
+	Input     json.RawMessage `json:"input"`       // a tool call's
+	ToolUseID string          `json:"tool_use_id"` // the call a tool result answers
+	IsError   bool            `json:"is_error"`    // whether that call failed
+	Content   json.RawMessage `json:"content"`     // a tool result's: text or blocks
+	ToolName  string          `json:"tool_name"`   // a tool reference's
 }
 
 // blocks is the message's content; a plain string is one text block.
@@ -479,9 +490,10 @@ func list(w *bytes.Buffer, cfg, cwd string, now time.Time) error {
 	return nil
 }
 
-// preview writes a session's title and conversation for fzf's preview: the
-// prompts typed, the replies, and one line per tool call.
-func preview(w *bytes.Buffer, cfg, id string, now time.Time) error {
+// preview writes a session's title and whole transcript for fzf's preview,
+// as Claude Code's transcript view shows it (transcript.go), in its colors
+// (render.go). A prompt's band spans width columns when it is known.
+func preview(w *bytes.Buffer, cfg, id string, width int, now time.Time) error {
 	paths, err := transcripts(cfg, id)
 	if err != nil {
 		return err
@@ -498,64 +510,19 @@ func preview(w *bytes.Buffer, cfg, id string, now time.Time) error {
 	if s, ok := parse(id, l); ok {
 		title, branch = s.title, s.branch
 	}
-	fmt.Fprintf(w, "%s%s%s\n%s%s · %s · %s · %s%s\n", bold, title, reset,
+	var page bytes.Buffer
+	fmt.Fprintf(&page, "%s%s%s\n%s%s · %s · %s · %s%s\n", bold, title, reset,
 		dim, id, branch, ago(now.Sub(l.mod)), human(l.size), reset)
-	// A run of calls to the same tool is one line: "· Bash ×6".
-	tool, calls := "", 0
-	flush := func() {
-		switch {
-		case calls == 1:
-			fmt.Fprintf(w, "%s· %s%s\n", dim, tool, reset)
-		case calls > 1:
-			fmt.Fprintf(w, "%s· %s ×%d%s\n", dim, tool, calls, reset)
-		}
-		tool, calls = "", 0
-	}
-	for _, line := range bytes.Split(data, []byte("\n")) {
-		var e entry
-		if len(line) == 0 || json.Unmarshal(line, &e) != nil || e.IsMeta || e.IsSidechain {
-			continue
-		}
-		switch {
-		case e.Type == "user" && e.IsCompactSummary:
-			flush()
-			fmt.Fprintf(w, "\n%s── compacted ──%s\n", dim, reset)
-		case e.Type == "user":
-			for _, b := range e.blocks() {
-				if text := prompt(b); text != "" {
-					flush()
-					fmt.Fprintf(w, "\n%s\n", styled(bold, "❯ "+text))
-				}
-			}
-		case e.Type == "assistant":
-			for _, b := range e.blocks() {
-				switch b.Type {
-				case "text":
-					if text := strings.TrimSpace(cleanText(b.Text)); text != "" {
-						flush()
-						fmt.Fprintf(w, "\n%s\n", text)
-					}
-				case "tool_use":
-					if name := clean(b.Name); name != tool {
-						flush()
-						tool = name
-					}
-					calls++
-				}
-			}
-		}
-	}
-	flush()
+	transcript(&page, data, width)
+	w.WriteString(hangWrap(page.String(), width))
 	return nil
 }
 
-// prompt is what the user typed in block b, "" for a tool result or text that
-// Claude Code wrote itself; a slash command shows as itself and its arguments.
-func prompt(b block) string {
-	if b.Type != "text" {
-		return ""
-	}
-	text := strings.TrimSpace(cleanText(b.Text))
+// prompt is what the user typed in text, "" for text Claude Code wrote
+// itself, which it opens with a tag or an interruption notice; a slash
+// command shows as itself and its arguments.
+func prompt(text string) string {
+	text = strings.TrimSpace(cleanText(text))
 	if m := commandRE.FindStringSubmatch(text); m != nil {
 		cmd := m[1]
 		if a := commandArgRE.FindStringSubmatch(text); a != nil && strings.TrimSpace(a[1]) != "" {
@@ -563,7 +530,7 @@ func prompt(b block) string {
 		}
 		return cmd
 	}
-	if skipPromptRE.MatchString(text) || strings.HasPrefix(text, "<system-reminder>") {
+	if skipPromptRE.MatchString(text) || strings.HasPrefix(text, "<") {
 		return ""
 	}
 	return text
@@ -933,14 +900,4 @@ func cleanText(s string) string {
 
 func control(r rune) bool {
 	return r < 0x20 || r == 0x7f || r >= 0x80 && r <= 0x9f
-}
-
-// styled wraps each line of text in style, which fzf would otherwise drop at
-// the first line break.
-func styled(style, text string) string {
-	lines := strings.Split(text, "\n")
-	for i, l := range lines {
-		lines[i] = style + l + reset
-	}
-	return strings.Join(lines, "\n")
 }
