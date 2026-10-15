@@ -149,6 +149,7 @@ let
     ];
     postBuild = permeance.installLauncher {
       binName = "claude";
+      compiled = true;
       inherit pathPrefix;
       configEnv = {
         CLAUDE_GIT_ALLOWLIST_CONFIG = ".claude/git-allowlist.toml";
