@@ -408,14 +408,19 @@ __claude_debug() {
   eval "$__CLAUDE_CMD"
 }
 
+# claude-sessions (packages/claude/sessions) reads the transcripts for the
+# session pickers and backs the open sessions up; the terminal ships it.
+__claude_sessions_on_path() {
+  command -v claude-sessions >/dev/null && return 0
+  echo "claude-sessions is not on PATH: rebuild, then open a new terminal" >&2
+  return 1
+}
+
 # fzf over the past sessions of the current directory, each previewed as its
 # conversation, for the three pickers below: the instance, then fzf options for
-# eval. claude-sessions (packages/claude/sessions) reads the transcripts.
+# eval.
 __claude_sessions_fzf() {
-  if ! command -v claude-sessions >/dev/null; then
-    echo "claude-sessions is not on PATH: rebuild, then open a new terminal" >&2
-    return 1
-  fi
+  __claude_sessions_on_path || return 1
   (
     export CLAUDE_CONFIG_DIR="$HOME/.claude-$1"
     shift
@@ -463,4 +468,75 @@ __claude_sessions_rm() {
   fi
   __claude_sessions_fzf "$instance" --multi "--header='tab: mark · enter: erase'" \
     "--bind='enter:become(claude-sessions rm -ask {+1})'" || return 0
+}
+
+# Save the sessions open on this machine, in every profile, for
+# __claude_sessions_restore to start again later: after a reboot, or once a
+# claude update is in. claude-sessions finds them in Claude Code's own registry
+# on macOS, and through /proc on Linux, where the registry loses every
+# sandboxed session but one; it keeps its 20 newest backups in
+# $XDG_STATE_HOME/claude-sessions, read-only in the sandbox.
+__claude_sessions_backup() {
+  __claude_sessions_on_path || return 0
+  claude-sessions backup
+}
+
+# Start the sessions of the last backup again, each in a tmux window of its
+# own: fzf lists them all marked, tab unmarks one, enter resumes the marked
+# ones. claude-sessions saved leaves out, saying why, a session still open and
+# one whose conversation or directory is gone.
+__claude_sessions_restore() {
+  __claude_sessions_on_path || return 0
+  if [ -z "$TMUX" ]; then
+    echo "claude: restoring opens a tmux window for each session; run it in tmux" >&2
+    return 0
+  fi
+  local rows id instance dir conns net plugins tsession title _
+  rows=$(claude-sessions saved) || return 0
+  [ -n "$rows" ] || return 0
+  rows=$(printf '%s\n' "$rows" | eval fzf "$__CLAUDE_FZF" --multi \
+    "--delimiter='\t' --with-nth=9 --bind=load:select-all" \
+    "--preview='CLAUDE_CONFIG_DIR=\$HOME/.claude-{2} claude-sessions preview {1}'" \
+    "--preview-window='right,60%,border-none,wrap'" \
+    "--header='tab: unmark · enter: resume'") || return 0
+  # A row: the session's id, profile, directory, connections, extra hosts of
+  # its network filter, plugins and tmux session ("-" for none), then its
+  # title and what fzf showed.
+  while IFS=$'\t' read -r id instance dir conns net plugins tsession title _; do
+    __claude_sessions_reopen "$id" "$instance" "$dir" "$conns" "$net" "$plugins" "$tsession" &&
+      printf 'claude: resumed %s in %s\n' "$title" "$dir"
+  done <<<"$rows"
+}
+
+# Resume session $1 of profile $2 as __claude started it: from its directory
+# $3, with the connections $4 and plugins $6 it had (comma-separated, set as
+# __claude_connect sets its picks) and the extra hosts $5 of its network
+# filter, in a new window of tmux session $7 while that is still there; "-"
+# stands for none. A subshell keeps the directory and variables to it.
+__claude_sessions_reopen() {
+  (
+    cd -- "$3" || exit 1
+    CLAUDE_SANDBOX_ALLOW_GH=0 CLAUDE_SANDBOX_ALLOW_JIRA=0 CLAUDE_SANDBOX_ALLOW_FIREBASE=0
+    case ",$4," in *,gh,*) CLAUDE_SANDBOX_ALLOW_GH=1 ;; esac
+    case ",$4," in *,jira,*) CLAUDE_SANDBOX_ALLOW_JIRA=1 ;; esac
+    case ",$4," in *,firebase,*) CLAUDE_SANDBOX_ALLOW_FIREBASE=1 ;; esac
+    CLAUDE_SANDBOX_NET_ALLOW=$5
+    [ "$5" = - ] && CLAUDE_SANDBOX_NET_ALLOW=
+    __CLAUDE_DEFAULT_PLUGINS=()
+    local rest=$6
+    [ "$rest" = - ] && rest=
+    while [ -n "$rest" ]; do
+      __CLAUDE_DEFAULT_PLUGINS+=("${rest%%,*}")
+      case "$rest" in
+        *,*) rest=${rest#*,} ;;
+        *) rest= ;;
+      esac
+    done
+    __claude_init "$2" --resume "$1" || exit 1
+    if [ "$7" != - ] && tmux has-session -t "=$7" 2>/dev/null; then
+      tmux new-window -d -t "=$7:" -c "$3" "$__CLAUDE_CMD"
+    else
+      tmux new-window -d -c "$3" "$__CLAUDE_CMD"
+    fi
+  )
 }
