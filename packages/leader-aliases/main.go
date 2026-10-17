@@ -1,16 +1,26 @@
 // Command leader-aliases renders the leader-key table
-// (sources/.config/shell/leader.toml) as the rows the picker in
-// functions/aliases.sh feeds to fzf.
+// (sources/.config/shell/leader.conf) as the rows the picker in
+// functions/aliases.sh feeds to fzf, and with -fmt lines up its columns.
 //
-// The table is TOML: one [group] per tool, one chord per key. A chord maps to
-// an inline table { cmd, desc, run, eval } or to an array of them (a submenu:
-// the same chord listed more than once, which the picker can only resolve by
-// tab-selecting, since a duplicate never narrows to a single match).
+// The table is plain text, one chord per line, in four columns:
 //
-//	cmd  (string, required)  shell text inserted into the line
-//	desc (string)            breadcrumb shown next to the command
-//	run  (bool, true)        accept the line at once; false leaves it for editing
-//	eval (bool, false)       cmd prints the real command (fzf-backed helpers)
+//	chord  mode  description  command
+//
+// The first three end at a tab or at two or more spaces, so a description can
+// hold single spaces; the command is the rest of the line and can hold
+// anything. The mode is one of
+//
+//	run        insert the command and run it
+//	edit       insert the command and leave it for editing
+//	eval       run the command, which prints the real one (fzf-backed
+//	           helpers), then insert that and run it
+//	eval-edit  the same, leaving the printed command for editing
+//
+// A [name] line starts a group, which the chords below it belong to; a line
+// starting with # is a comment; blank lines are ignored. The chord <space> is
+// the space key. A chord listed on adjacent lines is a submenu, which the
+// picker can only resolve by tab-selecting, since the chord never narrows to
+// a single row.
 //
 // Every row is six fields separated by U+00A0 (no-break space, which no
 // chord, command or description may contain): the four display columns
@@ -20,31 +30,42 @@
 // capped at what the terminal leaves after the other columns and a reserve
 // for DESC, and longer commands are cut with an ellipsis, so one long entry
 // cannot push the rest of the row off screen; RAWCMD is never cut. Rows keep
-// file order, which the picker relies on (fzf --no-sort). A parse or
-// validation error (unknown field, missing cmd, duplicate chord, wrong type)
-// goes to stderr with exit status 1 so the widget can display it.
+// file order, which the picker relies on (fzf --no-sort).
+//
+// -fmt rewrites the table in place: each run of consecutive chord lines is
+// aligned on its own, its first three cells padded with spaces and ended with
+// a tab, so the columns line up at any tab width; comments, blank lines and
+// group lines are kept. The file is written only when that changes it, and
+// over itself, so it keeps its inode (a sandbox pin bind-mounts it). With -
+// for FILE it formats standard input to standard output.
+//
+// An error (wrong column count, unknown mode, a chord in two groups, a
+// submenu split apart, ...) goes to stderr as FILE:LINE: and exit status 1,
+// so the widget can display it and __leader_edit can reopen the line.
 //
 // Usage:
 //
 //	leader-aliases [-width COLUMNS] FILE
+//	leader-aliases -fmt FILE
 package main
 
 import (
 	"bufio"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 	"unicode/utf8"
-
-	"github.com/BurntSushi/toml"
 )
 
 // sep separates the fields of a rendered row. fzf splits on it (--delimiter)
 // and renders it as a plain space.
-const sep = "\u00a0"
+const sep = " "
+
+// spaceChord is how the table writes the space key, which a blank-separated
+// column cannot hold.
+const spaceChord = "<space>"
 
 // Layout budget applied when the terminal width is known: fzf draws a
 // two-cell pointer gutter before each row, the description keeps up to
@@ -63,6 +84,14 @@ type entry struct {
 	desc string
 	run  bool
 	eval bool
+}
+
+// modes maps the table's mode words to the dispatch they name.
+var modes = map[string]entry{
+	"run":       {run: true},
+	"edit":      {},
+	"eval":      {run: true, eval: true},
+	"eval-edit": {eval: true},
 }
 
 // mode names the dispatch the widget performs: whether cmd is evaluated for
@@ -93,6 +122,14 @@ func (r row) display() [4]string {
 	return [4]string{r.chord, r.cmd, r.group, r.desc}
 }
 
+// line is one line of the table as the formatter rewrites it: a chord line's
+// four cells as written, or any other line's text.
+type line struct {
+	cells [4]string
+	chord bool
+	text  string
+}
+
 // checkText rejects text that would break the row format: the field
 // separator or a line break.
 func checkText(field, s string) error {
@@ -102,143 +139,160 @@ func checkText(field, s string) error {
 	return nil
 }
 
-// parseEntry validates one inline table against the four known fields.
-func parseEntry(m map[string]any) (entry, error) {
-	e := entry{run: true}
-	for k, v := range m {
-		switch k {
-		case "cmd", "desc":
-			s, ok := v.(string)
-			if !ok {
-				return e, fmt.Errorf("%s must be a string", k)
-			}
-			if err := checkText(k, s); err != nil {
-				return e, err
-			}
-			if k == "cmd" {
-				e.cmd = s
-			} else {
-				e.desc = s
-			}
-		case "run", "eval":
-			b, ok := v.(bool)
-			if !ok {
-				return e, fmt.Errorf("%s must be a boolean", k)
-			}
-			if k == "run" {
-				e.run = b
-			} else {
-				e.eval = b
-			}
-		default:
-			return e, fmt.Errorf("unknown field %q (expected cmd, desc, run, eval)", k)
-		}
-	}
-	if strings.TrimSpace(e.cmd) == "" {
-		return e, errors.New("cmd is required")
-	}
-	return e, nil
-}
-
-// parseChord accepts a single entry table or a non-empty array of them (a
-// submenu). The decoder yields either element type for an array depending on
-// how it was written, so both are handled.
-func parseChord(v any) ([]entry, error) {
-	var tables []map[string]any
-	switch t := v.(type) {
-	case map[string]any:
-		tables = []map[string]any{t}
-	case []map[string]any:
-		tables = t
-	case []any:
-		for _, x := range t {
-			m, ok := x.(map[string]any)
-			if !ok {
-				return nil, errors.New("submenu items must be tables { cmd = ... }")
-			}
-			tables = append(tables, m)
-		}
-	default:
-		return nil, errors.New("must be a table { cmd = ... } or an array of them")
-	}
-	if len(tables) == 0 {
-		return nil, errors.New("submenu is empty")
-	}
-	entries := make([]entry, 0, len(tables))
-	for i, m := range tables {
-		e, err := parseEntry(m)
-		if err != nil {
-			if len(tables) > 1 {
-				return nil, fmt.Errorf("[%d]: %w", i, err)
-			}
-			return nil, err
-		}
-		entries = append(entries, e)
-	}
-	return entries, nil
-}
-
-// parse decodes the table and returns its rows in file order. The decoder's
-// key list is the only record of that order (maps lose it), so groups and
-// chords are registered from it on first sight; a chord is rejected when it
-// reappears under another group, since a submenu is an array under one chord.
-func parse(src string) ([]row, error) {
-	var top map[string]any
-	md, err := toml.Decode(src, &top)
-	if err != nil {
-		return nil, err
-	}
-
-	var groups []string
-	chords := map[string][]string{}
-	seenGroup := map[string]bool{}
-	seenChord := map[string]bool{}
-	for _, k := range md.Keys() {
-		if !seenGroup[k[0]] {
-			seenGroup[k[0]] = true
-			groups = append(groups, k[0])
-		}
-		if len(k) < 2 {
+// separator returns the bounds of the first run of blanks in s that holds a
+// tab or at least two spaces, or -1, -1 when there is none.
+func separator(s string) (int, int) {
+	for i := 0; i < len(s); {
+		if s[i] != ' ' && s[i] != '\t' {
+			i++
 			continue
 		}
-		id := k[0] + "\x00" + k[1]
-		if !seenChord[id] {
-			seenChord[id] = true
-			chords[k[0]] = append(chords[k[0]], k[1])
+		j, tab := i, false
+		for j < len(s) && (s[j] == ' ' || s[j] == '\t') {
+			tab = tab || s[j] == '\t'
+			j++
 		}
+		if tab || j-i >= 2 {
+			return i, j
+		}
+		i = j
 	}
+	return -1, -1
+}
 
-	var rows []row
-	owner := map[string]string{}
-	for _, g := range groups {
-		if err := checkText("group", g); err != nil {
-			return nil, fmt.Errorf("[%s]: %w", g, err)
+// splitCells cuts a trimmed chord line into chord, mode, description and
+// command: the first three end at a separator, the command is the rest.
+func splitCells(s string) ([4]string, bool) {
+	var cells [4]string
+	for i := 0; i < 3; i++ {
+		start, end := separator(s)
+		if start < 0 {
+			return cells, false
 		}
-		table, ok := top[g].(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("%s: expected a [%s] table", g, g)
+		cells[i], s = s[:start], s[end:]
+	}
+	cells[3] = s
+	return cells, true
+}
+
+// parse reads the table and returns its rows in file order, and its lines for
+// the formatter. Errors start with name:LINE:.
+func parse(name, src string) ([]row, []line, error) {
+	var (
+		rows   []row
+		lines  []line
+		group  string
+		groups = map[string]int{}    // group -> line it starts on
+		owner  = map[string]string{} // chord -> its group
+		first  = map[string]int{}    // chord -> its first line
+		last   string                // chord of the latest chord line
+	)
+	texts := strings.Split(strings.TrimSuffix(src, "\n"), "\n")
+	if src == "" {
+		texts = nil
+	}
+	for i, text := range texts {
+		n := i + 1
+		fail := func(format string, a ...any) ([]row, []line, error) {
+			return nil, nil, fmt.Errorf("%s:%d: %s", name, n, fmt.Sprintf(format, a...))
 		}
-		for _, c := range chords[g] {
-			if c == "" {
-				return nil, fmt.Errorf("[%s]: empty chord", g)
+		t := strings.Trim(text, " \t\r")
+		switch {
+		case t == "":
+			lines = append(lines, line{})
+		case t[0] == '#':
+			lines = append(lines, line{text: strings.TrimRight(text, " \t\r")})
+		case t[0] == '[':
+			if t[len(t)-1] != ']' {
+				return fail("a group line is [name] alone")
 			}
-			if err := checkText("chord", c); err != nil {
-				return nil, fmt.Errorf("[%s]: %w", g, err)
+			g := strings.TrimSpace(t[1 : len(t)-1])
+			if g == "" {
+				return fail("empty group name")
 			}
-			if prev, dup := owner[c]; dup {
-				return nil, fmt.Errorf("chord %q is defined in both [%s] and [%s]; a submenu is an array under one chord", c, prev, g)
+			if err := checkText("a group name", g); err != nil {
+				return fail("%v", err)
 			}
-			owner[c] = g
-			entries, err := parseChord(table[c])
-			if err != nil {
-				return nil, fmt.Errorf("%s.%s: %w", g, c, err)
+			if prev, dup := groups[g]; dup {
+				return fail("[%s] is already on line %d", g, prev)
 			}
-			for _, e := range entries {
-				rows = append(rows, row{chord: c, group: g, entry: e})
+			groups[g], group = n, g
+			lines = append(lines, line{text: "[" + g + "]"})
+		default:
+			if group == "" {
+				return fail("a chord line before any [group] line")
 			}
+			cells, ok := splitCells(t)
+			if !ok {
+				return fail("expected four columns: chord, mode, description, command, separated by a tab or two spaces")
+			}
+			chord := cells[0]
+			if chord == spaceChord {
+				chord = " "
+			} else if strings.Contains(chord, " ") {
+				return fail("chord %q holds a space: write %s for the space key", chord, spaceChord)
+			}
+			if err := checkText("a chord", chord); err != nil {
+				return fail("%v", err)
+			}
+			e, ok := modes[cells[1]]
+			if !ok {
+				return fail("unknown mode %q (expected run, edit, eval or eval-edit)", cells[1])
+			}
+			for _, f := range [][2]string{{"a description", cells[2]}, {"a command", cells[3]}} {
+				if err := checkText(f[0], f[1]); err != nil {
+					return fail("%v", err)
+				}
+			}
+			if prev, dup := owner[chord]; dup {
+				if prev != group {
+					return fail("chord %q is already in [%s] (line %d); a submenu is adjacent lines of one chord", cells[0], prev, first[chord])
+				}
+				if last != chord {
+					return fail("chord %q is already on line %d; the lines of a submenu must be adjacent", cells[0], first[chord])
+				}
+			} else {
+				owner[chord], first[chord] = group, n
+			}
+			last = chord
+			e.desc, e.cmd = cells[2], cells[3]
+			rows = append(rows, row{chord: chord, group: group, entry: e})
+			lines = append(lines, line{cells: cells, chord: true})
 		}
 	}
-	return rows, nil
+	return rows, lines, nil
+}
+
+// format returns the table with each run of consecutive chord lines aligned:
+// a chord, mode or description is padded with spaces to the widest in its run
+// plus one, then ended with a tab. Other lines are kept as they are.
+func format(lines []line) string {
+	var b strings.Builder
+	for i := 0; i < len(lines); {
+		if !lines[i].chord {
+			b.WriteString(lines[i].text)
+			b.WriteByte('\n')
+			i++
+			continue
+		}
+		j := i
+		var widths [3]int
+		for ; j < len(lines) && lines[j].chord; j++ {
+			for k := range widths {
+				widths[k] = max(widths[k], utf8.RuneCountInString(lines[j].cells[k]))
+			}
+		}
+		for ; i < j; i++ {
+			c := lines[i].cells
+			for k := range widths {
+				b.WriteString(pad(c[k], widths[k]+1))
+				b.WriteByte('\t')
+			}
+			b.WriteString(c[3])
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
 }
 
 // pad right-pads s with spaces to width runes.
@@ -303,6 +357,36 @@ func render(w io.Writer, rows []row, termWidth int) error {
 	return nil
 }
 
+// formatFile rewrites the table at path in its canonical form, over itself and
+// only when that changes it; "-" formats standard input to standard output.
+func formatFile(path string) error {
+	if path == "-" {
+		src, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+		_, lines, err := parse("<stdin>", string(src))
+		if err != nil {
+			return err
+		}
+		_, err = io.WriteString(os.Stdout, format(lines))
+		return err
+	}
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	_, lines, err := parse(path, string(src))
+	if err != nil {
+		return err
+	}
+	out := format(lines)
+	if out == string(src) {
+		return nil
+	}
+	return os.WriteFile(path, []byte(out), 0o644)
+}
+
 func fail(err error) {
 	fmt.Fprintf(os.Stderr, "leader-aliases: %v\n", err)
 	os.Exit(1)
@@ -310,8 +394,9 @@ func fail(err error) {
 
 func main() {
 	width := flag.Int("width", 0, "terminal width in cells; fit the command column to it (0: no limit)")
+	fmtFlag := flag.Bool("fmt", false, "line up the table's columns in place (FILE - : stdin to stdout)")
 	flag.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: leader-aliases [-width COLUMNS] FILE")
+		fmt.Fprintln(os.Stderr, "usage: leader-aliases [-width COLUMNS] FILE\n       leader-aliases -fmt FILE")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -320,13 +405,19 @@ func main() {
 		os.Exit(2)
 	}
 	path := flag.Arg(0)
+	if *fmtFlag {
+		if err := formatFile(path); err != nil {
+			fail(err)
+		}
+		return
+	}
 	src, err := os.ReadFile(path)
 	if err != nil {
 		fail(err)
 	}
-	rows, err := parse(string(src))
+	rows, _, err := parse(path, string(src))
 	if err != nil {
-		fail(fmt.Errorf("%s: %w", path, err))
+		fail(err)
 	}
 	w := bufio.NewWriter(os.Stdout)
 	if err := render(w, rows, *width); err != nil {
