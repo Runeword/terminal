@@ -161,6 +161,14 @@ let
           *) fail "M-w/M-W are '$close'" ;;
         esac
 
+        # Ctrl+` / Ctrl+~ cycle sessions; Alacritty sends them as CSI-u C-` / C-S-`.
+        cycle="$(binding root 'C-`') / $(binding root 'C-S-`')"
+        if [ "$cycle" = "switch-client -n / switch-client -p" ]; then
+          ok 'C-` / C-S-` switch to the next / previous session'
+        else
+          fail "C-\` / C-S-\` are '$cycle'"
+        fi
+
         # Sessions render sorted by their number (not #{S:}'s creation order) so a
         # drag can reorder them; the sort is unrolled one filtered pass per number.
         sl=$(${self}/bin/tmux start-server \; show -gv status-left \; kill-server 2>/dev/null)
