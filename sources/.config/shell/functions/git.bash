@@ -242,7 +242,6 @@ __git_pick_files() {
   # shellcheck disable=SC2016
   (
     __git_cd_root || exit 1
-    export GFS_HEADER_HUNKS="← back · tab hunk · ⏎ $1"
     git-hunk-pick files "$sd" "$1" </dev/null |
       fzf "${_GIT_FZF_DEFAULT[@]}" \
         --read0 --print0 \
@@ -476,6 +475,24 @@ __git_reset_soft() {
   fi
 }
 
+# Makes the current branch identical to its origin counterpart, dropping its
+# local commits and changes
+__git_reset_to_remote() {
+  git reset --hard "origin/$(git branch --show-current)"
+}
+
+# Opens the files the current branch changed since it left master. Paths go
+# after --: nvim runs a +cmd argument, so a file named "+so x.vim" would
+# source x.vim.
+__git_open_branch_files() {
+  local -a files=()
+  local file
+  while IFS= read -r file; do
+    files+=("$file")
+  done < <(git diff --name-only master...)
+  nvim -- "${files[@]}"
+}
+
 # Drop one commit from history while preserving the content of every other
 # commit. The descendants necessarily get new SHAs (a git commit hashes its
 # parent), which is harmless while they are unpushed — so by default only
@@ -517,23 +534,72 @@ __git_drop_commit() {
 __git_log() {
   __git_require_repo || return 1
 
+  # The preview goes below the list, not to its right as in the other pickers:
+  # the list then has the full width, where a quarter of it would cut the
+  # commit subjects and the tree's deeper rows. The preview takes three
+  # quarters of fzf's height, which leaves the list a few rows, enough to pick
+  # from. Even then, git's header and message would fill much of the preview,
+  # and a commit's row has its author and date, so its preview is the diff
+  # alone ({2} is the row's hash, see below): --format= leaves out the header,
+  # and sed the blank line delta puts before the diff.
+  local preview_window='down,75%,border-top,wrap'
   local -a preview=(
-    --preview "$_GIT_FZF_PREVIEW_CMD git show --color=always --decorate {1} | $_GIT_PAGER"
-    --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
+    --preview "git show --color=always --format= {2} | $_GIT_PAGER | sed '1{/^\$/d}'"
+    --preview-window="$preview_window"
+  )
+
+  # Run from the leader (a zle widget, at an empty prompt), each step's input
+  # is typed on the prompt's line: fzf's prompt repeats the last line of the
+  # shell's (the right prompt gives way to fzf's line), and --no-clear starts
+  # fzf on the cursor's line rather than below it. It also leaves fzf's last
+  # frame up, until the next step's first frame replaces it or zle clears it
+  # as it redraws the prompt. fzf blanks its first line as it starts and
+  # draws 20ms later, unless --sync, which has it read its whole list before
+  # it starts and then draw at once: either gap showed as a flicker of the
+  # prompt's line. --no-bold leaves the prompt as the shell drew it, where
+  # prompt:regular would drop its italics too, and query:bold keeps the query
+  # as it was. The file step's header goes under the input line, not above.
+  local -a inline=()
+  if [ -n "${WIDGET-}" ]; then
+    local ps1
+    ps1=$(print -rP -- "$PS1")
+    inline=("--prompt=${ps1##*$'\n'}" --no-bold --color=query:bold --no-header-first --no-clear --sync)
+  fi
+
+  # A commit's row is its hash and subject, then its author and date flush
+  # right, with no colour of their own, so that fzf shows and highlights them
+  # as the rest of the row. git pads the subject, or cuts it, up to column
+  # $COLUMNS - 4 and adds a space, so that a row is as wide as fzf's list,
+  # $COLUMNS less its pointer, marker and scrollbar columns. git counts that
+  # column from the start of the line, so it prints the author and date
+  # first, and fzf shows them last (--with-nth): the subject then ends where
+  # they leave it room. The fields are 0x1f-separated: author and date, hash,
+  # subject and, hidden, the row as git log --oneline prints it, which y
+  # copies. fzf prints the hash of the row picked. Both steps start with the
+  # search off, as alt-i leaves it (FZF_DEFAULT_OPTS): j/k, g/G, f, q and y act
+  # at once, and i turns the search on.
+  local -a log_view=(
+    --delimiter=$'\x1f' --with-nth='{2}{3}{1}' --accept-nth=2
+    --bind 'start:+trigger(alt-i)'
+    --bind 'y:execute-silent(wl-copy -- {4})'
   )
   local commit
-  commit=$(git log --oneline | fzf "${_GIT_FZF_BASE[@]}" "${preview[@]}" | awk '{print $1}')
+  commit=$(git log --format="%an, %ar%x1f%h%x1f %<|($((COLUMNS - 4)),trunc)%s %x1f%h %s" |
+    fzf "${_GIT_FZF_BASE[@]}" "${inline[@]}" "${preview[@]}" "${log_view[@]}")
 
   [ "$commit" = "" ] && return
 
   local -a file_preview=(
     --header='select files to open'
     # {2..} is the row's path, a directory's ending in /, so that its preview
-    # is every change below it. `:(top,literal)` anchors the pathspec to the
-    # repo root (the listed paths are root-relative but this fzf runs from the
-    # invocation cwd) and reads it as a path, not a glob.
-    --preview "echo {2..}; git show --color=always $commit -- ':(top,literal)'{2..} | $_GIT_PAGER"
-    --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
+    # is every change below it, under the path, which stays at the top as the
+    # diff scrolls (~1). `:(top,literal)` anchors the pathspec to the repo
+    # root (the listed paths are root-relative but this fzf runs from the
+    # invocation cwd) and reads it as a path, not a glob. --format= leaves out
+    # the header of the commit, picked in the step before, and sed the blank
+    # line delta puts before the diff.
+    --preview "echo {2..}; git show --color=always --format= $commit -- ':(top,literal)'{2..} | $_GIT_PAGER | sed '1{/^\$/d}'"
+    --preview-window="$preview_window,~1"
   )
 
   # git-hunk-pick tree prints a row per directory and file of the commit: the
@@ -545,11 +611,12 @@ __git_log() {
   # mouse's clicks act on a match only (Enter on the marks too). fzf counts
   # every row, so the info line counts the files instead: matches over
   # TREE_FILES, the commit's files. fzf prints the picked rows' indices, which
-  # tree-quote turns back into paths. y copies the row's path.
+  # tree-quote turns back into paths. y copies the row's path. alt-i turns the
+  # search off before search(!/$), as turning it off after cancels that search.
   local accept='[ "$FZF_RAW" = 1 ] || [ "$FZF_SELECT_COUNT" != 0 ] && echo accept'
   local -a tree_view=(
     --ansi --raw --gutter-raw=' ' --delimiter=$'\x1f' --with-nth='{1}' --accept-nth='{n}'
-    --bind 'start:+search(!/$),change:transform-search:printf "%s !/$" "$FZF_QUERY"'
+    --bind 'start:+trigger(alt-i)+search(!/$),change:transform-search:printf "%s !/$" "$FZF_QUERY"'
     --bind 'result:best,up:up-match,down:down-match,j:down-match,k:up-match,btab:deselect+up-match'
     --bind 'tab:transform:[ "$FZF_RAW" = 1 ] && echo select+down-match || echo down-match'
     --bind 'right-click:transform:[ "$FZF_RAW" = 1 ] && echo toggle'
@@ -564,7 +631,7 @@ __git_log() {
   files=$(($(git-hunk-pick paths commit "$commit" </dev/null | tr -cd '\000' | wc -c)))
   local args
   args=$(git-hunk-pick tree commit "$commit" </dev/null |
-    TREE_FILES=$files fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "${tree_view[@]}" "${file_preview[@]}" |
+    TREE_FILES=$files fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "${inline[@]}" "${tree_view[@]}" "${file_preview[@]}" |
     git-hunk-pick tree-quote commit "$commit" "$repo_cdup")
   [ "$args" != "" ] && echo "$EDITOR -- $args"
 }
