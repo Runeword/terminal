@@ -341,20 +341,22 @@ let
         # shows them last and hands on the row's hash. Both steps show the
         # preview below the list, in three quarters of fzf's height, with no
         # blank line before the diff: a commit's diff alone, a file's under its
-        # path. The file step hands fzf the commit's tree rows, searched with
-        # !/$ so that no directory's row matches, and the count of its files
-        # for the info line, and the editor what tree-quote makes of the row
-        # numbers fzf accepts: the stand-ins pick the commit and a row, and say
-        # what they were asked.
+        # path. Both start with the search off, as alt-i leaves it, the file
+        # step before it searches with !/$: turning the search off after would
+        # cancel that search. The file step hands fzf the commit's tree rows,
+        # searched with !/$ so that no directory's row matches, and the count
+        # of its files for the info line, and the editor what tree-quote makes
+        # of the row numbers fzf accepts: the stand-ins pick the commit and a
+        # row, and say what they were asked.
         gl='. ${self}/.config/shell/functions/git.bash
           git() { case $1 in log) [ "$*" != "log --format=%an, %ar%x1f%h%x1f %<|(96,trunc)%s %x1f%h %s" ] || printf "a, now\37abc\37 subject \37abc subject\n" ;; rev-parse) [ "$2" != --show-cdup ] || echo ../ ;; esac; }
           git-hunk-pick() { case $1 in tree) printf "%s\0" "$*" ;; paths) printf "x\0y\0" ;; tree-quote) printf "%s<%s" "$*" "$(tr "\0" ,)" ;; esac; }
-          fzf() { case "$TREE_FILES $*" in "2 "*"--accept-nth={n}"*"start:+search(!/\$)"*"--info-command="*"show --color=always --format= "*"/^\$/d}"*"--preview-window=down,75%,"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *"show --color=always --format= {2} "*"/^\$/d}"*"--preview-window=down,75%,"*"--delimiter="?" --with-nth={2}{3}{1} --accept-nth=2"*) cut -d "$(printf "\37")" -f 2 ;; esac; }
+          fzf() { case "$TREE_FILES $*" in "2 "*"--accept-nth={n}"*"start:+trigger(alt-i)+search(!/\$)"*"--info-command="*"show --color=always --format= "*"/^\$/d}"*"--preview-window=down,75%,"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *"show --color=always --format= {2} "*"/^\$/d}"*"--preview-window=down,75%,"*"--delimiter="?" --with-nth={2}{3}{1} --accept-nth=2"*"start:+trigger(alt-i)"*) cut -d "$(printf "\37")" -f 2 ;; esac; }
           COLUMNS=100 EDITOR=ed __git_log'
         if [ "$(${self}/bin/zsh -f -c "$gl")" = "ed -- tree-quote commit abc ../<4," ]; then
-          ok "gl lists commits with their author and date flush right in the row's colours, previews each diff below its list, in three quarters of the height, a commit's alone, lists the commit's files as tree rows, directories unpickable and uncounted, and opens the files of the rows picked"
+          ok "gl lists commits with their author and date flush right in the row's colours, previews each diff below its list, in three quarters of the height, a commit's alone, starts both lists with the search off, lists the commit's files as tree rows, directories unpickable and uncounted, and opens the files of the rows picked"
         else
-          fail "gl lists commits without their author and date flush right in the row's colours, previews a diff beside a list or in other than three quarters of the height, or a commit's under a line, or does not hand the rows fzf picks from its tree to tree-quote"
+          fail "gl lists commits without their author and date flush right in the row's colours, previews a diff beside a list or in other than three quarters of the height, or a commit's under a line, starts a list with the search on or turns the file list's off after its !/$ search, or does not hand the rows fzf picks from its tree to tree-quote"
         fi
 
         # Run from the leader (a zle widget), both of gl's steps are typed on
