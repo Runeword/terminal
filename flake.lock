@@ -10,11 +10,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1791321506,
-        "narHash": "sha256-hg6noUVHYV66rg7nmtWmuQ4Hey6FvaIKNDcZYOVNq20=",
+        "lastModified": 1791739864,
+        "narHash": "sha256-eLbBx4uK51U8Zfx08avqbtUz1sDJVDxydU7xmnWHH/w=",
         "owner": "Runeword",
         "repo": "claude-sandbox",
-        "rev": "cc76d417c6e12df09e2ee158dbe125f696e1388a",
+        "rev": "9e041b4034e1856629d4987bd9ace7cff9ba7ac5",
         "type": "github"
       },
       "original": {
@@ -104,11 +104,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1792003639,
-        "narHash": "sha256-KRjrujNThOrDYsCWx3HZijmntVQDiO4TWzx0uWDN3uk=",
+        "lastModified": 1792180310,
+        "narHash": "sha256-3AK57EFAjbkY/I7PvPwz/gUVVTcRiVr7Ky5RmdlfTFQ=",
         "owner": "Runeword",
         "repo": "permeance",
-        "rev": "28e8ccfa3a68787371339c99c3085e75feebaaf7",
+        "rev": "f43c94ff06c2929373812a8d1da6fce4e30f2743",
         "type": "github"
       },
       "original": {
