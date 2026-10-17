@@ -26,7 +26,7 @@
 # Writable, a session could rewrite a familiar chord into its own host command;
 # this is the data the pinned widget executes, moved out of the pinned
 # functions/ dir, so pinned with it.
-.config/shell/leader.toml
+.config/shell/leader.conf
 # GIT_CONFIG_GLOBAL for the wrapped git — so for the git-shim, and for
 # starship at every prompt: core.hooksPath would sidestep the launcher's
 # .git/hooks lock, and core.fsmonitor, `!` aliases and filters run commands
