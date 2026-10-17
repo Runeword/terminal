@@ -1,8 +1,10 @@
-// Command claude-sessions lists, previews and erases Claude Code sessions for
-// the fzf pickers behind __claude_sessions and __claude_sessions_rm
+// Command claude-sessions lists, previews, erases and backs up Claude Code
+// sessions for the fzf pickers behind __claude_sessions,
+// __claude_sessions_rm and __claude_sessions_restore
 // (sources/.config/shell/functions/claude.bash). Claude Code's own /resume
-// picker can't be scripted and can't delete a session, and `claude project
-// purge` wipes a whole project, its auto-memory included.
+// picker can't be scripted and can't delete a session, `claude project
+// purge` wipes a whole project, its auto-memory included, and nothing of
+// Claude Code's says which sessions the sandbox runs (backup.go).
 //
 //	claude-sessions list               one row per session of the current
 //	                                   directory, newest first: the id, a
@@ -11,6 +13,11 @@
 //	                                   Claude Code's colors, for fzf
 //	claude-sessions rm [-ask] <id>...  erase the sessions and what only
 //	                                   they use
+//	claude-sessions backup             save the sessions open on this
+//	                                   machine, in every profile
+//	claude-sessions saved              one row per session of the last
+//	                                   backup that can be resumed, for
+//	                                   __claude_sessions_restore
 //
 // Transcripts live in $CLAUDE_CONFIG_DIR (else ~/.claude) at
 // projects/<project>/<id>.jsonl, <project> being the working directory with
@@ -85,7 +92,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: claude-sessions list | preview <id> | rm [-ask] <id>...")
+	fmt.Fprintln(os.Stderr, "usage: claude-sessions list | preview <id> | rm [-ask] <id>... | backup | saved")
 	os.Exit(2)
 }
 
@@ -120,6 +127,20 @@ func run(cmd string, args []string, cfg string, now time.Time) error {
 			usage()
 		}
 		return rm(os.Stdout, os.Stdin, cfg, flags.Args(), *ask, now)
+	case "backup", "saved":
+		if len(args) != 0 {
+			usage()
+		}
+		h, err := defaultHost()
+		if err != nil {
+			return err
+		}
+		if cmd == "backup" {
+			return backup(os.Stdout, os.Stderr, h, backupDir(h.home), now)
+		}
+		if err = saved(&out, os.Stderr, h, backupDir(h.home), now); err != nil {
+			return err
+		}
 	default:
 		usage()
 	}
