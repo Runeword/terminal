@@ -84,6 +84,23 @@ __use_flake_template() {
   direnv allow
 }
 
+# Shows the store paths of the flake in the current directory
+__flake_references() {
+  nix path-info . --json | jq
+}
+
+# Deletes the store paths of the flake in the current directory
+__flake_references_delete() {
+  # shellcheck disable=SC2046 # a store path holds no blank: one argument each
+  nix store delete $(nix path-info . --json | jq -r '.[].path')
+}
+
+# Shows the store paths that refer to the flake in the current directory
+__flake_referrers() {
+  # shellcheck disable=SC2046 # a store path holds no blank: one argument each
+  nix-store --query --referrers $(nix path-info . --json | jq -r '.[].path')
+}
+
 # Updates the local inputs (path: and git+file:) of the home-manager flake,
 # then switches
 __home_manager_switch() {
@@ -155,6 +172,13 @@ __home_manager_generation_remove() {
   echo "$selected_generations" | xargs home-manager remove-generations
 }
 
+# Deletes every home manager generation but the current one, then collects
+# the garbage they leave
+__home_manager_garbage_clean() {
+  nix-env -p "${XDG_STATE_HOME:-$HOME/.local/state}/nix/profiles/home-manager" --delete-generations old &&
+    nix-collect-garbage --verbose
+}
+
 # Interactively selects and switch to a nixos generation
 __nixos_generation_switch() {
   local nixos_generations selected_generation
@@ -219,6 +243,11 @@ __nix_package() {
     shell) echo "nix shell $(echo "$selected" | sed 's/^/nixpkgs#/' | xargs) " ;;
     *) echo "$selected" | xargs ;;
   esac
+}
+
+# Interactively opens files from the nix store
+__nix_store_open() {
+  cd /nix/store && __open_file
 }
 
 # Run a nix command with the private-input GitHub token injected from pass via
