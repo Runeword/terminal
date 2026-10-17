@@ -1,3 +1,5 @@
+#!/bin/sh
+
 # pwd() {
 #   builtin pwd | tee /dev/tty | {
 #     if command -v pbcopy >/dev/null 2>&1; then
@@ -22,4 +24,9 @@ __copy() {
   elif command -v wl-copy >/dev/null 2>&1; then
     wl-copy
   fi
+}
+
+# Writes the lines of $1 to $2 without repeats, keeping the first of each
+__txt_dedup() {
+  awk '!seen[$0]++' "$1" >"$2"
 }
