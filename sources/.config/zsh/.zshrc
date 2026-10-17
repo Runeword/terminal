@@ -86,6 +86,10 @@ KEYS=(
   [CTRL_K]='^K'
   [CTRL_BACKSPACE]='^[[127;5u'
   [CTRL_DELETE]='^[[3;5~'
+  [HOME]='^[[H'
+  [HOME_ALT]='^[[1~'
+  [END]='^[[F'
+  [END_ALT]='^[[4~'
   [UP_ARROW]='^[[A'
   [UP_ARROW_ALT]='^[OA'
   [DOWN_ARROW]='^[[B'
@@ -231,6 +235,11 @@ bindkey "${KEYS[CTRL_TAB]}" forward-word
 bindkey "${KEYS[CTRL_SHIFT_TAB]}" backward-kill-word
 bindkey "${KEYS[CTRL_E]}" end-of-line
 bindkey "${KEYS[CTRL_A]}" beginning-of-line
+# Alacritty sends Home/End as \e[H/\e[F, tmux as \e[1~/\e[4~ (the _ALT keys)
+bindkey "${KEYS[HOME]}" beginning-of-line
+bindkey "${KEYS[HOME_ALT]}" beginning-of-line
+bindkey "${KEYS[END]}" end-of-line
+bindkey "${KEYS[END_ALT]}" end-of-line
 
 # ------------------------------------ Kill
 bindkey "${KEYS[CTRL_U]}" kill-buffer
