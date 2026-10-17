@@ -25,7 +25,7 @@ __run_alias() {
   fi
 }
 
-# Leader-key picker. leader-aliases (packages/leader-aliases) renders leader.toml
+# Leader-key picker. leader-aliases (packages/leader-aliases) renders leader.conf
 # as one fzf row per chord: the displayed chord, command, group and description,
 # then the hidden raw command and mode (run, insert, eval-run, eval-insert).
 # The command column is fitted to $COLUMNS (long commands are cut with an
@@ -40,7 +40,7 @@ __run_alias() {
 # accepted line fetches no suggestion. It always fails, which tells
 # __on_empty_buffer the prompt is unchanged, so the line is only redrawn.
 __aliases() {
-  local table="${1:-$PERMEANCE_TREE/.config/shell/leader.toml}"
+  local table="${1:-$PERMEANCE_TREE/.config/shell/leader.conf}"
   # leader-aliases separates a row's fields with U+00A0 (no-break space).
   local sep=$'\302\240'
   local rows
@@ -133,4 +133,42 @@ __aliases_rows() {
   fi
   REPLY=$(leader-aliases -width "${COLUMNS:-0}" "$table" 2>&1) || return 1
   typeset -g __aliases_rows_key="$key" __aliases_rows="$REPLY"
+}
+
+# Edits the leader table (leader oa) the way visudo edits sudoers: in a copy,
+# in $EDITOR. When the editor closes, leader-aliases -fmt lines up the copy's
+# columns and checks it: a valid copy is written over the table, a broken one
+# is reported and, unless declined, reopened at its broken line, so the table
+# never holds a broken line. The copy lives under $XDG_CACHE_HOME, not /tmp:
+# sandboxed sessions share /tmp, and one could slip a chord into the copy
+# before it replaces the table. The table is written over in place, keeping
+# the inode a sandbox pin bind-mounts.
+__leader_edit() {
+  local table="${1:-$PERMEANCE_TREE/.config/shell/leader.conf}"
+  local cache="${XDG_CACHE_HOME:-$HOME/.cache}" dir copy err line='' answer
+  if [ ! -w "$table" ]; then
+    printf 'leader: %s is read-only\n' "$table" >&2
+    return 1
+  fi
+  mkdir -p -- "$cache" && dir=$(mktemp -d "$cache/leader-edit.XXXXXX") || return 1
+  copy=$dir/leader.conf
+  command cp -- "$table" "$copy" || return 1
+  while "${EDITOR:-vi}" ${line:+"+$line"} -- "$copy"; do
+    if err=$(leader-aliases -fmt "$copy" 2>&1); then
+      cat -- "$copy" >|"$table" && rm -rf -- "$dir"
+      return
+    fi
+    printf '%s\nEdit it again? [Y/n] ' "$err" >&2
+    read -r answer
+    case $answer in
+      [nN]*) break ;;
+    esac
+    line=${err##*"$copy":}
+    line=${line%%:*}
+    case $line in
+      '' | *[!0-9]*) line= ;;
+    esac
+  done
+  printf 'leader: the table is unchanged; the edit is in %s\n' "$copy" >&2
+  return 1
 }
