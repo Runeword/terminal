@@ -2,33 +2,35 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// sample exercises every mode, a submenu array, a quoted chord, and groups
-// whose file order differs from their sorted order.
-const sample = `
+// sample exercises every mode, a submenu, the space chord, tab and two-space
+// separators, a command with quotes and pipes, and groups whose file order
+// differs from their sorted order.
+const sample = `# leader table
 [open]
-oh = { cmd = 'nvim $HISTFILE', desc = 'history' }
+oh  run  history  nvim $HISTFILE
 
 [git]
-gt  = { cmd = 'git status', desc = 'file › list' }
-gbs = { cmd = '__git_branch_switch', desc = 'branch › switch', eval = true }
-gbc = { cmd = 'git switch --create <branch>', desc = 'branch › new', run = false }
-gdp = { cmd = '__git_patch', desc = 'patch', eval = true, run = false }
-gc = [
-  { cmd = 'git commit' },
-  { cmd = 'git commit --amend', desc = 'amend', run = false },
-]
-gf = { cmd = "git log --format=\"%h\" | jq '.'" }
+gt	run	file › list	git status
+gbs  eval  branch › switch  __git_branch_switch
+gbc   edit   branch › new   git switch --create <branch>
+gdp  eval-edit  patch  __git_patch
+gc  run  commit  git commit
+# the amend line belongs to the same submenu
+gc  edit  amend  git commit --amend
+gf  run  log  git log --format="%h" | jq '.'
 
 [zoxide]
-" " = { cmd = '__zoxide_zi', desc = 'jump' }
+<space>  run  jump  __zoxide_zi
 `
 
 func TestParseKeepsFileOrderAndModes(t *testing.T) {
-	rows, err := parse(sample)
+	rows, _, err := parse("t", sample)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,9 +40,9 @@ func TestParseKeepsFileOrderAndModes(t *testing.T) {
 		{"gbs", "git", "__git_branch_switch", "branch › switch", "eval-run"},
 		{"gbc", "git", "git switch --create <branch>", "branch › new", "insert"},
 		{"gdp", "git", "__git_patch", "patch", "eval-insert"},
-		{"gc", "git", "git commit", "", "run"},
+		{"gc", "git", "git commit", "commit", "run"},
 		{"gc", "git", "git commit --amend", "amend", "insert"},
-		{"gf", "git", `git log --format="%h" | jq '.'`, "", "run"},
+		{"gf", "git", `git log --format="%h" | jq '.'`, "log", "run"},
 		{" ", "zoxide", "__zoxide_zi", "jump", "run"},
 	}
 	if len(rows) != len(want) {
@@ -54,43 +56,46 @@ func TestParseKeepsFileOrderAndModes(t *testing.T) {
 	}
 }
 
-func TestParseImplicitGroup(t *testing.T) {
-	// A dotted key defines its group without a [header]; it must still be
-	// registered, in file order.
-	rows, err := parse("git.gt = { cmd = 'git status' }\n[nix]\nnb = { cmd = 'nix build' }\n")
-	if err != nil {
-		t.Fatal(err)
+func TestParseSplitsCells(t *testing.T) {
+	tests := []struct{ name, line, desc, cmd string }{
+		{"single spaces stay in the description", "gx  run  stash › delete all  git stash clear", "stash › delete all", "git stash clear"},
+		{"the command is the rest of the line", "gx  run  print  printf '%s  %s\\t' a  b", "print", "printf '%s  %s\\t' a  b"},
+		{"a tab alone separates", "gx\trun\tx y\tgit status", "x y", "git status"},
+		{"padding before a tab is one separator", "gx   \trun  \tx y     \tgit status", "x y", "git status"},
+		{"surrounding blanks are trimmed", "  gx  run  x  git status  \r", "x", "git status"},
 	}
-	if len(rows) != 2 || rows[0].group != "git" || rows[1].group != "nix" {
-		t.Fatalf("got %+v", rows)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rows, _, err := parse("t", "[g]\n"+tc.line+"\n")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rows[0].chord != "gx" || rows[0].desc != tc.desc || rows[0].cmd != tc.cmd {
+				t.Fatalf("got %q/%q/%q, want gx/%q/%q", rows[0].chord, rows[0].desc, rows[0].cmd, tc.desc, tc.cmd)
+			}
+		})
 	}
 }
 
 func TestParseErrors(t *testing.T) {
 	tests := []struct{ name, src, want string }{
-		{"duplicate chord", "[git]\ngt = { cmd = 'a' }\ngt = { cmd = 'b' }\n", "gt"},
-		{"chord in two groups", "[git]\ngc = { cmd = 'a' }\n[gcloud]\ngc = { cmd = 'b' }\n", `chord "gc" is defined in both [git] and [gcloud]`},
-		{"unknown field", "[git]\ngt = { cmd = 'a', evla = true }\n", `git.gt: unknown field "evla"`},
-		{"missing cmd", "[git]\ngt = { desc = 'x' }\n", "git.gt: cmd is required"},
-		{"blank cmd", "[git]\ngt = { cmd = '  ' }\n", "cmd is required"},
-		{"cmd not a string", "[git]\ngt = { cmd = 1 }\n", "cmd must be a string"},
-		{"run not a boolean", "[git]\ngt = { cmd = 'a', run = 'no' }\n", "run must be a boolean"},
-		{"eval not a boolean", "[git]\ngt = { cmd = 'a', eval = 1 }\n", "eval must be a boolean"},
-		{"chord is a string", "[git]\ngt = 'git status'\n", "git.gt: must be a table"},
-		{"empty submenu", "[git]\ngt = []\n", "submenu is empty"},
-		{"submenu item not a table", "[git]\ngt = ['a']\n", "submenu items must be tables"},
-		{"submenu item error is indexed", "[git]\ngt = [{ cmd = 'a' }, { desc = 'b' }]\n", "git.gt: [1]: cmd is required"},
-		{"tab in cmd", "[git]\ngt = { cmd = \"a\\tb\" }\n", "cmd must not contain"},
-		{"separator in desc", "[git]\ngt = { cmd = 'a', desc = \"x\\u00A0y\" }\n", "desc must not contain"},
-		{"separator in chord", "[git]\n\"g\\u00A0t\" = { cmd = 'a' }\n", "[git]: chord must not contain"},
-		{"chord outside a group", "gt = { cmd = 'git status' }\n", "gt.cmd: must be a table"},
-		{"group is a string", "git = 'x'\n", "expected a [git] table"},
-		{"empty chord", "[git]\n\"\" = { cmd = 'a' }\n", "[git]: empty chord"},
-		{"invalid toml", "[git\n", ""},
+		{"chord before any group", "gt  run  x  git status\n", "t:1: a chord line before any [group] line"},
+		{"missing command", "[git]\ngt  run  git status\n", "t:2: expected four columns"},
+		{"single spaces only", "[git]\ngt run status git status\n", "t:2: expected four columns"},
+		{"unknown mode", "[git]\n\ngt  rnu  status  git status\n", `t:3: unknown mode "rnu" (expected run, edit, eval or eval-edit)`},
+		{"chord with a space", "[git]\ng t  run  x  git status\n", `t:2: chord "g t" holds a space: write <space> for the space key`},
+		{"chord in two groups", "[git]\ngc  run  a  a\n[gcloud]\ngc  run  b  b\n", `t:4: chord "gc" is already in [git] (line 2); a submenu is adjacent lines of one chord`},
+		{"submenu split apart", "[git]\ngc  run  a  a\ngt  run  b  b\ngc  run  c  c\n", `t:4: chord "gc" is already on line 2; the lines of a submenu must be adjacent`},
+		{"group twice", "[git]\n[nix]\n[git]\n", "t:3: [git] is already on line 1"},
+		{"unclosed group", "[git\n", "t:1: a group line is [name] alone"},
+		{"text after a group", "[git] x\n", "t:1: a group line is [name] alone"},
+		{"empty group", "[ ]\n", "t:1: empty group name"},
+		{"separator in a description", "[git]\ngt  run  x y  git status\n", "t:2: a description must not contain"},
+		{"separator in a command", "[git]\ngt  run  x  git status\n", "t:2: a command must not contain"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := parse(tc.src)
+			_, _, err := parse("t", tc.src)
 			if err == nil {
 				t.Fatalf("expected an error containing %q", tc.want)
 			}
@@ -101,8 +106,130 @@ func TestParseErrors(t *testing.T) {
 	}
 }
 
+func TestFormatAlignsEachRunOfChords(t *testing.T) {
+	src := "# c\n[git]\ngt  run  x  git status\n" +
+		"gbs  eval  branch › switch\t__git_branch_switch  -a  b\n" +
+		"\n" +
+		"gx  edit  y  git absorb\n" +
+		"[zoxide]\n" +
+		"<space>  run  jump  __zoxide_zi\n"
+	_, lines, err := parse("t", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "# c\n[git]\n" +
+		"gt  \trun  \tx               \tgit status\n" +
+		"gbs \teval \tbranch › switch \t__git_branch_switch  -a  b\n" +
+		"\n" +
+		"gx \tedit \ty \tgit absorb\n" +
+		"[zoxide]\n" +
+		"<space> \trun \tjump \t__zoxide_zi\n"
+	got := format(lines)
+	if got != want {
+		t.Fatalf("format:\n got %q\nwant %q", got, want)
+	}
+	// Formatting is stable and reads back to the same rows.
+	before, _, _ := parse("t", src)
+	after, again, err := parse("t", got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if format(again) != got {
+		t.Error("formatting the formatted table changes it")
+	}
+	if len(after) != len(before) {
+		t.Fatalf("formatted table has %d rows, want %d", len(after), len(before))
+	}
+	for i := range before {
+		if after[i] != before[i] {
+			t.Errorf("row %d: formatted %+v, want %+v", i, after[i], before[i])
+		}
+	}
+}
+
+func TestFormattedColumnsLineUpAtAnyTabWidth(t *testing.T) {
+	_, lines, err := parse("t", sample)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := format(lines)
+	for _, width := range []int{1, 2, 4, 8} {
+		// In each run of chord lines, every command starts at the same cell.
+		start := -1
+		for _, l := range strings.Split(text, "\n") {
+			if !strings.Contains(l, "\t") {
+				start = -1
+				continue
+			}
+			parts := strings.Split(expand(l, width), "")
+			col := len(parts) - len([]rune(l[strings.LastIndex(l, "\t")+1:]))
+			if start >= 0 && col != start {
+				t.Errorf("tab width %d: %q starts its command at %d, not %d", width, l, col, start)
+			}
+			start = col
+		}
+	}
+}
+
+// expand replaces each tab in s with the spaces that reach the next multiple
+// of width, as a terminal or editor shows it.
+func expand(s string, width int) string {
+	var b strings.Builder
+	col := 0
+	for _, r := range s {
+		if r == '\t' {
+			n := width - col%width
+			b.WriteString(strings.Repeat(" ", n))
+			col += n
+			continue
+		}
+		b.WriteRune(r)
+		col++
+	}
+	return b.String()
+}
+
+func TestFormatFileRewritesInPlace(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "leader.conf")
+	if err := os.WriteFile(path, []byte("[git]\ngt  run  x  git status"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := formatFile(path); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(before, after) {
+		t.Error("formatting replaced the file instead of rewriting it")
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "[git]\ngt \trun \tx \tgit status\n"; string(got) != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	// A broken table is reported with its line and left as it was.
+	broken := "[git]\ngt  rnu  x  git status\n"
+	if err := os.WriteFile(path, []byte(broken), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := formatFile(path); err == nil || !strings.Contains(err.Error(), path+":2: unknown mode") {
+		t.Errorf("got error %v, want %s:2: unknown mode", err, path)
+	}
+	if got, _ := os.ReadFile(path); string(got) != broken {
+		t.Errorf("a broken table was rewritten: %q", got)
+	}
+}
+
 func TestRenderPadsDisplayColumnsAndHidesDispatch(t *testing.T) {
-	rows, err := parse(sample)
+	rows, _, err := parse("t", sample)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +343,7 @@ func TestTruncateCountsRunes(t *testing.T) {
 }
 
 func TestRenderFitsCommandColumnToWidth(t *testing.T) {
-	rows, err := parse(sample)
+	rows, _, err := parse("t", sample)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +355,7 @@ func TestRenderFitsCommandColumnToWidth(t *testing.T) {
 	// Width 55 leaves 26 cells for commands: the 30-cell gf command is cut
 	// with an ellipsis in the display column while its raw field is intact,
 	// and shorter commands pad to the same 26.
-	want := "gf " + sep + `git log --format="%h" | j…` + sep + "git   " + sep + "" + sep + `git log --format="%h" | jq '.'` + sep + "run"
+	want := "gf " + sep + `git log --format="%h" | j…` + sep + "git   " + sep + "log" + sep + `git log --format="%h" | jq '.'` + sep + "run"
 	if lines[7] != want {
 		t.Errorf("gf row:\n got %q\nwant %q", lines[7], want)
 	}
