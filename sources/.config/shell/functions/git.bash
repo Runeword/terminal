@@ -566,25 +566,65 @@ __git_log() {
     inline=("--prompt=${ps1##*$'\n'}" --no-bold --color=query:bold --no-header-first --no-clear --sync)
   fi
 
-  # A commit's row is its hash and subject, then its author and date flush
-  # right, with no colour of their own, so that fzf shows and highlights them
-  # as the rest of the row. git pads the subject, or cuts it, up to column
-  # $COLUMNS - 4 and adds a space, so that a row is as wide as fzf's list,
-  # $COLUMNS less its pointer, marker and scrollbar columns. git counts that
-  # column from the start of the line, so it prints the author and date
+  # A commit's row is its change, its hash and subject, then its author and
+  # date flush right, with no colour of their own, so that fzf shows and
+  # highlights them as the rest of the row. The change is + if the commit only
+  # adds files, - if it only deletes some, ~ otherwise, as delta labels a
+  # file's, in bold green, red or blue. git lists the status of each
+  # of a commit's files under its line, which starts with 0x1e, and awk puts
+  # the change at the end of that line. A subject that starts with the verb
+  # its change stands for, as auto-commit writes them (Add, Delete or Remove,
+  # Update), loses it, and the verb's room goes back to the subject: as spaces
+  # where git padded it, or as more of it where git cut it short. A subject
+  # cut short that holds more than ASCII keeps its verb: awk can't count its
+  # width. git pads the subject, or cuts it, up to column $COLUMNS - 6 and
+  # adds a space, so that a row is as wide as fzf's list: $COLUMNS less its
+  # pointer, marker and scrollbar columns, and the change's two. git counts
+  # that column from the start of the line, so it prints the author and date
   # first, and fzf shows them last (--with-nth): the subject then ends where
   # they leave it room. The fields are 0x1f-separated: author and date, hash,
-  # subject and, hidden, the row as git log --oneline prints it, which y
-  # copies. fzf prints the hash of the row picked. Both steps start with the
-  # search off, as alt-i leaves it (FZF_DEFAULT_OPTS): j/k, g/G, f, q and y act
-  # at once, and i turns the search on.
+  # subject, the row as git log --oneline prints it (hidden: y copies it) and
+  # the change. fzf prints the hash of the row picked. Both steps start with
+  # the search off, as alt-i leaves it (FZF_DEFAULT_OPTS): j/k, g/G, f, q and
+  # y act at once, and i turns the search on.
+  local change='
+    function pad(n,  p) {
+      while (n-- > 0) p = p " "
+      return p
+    }
+    function put(  c, v, f, full, s, t) {
+      if (row == "") return
+      c = "  "
+      if (a && !d && !o) { c = "\033[1;38;2;47;143;83m+\033[0m "; v = "^Add " }
+      else if (d && !a && !o) { c = "\033[1;38;2;168;77;95m-\033[0m "; v = "^(Delete|Remove) " }
+      else if (a || d || o) { c = "\033[1;38;2;58;93;153m~\033[0m "; v = "^Update " }
+      if (v != "" && split(row, f, "\037") == 4) {
+        full = substr(f[4], length(f[2]) + 2)
+        s = substr(f[3], 2, length(f[3]) - 2)
+        if (match(full, v)) {
+          t = substr(full, RLENGTH + 1)
+          if (substr(s, 1, length(full)) == full) s = t pad(length(s) - length(t))
+          else if (full ~ /^[ -~]*$/ && length(s) > 2)
+            s = length(t) > length(s) ? substr(t, 1, length(s) - 2) ".." : t pad(length(s) - length(t))
+          row = f[1] "\037" f[2] "\037 " s " \037" f[4]
+        }
+      }
+      print row "\037" c
+    }
+    substr($0, 1, 1) == "\036" { put(); row = substr($0, 2); a = d = o = 0; next }
+    /^A\t/ { a = 1; next }
+    /^D\t/ { d = 1; next }
+    /^[A-Z]/ { o = 1 }
+    END { put() }'
   local -a log_view=(
-    --delimiter=$'\x1f' --with-nth='{2}{3}{1}' --accept-nth=2
+    --ansi --delimiter=$'\x1f' --with-nth='{5}{2}{3}{1}' --accept-nth=2
     --bind 'start:+trigger(alt-i)'
     --bind 'y:execute-silent(wl-copy -- {4})'
   )
   local commit
-  commit=$(git log --format="%an, %ar%x1f%h%x1f %<|($((COLUMNS - 4)),trunc)%s %x1f%h %s" |
+  commit=$(git log --no-renames --diff-merges=first-parent --name-status \
+    --format="%x1e%an, %ar%x1f%h%x1f %<|($((COLUMNS - 6)),trunc)%s %x1f%h %s" |
+    awk "$change" |
     fzf "${_GIT_FZF_BASE[@]}" "${inline[@]}" "${preview[@]}" "${log_view[@]}")
 
   [ "$commit" = "" ] && return
