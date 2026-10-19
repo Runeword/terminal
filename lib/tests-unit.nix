@@ -37,6 +37,33 @@
     expr = lib.any (helper: helper.name == "infra") devShellHelpers;
     expected = true;
   };
+  # `dev` rebuilds when its bakedSources change (devshells/terminal.nix). One
+  # that no longer exists, e.g. after a move, would stop triggering rebuilds
+  # silently. Lists the missing ones.
+  testDevBakedSourcesExist = {
+    expr = lib.filter (path: !builtins.pathExists (../. + "/${path}")) (
+      lib.concatMap (helper: helper.bakedSources or [ ]) devShellHelpers
+    );
+    expected = [ ];
+  };
+  # dev and bdl open the window outside direnv's environment (devshells/
+  # terminal.nix): one that inherits it loses the build's tools on its first cd
+  # out of the repo. Lists the ones that are missing or don't.
+  testTerminalHelpersLeaveDirenv = {
+    expr =
+      let
+        leavesDirenv =
+          name:
+          lib.any (
+            helper: helper.name == name && lib.hasInfix "/bin/direnv exec / " helper.text
+          ) devShellHelpers;
+      in
+      lib.filter (name: !leavesDirenv name) [
+        "dev"
+        "bdl"
+      ];
+    expected = [ ];
+  };
   # infra/ manages no GitHub secret: OpenTofu writes a managed value to
   # terraform.tfstate in plaintext, and the state goes wherever infra/ is copied
   # (infra/README.md, "Actions & Dependabot secrets"). Lists the .tf files that
