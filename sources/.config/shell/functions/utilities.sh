@@ -26,6 +26,12 @@ __copy() {
   fi
 }
 
+# Prints the current directory and copies it, without a newline
+__copy_path() {
+  printf '%s\n' "$PWD"
+  printf '%s' "$PWD" | __copy
+}
+
 # Writes the lines of $1 to $2 without repeats, keeping the first of each
 __txt_dedup() {
   awk '!seen[$0]++' "$1" >"$2"
