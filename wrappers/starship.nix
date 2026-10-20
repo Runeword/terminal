@@ -35,6 +35,18 @@ let
         else
           fail "prompt was empty"
         fi
+
+        # The right prompt shows the project of gcloud's active configuration,
+        # not its account.
+        mkdir -p "$HOME/.config/gcloud/configurations"
+        echo default > "$HOME/.config/gcloud/active_config"
+        printf '[core]\naccount = someone@example.com\nproject = smoke-project\n' > "$HOME/.config/gcloud/configurations/config_default"
+        right=$(${self}/bin/starship prompt --right 2>/dev/null)
+        if printf '%s' "$right" | grep -q ' smoke-project' && ! printf '%s' "$right" | grep -q someone; then
+          ok "right prompt shows the gcloud project, not the account"
+        else
+          fail "right prompt does not show the gcloud project alone"
+        fi
       '';
     };
   };
