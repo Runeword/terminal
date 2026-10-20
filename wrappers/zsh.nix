@@ -46,7 +46,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, oa edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, oa edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -85,6 +85,34 @@ let
           ok "gc's secret › set reads the value silently and hands it to gcloud on stdin"
         else
           fail "gc's secret › set echoes the value or puts it on the command line"
+        fi
+
+        # gc's project › set offers gcloud's projects in fzf and sets the
+        # picked one; stand-ins list two projects and pick the second.
+        project='. ${self}/.config/shell/functions/gcloud.bash
+          gcloud() { [ "$1" = projects ] && print -l a-1 b-2 || print -r -- "$*"; }
+          fzf() { tail -n 1; }
+          __gcloud_project_set'
+        if ${leaderAliases}/bin/leader-aliases ${self}/.config/shell/leader.conf \
+          | awk -F "$sep" '$5 == "__gcloud_project_set" && $6 == "run" { found = 1 } END { exit !found }' \
+          && [ "$(${self}/bin/zsh -f -c "$project" 2>/dev/null)" = "config set project b-2" ]; then
+          ok "gc's project › set sets the project picked in fzf"
+        else
+          fail "gc's project › set does not set the project picked in fzf"
+        fi
+
+        # yp prints the current directory and copies it without a newline; a
+        # stand-in __copy records what it was handed.
+        copy='. ${self}/.config/shell/functions/utilities.sh
+          __copy() { cat > "$HOME/copied"; }
+          cd / && __copy_path'
+        if ${leaderAliases}/bin/leader-aliases ${self}/.config/shell/leader.conf \
+          | awk -F "$sep" '$1 ~ /^yp +$/ && $5 == "__copy_path" && $6 == "run" { found = 1 } END { exit !found }' \
+          && [ "$(${self}/bin/zsh -f -c "$copy")" = / ] \
+          && [ "$(cat "$HOME/copied"; echo .)" = /. ]; then
+          ok "yp prints the current directory and copies it without a newline"
+        else
+          fail "yp does not print and copy the current directory as it is"
         fi
 
         # The picker renders the table once per shell and width: a second press
