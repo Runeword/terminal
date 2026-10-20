@@ -2,7 +2,7 @@ add_newline = false
 # format = "$directory[▕](fg:#5242c2 bg:#1e2633) "
 format = "$directory[▕](fg:#4534bf bg:#1e2633) "
 # format = "$directory "
-right_format = "$git_status$git_branch$aws"
+right_format = "$git_status$git_branch$aws$gcloud"
 # format = "$golang$rust$lua$package$terraform$nodejs$python$nix_shell$shell$directory[▕](fg: #583ffb bg:#1e2633) "
 # right_format = "$git_branch$all"
 
@@ -44,6 +44,9 @@ format = "[ $branch](white)"
 
 [aws]
 format = "[( $profile)](italic fg:#7272ed)"
+
+[gcloud]
+format = "[( $project)](italic fg:#7272ed)"
 
 [golang]
 disabled       = true
