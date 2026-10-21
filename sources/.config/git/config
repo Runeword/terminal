@@ -30,5 +30,13 @@
   enabled = true
 [merge]
   conflictStyle = zdiff3
+# A bare repository git finds by itself in the folder it runs in is refused;
+# one named with --git-dir or GIT_DIR, as ~/.dotfiles is, still opens. A
+# sandbox or VM session can write the folders it shares, so it could plant
+# one there, and git, run by a prompt or an editor, would load its config and
+# run the commands it names (core.fsmonitor, core.pager…). Only protected
+# config (this file, the system's, -c) can set this: a repository can't.
+[safe]
+  bareRepository = explicit
 [include]
   path = ~/.config/git/config.local
