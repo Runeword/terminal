@@ -47,11 +47,12 @@ func writeTree(t *testing.T, root string, files map[string]string) {
 
 func TestRun(t *testing.T) {
 	const (
-		opus55   = `"model":{"id":"claude-opus-5-5","display_name":"Opus 5.5"}`
-		lastTurn = `"current_usage":{"input_tokens":2,"output_tokens":428,"cache_creation_input_tokens":2116,"cache_read_input_tokens":155115}`
-		limits   = "5h ━──── 23% 2h13m  7d ━━─── 41% 5d"
-		tokens   = "↓2 ↑428 W2.1k R155k =158k"
-		location = "proj main"
+		opus55    = `"model":{"id":"claude-opus-5-5","display_name":"Opus 5.5"}`
+		lastTurn  = `"current_usage":{"input_tokens":2,"output_tokens":428,"cache_creation_input_tokens":2116,"cache_read_input_tokens":155115}`
+		limits    = "5h ━──── 23% 2h13m  7d ━━─── 41% 5d"
+		tokens    = "↓2 ↑428 W2.1k R155k =158k"
+		location  = "proj main"
+		sessionID = "3f2c8a9e-7b41-4d6a-9c05-1e8f6b2d4a73"
 	)
 	fiveHour := `"five_hour":{"used_percentage":23.5,"resets_at":` + resetsIn(2*time.Hour+13*time.Minute) + `}`
 	sevenDay := `"seven_day":{"used_percentage":41.2,"resets_at":` + resetsIn(5*24*time.Hour) + `}`
@@ -63,6 +64,7 @@ func TestRun(t *testing.T) {
 	repo := filepath.Join(t.TempDir(), "proj")
 	writeTree(t, repo, map[string]string{".git/HEAD": "ref: refs/heads/main\n"})
 	inRepo := session(cacheAndLimits + workspace(t, repo))
+	withID := session(cacheAndLimits + workspace(t, repo) + `,"session_id":"` + sessionID + `"`)
 
 	tests := []struct {
 		name, payload string
@@ -93,6 +95,14 @@ func TestRun(t *testing.T) {
 		{
 			"110 columns drops only the location", inRepo, 110, false,
 			"ctx ───── 16%  " + limits + "  $3.21 +0.06  Opus 5.5  " + tokens,
+		},
+		{
+			"session id ends the line", withID, 0, false,
+			"ctx ───── 16%  " + limits + "  $3.21 +0.06  Opus 5.5  " + tokens + "  " + location + "  " + sessionID,
+		},
+		{
+			"120 columns drops only the session id", withID, 120, false,
+			"ctx ───── 16%  " + limits + "  $3.21 +0.06  Opus 5.5  " + tokens + "  " + location,
 		},
 		{
 			"outside a repository names only the directory", session(`,"prompt_cache":{"ttl":"1h"}` + workspace(t, "/nonexistent/scratch")), 0, false,
