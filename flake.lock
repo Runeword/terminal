@@ -1,5 +1,26 @@
 {
   "nodes": {
+    "claude-microvm": {
+      "inputs": {
+        "microvm": "microvm",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1792617334,
+        "narHash": "sha256-8hNi8LxkvF43xgkvUM1IlmuWn8sxm1YXhBdAU7b6ehk=",
+        "owner": "Runeword",
+        "repo": "claude-microvm",
+        "rev": "b997988e61a3e77cf97404f79af63e2ed8ff6b68",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Runeword",
+        "repo": "claude-microvm",
+        "type": "github"
+      }
+    },
     "claude-sandbox": {
       "inputs": {
         "lefthook": [
@@ -61,6 +82,28 @@
         "type": "github"
       }
     },
+    "microvm": {
+      "inputs": {
+        "nixpkgs": [
+          "claude-microvm",
+          "nixpkgs"
+        ],
+        "spectrum": "spectrum"
+      },
+      "locked": {
+        "lastModified": 1791551030,
+        "narHash": "sha256-jTx3O3MKqPjv+cDfBFQ5zlKECBEwzF91scC+mSumZyE=",
+        "owner": "microvm-nix",
+        "repo": "microvm.nix",
+        "rev": "f13928fe9900e91709d7ce581eefa47eaafa79e1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "microvm-nix",
+        "repo": "microvm.nix",
+        "type": "github"
+      }
+    },
     "nix-index-database": {
       "inputs": {
         "nixpkgs": [
@@ -119,12 +162,29 @@
     },
     "root": {
       "inputs": {
+        "claude-microvm": "claude-microvm",
         "claude-sandbox": "claude-sandbox",
         "flake-utils": "flake-utils",
         "lefthook": "lefthook",
         "nix-index-database": "nix-index-database",
         "nixpkgs": "nixpkgs",
         "permeance": "permeance"
+      }
+    },
+    "spectrum": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786032750,
+        "narHash": "sha256-+Ba/kIn5BjvV7PN8bWOo7RoqgTY/Yv2M7qeMf3wS2Ag=",
+        "ref": "refs/heads/main",
+        "rev": "77d2389874bb092b8dbf05ecc5b1030372e80e98",
+        "revCount": 1417,
+        "type": "git",
+        "url": "https://spectrum-os.org/git/spectrum"
+      },
+      "original": {
+        "type": "git",
+        "url": "https://spectrum-os.org/git/spectrum"
       }
     },
     "systems": {
