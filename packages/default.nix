@@ -1,10 +1,17 @@
-{ pkgs, claudeSandbox }:
+{
+  pkgs,
+  claudeSandbox,
+  claudeMicrovm,
+}:
 import ./commons.nix { inherit pkgs; }
 ++ import ./custom.nix { inherit pkgs; }
 # github:Runeword/claude-sandbox: on Linux the launcher claude.bash starts
 # claude through and the helpers it runs by bare name, on macOS the credential
 # launcher. On the host PATH, where claude.bash and the launcher look for them.
 ++ [ claudeSandbox.default ]
+# github:Runeword/claude-microvm: claude-vm, the launcher the leader cv chord
+# starts claude through, where that repo builds it (x86_64-linux).
+++ pkgs.lib.optional (claudeMicrovm ? default) claudeMicrovm.default
 ++ (
   if pkgs.stdenv.hostPlatform.isDarwin then
     import ./darwin.nix { inherit pkgs; }
