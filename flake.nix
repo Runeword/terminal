@@ -15,6 +15,9 @@
   inputs.claude-sandbox.inputs.nixpkgs.follows = "nixpkgs";
   inputs.claude-sandbox.inputs.lefthook.follows = "lefthook";
 
+  inputs.claude-microvm.url = "github:Runeword/claude-microvm";
+  inputs.claude-microvm.inputs.nixpkgs.follows = "nixpkgs";
+
   inputs.nix-index-database.url = "github:nix-community/nix-index-database";
   inputs.nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -27,6 +30,10 @@
 
       # The claude sandbox's launchers and helpers, for pkgs' system.
       mkClaudeSandbox = pkgs: inputs.claude-sandbox.packages.${pkgs.stdenv.hostPlatform.system};
+
+      # The microVM launcher the leader cv chord starts claude through, for
+      # pkgs' system: claude-microvm builds for x86_64-linux only.
+      mkClaudeMicrovm = pkgs: inputs.claude-microvm.packages.${pkgs.stdenv.hostPlatform.system} or { };
 
       mkWrappers =
         pkgs: configPath:
@@ -42,6 +49,7 @@
         import ./packages {
           inherit pkgs;
           claudeSandbox = mkClaudeSandbox pkgs;
+          claudeMicrovm = mkClaudeMicrovm pkgs;
         }
         ++ builtins.attrValues wrappers;
 
