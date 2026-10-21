@@ -558,12 +558,12 @@ __git_log() {
   # it starts and then draw at once: either gap showed as a flicker of the
   # prompt's line. --no-bold leaves the prompt as the shell drew it, where
   # prompt:regular would drop its italics too, and query:bold keeps the query
-  # as it was. The file step's header goes under the input line, not above.
+  # as it was.
   local -a inline=()
   if [ -n "${WIDGET-}" ]; then
     local ps1
     ps1=$(print -rP -- "$PS1")
-    inline=("--prompt=${ps1##*$'\n'}" --no-bold --color=query:bold --no-header-first --no-clear --sync)
+    inline=("--prompt=${ps1##*$'\n'}" --no-bold --color=query:bold --no-clear --sync)
   fi
 
   # A commit's row is its change, its hash and subject, then its author and
@@ -583,10 +583,10 @@ __git_log() {
   # that column from the start of the line, so it prints the author and date
   # first, and fzf shows them last (--with-nth): the subject then ends where
   # they leave it room. The fields are 0x1f-separated: author and date, hash,
-  # subject, the row as git log --oneline prints it (hidden: y copies it) and
-  # the change. fzf prints the hash of the row picked. Both steps start with
-  # the search off, as alt-i leaves it (FZF_DEFAULT_OPTS): j/k, g/G, f, q and
-  # y act at once, and i turns the search on.
+  # subject, the row as git log --oneline prints it (hidden: awk takes the
+  # whole subject from it) and the change. fzf prints the hash of the row
+  # picked. Both steps start with the search off, as alt-i leaves it
+  # (FZF_DEFAULT_OPTS): j/k, g/G and q act at once, and i turns the search on.
   local change='
     function pad(n,  p) {
       while (n-- > 0) p = p " "
@@ -619,7 +619,6 @@ __git_log() {
   local -a log_view=(
     --ansi --delimiter=$'\x1f' --with-nth='{5}{2}{3}{1}' --accept-nth=2
     --bind 'start:+trigger(alt-i)'
-    --bind 'y:execute-silent(wl-copy -- {4})'
   )
   local commit
   commit=$(git log --no-renames --diff-merges=first-parent --name-status \
@@ -630,7 +629,6 @@ __git_log() {
   [ "$commit" = "" ] && return
 
   local -a file_preview=(
-    --header='select files to open'
     # {2..} is the row's path, a directory's ending in /, so that its preview
     # is every change below it, under the path, which stays at the top as the
     # diff scrolls (~1). `:(top,literal)` anchors the pathspec to the repo
@@ -647,12 +645,12 @@ __git_log() {
   # tree on screen while a query is typed and dims the rows that don't match.
   # Every search also requires !/$ (doesn't end in /), so a directory's row
   # never matches and can't be picked: the cursor goes to the best match, the
-  # arrows, j/k and Tab step between matches, and Tab, Enter, f's jump and the
-  # mouse's clicks act on a match only (Enter on the marks too). fzf counts
+  # arrows, j/k and Tab step between matches, and Tab, Enter and the mouse's
+  # clicks act on a match only (Enter on the marks too). fzf counts
   # every row, so the info line counts the files instead: matches over
   # TREE_FILES, the commit's files. fzf prints the picked rows' indices, which
-  # tree-quote turns back into paths. y copies the row's path. alt-i turns the
-  # search off before search(!/$), as turning it off after cancels that search.
+  # tree-quote turns back into paths. alt-i turns the search off before
+  # search(!/$), as turning it off after cancels that search.
   local accept='[ "$FZF_RAW" = 1 ] || [ "$FZF_SELECT_COUNT" != 0 ] && echo accept'
   local -a tree_view=(
     --ansi --raw --gutter-raw=' ' --delimiter=$'\x1f' --with-nth='{1}' --accept-nth='{n}'
@@ -661,8 +659,6 @@ __git_log() {
     --bind 'tab:transform:[ "$FZF_RAW" = 1 ] && echo select+down-match || echo down-match'
     --bind 'right-click:transform:[ "$FZF_RAW" = 1 ] && echo toggle'
     --bind "enter:transform:$accept" --bind "double-click:transform:$accept"
-    --bind "f:jump,jump:transform:$accept"
-    --bind 'y:execute-silent(wl-copy -- {2..})'
     --info-command='printf "%s/%s (%s)" "$FZF_MATCH_COUNT" "$TREE_FILES" "$FZF_SELECT_COUNT"'
   )
 
