@@ -1,8 +1,8 @@
 // Command claude-statusline renders Claude Code's status line: context use, the
 // subscription rate limits, session and last-request cost, the model, the last
-// request's tokens, and the current directory with its git branch. Claude Code
-// runs it every refreshInterval with the session as JSON on stdin
-// (code.claude.com/docs/en/statusline) and shows what it prints.
+// request's tokens, the current directory with its git branch, and the session
+// id. Claude Code runs it every refreshInterval with the session as JSON on
+// stdin (code.claude.com/docs/en/statusline) and shows what it prints.
 package main
 
 import (
@@ -23,7 +23,8 @@ import (
 // Pointers mark what Claude Code omits or sends as null until it has data, so
 // "unknown" renders differently from zero.
 type statusInput struct {
-	Model struct {
+	SessionID string `json:"session_id"`
+	Model     struct {
 		ID          string `json:"id"`
 		DisplayName string `json:"display_name"`
 	} `json:"model"`
@@ -396,10 +397,10 @@ const (
 )
 
 // render builds the status line. Sections run in priority order (context, the
-// 5-hour and 7-day limits, cost, model, the last request's tokens, then
-// directory and branch), and whole sections are dropped from the end to fit
-// cols, the terminal width Claude Code passes in $COLUMNS; 0 means unknown, so
-// nothing is dropped.
+// 5-hour and 7-day limits, cost, model, the last request's tokens, directory
+// and branch, then the session id), and whole sections are dropped from the end
+// to fit cols, the terminal width Claude Code passes in $COLUMNS; 0 means
+// unknown, so nothing is dropped.
 func render(in statusInput, now time.Time, cols int) string {
 	sections := []string{contextSection(in.ContextWindow.UsedPercentage)}
 	for _, s := range []string{
@@ -409,6 +410,7 @@ func render(in statusInput, now time.Time, cols int) string {
 		modelName(in),
 		tokenSection(in.ContextWindow.CurrentUsage),
 		locationSection(in.Workspace.CurrentDir),
+		in.SessionID,
 	} {
 		if s != "" {
 			sections = append(sections, s)
