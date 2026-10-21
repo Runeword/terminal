@@ -24,6 +24,14 @@ let
       flags = [
         "-c"
         "core.excludesFile=${permeance.root}/.config/git/ignore"
+        # A repository's own config names the command core.fsmonitor runs,
+        # and any git command that reads the index runs it: in a repository
+        # a sandbox or VM session planted in a folder it shares, an editor's
+        # or a picker's git would run it on the host. The command line
+        # outranks a repository's config, so none runs; fsmonitor is not
+        # used here otherwise.
+        "-c"
+        "core.fsmonitor=false"
       ];
       # git-upload-pack / -receive-pack / -upload-archive ship as relative
       # symlinks to `git`, which now resolves to the launcher. The launcher's
@@ -67,6 +75,55 @@ let
           ok "commit.gpgsign=false (auto-sign deferred, scaffolding wired)"
         else
           fail "commit.gpgsign is '$sign', expected 'false'"
+        fi
+
+        # Repositories planted in a project folder, as a sandbox or VM session
+        # could plant them in the folders it shares, whose config makes any
+        # git command that reads their index run a command (core.fsmonitor):
+        # a nested .git, which git finds as it finds any repository, and a
+        # bare repository, a folder that is itself a git directory, with a
+        # work tree. The real git runs both commands, which proves each plant
+        # is live. The wrapped one runs neither: its launcher passes
+        # core.fsmonitor=false on the command line, which outranks a
+        # repository's own config, and the bundled config refuses a bare
+        # repository git finds by itself (safe.bareRepository=explicit). One
+        # named with --git-dir, as ~/.dotfiles is, still opens.
+        real=${pkgs.git}/bin/git
+        plant() { # $1 the work tree, $2 its git directory, $3 the marker
+          mkdir -p "$1"
+          echo x >"$1/file"
+          "$real" --git-dir="$2" --work-tree="$1" init -q
+          "$real" --git-dir="$2" --work-tree="$1" add file
+          "$real" --git-dir="$2" config core.fsmonitor "touch $3; false"
+        }
+        plant "$TMPDIR/nested" "$TMPDIR/nested/.git" "$TMPDIR/nested-ran"
+        plant "$TMPDIR/project" "$TMPDIR/project/planted" "$TMPDIR/bare-ran"
+        (cd "$TMPDIR/nested" && "$real" status) >/dev/null 2>&1 || true
+        (cd "$TMPDIR/project/planted" && "$real" status) >/dev/null 2>&1 || true
+        if [ -e "$TMPDIR/nested-ran" ] && [ -e "$TMPDIR/bare-ran" ]; then
+          rm "$TMPDIR/nested-ran" "$TMPDIR/bare-ran"
+          (cd "$TMPDIR/nested" && ${self}/bin/git status) >/dev/null 2>&1 || true
+          if [ -e "$TMPDIR/nested-ran" ]; then
+            fail "git ran the core.fsmonitor of a nested repository"
+          else
+            ok "git runs no core.fsmonitor a repository's own config names"
+          fi
+          refusal=$(cd "$TMPDIR/project/planted" && ${self}/bin/git status 2>&1 || true)
+          if [ -e "$TMPDIR/bare-ran" ]; then
+            fail "git ran the config of a bare repository it found by itself"
+          else
+            case "$refusal" in
+              *"safe.bareRepository"*) ok "git refuses a bare repository it finds by itself" ;;
+              *) fail "git does not refuse a bare repository it found by itself: $refusal" ;;
+            esac
+          fi
+        else
+          fail "the planted repositories' core.fsmonitor does not run even with the real git, so these checks prove nothing"
+        fi
+        if ${self}/bin/git --git-dir="$TMPDIR/project/planted" rev-parse --git-dir >/dev/null 2>&1; then
+          ok "git still opens a bare repository named with --git-dir"
+        else
+          fail "git refuses a bare repository named with --git-dir"
         fi
 
         # Dashed builtins must bypass the launcher — its `-c` prefix would
