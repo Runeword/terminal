@@ -9,6 +9,7 @@ let
   config = files.mkConfig "tmux-config" [
     ".config/tmux/tmux.conf"
     ".config/tmux/scripts/toggle-pane.sh"
+    ".config/tmux/scripts/new-window-shift.sh"
     # Bound in tmux.conf on a currently-commented M-b — bundled so the binding
     # resolves in bundled mode, not just under $PERMEANCE_ROOT.
     ".config/tmux/scripts/watch-build.sh"
@@ -41,7 +42,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, and renders sessions sorted-by-number so they can be dragged to reorder too";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, keeps M-t's window after the current one in a full session by shifting the windows after it on into the next sessions, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # No explicit -f — let the launcher's flags = [ "-f" "''${permeance.root}/.config/tmux/tmux.conf" ]
         # provide it, so the smoke exercises the launcher's flag routing. start-server
@@ -161,12 +162,82 @@ let
           *) fail "M-w/M-W are '$close'" ;;
         esac
 
-        # Ctrl+` / Ctrl+~ cycle sessions; Alacritty sends them as CSI-u C-` / C-S-`.
-        cycle="$(binding root 'C-`') / $(binding root 'C-S-`')"
-        if [ "$cycle" = "switch-client -n / switch-client -p" ]; then
-          ok 'C-` / C-S-` switch to the next / previous session'
+        # C-S-<n> with no window <n> moves the current window right after the
+        # last one, rather than opening a new window at <n>. The binding is
+        # tmux alone, so source its commands into a server: list-keys joins
+        # them with \;, and a sourced line separates commands with a plain ;.
+        swap=$(binding root C-S-9)
+        order=$(
+          PATH=${self}/bin:$PATH
+          tmux new-session -d -s t -n a sleep 60 \; \
+            new-window -d -n b sleep 60 \; new-window -d -n c sleep 60
+          printf '%s\n' "$swap" | sed 's/ \\; / ; /g' | tmux source-file -
+          tmux list-windows -F '#{window_index}#{window_name}#{?window_active,*,}' | tr '\n' ' '
+          tmux kill-server
+        ) || true
+        if [ "$order" = "1b 2c 3a* " ]; then
+          ok "C-S-<n> past the last window moves the current window after it"
         else
-          fail "C-\` / C-S-\` are '$cycle'"
+          fail "C-S-9 on window 1 of a, b, c left '$order', expected '1b 2c 3a* '"
+        fi
+
+        # M-t in a session with @wmax (4) windows still opens the window after
+        # the current one, in the pressing pane's directory (# included: -c is
+        # expanded as a format), and the windows after it shift on into the
+        # next sessions: a full session's last window moves to the front of the
+        # next one, and a new session takes the window none has room for. From
+        # the last window, the new window moves on, and the client follows it.
+        # M-t is pressed through an attached client's key table (send-keys -K,
+        # which returns once the binding, run-shell included, has run), and the
+        # pane of a second, config-less tmux server is the terminal that client
+        # needs (a client-attached hook signals it is attached). list-clients
+        # reads where the client is: display-message -c expands its format for
+        # the newest session. New windows run sh, so that is their name.
+        overflow=$(
+          PATH=${self}/bin:$PATH
+          mkdir "$HOME/C#S"
+          tmux new-session -d -s 1 -n a -c "$HOME/C##S" sleep 60 \; \
+            set -g default-shell "$(command -v sh)" \; set -g automatic-rename off \; \
+            new-window -d -t =1: -n b sleep 60 \; new-window -d -t =1: -n c sleep 60 \; \
+            new-window -d -t =1: -n d sleep 60 \; new-session -d -s 2 -n e sleep 60 \; \
+            new-window -d -t =2: -n f sleep 60 \; new-window -d -t =2: -n g sleep 60 \; \
+            new-window -d -t =2: -n h sleep 60 \; \
+            set-hook -g client-attached 'wait-for -S attached'
+          ${pkgs.tmux}/bin/tmux -L outer -f /dev/null new-session -d 'env -u TMUX tmux attach -t =1'
+          timeout 10 tmux wait-for attached
+          client=$(tmux list-clients -F '#{client_name}')
+          tmux send-keys -K -c "$client" M-t # after a: d moves on to 2, h to a new 3
+          tmux list-clients -F '#S:#I #{b:pane_start_path}'
+          tmux select-window -t =1:4
+          tmux send-keys -K -c "$client" M-t # after c, the last: on to 2, g to 3
+          tmux list-clients -F '#S:#I'
+          tmux list-windows -a -F '#S:#I#W'
+          tmux kill-server
+          ${pkgs.tmux}/bin/tmux -L outer kill-server
+        ) || true
+        overflow=$(printf '%s\n' "$overflow" | tr '\n' ' ')
+        if [ "$overflow" = "1:2 C#S 2:1 1:1a 1:2sh 1:3b 1:4c 2:1sh 2:2d 2:3e 2:4f 3:1g 3:2h " ]; then
+          ok "M-t in a full session opens the window after the current one and shifts the rest on into the next sessions"
+        else
+          fail "M-t in full sessions left '$overflow', expected '1:2 C#S 2:1 1:1a 1:2sh 1:3b 1:4c 2:1sh 2:2d 2:3e 2:4f 3:1g 3:2h '"
+        fi
+
+        # Ctrl+` / Ctrl+~ cycle sessions; Alacritty sends them as CSI-u C-` / C-S-`.
+        # Ctrl+Space (NUL) goes to the next session too, like Ctrl+`.
+        cycle="$(binding root 'C-`') / $(binding root 'C-S-`') / $(binding root C-Space)"
+        if [ "$cycle" = "switch-client -n / switch-client -p / switch-client -n" ]; then
+          ok 'C-` and C-Space / C-S-` switch to the next / previous session'
+        else
+          fail "C-\` / C-S-\` / C-Space are '$cycle'"
+        fi
+
+        # Closing a session's last window moves its clients to the previous
+        # session, the one left of it in the status bar, instead of detaching.
+        dod=$(${self}/bin/tmux start-server \; show -gv detach-on-destroy \; kill-server 2>/dev/null)
+        if [ "$dod" = "previous" ]; then
+          ok "closing a session's last window focuses the previous session"
+        else
+          fail "detach-on-destroy is '$dod', expected 'previous'"
         fi
 
         # Sessions render sorted by their number (not #{S:}'s creation order) so a
@@ -201,6 +272,14 @@ let
         case "$opts" in
           external*off*fill=terminal*) ok "panes can't set or read the clipboard; messages clear the status line" ;;
           *) fail "set-clipboard / get-clipboard / message-style are '$opts'" ;;
+        esac
+
+        # tmux can't detect that Alacritty takes synchronized updates; without
+        # them, the cursor blinks on every move in fzf.
+        features=$(${self}/bin/tmux start-server \; show -sv terminal-features \; kill-server 2>/dev/null)
+        case "$features" in
+          *alacritty:sync*) ok "tmux synchronizes its redraws in Alacritty" ;;
+          *) fail "terminal-features lacks alacritty:sync: '$features'" ;;
         esac
       '';
     };
