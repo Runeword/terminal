@@ -38,4 +38,14 @@
   # packages.tools and is on the interactive PATH inside the terminal, where
   # the zle widget and __leader_edit invoke it by bare name.
   (import ./leader-aliases { inherit pkgs; })
+  # Labels a tmux session with what its windows are doing, asking Claude Haiku
+  # from each pane's program, folder, git branch and title; status-right shows
+  # the current session's label (sources/.config/tmux/tmux.conf, whose hooks
+  # and M-N run it). Here so it lands in packages.tools: the tmux server gets
+  # that PATH from alacritty, and run-shell invokes it by bare name. It runs
+  # `claude -p` outside claude-sandbox, which a run-shell job can't use (the
+  # sandbox refuses $HOME, the job's usual cwd): --safe-mode loads no hooks,
+  # plugins or MCP servers, --tools "" leaves the model nothing to run, and the
+  # answer is reduced to [a-z0-9-] before tmux sees it.
+  (import ./tmux-session-name { inherit pkgs; })
 ]
