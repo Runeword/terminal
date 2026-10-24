@@ -42,7 +42,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, keeps M-t's window after the current one in a full session by shifting the windows after it on into the next sessions, shows the current session's AI label on the right of the bar, made on session and window switches and set with M-N, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, shows the current session's AI label on the right of the bar, made on session and window switches and set with M-N, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # No explicit -f — let the launcher's flags = [ "-f" "''${permeance.root}/.config/tmux/tmux.conf" ]
         # provide it, so the smoke exercises the launcher's flag routing. start-server
@@ -183,10 +183,10 @@ let
 
         # M-t in a session with @wmax (4) windows still opens the window after
         # the current one, in the pressing pane's directory (# included: -c is
-        # expanded as a format), and the windows after it shift on into the
-        # next sessions: a full session's last window moves to the front of the
-        # next one, and a new session takes the window none has room for. From
-        # the last window, the new window moves on, and the client follows it.
+        # expanded as a format), and the windows after it shift one place
+        # right: the session's last window moves to a new session next to it,
+        # and the sessions after it move one number up. From the last window,
+        # the new window moves there, and the client follows it.
         # M-t is pressed through an attached client's key table (send-keys -K,
         # which returns once the binding, run-shell included, has run), and the
         # pane of a second, config-less tmux server is the terminal that client
@@ -206,20 +206,20 @@ let
           ${pkgs.tmux}/bin/tmux -L outer -f /dev/null new-session -d 'env -u TMUX tmux attach -t =1'
           timeout 10 tmux wait-for attached
           client=$(tmux list-clients -F '#{client_name}')
-          tmux send-keys -K -c "$client" M-t # after a: d moves on to 2, h to a new 3
+          tmux send-keys -K -c "$client" M-t # after a: d to a new 2, e..h to 3
           tmux list-clients -F '#S:#I #{b:pane_start_path}'
           tmux select-window -t =1:4
-          tmux send-keys -K -c "$client" M-t # after c, the last: on to 2, g to 3
+          tmux send-keys -K -c "$client" M-t # after c, the last: on to a new 2
           tmux list-clients -F '#S:#I'
           tmux list-windows -a -F '#S:#I#W'
           tmux kill-server
           ${pkgs.tmux}/bin/tmux -L outer kill-server
         ) || true
         overflow=$(printf '%s\n' "$overflow" | tr '\n' ' ')
-        if [ "$overflow" = "1:2 C#S 2:1 1:1a 1:2sh 1:3b 1:4c 2:1sh 2:2d 2:3e 2:4f 3:1g 3:2h " ]; then
-          ok "M-t in a full session opens the window after the current one and shifts the rest on into the next sessions"
+        if [ "$overflow" = "1:2 C#S 2:1 1:1a 1:2sh 1:3b 1:4c 2:1sh 3:1d 4:1e 4:2f 4:3g 4:4h " ]; then
+          ok "M-t in a full session opens the window after the current one and pushes the session's last window into a new session next to it"
         else
-          fail "M-t in full sessions left '$overflow', expected '1:2 C#S 2:1 1:1a 1:2sh 1:3b 1:4c 2:1sh 2:2d 2:3e 2:4f 3:1g 3:2h '"
+          fail "M-t in full sessions left '$overflow', expected '1:2 C#S 2:1 1:1a 1:2sh 1:3b 1:4c 2:1sh 3:1d 4:1e 4:2f 4:3g 4:4h '"
         fi
 
         # Ctrl+` / Ctrl+~ cycle sessions; Alacritty sends them as CSI-u C-` / C-S-`.
