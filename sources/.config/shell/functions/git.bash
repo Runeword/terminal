@@ -347,7 +347,9 @@ __git_ignore() {
 __git_diff() {
   __git_require_repo || return 1
 
-  local repo_cdup kind
+  # The rows are numbered (see below), so the preview takes the path from the
+  # fields before the number ({s..-2}, spaces kept), not from the whole row.
+  local repo_cdup kind ph='{s..-2}'
   repo_cdup="$(git rev-parse --show-cdup)"
   local -a preview
 
@@ -355,29 +357,50 @@ __git_diff() {
     staged)
       kind=staged
       preview=(
-        --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged)"
+        --preview "echo $ph; $(__git_diff_staged "$ph")"
         --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
       )
       ;;
     unstaged)
       kind=unstaged
       preview=(
-        --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_tracked) || $(__git_diff_untracked)"
+        --preview "echo $ph; $(__git_diff_tracked "$ph") || $(__git_diff_untracked "$ph")"
         --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
       )
       ;;
     *)
       kind=changed
       preview=(
-        --preview "$_GIT_FZF_PREVIEW_CMD $(__git_diff_staged) || $(__git_diff_tracked) || $(__git_diff_untracked)"
+        --preview "echo $ph; $(__git_diff_staged "$ph") || $(__git_diff_tracked "$ph") || $(__git_diff_untracked "$ph")"
         --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
       )
       ;;
   esac
 
-  local args
-  args=$(__git_fzf_select "$kind" "$repo_cdup" "${preview[@]}")
-  [ "$args" != "" ] && echo "$EDITOR -- $args"
+  # The staged files picked open in Neovim's gdc (its gl.nvim): their staged change marked in them
+  local args open=
+  [ "$kind" = staged ] && open='GL_OPEN=staged '
+  # As __git_fzf_select, with each path numbered from 1: awk reads every path
+  # before it prints one, to right-align the numbers to the widest, and puts
+  # the number after the path and 0x1f, so that the path is every field
+  # before it (..-2), whatever it holds (a 0x1f, a newline, a space at either
+  # end). Not a read -d loop: zsh's read -d puts back the terminal modes it
+  # found, over the ones fzf sets meanwhile. fzf shows the number first
+  # ({-1} {..-2}), and the delimiter's second half (^ *[0-9]+ ) splits it and
+  # its space off the row shown, so that the search skips it (--nth=2..). It
+  # can split a path that starts with a number off the row read too, but
+  # ..-2 joins it back. The number stays in view when fzf cuts a long path
+  # short (--freeze-left), and fzf prints the path alone.
+  args=$(
+    __git_cd_root || exit 1
+    git-hunk-pick paths "$kind" </dev/null |
+      awk 'BEGIN { RS = ORS = "\0" } { r[NR] = $0 } END { for (i = 1; i <= NR; i++) print r[i] "\037" sprintf("%" length(NR) "d", i) }' |
+      fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "${preview[@]}" \
+        --delimiter=$'\x1f|^ *[0-9]+ ' '--with-nth={-1} {..-2}' --nth=2.. \
+        --accept-nth=..-2 --freeze-left=1 |
+      git-hunk-pick quote "$repo_cdup"
+  )
+  [ "$args" != "" ] && echo "$open$EDITOR -- $args"
 }
 
 __git_diff_branches() {
@@ -461,12 +484,20 @@ __git_patch() {
 __git_reset_soft() {
   __git_require_repo || return 1
 
+  # A row is its commit's number, from 1 for HEAD, then the commit as git log
+  # --oneline prints it: picking row n resets n commits (HEAD~n). awk reads
+  # every row before it prints one, to right-align the numbers to the widest.
+  # The search skips the number (--nth=2..), which stays in view when fzf
+  # cuts a long row short (--freeze-left), and the preview's first line is
+  # the row without it.
   local -a preview=(
-    --preview "$_GIT_FZF_PREVIEW_CMD git show --color=always --decorate {1} | $_GIT_PAGER"
+    --preview "echo {2..}; git show --color=always --decorate {2} | $_GIT_PAGER"
     --preview-window="$_GIT_FZF_PREVIEW_WINDOW"
   )
   local commit
-  commit=$(git log --oneline --first-parent | fzf "${_GIT_FZF_BASE[@]}" "${preview[@]}" | awk '{print $1}')
+  commit=$(git log --oneline --first-parent |
+    awk '{ r[NR] = $0 } END { for (i = 1; i <= NR; i++) printf "%" length(NR) "d %s\n", i, r[i] }' |
+    fzf "${_GIT_FZF_BASE[@]}" "${preview[@]}" --nth=2.. --freeze-left=1 | awk '{print $2}')
 
   if [ "$commit" != "" ]; then
     local offset
@@ -540,11 +571,11 @@ __git_log() {
   # quarters of fzf's height, which leaves the list a few rows, enough to pick
   # from. Even then, git's header and message would fill much of the preview,
   # and a commit's row has its author and date, so its preview is the diff
-  # alone ({2} is the row's hash, see below): --format= leaves out the header,
+  # alone ({3} is the row's hash, see below): --format= leaves out the header,
   # and sed the blank line delta puts before the diff.
   local preview_window='down,75%,border-top,wrap'
   local -a preview=(
-    --preview "git show --color=always --format= {2} | $_GIT_PAGER | sed '1{/^\$/d}'"
+    --preview "git show --color=always --format= {3} | $_GIT_PAGER | sed '1{/^\$/d}'"
     --preview-window="$preview_window"
   )
 
@@ -566,25 +597,31 @@ __git_log() {
     inline=("--prompt=${ps1##*$'\n'}" --no-bold --color=query:bold --no-clear --sync)
   fi
 
-  # A commit's row is its change, its hash and subject, then its author and
-  # date flush right, with no colour of their own, so that fzf shows and
-  # highlights them as the rest of the row. The change is + if the commit only
-  # adds files, - if it only deletes some, ~ otherwise, as delta labels a
-  # file's, in bold green, red or blue. git lists the status of each
+  # A commit's row is its number, its change, its hash and subject, then its
+  # author and date flush right, with no colour of their own, so that fzf
+  # shows and highlights them as the rest of the row. The change is + if the
+  # commit only adds files, - if it only deletes some, ~ otherwise, as delta
+  # labels a file's, in bold green, red or blue. git lists the status of each
   # of a commit's files under its line, which starts with 0x1e, and awk puts
   # the change at the end of that line. A subject that starts with the verb
   # its change stands for, as auto-commit writes them (Add, Delete or Remove,
   # Update), loses it, and the verb's room goes back to the subject: as spaces
   # where git padded it, or as more of it where git cut it short. A subject
   # cut short that holds more than ASCII keeps its verb: awk can't count its
-  # width. git pads the subject, or cuts it, up to column $COLUMNS - 6 and
-  # adds a space, so that a row is as wide as fzf's list: $COLUMNS less its
-  # pointer, marker and scrollbar columns, and the change's two. git counts
-  # that column from the start of the line, so it prints the author and date
-  # first, and fzf shows them last (--with-nth): the subject then ends where
-  # they leave it room. The fields are 0x1f-separated: author and date, hash,
-  # subject, the row as git log --oneline prints it (hidden: awk takes the
-  # whole subject from it) and the change. fzf prints the hash of the row
+  # width. git pads the subject, or cuts it, up to column $COLUMNS - 7 less
+  # the number's width, and adds a space, so that a row is as wide as fzf's
+  # list: $COLUMNS less its pointer, marker and scrollbar columns, the
+  # change's two, and the number and its space. git counts that column from
+  # the start of the line, so it prints the author and date first, and fzf
+  # shows them last (--with-nth): the subject then ends where they leave it
+  # room. awk numbers the rows from 1, for the newest, right-aligned to the
+  # width of the count of commits, which git rev-list gives first, for that
+  # column. The fields are 0x1f-separated: the number, author and date,
+  # hash, subject, the row as git log --oneline prints it (hidden: awk takes
+  # the whole subject from it) and the change. The delimiter's second half
+  # (^ *[0-9]+ ) splits the number and its space off the row shown, so that
+  # the search skips it (--nth=2..): in the row read, 0x1f follows the
+  # number, and it can't match there. fzf prints the hash of the row
   # picked. Both steps start with the search off, as alt-i leaves it
   # (FZF_DEFAULT_OPTS): j/k, g/G and q act at once, and i turns the search on.
   local change='
@@ -609,7 +646,7 @@ __git_log() {
           row = f[1] "\037" f[2] "\037 " s " \037" f[4]
         }
       }
-      print row "\037" c
+      print sprintf("%" w "d", ++n) "\037" row "\037" c
     }
     substr($0, 1, 1) == "\036" { put(); row = substr($0, 2); a = d = o = 0; next }
     /^A\t/ { a = 1; next }
@@ -617,13 +654,14 @@ __git_log() {
     /^[A-Z]/ { o = 1 }
     END { put() }'
   local -a log_view=(
-    --ansi --delimiter=$'\x1f' --with-nth='{5}{2}{3}{1}' --accept-nth=2
+    --ansi --delimiter=$'\x1f|^ *[0-9]+ ' '--with-nth={1} {6}{3}{4}{2}' --nth=2.. --accept-nth=3
     --bind 'start:+trigger(alt-i)'
   )
-  local commit
+  local count commit
+  count=$(git rev-list --count HEAD 2>/dev/null)
   commit=$(git log --no-renames --diff-merges=first-parent --name-status \
-    --format="%x1e%an, %ar%x1f%h%x1f %<|($((COLUMNS - 6)),trunc)%s %x1f%h %s" |
-    awk "$change" |
+    --format="%x1e%an, %ar%x1f%h%x1f %<|($((COLUMNS - 7 - ${#count})),trunc)%s %x1f%h %s" |
+    awk -v w="${#count}" "$change" |
     fzf "${_GIT_FZF_BASE[@]}" "${inline[@]}" "${preview[@]}" "${log_view[@]}")
 
   [ "$commit" = "" ] && return
