@@ -85,9 +85,9 @@ __tmux_swap_or_create_window() {
   elif tmux list-windows -F '#{window_index}' | grep -qx "$target_index"; then
     tmux swap-window -t "$target_index" \; select-window -t "$target_index"
   else
-    local current_path
-    current_path=$(tmux display-message -p '#{pane_current_path}')
-    tmux new-window -t ":$target_index" -c "$current_path"
+    # No window has that index: move this one right after the last window, as
+    # C-<n> selects the last window then. renumber-windows closes the gap.
+    tmux move-window -a -t '{end}'
   fi
 
   __tmux_flash_current_window
