@@ -415,13 +415,16 @@ let
           *) fail "ga shows its files or hunks list under a header" ;;
         esac
 
-        # gl (__git_log) lists commits with their change first, in its colour,
-        # and their author and date flush right, in the row's colours: git
-        # lists each commit's files' statuses and pads its subject up to column
-        # $COLUMNS - 6 of a line that starts with them, awk adds the change (a
-        # commit that only deletes files: - in bold red) and drops the verb it
-        # stands for (Delete), the row as wide, and fzf shows the change
-        # first, them last, and hands on the row's hash. Both steps show the
+        # gl (__git_log) lists commits numbered from 1, right-aligned, then
+        # their change, in its colour, and their author and date flush right,
+        # in the row's colours: git lists each commit's files' statuses and
+        # pads its subject up to column $COLUMNS - 7 less the number's width
+        # (two: the stand-in rev-list counts 10 commits) of a line that starts
+        # with them, awk numbers the row, adds the change (a commit that only
+        # deletes files: - in bold red) and drops the verb it stands for
+        # (Delete), the row as wide, and fzf shows the number and the change
+        # first and them last, skips the number in its search, and hands on
+        # the row's hash. Both steps show the
         # preview below the list, in three quarters of fzf's height, with no
         # blank line before the diff: a commit's diff alone, a file's under its
         # path. Both start with the search off, as alt-i leaves it, the file
@@ -434,14 +437,44 @@ let
         # editor what tree-quote makes of the row numbers fzf accepts: the
         # stand-ins pick the commit and a row, and say what they were asked.
         gl='. ${self}/.config/shell/functions/git.bash
-          git() { case $1 in log) [ "$*" != "log --no-renames --diff-merges=first-parent --name-status --format=%x1e%an, %ar%x1f%h%x1f %<|(94,trunc)%s %x1f%h %s" ] || printf "\36a, now\37abc\37 Delete f \37abc Delete f\n\nD\tf\nD\tg\n" ;; rev-parse) [ "$2" != --show-cdup ] || echo ../ ;; esac; }
+          git() { case $1 in log) [ "$*" != "log --no-renames --diff-merges=first-parent --name-status --format=%x1e%an, %ar%x1f%h%x1f %<|(91,trunc)%s %x1f%h %s" ] || printf "\36a, now\37abc\37 Delete f \37abc Delete f\n\nD\tf\nD\tg\n" ;; rev-list) [ "$*" != "rev-list --count HEAD" ] || echo 10 ;; rev-parse) [ "$2" != --show-cdup ] || echo ../ ;; esac; }
           git-hunk-pick() { case $1 in tree) printf "%s\0" "$*" ;; paths) printf "x\0y\0" ;; tree-quote) printf "%s<%s" "$*" "$(tr "\0" ,)" ;; esac; }
-          fzf() { case "$TREE_FILES $*" in *jump* | *"--bind y:"* | *"--header="*) ;; "2 "*"--accept-nth={n}"*"start:+trigger(alt-i)+search(!/\$)"*"--info-command="*"show --color=always --format= "*"/^\$/d}"*"--preview-window=down,75%,"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *"show --color=always --format= {2} "*"/^\$/d}"*"--preview-window=down,75%,"*"--ansi --delimiter="?" --with-nth={5}{2}{3}{1} --accept-nth=2"*"start:+trigger(alt-i)"*) awk -F "$(printf "\37")" -v c="$(printf "\33[1;38;2;168;77;95m-\33[0m ")" "\$5 == c && \$3 ~ /^ f {8}\$/ { print \$2 }" ;; esac; }
+          fzf() { case "$TREE_FILES $*" in *jump* | *"--bind y:"* | *"--header="*) ;; "2 "*"--accept-nth={n}"*"start:+trigger(alt-i)+search(!/\$)"*"--info-command="*"show --color=always --format= "*"/^\$/d}"*"--preview-window=down,75%,"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *"show --color=always --format= {3} "*"/^\$/d}"*"--preview-window=down,75%,"*"--ansi --delimiter="?"|^ *[0-9]+  --with-nth={1} {6}{3}{4}{2} --nth=2.. --accept-nth=3"*"start:+trigger(alt-i)"*) awk -F "$(printf "\37")" -v c="$(printf "\33[1;38;2;168;77;95m-\33[0m ")" "\$1 == \" 1\" && \$6 == c && \$4 ~ /^ f {8}\$/ { print \$3 }" ;; esac; }
           COLUMNS=100 EDITOR=ed __git_log'
         if [ "$(${self}/bin/zsh -f -c "$gl")" = "ed -- tree-quote commit abc ../<4," ]; then
-          ok "gl lists commits with their change first, in its colour, in place of the verb it stands for, and their author and date flush right in the row's colours, previews each diff below its list, in three quarters of the height, a commit's alone, starts both lists with the search off, no header and no y or jump binding of their own, lists the commit's files as tree rows, directories unpickable and uncounted, and opens the files of the rows picked"
+          ok "gl lists commits numbered from 1, right-aligned and unsearched, with their change next, in its colour, in place of the verb it stands for, and their author and date flush right in the row's colours, previews each diff below its list, in three quarters of the height, a commit's alone, starts both lists with the search off, no header and no y or jump binding of their own, lists the commit's files as tree rows, directories unpickable and uncounted, and opens the files of the rows picked"
         else
-          fail "gl lists commits without their change in its colour in place of the verb it stands for, or without their author and date flush right in the row's colours, previews a diff beside a list or in other than three quarters of the height, or a commit's under a line, starts a list with the search on or turns the file list's off after its !/$ search, gives a list a header, binds y or a jump in a list, or does not hand the rows fzf picks from its tree to tree-quote"
+          fail "gl lists commits without their right-aligned number first, or searches it, or without their change in its colour in place of the verb it stands for, or without their author and date flush right in the row's colours, previews a diff beside a list or in other than three quarters of the height, or a commit's under a line, starts a list with the search on or turns the file list's off after its !/$ search, gives a list a header, binds y or a jump in a list, or does not hand the rows fzf picks from its tree to tree-quote"
+        fi
+
+        # gda, gdc and gdd (__git_diff) number their paths from 1,
+        # right-aligned, and fzf shows each number before its path, searches
+        # the path only and prints it as is: the real fzf, filtering for a 1,
+        # picks the one path with a 1 in it, not the paths numbered 1 and 10,
+        # and the stand-in quote shows what it got.
+        gdc='. ${self}/.config/shell/functions/git.bash
+          git() { [ "$2" != --show-toplevel ] || echo /; }
+          git-hunk-pick() { case $1 in paths) printf "%s\0" " a" b c d e f g h "i 1" j ;; quote) tr "\0" , ;; esac; }
+          fzf() { tee "$HOME/gdc" | ${pkgs.fzf}/bin/fzf --filter=1 "$@"; }
+          EDITOR=ed __git_diff staged'
+        if [ "$(${self}/bin/zsh -f -c "$gdc")" = "GL_OPEN=staged ed -- i 1," ] && [ "$(tr '\0\37' '\n:' < "$HOME/gdc" | sed -n '1p;10p')" = "$(printf ' a: 1\nj:10')" ]; then
+          ok "gda, gdc and gdd number their paths from 1, right-aligned, search the paths only and hand on the path picked as is"
+        else
+          fail "gda, gdc or gdd lists its paths without a right-aligned number, searches the number or hands on more than the path picked"
+        fi
+
+        # grs (__git_reset_soft) numbers its commits from 1, for HEAD,
+        # right-aligned, and fzf searches past the number: the real fzf,
+        # filtering for a 1, picks the one commit with a 1 in it, the 10th,
+        # and grs resets 10 commits.
+        grs='. ${self}/.config/shell/functions/git.bash
+          git() { case $1 in log) printf "%s x\n" a b c d e f g h i && echo "j 1" ;; rev-list) [ "$4" != j..HEAD ] || echo 9 ;; esac; }
+          fzf() { tee "$HOME/grs" | ${pkgs.fzf}/bin/fzf --filter=1 "$@"; }
+          __git_reset_soft'
+        if [ "$(${self}/bin/zsh -f -c "$grs")" = "git reset --soft HEAD~10 " ] && [ "$(sed -n '1p;10p' "$HOME/grs")" = "$(printf ' 1 a x\n10 j 1')" ]; then
+          ok "grs numbers its commits from 1, for HEAD, right-aligned and unsearched, and row n resets n commits"
+        else
+          fail "grs lists its commits without a right-aligned number from 1, searches it, or resets other than the commits up to the row picked"
         fi
 
         # Run from the leader (a zle widget), both of gl's steps are typed on
