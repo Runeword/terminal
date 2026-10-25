@@ -42,7 +42,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, shows the current session's AI label on the right of the bar, made on session and window switches and set with M-N, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, shows the current session's AI label after the session numbers, made on session and window switches and set with M-N, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # No explicit -f — let the launcher's flags = [ "-f" "''${permeance.root}/.config/tmux/tmux.conf" ]
         # provide it, so the smoke exercises the launcher's flag routing. start-server
@@ -266,14 +266,13 @@ let
           *) fail "MouseDrag1Pane lacks __tmux_drag_session session wiring" ;;
         esac
 
-        # The current session's AI label (packages/tmux-session-name) shows on
-        # the right of the bar, apart from the session numbers: switching
-        # sessions or windows runs the labeller, and M-N pins a typed label or
-        # asks the model again.
-        label=$(${self}/bin/tmux start-server \; show -gv status-right \; show-hooks -g \; kill-server 2>/dev/null)$(binding root M-N)
+        # The current session's AI label (packages/tmux-session-name) shows
+        # right after the session numbers: switching sessions or windows runs
+        # the labeller, and M-N pins a typed label or asks the model again.
+        label=$(${self}/bin/tmux start-server \; show -gv status-left \; show-hooks -g \; kill-server 2>/dev/null)$(binding root M-N)
         case "$label" in
-          *"#{@label}"*"client-session-changed[0] run-shell"*tmux-session-name*"session-window-changed[0] run-shell"*tmux-session-name*"@label_pin"*"tmux-session-name -force"*) ok "the bar shows the session's AI label, refreshed on switches and set with M-N" ;;
-          *) fail "status-right / label hooks / M-N are '$label'" ;;
+          *"session_name},10}"*"#{@label}"*"client-session-changed[0] run-shell"*tmux-session-name*"session-window-changed[0] run-shell"*tmux-session-name*"@label_pin"*"tmux-session-name -force"*) ok "the bar shows the session's AI label, refreshed on switches and set with M-N" ;;
+          *) fail "status-left label / label hooks / M-N are '$label'" ;;
         esac
 
         # Programs inside tmux can neither set nor read the clipboard through it,
