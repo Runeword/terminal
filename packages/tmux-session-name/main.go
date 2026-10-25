@@ -1,7 +1,8 @@
 // Command tmux-session-name labels a tmux session with a few words on what its
 // windows are doing, which tmux.conf's status-right shows for the current
-// session. Claude Haiku names it from each pane's program, folder, git branch
-// and title, never from what is on screen, and only when those change.
+// session. A local model, Qwen3.5 2B run by llama.cpp, names it from each
+// pane's program, folder, git branch and title, never from what is on screen,
+// and only when those change. Nothing leaves the machine.
 //
 // tmux.conf runs it in the background from the client-session-changed and
 // session-window-changed hooks, and M-N runs it with -force after storing what
@@ -17,11 +18,9 @@
 // It always exits 0 and prints nothing: run-shell shows output or a non-zero
 // exit over the pane.
 //
-// Claude runs headless and outside claude-sandbox (__claude would open a
-// window, and the sandbox refuses $HOME, the usual cwd of a run-shell job):
-// --safe-mode loads no hooks, plugins, MCP servers or CLAUDE.md, --tools ""
-// leaves the model nothing to run, and its answer is sanitized to [a-z0-9-]
-// before tmux sees it.
+// Each label is one llama-completion process, so the model takes memory (about
+// 2 GB) only for the few seconds it runs. A GBNF grammar holds its answer to
+// the label's shape, and sanitize checks it again before tmux sees it.
 package main
 
 import (
@@ -34,6 +33,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -44,8 +44,8 @@ import (
 // a pane that keeps changing program asks once a minute, not on every switch.
 const cooldown = 60 * time.Second
 
-// claudeTimeout bounds one model call.
-const claudeTimeout = 60 * time.Second
+// modelTimeout bounds one model call.
+const modelTimeout = 60 * time.Second
 
 // stateFormat reads a session's label state in one call. The pin comes last,
 // so a tab typed into it stays in it.
@@ -54,13 +54,12 @@ const stateFormat = "#{session_attached}\t#{@label}\t#{@label_fp}\t#{@label_at}\
 // paneFormat lists a session's panes for parsePanes.
 const paneFormat = "#{window_index}\t#{pane_current_command}\t#{pane_current_path}\t#{pane_title}"
 
-// claudeArgs ask Claude Code for one answer with no tools, customizations or
-// saved session (so the cs/cf pickers never list it).
-var claudeArgs = []string{
-	"-p", "--safe-mode", "--model", "haiku", "--effort", "low",
-	"--tools", "", "--strict-mcp-config", "--no-session-persistence",
-	"--system-prompt", systemPrompt,
-}
+// llamaCompletion and modelPath are set at build time (default.nix ldflags) to
+// the llama.cpp binary and the GGUF model file.
+var (
+	llamaCompletion = "llama-completion"
+	modelPath       = ""
+)
 
 // sessionID matches a tmux session id, the only target this accepts.
 var sessionID = regexp.MustCompile(`^\$[0-9]+$`)
@@ -98,8 +97,8 @@ func parseState(out string) state {
 type deps struct {
 	// tmux runs one tmux command line and returns its output.
 	tmux func(args ...string) (string, error)
-	// claude asks the model about the panes in prompt and returns its answer.
-	claude func(prompt string) (string, error)
+	// ask gives the model the pane lines in prompt and returns its answer.
+	ask func(prompt string) (string, error)
 	// branch gives a directory's git branch.
 	branch func(dir string) string
 	// lock takes the session's lock, or reports that another run holds it.
@@ -143,13 +142,13 @@ func run(id string, force bool, d deps) error {
 		return nil
 	}
 	at := d.now.Unix()
-	answer, err := d.claude(prompt(panes))
-	label := sanitize(answer)
+	reply, err := d.ask(prompt(panes))
+	label := sanitize(reply)
 	if err == nil && label == "" {
-		err = fmt.Errorf("no label in the answer %q", answer)
+		err = fmt.Errorf("no label in the answer %q", reply)
 	}
 	if err != nil {
-		err = fmt.Errorf("claude: %w", err)
+		err = fmt.Errorf("model: %w", err)
 		// Keep the label and its fingerprint: the next change tries again,
 		// once the cooldown from @label_at has passed.
 		_ = write(d, id, st, st.label, st.fp, at, oneLine(err.Error()))
@@ -209,29 +208,33 @@ func runTmux(args ...string) (string, error) {
 	return string(out), err
 }
 
-// runClaude asks Claude Code for the label, in dir, as the first profile
-// __claude runs (~/.claude-1) unless CLAUDE_CONFIG_DIR names another.
-func runClaude(dir, home string) func(string) (string, error) {
+// runModel asks the local model for the label: one llama-completion run of
+// model on the ChatML prompt, greedy (the same panes always get the same
+// label), its answer held to labelGrammar, on every core. llama.cpp logs to
+// stderr, whose last line says why a run failed.
+func runModel(bin, model string) func(string) (string, error) {
 	return func(prompt string) (string, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), claudeTimeout)
-		defer cancel()
-		cmd := exec.CommandContext(ctx, "claude", claudeArgs...)
-		cmd.Dir = dir
-		cmd.Stdin = strings.NewReader(prompt)
-		cmd.Env = os.Environ()
-		if os.Getenv("CLAUDE_CONFIG_DIR") == "" {
-			cmd.Env = append(cmd.Env, "CLAUDE_CONFIG_DIR="+filepath.Join(home, ".claude-1"))
+		if model == "" {
+			return "", errors.New("no model was built in")
 		}
+		ctx, cancel := context.WithTimeout(context.Background(), modelTimeout)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, bin,
+			"-m", model, "-no-cnv", "-p", chatPrompt(prompt),
+			"--grammar", labelGrammar, "-n", "12", "--temp", "0",
+			"-c", "1024", "-t", strconv.Itoa(runtime.NumCPU()),
+			"--no-display-prompt", "--no-warmup")
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 		out, err := cmd.Output()
 		if err != nil {
-			if msg := strings.TrimSpace(stderr.String()); msg != "" {
-				return "", fmt.Errorf("%w: %s", err, msg)
+			lines := strings.Split(strings.TrimSpace(stderr.String()), "\n")
+			if last := strings.TrimSpace(lines[len(lines)-1]); last != "" {
+				return "", fmt.Errorf("%w: %s", err, last)
 			}
 			return "", err
 		}
-		return string(out), nil
+		return answer(string(out)), nil
 	}
 }
 
@@ -259,20 +262,21 @@ func main() {
 	if flag.NArg() != 1 || !sessionID.MatchString(id) {
 		return
 	}
+	// A background job: let the model's few seconds of every core yield to
+	// what the user is doing. llama-completion inherits the niceness.
+	_ = syscall.Setpriority(syscall.PRIO_PROCESS, 0, 10)
 	home, _ := os.UserHomeDir()
 	runDir := os.Getenv("XDG_RUNTIME_DIR")
 	if runDir == "" {
 		runDir = os.TempDir()
 	}
-	// The lock files' folder is also claude's cwd: empty, so it holds no
-	// project settings or CLAUDE.md.
 	dir := filepath.Join(runDir, "tmux-session-name")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		dir = os.TempDir()
 	}
 	d := deps{
 		tmux:   runTmux,
-		claude: runClaude(dir, home),
+		ask:    runModel(llamaCompletion, modelPath),
 		branch: gitBranch,
 		lock:   lockSession(dir),
 		now:    time.Now(),
