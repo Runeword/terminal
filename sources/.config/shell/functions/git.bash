@@ -601,14 +601,14 @@ __git_log() {
   # author and date flush right, with no colour of their own, so that fzf
   # shows and highlights them as the rest of the row. The date is how long
   # ago the commit was made, as git words it (23 minutes ago), if that is
-  # less than an hour, and its local date and time otherwise, as ls
-  # --time-style=long-iso shows them (2026-10-24 14:30). The change is + if
+  # less than an hour, and its local date and time otherwise, the year in
+  # two digits (26-10-24 14:30). The change is + if
   # the commit only adds files, - if it only deletes some, ~ otherwise, as
   # delta labels a file's, in bold green, red or blue. git lists the status
   # of each of a commit's files under its line, which starts with 0x1e, and
   # awk puts the change at the end of that line. A subject that starts with
   # the verb its change stands for, as auto-commit writes them (Add, Delete
-  # or Remove, Update), loses it. git prints the date and time, 16 columns
+  # or Remove, Update), loses it. git prints the date and time, 14 columns
   # wide, and at the end of the line the commit's time in seconds and how
   # long ago that was, which awk puts in their place for a commit of the
   # last hour. The room the verb or the shorter date leaves goes back to the
@@ -648,8 +648,8 @@ __git_log() {
         t = full
         if (v != "" && match(full, v)) t = substr(full, RLENGTH + 1)
         if (f[5] <= now && now - f[5] < 3600) {
-          room = 16 - length(f[6])
-          f[1] = substr(f[1], 1, length(f[1]) - 16) f[6]
+          room = 14 - length(f[6])
+          f[1] = substr(f[1], 1, length(f[1]) - 14) f[6]
         }
         if (t != full || room) {
           room += length(s)
@@ -674,7 +674,7 @@ __git_log() {
   local count commit
   count=$(git rev-list --count HEAD 2>/dev/null)
   commit=$(git log --no-renames --diff-merges=first-parent --name-status \
-    --date=format-local:'%Y-%m-%d %H:%M' \
+    --date=format-local:'%y-%m-%d %H:%M' \
     --format="%x1e%an, %ad%x1f%h%x1f %<|($((COLUMNS - 7 - ${#count})),trunc)%s %x1f%h %s%x1f%at%x1f%ar" |
     awk -v w="${#count}" -v now="$(date +%s)" "$change" |
     fzf "${_GIT_FZF_BASE[@]}" "${inline[@]}" "${preview[@]}" "${log_view[@]}")
