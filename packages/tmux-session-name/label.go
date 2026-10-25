@@ -10,8 +10,8 @@ import (
 	"unicode"
 )
 
-// maxLabel caps a label's length: status-right holds it next to the window
-// list, and a short name is quicker to read. The prompt asks for 16, and models
+// maxLabel caps a label's length: the status line holds it between the session
+// numbers and the window list, and a short name is quicker to read. The prompt asks for 16, and models
 // sometimes overshoot by a word ("nixos-kernel-upgrade"), which this keeps.
 const maxLabel = 20
 
