@@ -40,9 +40,9 @@
   (import ./leader-aliases { inherit pkgs; })
   # Labels a tmux session with what its windows are doing, asking a local
   # model (Qwen3.5 2B through llama.cpp, both pinned in its default.nix) from
-  # each pane's program, folder, git branch and title; status-right shows the
-  # current session's label (sources/.config/tmux/tmux.conf, whose hooks and
-  # M-N run it). Here so it lands in packages.tools: the tmux server gets that
+  # each pane's program, folder, git branch and title; the status line shows
+  # the current session's label after the session numbers
+  # (sources/.config/tmux/tmux.conf, whose hooks and M-N run it). Here so it lands in packages.tools: the tmux server gets that
   # PATH from alacritty, and run-shell invokes it by bare name. Its model makes
   # the tools closure 1.3 GB larger.
   (import ./tmux-session-name { inherit pkgs; })
