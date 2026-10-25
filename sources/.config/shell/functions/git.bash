@@ -599,15 +599,22 @@ __git_log() {
 
   # A commit's row is its number, its change, its hash and subject, then its
   # author and date flush right, with no colour of their own, so that fzf
-  # shows and highlights them as the rest of the row. The change is + if the
-  # commit only adds files, - if it only deletes some, ~ otherwise, as delta
-  # labels a file's, in bold green, red or blue. git lists the status of each
-  # of a commit's files under its line, which starts with 0x1e, and awk puts
-  # the change at the end of that line. A subject that starts with the verb
-  # its change stands for, as auto-commit writes them (Add, Delete or Remove,
-  # Update), loses it, and the verb's room goes back to the subject: as spaces
-  # where git padded it, or as more of it where git cut it short. A subject
-  # cut short that holds more than ASCII keeps its verb: awk can't count its
+  # shows and highlights them as the rest of the row. The date is how long
+  # ago the commit was made, as git words it (23 minutes ago), if that is
+  # less than an hour, and its local date and time otherwise, as ls
+  # --time-style=long-iso shows them (2026-10-24 14:30). The change is + if
+  # the commit only adds files, - if it only deletes some, ~ otherwise, as
+  # delta labels a file's, in bold green, red or blue. git lists the status
+  # of each of a commit's files under its line, which starts with 0x1e, and
+  # awk puts the change at the end of that line. A subject that starts with
+  # the verb its change stands for, as auto-commit writes them (Add, Delete
+  # or Remove, Update), loses it. git prints the date and time, 16 columns
+  # wide, and at the end of the line the commit's time in seconds and how
+  # long ago that was, which awk puts in their place for a commit of the
+  # last hour. The room the verb or the shorter date leaves goes back to the
+  # subject: as spaces where git padded it, or as more of it where git cut it
+  # short. A subject cut short that holds more than ASCII keeps its verb,
+  # and gets the date's room as spaces after git's cut: awk can't count its
   # width. git pads the subject, or cuts it, up to column $COLUMNS - 7 less
   # the number's width, and adds a space, so that a row is as wide as fzf's
   # list: $COLUMNS less its pointer, marker and scrollbar columns, the
@@ -629,22 +636,29 @@ __git_log() {
       while (n-- > 0) p = p " "
       return p
     }
-    function put(  c, v, f, full, s, t) {
+    function put(  c, v, f, full, s, t, room) {
       if (row == "") return
       c = "  "
       if (a && !d && !o) { c = "\033[1;38;2;47;143;83m+\033[0m "; v = "^Add " }
       else if (d && !a && !o) { c = "\033[1;38;2;168;77;95m-\033[0m "; v = "^(Delete|Remove) " }
       else if (a || d || o) { c = "\033[1;38;2;58;93;153m~\033[0m "; v = "^Update " }
-      if (v != "" && split(row, f, "\037") == 4) {
+      if (split(row, f, "\037") == 6) {
         full = substr(f[4], length(f[2]) + 2)
         s = substr(f[3], 2, length(f[3]) - 2)
-        if (match(full, v)) {
-          t = substr(full, RLENGTH + 1)
-          if (substr(s, 1, length(full)) == full) s = t pad(length(s) - length(t))
-          else if (full ~ /^[ -~]*$/ && length(s) > 2)
-            s = length(t) > length(s) ? substr(t, 1, length(s) - 2) ".." : t pad(length(s) - length(t))
-          row = f[1] "\037" f[2] "\037 " s " \037" f[4]
+        t = full
+        if (v != "" && match(full, v)) t = substr(full, RLENGTH + 1)
+        if (f[5] <= now && now - f[5] < 3600) {
+          room = 16 - length(f[6])
+          f[1] = substr(f[1], 1, length(f[1]) - 16) f[6]
         }
+        if (t != full || room) {
+          room += length(s)
+          if (substr(s, 1, length(full)) == full) s = t pad(room - length(t))
+          else if (full ~ /^[ -~]*$/ && room > 2)
+            s = length(t) > room ? substr(t, 1, room - 2) ".." : t pad(room - length(t))
+          else s = s pad(room - length(s))
+        }
+        row = f[1] "\037" f[2] "\037 " s " \037" f[4]
       }
       print sprintf("%" w "d", ++n) "\037" row "\037" c
     }
@@ -660,8 +674,9 @@ __git_log() {
   local count commit
   count=$(git rev-list --count HEAD 2>/dev/null)
   commit=$(git log --no-renames --diff-merges=first-parent --name-status \
-    --format="%x1e%an, %ar%x1f%h%x1f %<|($((COLUMNS - 7 - ${#count})),trunc)%s %x1f%h %s" |
-    awk -v w="${#count}" "$change" |
+    --date=format-local:'%Y-%m-%d %H:%M' \
+    --format="%x1e%an, %ad%x1f%h%x1f %<|($((COLUMNS - 7 - ${#count})),trunc)%s %x1f%h %s%x1f%at%x1f%ar" |
+    awk -v w="${#count}" -v now="$(date +%s)" "$change" |
     fzf "${_GIT_FZF_BASE[@]}" "${inline[@]}" "${preview[@]}" "${log_view[@]}")
 
   [ "$commit" = "" ] && return
