@@ -1,6 +1,6 @@
 // Command tmux-session-name labels a tmux session with a few words on what its
-// windows are doing, which tmux.conf's status-right shows for the current
-// session. A local model, Qwen3.5 2B run by llama.cpp, names it from each
+// windows are doing, which tmux.conf's status-left shows for the current
+// session, after the session numbers. A local model, Qwen3.5 2B run by llama.cpp, names it from each
 // pane's program, folder, git branch and title, never from what is on screen,
 // and only when those change. Nothing leaves the machine.
 //
@@ -9,7 +9,7 @@
 // was typed in @label_pin: a typed label sticks, and an empty one asks the
 // model again. It keeps its state in session options:
 //
-//	@label      the label status-right shows
+//	@label      the label the status line shows
 //	@label_pin  a label typed with M-N, which wins over the model's
 //	@label_fp   the fingerprint of the panes @label was made from
 //	@label_at   when the model was last asked, in Unix seconds
