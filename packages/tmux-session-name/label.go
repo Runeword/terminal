@@ -11,14 +11,16 @@ import (
 )
 
 // maxLabel caps a label's length: status-right holds it next to the window
-// list, and a short name is quicker to read. The prompt asks for 16, and Haiku
-// sometimes overshoots by a word ("nixos-kernel-upgrade"), which this keeps.
+// list, and a short name is quicker to read. The prompt asks for 16, and models
+// sometimes overshoot by a word ("nixos-kernel-upgrade"), which this keeps.
 const maxLabel = 20
 
 // maxPromptPanes bounds the pane lines sent to the model.
 const maxPromptPanes = 40
 
-// systemPrompt replaces Claude Code's own system prompt for the naming call.
+// systemPrompt is the model's system message. Its examples help Qwen3.5 2B,
+// which named all 6 sample sessions well with them and 4 without; the 0.8B
+// copied them instead (measured 2026-10-25).
 const systemPrompt = `You label tmux sessions. Each input line is one pane: window number, program, folder, git branch ("-" for none), and the title the program set, if any.
 
 Answer with a label for the work the session's windows share: 1 to 3 lowercase English words joined by hyphens, at most 16 characters. Name the project or the task; program names such as zsh, nvim or claude are not tasks. Answer with the label only.
@@ -157,6 +159,10 @@ func idleLabel(panes []pane) (string, bool) {
 	return label, label != ""
 }
 
+// labelGrammar is the GBNF grammar llama.cpp holds the answer to: 1 to 3 words
+// of [a-z0-9] joined by hyphens, so a small model can't wander off the format.
+const labelGrammar = `root ::= [a-z0-9]+ ("-" [a-z0-9]+)? ("-" [a-z0-9]+)?`
+
 // prompt is the model's input: one line per pane.
 func prompt(panes []pane) string {
 	var b strings.Builder
@@ -168,6 +174,23 @@ func prompt(panes []pane) string {
 		b.WriteByte('\n')
 	}
 	return b.String()
+}
+
+// chatPrompt wraps the pane lines in Qwen's ChatML turns, ending on the empty
+// think block its chat template writes when thinking is off. Any program can
+// set a pane title, so "<|" is broken up in the lines: no title can close the
+// user turn and open one of its own.
+func chatPrompt(lines string) string {
+	lines = strings.ReplaceAll(strings.TrimSpace(lines), "<|", "< |")
+	return "<|im_start|>system\n" + systemPrompt + "<|im_end|>\n" +
+		"<|im_start|>user\n" + lines + "<|im_end|>\n" +
+		"<|im_start|>assistant\n<think>\n\n</think>\n\n"
+}
+
+// answer is the label part of llama-completion's output, which ends with
+// "[end of text]" when the model stops by itself.
+func answer(out string) string {
+	return strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(out), "[end of text]"))
 }
 
 // sanitize turns text into a label: the first line, lowercased, its runs of
