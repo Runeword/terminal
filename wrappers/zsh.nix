@@ -421,10 +421,12 @@ let
         # pads its subject up to column $COLUMNS - 7 less the number's width
         # (two: the stand-in rev-list counts 10 commits) of a line that starts
         # with them, awk numbers the row, adds the change (a commit that only
-        # deletes files: - in bold red) and drops the verb it stands for
-        # (Delete), the row as wide, and fzf shows the number and the change
-        # first and them last, skips the number in its search, and hands on
-        # the row's hash. Both steps show the
+        # deletes files: - in bold red), drops the verb it stands for
+        # (Delete) and, for a commit of the last hour (the first, a minute
+        # old, not the second), puts how long ago that was in place of its
+        # date and time, the row as wide, and fzf shows the number and the
+        # change first and them last, skips the number in its search, and
+        # hands on the row's hash. Both steps show the
         # preview below the list, in three quarters of fzf's height, with no
         # blank line before the diff: a commit's diff alone, a file's under its
         # path. Both start with the search off, as alt-i leaves it, the file
@@ -437,14 +439,14 @@ let
         # editor what tree-quote makes of the row numbers fzf accepts: the
         # stand-ins pick the commit and a row, and say what they were asked.
         gl='. ${self}/.config/shell/functions/git.bash
-          git() { case $1 in log) [ "$*" != "log --no-renames --diff-merges=first-parent --name-status --format=%x1e%an, %ar%x1f%h%x1f %<|(91,trunc)%s %x1f%h %s" ] || printf "\36a, now\37abc\37 Delete f \37abc Delete f\n\nD\tf\nD\tg\n" ;; rev-list) [ "$*" != "rev-list --count HEAD" ] || echo 10 ;; rev-parse) [ "$2" != --show-cdup ] || echo ../ ;; esac; }
+          git() { case $1 in log) [ "$*" != "log --no-renames --diff-merges=first-parent --name-status --date=format-local:%Y-%m-%d %H:%M --format=%x1e%an, %ad%x1f%h%x1f %<|(91,trunc)%s %x1f%h %s%x1f%at%x1f%ar" ] || printf "\36a, 2026-10-25 21:42\37abc\37 Delete f \37abc Delete f\37%s\37%s\n\nD\tf\nD\tg\n\36b, 1970-01-01 00:00\37def\37 x \37def x\37%s\37%s\n" $(($(date +%s) - 60)) "1 minute ago" 0 "56 years ago" ;; rev-list) [ "$*" != "rev-list --count HEAD" ] || echo 10 ;; rev-parse) [ "$2" != --show-cdup ] || echo ../ ;; esac; }
           git-hunk-pick() { case $1 in tree) printf "%s\0" "$*" ;; paths) printf "x\0y\0" ;; tree-quote) printf "%s<%s" "$*" "$(tr "\0" ,)" ;; esac; }
-          fzf() { case "$TREE_FILES $*" in *jump* | *"--bind y:"* | *"--header="*) ;; "2 "*"--accept-nth={n}"*"start:+trigger(alt-i)+search(!/\$)"*"--info-command="*"show --color=always --format= "*"/^\$/d}"*"--preview-window=down,75%,"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *"show --color=always --format= {3} "*"/^\$/d}"*"--preview-window=down,75%,"*"--ansi --delimiter="?"|^ *[0-9]+  --with-nth={1} {6}{3}{4}{2} --nth=2.. --accept-nth=3"*"start:+trigger(alt-i)"*) awk -F "$(printf "\37")" -v c="$(printf "\33[1;38;2;168;77;95m-\33[0m ")" "\$1 == \" 1\" && \$6 == c && \$4 ~ /^ f {8}\$/ { print \$3 }" ;; esac; }
+          fzf() { case "$TREE_FILES $*" in *jump* | *"--bind y:"* | *"--header="*) ;; "2 "*"--accept-nth={n}"*"start:+trigger(alt-i)+search(!/\$)"*"--info-command="*"show --color=always --format= "*"/^\$/d}"*"--preview-window=down,75%,"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *"show --color=always --format= {3} "*"/^\$/d}"*"--preview-window=down,75%,"*"--ansi --delimiter="?"|^ *[0-9]+  --with-nth={1} {6}{3}{4}{2} --nth=2.. --accept-nth=3"*"start:+trigger(alt-i)"*) awk -F "$(printf "\37")" -v c="$(printf "\33[1;38;2;168;77;95m-\33[0m ")" "\$1 == \" 1\" && \$2 == \"a, 1 minute ago\" && \$6 == c && \$4 ~ /^ f {12}\$/ { h = \$3 } \$1 == \" 2\" && \$2 == \"b, 1970-01-01 00:00\" { print h }" ;; esac; }
           COLUMNS=100 EDITOR=ed __git_log'
         if [ "$(${self}/bin/zsh -f -c "$gl")" = "ed -- tree-quote commit abc ../<4," ]; then
-          ok "gl lists commits numbered from 1, right-aligned and unsearched, with their change next, in its colour, in place of the verb it stands for, and their author and date flush right in the row's colours, previews each diff below its list, in three quarters of the height, a commit's alone, starts both lists with the search off, no header and no y or jump binding of their own, lists the commit's files as tree rows, directories unpickable and uncounted, and opens the files of the rows picked"
+          ok "gl lists commits numbered from 1, right-aligned and unsearched, with their change next, in its colour, in place of the verb it stands for, and their author and date flush right in the row's colours, the date how long ago a commit of the last hour was made and an older one's date and time, previews each diff below its list, in three quarters of the height, a commit's alone, starts both lists with the search off, no header and no y or jump binding of their own, lists the commit's files as tree rows, directories unpickable and uncounted, and opens the files of the rows picked"
         else
-          fail "gl lists commits without their right-aligned number first, or searches it, or without their change in its colour in place of the verb it stands for, or without their author and date flush right in the row's colours, previews a diff beside a list or in other than three quarters of the height, or a commit's under a line, starts a list with the search on or turns the file list's off after its !/$ search, gives a list a header, binds y or a jump in a list, or does not hand the rows fzf picks from its tree to tree-quote"
+          fail "gl lists commits without their right-aligned number first, or searches it, or without their change in its colour in place of the verb it stands for, or without their author and date flush right in the row's colours, dates a commit of the last hour other than by how long ago it was made or an older one other than by its date and time, previews a diff beside a list or in other than three quarters of the height, or a commit's under a line, starts a list with the search on or turns the file list's off after its !/$ search, gives a list a header, binds y or a jump in a list, or does not hand the rows fzf picks from its tree to tree-quote"
         fi
 
         # gda, gdc and gdd (__git_diff) number their paths from 1,
