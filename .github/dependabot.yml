@@ -16,6 +16,7 @@ updates:
       # <input>` from a plain terminal).
       - dependency-name: "permeance"
       - dependency-name: "claude-sandbox"
+      - dependency-name: "claude-microvm"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

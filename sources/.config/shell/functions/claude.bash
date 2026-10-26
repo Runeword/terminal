@@ -22,7 +22,13 @@ __CLAUDE_DEFAULT_PLUGINS=(nix-lsp typescript-lsp)
 # message rather than silently starting an unsandboxed claude. bwrap resolves
 # against the *interactive* shell's PATH, so packages/linux.nix ships bubblewrap in
 # the tools env; CLAUDE_SANDBOX=0 is the explicit escape hatch, not a fallback.
+# A session __claude_vm starts takes the microVM launcher instead (see
+# __claude_vm_prefix), and no escape hatch: that chord asked for the VM.
 __claude_sandbox_prefix() {
+  if [ "${__CLAUDE_LAUNCHER:-}" = claude-vm ]; then
+    __claude_vm_prefix
+    return
+  fi
   [ "${CLAUDE_SANDBOX:-1}" = "0" ] && return 0
   if [ "$(uname -s)" = "Darwin" ]; then
     __claude_macos_prefix
@@ -80,6 +86,32 @@ __claude_macos_prefix() {
     echo "claude: claude-macos not found on PATH; refusing to launch without the credentials CLAUDE_SANDBOX_ALLOW_* asked for. Rebuild the terminal to pick it up." >&2
     return 1
   fi
+  printf '%s ' "$script"
+}
+
+# The microVM launcher, claude-vm (github:Runeword/claude-microvm): claude in a
+# cloud-hypervisor guest with its own kernel, no network card, and the egress
+# allowlist for every session, not only the credential ones. Fails closed like
+# the sandbox gate, its checks run here in the calling shell for the same
+# reason: no claude-vm, no launch. A gh, jira or firebase session goes through
+# it too, its flag carried as for claude-sandbox: claude-vm reads the
+# credential from pass and keeps it on the host, behind its egress proxy, and
+# the VM holds a placeholder. Not figma-mcp, whose key this file puts in
+# claude's environment for the VM to hold, nor google-workspace-mcp, whose
+# token store it does not share: both are refused here, before a pane opens.
+__claude_vm_prefix() {
+  local script
+  case "$__claude_plugins" in
+    *figma-mcp* | *google-workspace-mcp*)
+      echo "claude: the microVM does not carry figma-mcp or google-workspace-mcp yet; start them with cc. Refusing to launch." >&2
+      return 1
+      ;;
+  esac
+  if ! script=$(command -v claude-vm); then
+    echo "claude: claude-vm not found on PATH; refusing to launch. Rebuild the terminal to pick it up." >&2
+    return 1
+  fi
+  "$script" --check-cwd || return 1
   printf '%s ' "$script"
 }
 
@@ -155,7 +187,19 @@ __claude_build_cmd() {
       ;;
   esac
   # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
-  __CLAUDE_CMD="${flags}${secrets}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance ${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5-5 $__claude_args"
+  __CLAUDE_CMD="${flags}${secrets}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/$(__claude_profile) ${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5-5 $__claude_args"
+}
+
+# The profile a session runs with, under $HOME: .claude-N, or .claude-vm-N for
+# one __claude_vm starts. claude-vm refuses a profile that holds a login, which
+# the VM would read: its sessions sign in through the host's relay instead, so
+# they keep a profile of their own, with no .credentials.json in it.
+__claude_profile() {
+  if [ "${__CLAUDE_LAUNCHER:-}" = claude-vm ]; then
+    printf '.claude-vm-%s' "$__claude_instance"
+  else
+    printf '.claude-%s' "$__claude_instance"
+  fi
 }
 
 # Make sources/ own each profile's user-level config: path-scoped rules and bundled
@@ -173,7 +217,8 @@ __claude_provision_config() {
     echo "claude: neither PERMEANCE_TREE nor the bundled claude has a .claude config; refusing to launch without its settings" >&2
     return 1
   fi
-  local dir="$HOME/.claude-$__claude_instance" name planted
+  local dir name planted
+  dir="$HOME/$(__claude_profile)"
   mkdir -p "$dir"
   # The profile's user-level instructions load into every session, in every
   # project: CLAUDE.md, rules/, agents/, commands/ and skills/. A session can
@@ -258,7 +303,7 @@ __claude_provision_sandbox_overlay() {
 # can't read refuses the launch.
 __claude_scrub_planted() {
   local f names
-  f="$HOME/.claude-$__claude_instance/.claude.json"
+  f="$HOME/$(__claude_profile)/.claude.json"
   if [ -e "$f" ]; then
     names=$(jq -r '[.mcpServers // {}, (.projects // {} | .[].mcpServers // {})] | map(keys[]) | unique | join(", ")' "$f") || {
       echo "claude: could not read $f; refusing to launch with the MCP servers it may name" >&2
@@ -352,6 +397,15 @@ __claude() {
   __claude_run
 }
 
+# __claude in the microVM (leader cv): the same session, profile and plugins,
+# started through claude-vm instead of claude-sandbox. A local, which
+# __claude_sandbox_prefix sees the way __claude sees __claude_connect's picks,
+# so the next plain launch gets claude-sandbox again.
+__claude_vm() {
+  local __CLAUDE_LAUNCHER=claude-vm
+  __claude "$@"
+}
+
 __claude_plugins() {
   __claude_init_fzf "$@" || return 0
   __claude_run
@@ -392,6 +446,13 @@ __claude_connect() {
     esac
   done <<<"$selected"
   __claude "$@"
+}
+
+# The connection picker in the microVM (leader cvc): what __claude_connect
+# picks, launched through claude-vm, as __claude_vm launches a plain session.
+__claude_vm_connect() {
+  local __CLAUDE_LAUNCHER=claude-vm
+  __claude_connect "$@"
 }
 
 __claude_debug() {

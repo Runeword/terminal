@@ -62,7 +62,7 @@ func TestRun(t *testing.T) {
 	midSession := session(cacheAndLimits)
 	repo := filepath.Join(t.TempDir(), "proj")
 	writeTree(t, repo, map[string]string{".git/HEAD": "ref: refs/heads/main\n"})
-	inRepo := session(cacheAndLimits + workspace(t, repo))
+	inRepo := session(cacheAndLimits + workspace(t, repo) + `,"session_id":"3f2c8a9e-7b41-4d6a-9c05-1e8f6b2d4a73"`)
 
 	tests := []struct {
 		name, payload string

@@ -126,8 +126,7 @@ __ripgrep() {
       --bind 'focus:transform:[ {4} = H ] || exit 0; case {fzf:action} in up | up-match) echo up ;; page-up | half-page-up) [ "$FZF_POS" -gt 1 ] && echo up || echo down ;; *) echo down ;; esac' \
       --bind 'load:transform:[ {4} = H ] && echo down' \
       --bind 'ctrl-j:down,ctrl-k:up' \
-      --bind 'alt-i:toggle-bind(j,k,g,G,f,i,q,y),i:toggle-bind(j,k,g,G,f,i,q,y)' \
-      --bind "y:execute-silent(printf '%s:%s' {2} {3} | wl-copy)" \
+      --bind 'alt-i:toggle-bind(j,k,g,G,i,q),i:toggle-bind(j,k,g,G,i,q)' \
       --bind 'ctrl-z:ignore' \
       --bind 'esc:abort' \
       </dev/null

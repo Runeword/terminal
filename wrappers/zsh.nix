@@ -254,6 +254,58 @@ let
           *) fail "the connection picker does not launch what was picked" ;;
         esac
 
+        # The microVM chord (leader cv) launches the same session through
+        # claude-vm instead of claude-sandbox, after its --check-cwd gate, and
+        # CLAUDE_SANDBOX=0 does not unwrap it. It runs with a profile of its
+        # own, ~/.claude-vm-N, provisioned like any other, since claude-vm
+        # refuses one holding a login. Its connection picker (leader cvc)
+        # launches gh, jira and firebase sessions through claude-vm as well,
+        # their flags carried as for claude-sandbox: claude-vm keeps their
+        # credentials on the host. figma-mcp, whose key the VM would hold, or
+        # no claude-vm on PATH, refuses the launch in the calling shell, before
+        # a pane opens. A stand-in claude-vm passes the gate.
+        mkdir -p "$HOME/vm/bin"
+        printf '#!/bin/sh\n[ "$1" = --check-cwd ]\n' > "$HOME/vm/bin/claude-vm"
+        chmod +x "$HOME/vm/bin/claude-vm"
+        vm='. ${self}/.config/shell/functions/claude.bash
+          __claude_run() { printf "%s\n" "$__CLAUDE_CMD"; }
+          __claude_vm'
+        case "$(CLAUDE_SANDBOX=0 PATH=$HOME/vm/bin:${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$vm")" in
+          "CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-vm-1 $HOME/vm/bin/claude-vm claude "*)
+            if [ -f "$HOME/.claude-vm-1/settings.json" ]; then
+              ok "the microVM chord launches claude through claude-vm, with a provisioned profile of its own"
+            else
+              fail "the microVM chord's profile was not provisioned"
+            fi
+            ;;
+          *) fail "the microVM chord does not launch claude through claude-vm with its own profile" ;;
+        esac
+        vmconnect='. ${self}/.config/shell/functions/claude.bash
+          fzf() { printf "gh\njira\nfirebase\n"; }
+          __claude_run() { printf "%s\n" "$__CLAUDE_CMD"; }
+          __claude_vm_connect'
+        case "$(PATH=$HOME/vm/bin:${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$vmconnect")" in
+          "CLAUDE_SANDBOX_ALLOW_GH=1 CLAUDE_SANDBOX_ALLOW_FIREBASE=1 CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-vm-1 $HOME/vm/bin/claude-vm claude "*)
+            ok "the microVM connection picker launches gh, jira and firebase through claude-vm, their flags carried"
+            ;;
+          *) fail "the microVM connection picker does not launch gh, jira and firebase through claude-vm" ;;
+        esac
+        vmfigma='. ${self}/.config/shell/functions/claude.bash
+          fzf() { printf "figma-mcp\n"; }
+          __claude_run() { printf "%s\n" "$__CLAUDE_CMD"; }
+          __claude_vm_connect'
+        refusal=$(PATH=$HOME/vm/bin:${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$vmfigma" 2>&1)
+        case "$refusal" in
+          *"claude-vm claude"*) fail "the microVM connection picker launched figma-mcp, whose key the VM would hold" ;;
+          *"does not carry figma-mcp"*) ok "the microVM connection picker refuses figma-mcp, whose key the VM would hold" ;;
+          *) fail "the microVM connection picker does not say why it refuses figma-mcp: $refusal" ;;
+        esac
+        refusal=$(PATH=${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$vm" 2>&1)
+        case "$refusal" in
+          *"claude-vm not found on PATH"*) ok "the microVM chord refuses to launch without claude-vm" ;;
+          *) fail "the microVM chord does not refuse without claude-vm: $refusal" ;;
+        esac
+
         # The session eraser (leader cx) hands every marked session to one
         # `claude-sessions rm -ask`, which asks about them all at once. A
         # stand-in fzf, given --multi, marks every row and presses enter: it
@@ -363,43 +415,79 @@ let
           *) fail "ga shows its files or hunks list under a header" ;;
         esac
 
-        # gl (__git_log) lists commits with their change first, in its colour,
-        # and their author and date flush right, in the row's colours: git
-        # lists each commit's files' statuses and pads its subject up to column
-        # $COLUMNS - 6 of a line that starts with them, awk adds the change (a
-        # commit that only deletes files: - in bold red) and drops the verb it
-        # stands for (Delete), the row as wide, and fzf shows the change
-        # first, them last, and hands on the row's hash. Both steps show the
+        # gl (__git_log) lists commits numbered from 1, right-aligned, then
+        # their change, in its colour, and their author and date flush right,
+        # in the row's colours: git lists each commit's files' statuses and
+        # pads its subject up to column $COLUMNS - 7 less the number's width
+        # (two: the stand-in rev-list counts 10 commits) of a line that starts
+        # with them, awk numbers the row, adds the change (a commit that only
+        # deletes files: - in bold red), drops the verb it stands for
+        # (Delete) and, for a commit of the last hour (the first, two minutes
+        # old, not the second), puts how long ago that was in place of its
+        # date and time, the row as wide, and fzf shows the number and the
+        # change first and them last, skips the number in its search, and
+        # hands on the row's hash. Both steps show the
         # preview below the list, in three quarters of fzf's height, with no
         # blank line before the diff: a commit's diff alone, a file's under its
         # path. Both start with the search off, as alt-i leaves it, the file
         # step before it searches with !/$: turning the search off after would
-        # cancel that search. The file step hands fzf the commit's tree rows,
-        # searched with !/$ so that no directory's row matches, and the count
-        # of its files for the info line, and the editor what tree-quote makes
-        # of the row numbers fzf accepts: the stand-ins pick the commit and a
-        # row, and say what they were asked.
+        # cancel that search. Neither binds y, which types into the query as
+        # other letters do, nor a key of its own to jump to a row by its
+        # label, and neither has a header. The file step hands fzf the
+        # commit's tree rows, searched with !/$ so that no directory's row
+        # matches, and the count of its files for the info line, and the
+        # editor what tree-quote makes of the row numbers fzf accepts: the
+        # stand-ins pick the commit and a row, and say what they were asked.
         gl='. ${self}/.config/shell/functions/git.bash
-          git() { case $1 in log) [ "$*" != "log --no-renames --diff-merges=first-parent --name-status --format=%x1e%an, %ar%x1f%h%x1f %<|(94,trunc)%s %x1f%h %s" ] || printf "\36a, now\37abc\37 Delete f \37abc Delete f\n\nD\tf\nD\tg\n" ;; rev-parse) [ "$2" != --show-cdup ] || echo ../ ;; esac; }
+          git() { case $1 in log) [ "$*" != "log --no-renames --diff-merges=first-parent --name-status --date=format-local:%y-%m-%d %H:%M --format=%x1e%an, %ad%x1f%h%x1f %<|(91,trunc)%s %x1f%h %s%x1f%at%x1f%ar" ] || printf "\36a, 26-10-25 21:42\37abc\37 Delete f \37abc Delete f\37%s\37%s\n\nD\tf\nD\tg\n\36b, 70-01-01 00:00\37def\37 x \37def x\37%s\37%s\n" $(($(date +%s) - 120)) "2 minutes ago" 0 "56 years ago" ;; rev-list) [ "$*" != "rev-list --count HEAD" ] || echo 10 ;; rev-parse) [ "$2" != --show-cdup ] || echo ../ ;; esac; }
           git-hunk-pick() { case $1 in tree) printf "%s\0" "$*" ;; paths) printf "x\0y\0" ;; tree-quote) printf "%s<%s" "$*" "$(tr "\0" ,)" ;; esac; }
-          fzf() { case "$TREE_FILES $*" in "2 "*"--accept-nth={n}"*"start:+trigger(alt-i)+search(!/\$)"*"--info-command="*"show --color=always --format= "*"/^\$/d}"*"--preview-window=down,75%,"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *"show --color=always --format= {2} "*"/^\$/d}"*"--preview-window=down,75%,"*"--ansi --delimiter="?" --with-nth={5}{2}{3}{1} --accept-nth=2"*"start:+trigger(alt-i)"*) awk -F "$(printf "\37")" -v c="$(printf "\33[1;38;2;168;77;95m-\33[0m ")" "\$5 == c && \$3 ~ /^ f {8}\$/ { print \$2 }" ;; esac; }
+          fzf() { case "$TREE_FILES $*" in *jump* | *"--bind y:"* | *"--header="*) ;; "2 "*"--accept-nth={n}"*"start:+trigger(alt-i)+search(!/\$)"*"--info-command="*"show --color=always --format= "*"/^\$/d}"*"--preview-window=down,75%,"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *"show --color=always --format= {3} "*"/^\$/d}"*"--preview-window=down,75%,"*"--ansi --delimiter="?"|^ *[0-9]+  --with-nth={1} {6}{3}{4}{2} --nth=2.. --accept-nth=3"*"start:+trigger(alt-i)"*) awk -F "$(printf "\37")" -v c="$(printf "\33[1;38;2;168;77;95m-\33[0m ")" "\$1 == \" 1\" && \$2 == \"a, 2 minutes ago\" && \$6 == c && \$4 ~ /^ f {9}\$/ { h = \$3 } \$1 == \" 2\" && \$2 == \"b, 70-01-01 00:00\" { print h }" ;; esac; }
           COLUMNS=100 EDITOR=ed __git_log'
         if [ "$(${self}/bin/zsh -f -c "$gl")" = "ed -- tree-quote commit abc ../<4," ]; then
-          ok "gl lists commits with their change first, in its colour, in place of the verb it stands for, and their author and date flush right in the row's colours, previews each diff below its list, in three quarters of the height, a commit's alone, starts both lists with the search off, lists the commit's files as tree rows, directories unpickable and uncounted, and opens the files of the rows picked"
+          ok "gl lists commits numbered from 1, right-aligned and unsearched, with their change next, in its colour, in place of the verb it stands for, and their author and date flush right in the row's colours, the date how long ago a commit of the last hour was made and an older one's date and time, previews each diff below its list, in three quarters of the height, a commit's alone, starts both lists with the search off, no header and no y or jump binding of their own, lists the commit's files as tree rows, directories unpickable and uncounted, and opens the files of the rows picked"
         else
-          fail "gl lists commits without their change in its colour in place of the verb it stands for, or without their author and date flush right in the row's colours, previews a diff beside a list or in other than three quarters of the height, or a commit's under a line, starts a list with the search on or turns the file list's off after its !/$ search, or does not hand the rows fzf picks from its tree to tree-quote"
+          fail "gl lists commits without their right-aligned number first, or searches it, or without their change in its colour in place of the verb it stands for, or without their author and date flush right in the row's colours, dates a commit of the last hour other than by how long ago it was made or an older one other than by its date and time, previews a diff beside a list or in other than three quarters of the height, or a commit's under a line, starts a list with the search on or turns the file list's off after its !/$ search, gives a list a header, binds y or a jump in a list, or does not hand the rows fzf picks from its tree to tree-quote"
+        fi
+
+        # gda, gdc and gdd (__git_diff) number their paths from 1,
+        # right-aligned, and fzf shows each number before its path, searches
+        # the path only and prints it as is: the real fzf, filtering for a 1,
+        # picks the one path with a 1 in it, not the paths numbered 1 and 10,
+        # and the stand-in quote shows what it got.
+        gdc='. ${self}/.config/shell/functions/git.bash
+          git() { [ "$2" != --show-toplevel ] || echo /; }
+          git-hunk-pick() { case $1 in paths) printf "%s\0" " a" b c d e f g h "i 1" j ;; quote) tr "\0" , ;; esac; }
+          fzf() { tee "$HOME/gdc" | ${pkgs.fzf}/bin/fzf --filter=1 "$@"; }
+          EDITOR=ed __git_diff staged'
+        if [ "$(${self}/bin/zsh -f -c "$gdc")" = "GL_OPEN=staged ed -- i 1," ] && [ "$(tr '\0\37' '\n:' < "$HOME/gdc" | sed -n '1p;10p')" = "$(printf ' a: 1\nj:10')" ]; then
+          ok "gda, gdc and gdd number their paths from 1, right-aligned, search the paths only and hand on the path picked as is"
+        else
+          fail "gda, gdc or gdd lists its paths without a right-aligned number, searches the number or hands on more than the path picked"
+        fi
+
+        # grs (__git_reset_soft) numbers its commits from 1, for HEAD,
+        # right-aligned, and fzf searches past the number: the real fzf,
+        # filtering for a 1, picks the one commit with a 1 in it, the 10th,
+        # and grs resets 10 commits.
+        grs='. ${self}/.config/shell/functions/git.bash
+          git() { case $1 in log) printf "%s x\n" a b c d e f g h i && echo "j 1" ;; rev-list) [ "$4" != j..HEAD ] || echo 9 ;; esac; }
+          fzf() { tee "$HOME/grs" | ${pkgs.fzf}/bin/fzf --filter=1 "$@"; }
+          __git_reset_soft'
+        if [ "$(${self}/bin/zsh -f -c "$grs")" = "git reset --soft HEAD~10 " ] && [ "$(sed -n '1p;10p' "$HOME/grs")" = "$(printf ' 1 a x\n10 j 1')" ]; then
+          ok "grs numbers its commits from 1, for HEAD, right-aligned and unsearched, and row n resets n commits"
+        else
+          fail "grs lists its commits without a right-aligned number from 1, searches it, or resets other than the commits up to the row picked"
         fi
 
         # Run from the leader (a zle widget), both of gl's steps are typed on
         # the prompt's line: fzf's prompt is the last line of the shell's, as
-        # the shell drew it, and the file step's header goes under the input.
-        # Each step leaves its last frame up (--no-clear) and reads its whole
-        # list before it starts (--sync), so that the line doesn't go blank
-        # between frames.
+        # the shell drew it. Each step leaves its last frame up (--no-clear)
+        # and reads its whole list before it starts (--sync), so that the line
+        # doesn't go blank between frames.
         glw='. ${self}/.config/shell/functions/git.bash
           git() { [ "$1" != log ] || printf "\36abc subject\n"; }
           git-hunk-pick() { case $1 in tree) echo row ;; tree-quote) cat ;; esac; }
-          fzf() { case "$*" in *"--prompt=two% --no-bold --color=query:bold --no-header-first --no-clear --sync"*) head -n 1 ;; esac; }
+          fzf() { case "$*" in *"--prompt=two% --no-bold --color=query:bold --no-clear --sync"*) head -n 1 ;; esac; }
           WIDGET=leader PS1=$(print "one\ntwo%%") EDITOR=ed __git_log'
         if [ "$(${self}/bin/zsh -f -c "$glw")" = "ed -- row" ]; then
           ok "gl run from the leader takes the prompt's line for its input, without blanking it as its steps start"
@@ -454,6 +542,15 @@ let
           *) fail "Home/End are unbound as Alacritty or tmux sends them" ;;
         esac
 
+        # In every fzf picker (FZF_DEFAULT_OPTS), nothing is bound to f or y,
+        # so that they type into the query with the search on or off, and no
+        # key labels the rows to jump to one.
+        case "$(${self}/bin/zsh -i -c 'print -r -- "$FZF_DEFAULT_OPTS"' 2>/dev/null)" in
+          *jump* | *"'f:"* | *",f:"* | *"'y:"* | *",y:"*) fail "f or y does not type into every fzf picker's query, or a key labels the rows to jump to one" ;;
+          *"start:unbind("*) ok "f and y type into every fzf picker's query with the search on or off, and no key labels the rows to jump to one" ;;
+          *) fail "the fzf pickers' options are not set" ;;
+        esac
+
         # Shift+Tab's search (fm_rg.sh) lists dotfiles too, as the rows fm.sh's
         # binds read: a header per file, then each match; fields 2-4 are path,
         # line, H|M.
@@ -479,6 +576,17 @@ let
           *'"^[[Z" __ripgrep_or_menu_'*) ok "the bundled .zshrc binds Shift+Tab to the search" ;;
           *) fail "the bundled .zshrc does not bind Shift+Tab to the search" ;;
         esac
+
+        # The search binds nothing to y either, so that y types into its query:
+        # a stand-in fzf says whether it was handed a binding for y.
+        rgy='. ${self}/.config/shell/functions/fm.sh
+          fzf() { case "$*" in *"--bind y:"* | *",y:"*) echo y >&2 ;; *) echo none >&2 ;; esac; return 130; }
+          __ripgrep'
+        if [ "$(${self}/bin/zsh -f -c "$rgy" 2>&1)" = none ]; then
+          ok "Shift+Tab's search binds nothing to y, which types into its query"
+        else
+          fail "Shift+Tab's search binds y, which then does not type into its query"
+        fi
 
         # A continuation line (an open quote, a loop, a heredoc) has an empty
         # BUFFER but is not an empty prompt: the shortcuts that act on one
