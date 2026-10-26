@@ -12,13 +12,11 @@ let
 
   terminal = import ./terminal.nix { inherit pkgs; };
   languages = import ./languages.nix { inherit pkgs; };
-  infra = import ./infra.nix { inherit pkgs; };
   lefthookShell = import ./lefthook.nix { inherit pkgs lefthook; };
 
   ownedShells = [
     terminal
     languages
-    infra
   ];
 
   helpers = lib.concatMap (s: s.helpers or [ ]) ownedShells ++ [
