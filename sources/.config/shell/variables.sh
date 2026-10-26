@@ -46,6 +46,11 @@ export FZF_COMPLETION_OPTS="
 "
 
 # --color=marker:#57b58f,spinner:#ffffff,header:#535e73 \
+# With the search off, j/k move 1 row or 5: each ctrl-j/k switches between
+# the two and moves one step (from the search, it turns the search off and
+# moves 1 row). ctrl-j/k press j/k, which add the 4 more rows of f12/f11
+# while those are bound (toggle-bind), so j/k start no process. Every switch
+# of the search unbinds f12/f11: back to 1 row.
 export FZF_DEFAULT_OPTS="
 --gutter=' ' \
 --color=fg:#d0d0d0,bg:-1,hl:#ffffff \
@@ -55,20 +60,21 @@ export FZF_DEFAULT_OPTS="
 --with-shell='sh -c' \
 --bind='tab:select+down,btab:deselect+up' \
 --bind='up:up,down:down' \
---bind='ctrl-j:transform{[ \"\$FZF_INPUT_STATE\" = enabled ] && echo \"toggle-search+toggle-bind(j,k,g,G,i,q)+down\" || echo \"down+down+down+down+down\"}' \
---bind='ctrl-k:transform{[ \"\$FZF_INPUT_STATE\" = enabled ] && echo \"toggle-search+toggle-bind(j,k,g,G,i,q)+up\" || echo \"up+up+up+up+up\"}' \
+--bind='ctrl-j:transform{[ \"\$FZF_INPUT_STATE\" = enabled ] && echo \"toggle-search+toggle-bind(j,k,g,G,i,q)+unbind(f12,f11)+trigger(j)\" || echo \"toggle-bind(f12,f11)+trigger(j)\"}' \
+--bind='ctrl-k:transform{[ \"\$FZF_INPUT_STATE\" = enabled ] && echo \"toggle-search+toggle-bind(j,k,g,G,i,q)+unbind(f12,f11)+trigger(k)\" || echo \"toggle-bind(f12,f11)+trigger(k)\"}' \
 --bind='page-up:half-page-up,page-down:half-page-down' \
 --bind='home:first,end:last' \
 --bind='shift-up:preview-up,shift-down:preview-down' \
 --bind='shift-page-up:preview-up+preview-up+preview-up+preview-up,shift-page-down:preview-down+preview-down+preview-down+preview-down' \
 --bind='shift-home:preview-top,shift-end:preview-bottom' \
---bind='j:down,k:up' \
+--bind='j:trigger(f12)+down,k:trigger(f11)+up' \
+--bind='f12:down+down+down+down,f11:up+up+up+up' \
 --bind='g:first,G:last' \
 --bind='q:abort' \
---bind='i:toggle-search+toggle-bind(j,k,g,G,i,q)' \
---bind='start:unbind(j,k,g,G,i,q)' \
---bind='alt-i:toggle-search+toggle-bind(j,k,g,G,i,q)' \
---bind='esc:transform{[ \"\$FZF_INPUT_STATE\" = enabled ] && echo \"abort\" || echo \"toggle-search+toggle-bind(j,k,g,G,i,q)\"}' \
+--bind='i:toggle-search+toggle-bind(j,k,g,G,i,q)+unbind(f12,f11)' \
+--bind='start:unbind(j,k,g,G,i,q,f12,f11)' \
+--bind='alt-i:toggle-search+toggle-bind(j,k,g,G,i,q)+unbind(f12,f11)' \
+--bind='esc:transform{[ \"\$FZF_INPUT_STATE\" = enabled ] && echo \"abort\" || echo \"toggle-search+toggle-bind(j,k,g,G,i,q)+unbind(f12,f11)\"}' \
 "
 # --color=fg+:#ffffff,fg+:regular,bg+:#142920,hl+:#67c9d6,hl+:regular,query:italic \
 # --color=marker:#458f71,spinner:#ffffff,header:#535e73 \
