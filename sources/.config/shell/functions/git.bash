@@ -628,9 +628,7 @@ __git_log() {
   # the whole subject from it) and the change. The delimiter's second half
   # (^ *[0-9]+ ) splits the number and its space off the row shown, so that
   # the search skips it (--nth=2..): in the row read, 0x1f follows the
-  # number, and it can't match there. fzf prints the hash of the row
-  # picked. Both steps start with the search off, as alt-i leaves it
-  # (FZF_DEFAULT_OPTS): j/k, g/G and q act at once, and i turns the search on.
+  # number, and it can't match there. fzf prints the hash of the row picked.
   local change='
     function pad(n,  p) {
       while (n-- > 0) p = p " "
@@ -669,7 +667,6 @@ __git_log() {
     END { put() }'
   local -a log_view=(
     --ansi --delimiter=$'\x1f|^ *[0-9]+ ' '--with-nth={1} {6}{3}{4}{2}' --nth=2.. --accept-nth=3
-    --bind 'start:+trigger(alt-i)'
   )
   local count commit
   count=$(git rev-list --count HEAD 2>/dev/null)
@@ -698,17 +695,19 @@ __git_log() {
   # tree on screen while a query is typed and dims the rows that don't match.
   # Every search also requires !/$ (doesn't end in /), so a directory's row
   # never matches and can't be picked: the cursor goes to the best match, the
-  # arrows, j/k and Tab step between matches, and Tab, Enter and the mouse's
-  # clicks act on a match only (Enter on the marks too). fzf counts
-  # every row, so the info line counts the files instead: matches over
-  # TREE_FILES, the commit's files. fzf prints the picked rows' indices, which
-  # tree-quote turns back into paths. alt-i turns the search off before
-  # search(!/$), as turning it off after cancels that search.
+  # arrows, j/k and Tab step between matches (ctrl-j/k press j/k, and f12/f11
+  # add the 4 more steps of a 5-step move, as in FZF_DEFAULT_OPTS), and Tab,
+  # Enter and the mouse's clicks act on a match only (Enter on the marks too).
+  # fzf counts every row, so the info line counts the files instead: matches
+  # over TREE_FILES, the commit's files. fzf prints the picked rows' indices,
+  # which tree-quote turns back into paths.
   local accept='[ "$FZF_RAW" = 1 ] || [ "$FZF_SELECT_COUNT" != 0 ] && echo accept'
   local -a tree_view=(
     --ansi --raw --gutter-raw=' ' --delimiter=$'\x1f' --with-nth='{1}' --accept-nth='{n}'
-    --bind 'start:+trigger(alt-i)+search(!/$),change:transform-search:printf "%s !/$" "$FZF_QUERY"'
-    --bind 'result:best,up:up-match,down:down-match,j:down-match,k:up-match,btab:deselect+up-match'
+    --bind 'start:+search(!/$),change:transform-search:printf "%s !/$" "$FZF_QUERY"'
+    --bind 'result:best,up:up-match,down:down-match,btab:deselect+up-match'
+    --bind 'j:trigger(f12)+down-match,k:trigger(f11)+up-match'
+    --bind 'f12:down-match+down-match+down-match+down-match,f11:up-match+up-match+up-match+up-match'
     --bind 'tab:transform:[ "$FZF_RAW" = 1 ] && echo select+down-match || echo down-match'
     --bind 'right-click:transform:[ "$FZF_RAW" = 1 ] && echo toggle'
     --bind "enter:transform:$accept" --bind "double-click:transform:$accept"
