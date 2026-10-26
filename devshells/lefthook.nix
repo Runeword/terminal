@@ -9,8 +9,6 @@ lefthook.lib.${pkgs.stdenv.hostPlatform.system}.mkShell {
     lint-shell.enable = true;
     format-toml.enable = true;
     format-yaml.enable = true;
-    format-opentofu.enable = true;
-    lint-opentofu.enable = true;
     security-gitleaks.enable = true;
     auto-commit.enable = true;
   };
