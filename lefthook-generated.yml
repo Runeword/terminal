@@ -37,17 +37,6 @@ pre-commit:
             name: nix
           - group:
               jobs:
-                - glob: '*.{tf,tofu,tfvars}'
-                  name: format-opentofu
-                  run: tofu fmt -- {staged_files}
-                  stage_fixed: true
-                - glob: '*.{tf,tofu}'
-                  name: lint-opentofu
-                  run: lint-opentofu {staged_files}
-              piped: true
-            name: opentofu
-          - group:
-              jobs:
                 - glob: '*.{sh,bash}'
                   name: shfmt
                   run: shfmt --write --indent 2 --case-indent --language-dialect auto --simplify -- {staged_files}
