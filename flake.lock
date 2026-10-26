@@ -8,11 +8,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1793049647,
-        "narHash": "sha256-qaYVmN8aWU5MVBqhxLxdM5PXR09DbEwiieqGEt7Sz2I=",
+        "lastModified": 1792783827,
+        "narHash": "sha256-8Sb8fQYdwN9l4H/YlQJqrKkG9oQvfk0SIGCR/BNKiCU=",
         "owner": "Runeword",
         "repo": "claude-microvm",
-        "rev": "a44f9bd0ca4db53ba6db026cbb6e15b6fd748a14",
+        "rev": "c3ea2ce8c449d34f15082cac4aa2b1c32f0dd9d2",
         "type": "github"
       },
       "original": {
@@ -91,11 +91,11 @@
         "spectrum": "spectrum"
       },
       "locked": {
-        "lastModified": 1791551030,
-        "narHash": "sha256-jTx3O3MKqPjv+cDfBFQ5zlKECBEwzF91scC+mSumZyE=",
+        "lastModified": 1792810338,
+        "narHash": "sha256-0DS+A3BsygKRpKe0qmUWVDSfKqpIHZCpHJagAklE0o4=",
         "owner": "microvm-nix",
         "repo": "microvm.nix",
-        "rev": "f13928fe9900e91709d7ce581eefa47eaafa79e1",
+        "rev": "4876e2ae2de6ce225f4ccf664ae441128aa3f03a",
         "type": "github"
       },
       "original": {
