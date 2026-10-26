@@ -48,15 +48,15 @@ Edit the writable part like any other directory: Edit/Write, `shellcheck`, `bash
 
 Do **not** hand-author patches for `sources/`, and do not reach for a `git worktree` as a workaround: a worktree reproduces `lefthook.yml`, `.envrc`, and `flake.nix` at paths none of the launcher's relocks cover (they pin `$PWD/lefthook.yml`, `$PWD/.git/config`, `$PWD/.direnv` by exact path), so running `lefthook` or `cd`-ing into it on the host would execute sandbox-written content.
 
-The pinned set above needs a plain terminal. The rest of the repo — `CLAUDE.md`, `flake.nix`, `wrappers/`, `packages/`, `lib/`, `devshells/`, `modules/`, `overlays/`, `infra/` — is directly writable. `.git/config`, `.git/hooks`, `lefthook*.yml`, and the project-level `.claude/` entries are refused unconditionally and no workflow lifts them.
+The pinned set above needs a plain terminal. The rest of the repo — `CLAUDE.md`, `flake.nix`, `wrappers/`, `packages/`, `lib/`, `devshells/`, `modules/`, `overlays/` — is directly writable. `.git/config`, `.git/hooks`, `lefthook*.yml`, and the project-level `.claude/` entries are refused unconditionally and no workflow lifts them.
 
-### Infrastructure (`infra/`)
+### GitHub settings (`Runeword/admin`)
 
-OpenTofu config for this repository's GitHub settings. State is local (`*.tfstate` gitignored) — bootstrap is import-based, not greenfield apply, since the repository already exists; see `infra/README.md` for the import sequence. It manages no secret: OpenTofu writes a managed value to state in plaintext, so CI's `PERMEANCE_TOKEN` is set with `gh secret set` (`lib/tests-unit.nix` fails if a `github_*_secret` resource comes back).
+This repository's GitHub settings (merge buttons, the Actions allow-list and SHA pinning, branch protection on `main`) live in the private `Runeword/admin` repository with every other Runeword repository's: one OpenTofu map, local state, applied from a plain terminal. No secret is managed there: CI's `PERMEANCE_TOKEN` is set with `gh secret set PERMEANCE_TOKEN --repo Runeword/terminal`, and again with `--app dependabot` (that repository's README says why it is a classic `repo` PAT).
 
 ### CI (`.github/workflows/`)
 
-`ci.yml`'s matrix fans into a stable-named `check` aggregate job — that name is the required-status context in branch protection (managed by `infra/`), so don't rename it. The private inputs' token reaches nix only through `NIX_CONFIG` in the steps that fetch them, never `/etc/nix/nix.conf`, which is world-readable to builds that run unsandboxed on macOS. Dependabot proposes a revision once it is 7 days old (`cooldown`), and `dependabot-auto-merge.yml` leaves an update that edits `flake.nix` (an input's ref, not just its lock) to a person.
+`ci.yml`'s matrix fans into a stable-named `check` aggregate job — that name is the required-status context in branch protection (managed in `Runeword/admin`), so don't rename it. The private inputs' token reaches nix only through `NIX_CONFIG` in the steps that fetch them, never `/etc/nix/nix.conf`, which is world-readable to builds that run unsandboxed on macOS. Dependabot proposes a revision once it is 7 days old (`cooldown`), and `dependabot-auto-merge.yml` leaves an update that edits `flake.nix` (an input's ref, not just its lock) to a person.
 
 ## Testing
 
