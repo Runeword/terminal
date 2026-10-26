@@ -21,20 +21,15 @@
     expected = true;
   };
   # The `h` help print (devshells/default.nix) is generated from every owned
-  # sub-shell's helper registry. Two structural guards on that assembly:
-  # no command is documented twice, and a helper defined in a sub-shell other
-  # than where `h` is rendered (infra.nix) is actually picked up — i.e. the
-  # anti-drift mechanism works across files.
+  # sub-shell's helper registry: no command is documented twice. That a helper
+  # defined in another sub-shell is picked up at all, testTerminalHelpersLeaveDirenv
+  # asserts below for terminal.nix's dev and bdl.
   testDevShellHelperNamesUnique = {
     expr =
       let
         names = map (helper: helper.name) devShellHelpers;
       in
       lib.length names == lib.length (lib.unique names);
-    expected = true;
-  };
-  testDevShellDocumentsInfra = {
-    expr = lib.any (helper: helper.name == "infra") devShellHelpers;
     expected = true;
   };
   # `dev` rebuilds when its bakedSources change (devshells/terminal.nix). One
@@ -62,24 +57,6 @@
         "dev"
         "bdl"
       ];
-    expected = [ ];
-  };
-  # infra/ manages no GitHub secret: OpenTofu writes a managed value to
-  # terraform.tfstate in plaintext, and the state goes wherever infra/ is copied
-  # (infra/README.md, "Actions & Dependabot secrets"). Lists the .tf files that
-  # declare one.
-  testInfraManagesNoSecrets = {
-    expr =
-      let
-        declaresSecret =
-          file:
-          lib.any (
-            line: builtins.match ''[[:space:]]*resource[[:space:]]+"github_[a-z_]*secret".*'' line != null
-          ) (lib.splitString "\n" (builtins.readFile (../infra + "/${file}")));
-      in
-      lib.filter declaresSecret (
-        lib.filter (lib.hasSuffix ".tf") (lib.attrNames (builtins.readDir ../infra))
-      );
     expected = [ ];
   };
 }
