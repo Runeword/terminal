@@ -420,14 +420,27 @@ func (h host) claudes() (map[int]procStat, []claudeProc, error) {
 	return h.registryClaudes()
 }
 
-// procClaudes reads the claudes from /proc.
+// procClaudes reads the claudes from /proc. The session each has open is the
+// one its launch's file names (open.go), else the one a process it starts
+// names: only a claude whose launch named none is watched for one.
 func (h host) procClaudes() (map[int]procStat, []claudeProc, error) {
 	ps, err := processes(h.proc)
 	if err != nil {
 		return nil, nil, fmt.Errorf("finding the open sessions reads %s: %w", h.proc, err)
 	}
 	pids := terminalClaudes(ps, h.uid)
-	ids := h.sessionIDs(pids)
+	ids := map[int]string{}
+	var unmarked []int
+	for _, pid := range pids {
+		if id := markedSession(h.proc, pid); id != "" {
+			ids[pid] = id
+			continue
+		}
+		unmarked = append(unmarked, pid)
+	}
+	for pid, id := range h.sessionIDs(unmarked) {
+		ids[pid] = id
+	}
 	found := make([]claudeProc, len(pids))
 	for i, pid := range pids {
 		found[i] = h.procClaude(pid, ids[pid])
@@ -828,8 +841,8 @@ func writeRows(w *bytes.Buffer, home string, sessions []savedSession, lead func(
 // plugins (the lists comma-separated) and its tmux session, each "-" when it
 // has none, then its title and the line the picker shows, a tab apart. It
 // says on notes which backup that is, and leaves out, with a note, a session
-// that can't be resumed: one open now, and one whose conversation or
-// directory is gone.
+// that can't be resumed: one open now, which a held lock names or a running
+// claude has, and one whose conversation or directory is gone.
 func saved(out, notes io.Writer, h host, dir string, now time.Time) error {
 	names, err := backups(dir)
 	if errors.Is(err, fs.ErrNotExist) || err == nil && len(names) == 0 {
@@ -847,7 +860,7 @@ func saved(out, notes io.Writer, h host, dir string, now time.Time) error {
 	if err = json.Unmarshal(data, &b); err != nil {
 		return fmt.Errorf("%s: %w", tilde(h.home, path), err)
 	}
-	open := map[string]bool{}
+	open := openByLock(h.home, now)
 	if _, found, err := h.claudes(); err != nil {
 		_, _ = fmt.Fprintf(notes, "claude-sessions: %v; a session still open would be started twice\n", err)
 	} else {
