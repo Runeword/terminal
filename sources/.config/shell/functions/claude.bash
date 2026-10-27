@@ -122,7 +122,7 @@ __claude_vm_prefix() {
 # Fails (and propagates through __claude_init) when the sandbox gate refuses to
 # launch, so callers abort after the gate's message instead of silently running.
 __claude_build_cmd() {
-  local prefix flags="" secrets=""
+  local prefix flags="" secrets="" open="" open_dir flock_bin file
   prefix=$(__claude_sandbox_prefix) || return 1
   # __claude_run launches via `tmux new-window`, which spawns from the tmux
   # *server's* environment — so a prefix assignment on the caller
@@ -186,8 +186,23 @@ __claude_build_cmd() {
       flags="${flags}CLAUDE_SANDBOX_ALLOW_GOOGLE_WORKSPACE=1 "
       ;;
   esac
+  # Which session claude has open, for claude-sessions' backup and restore
+  # (packages/claude/sessions/open.go): flock holds a lock on a file of this
+  # launch's own, in the profile's open-sessions/, for as long as claude runs,
+  # and claude's SessionStart hook (claude-sessions mark) writes into it the id
+  # of each session claude starts, resumes or clears into. A held lock that
+  # names a session says for sure it is open; watching for a process that names
+  # it could miss it, and the restore then started an open session again. -o
+  # keeps the lock out of claude and what it starts. flock is resolved here, as
+  # the launcher is, for the pane's PATH. Without it, or in the microVM, whose
+  # sessions the restore doesn't start, claude runs as before.
+  open_dir="$HOME/$(__claude_profile)/open-sessions"
+  if [ "${__CLAUDE_LAUNCHER:-}" != claude-vm ] && flock_bin=$(command -v flock) &&
+    command mkdir -p "$open_dir" && file=$(mktemp "$open_dir/XXXXXXXX"); then
+    open="CLAUDE_SESSIONS_OPEN=$(printf '%q' "$file") $(printf '%q' "$flock_bin") -o $(printf '%q' "$file") "
+  fi
   # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
-  __CLAUDE_CMD="${flags}${secrets}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/$(__claude_profile) ${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5-5 $__claude_args"
+  __CLAUDE_CMD="${flags}${secrets}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/$(__claude_profile) ${open}${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5-5 $__claude_args"
 }
 
 # The profile a session runs with, under $HOME: .claude-N, or .claude-vm-N for
@@ -576,7 +591,7 @@ __claude_sessions_restore() {
 # stands for none. A subshell keeps the directory and variables to it.
 __claude_sessions_reopen() {
   (
-    cd -- "$3" || exit 1
+    builtin cd -- "$3" || exit 1
     CLAUDE_SANDBOX_ALLOW_GH=0 CLAUDE_SANDBOX_ALLOW_JIRA=0 CLAUDE_SANDBOX_ALLOW_FIREBASE=0
     case ",$4," in *,gh,*) CLAUDE_SANDBOX_ALLOW_GH=1 ;; esac
     case ",$4," in *,jira,*) CLAUDE_SANDBOX_ALLOW_JIRA=1 ;; esac
