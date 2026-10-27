@@ -37,11 +37,12 @@ Example answer: neovim-lsp-fix`
 
 // pane is one tmux pane, reduced to what describes the work in it.
 type pane struct {
-	window  string // window index, shown to the model only
-	program string // pane_current_command
-	folder  string // the directory's base name, "~" for $HOME
-	branch  string // the directory's git branch, "" outside a repository
-	title   string // the title the program set, "" when it says nothing
+	windowID string // window_id, which groups the panes of a window
+	window   string // window index, shown to the model only
+	program  string // pane_current_command
+	folder   string // the directory's base name, "~" for $HOME
+	branch   string // the directory's git branch, "" outside a repository
+	title    string // the title the program set, "" when it says nothing
 }
 
 // shells are the programs a pane runs when nothing else runs in it.
@@ -57,16 +58,17 @@ func parsePanes(out, home, host string, branchOf func(dir string) string) []pane
 	var panes []pane
 	for _, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
 		// The title comes last, so a tab in it stays in it.
-		f := strings.SplitN(line, "\t", 4)
-		if len(f) != 4 {
+		f := strings.SplitN(line, "\t", 5)
+		if len(f) != 5 {
 			continue
 		}
 		panes = append(panes, pane{
-			window:  f[0],
-			program: f[1],
-			folder:  folderName(f[2], home),
-			branch:  branchOf(f[2]),
-			title:   cleanTitle(f[3], f[1], host),
+			windowID: f[0],
+			window:   f[1],
+			program:  f[2],
+			folder:   folderName(f[3], home),
+			branch:   branchOf(f[3]),
+			title:    cleanTitle(f[4], f[2], host),
 		})
 	}
 	return panes
@@ -176,13 +178,13 @@ func prompt(panes []pane) string {
 	return b.String()
 }
 
-// chatPrompt wraps the pane lines in Qwen's ChatML turns, ending on the empty
-// think block its chat template writes when thinking is off. Any program can
-// set a pane title, so "<|" is broken up in the lines: no title can close the
-// user turn and open one of its own.
-func chatPrompt(lines string) string {
+// chatPrompt wraps the system message and the pane lines in Qwen's ChatML
+// turns, ending on the empty think block its chat template writes when
+// thinking is off. Any program can set a pane title, so "<|" is broken up in
+// the lines: no title can close the user turn and open one of its own.
+func chatPrompt(system, lines string) string {
 	lines = strings.ReplaceAll(strings.TrimSpace(lines), "<|", "< |")
-	return "<|im_start|>system\n" + systemPrompt + "<|im_end|>\n" +
+	return "<|im_start|>system\n" + system + "<|im_end|>\n" +
 		"<|im_start|>user\n" + lines + "<|im_end|>\n" +
 		"<|im_start|>assistant\n<think>\n\n</think>\n\n"
 }
@@ -199,11 +201,8 @@ func answer(out string) string {
 // style (#[...]) or format (#{...}) can reach the status line.
 func sanitize(s string) string {
 	line, _, _ := strings.Cut(strings.TrimSpace(s), "\n")
-	words := strings.FieldsFunc(strings.ToLower(line), func(r rune) bool {
-		return (r < 'a' || r > 'z') && (r < '0' || r > '9')
-	})
 	label := ""
-	for i, w := range words {
+	for i, w := range words(line) {
 		if i == 3 {
 			break
 		}
