@@ -1,13 +1,15 @@
 // Command tmux-session-name labels a tmux session with a few words on what its
 // windows are doing, which tmux.conf's status-left shows for the current
-// session, after the session numbers. A local model, Qwen3.5 2B run by llama.cpp, names it from each
-// pane's program, folder, git branch and title, never from what is on screen,
-// and only when those change. Nothing leaves the machine.
+// session, after the session numbers, and names each of its windows with one
+// word, which the window list shows. A local model, Qwen3.5 2B run by
+// llama.cpp, names them from each pane's program, folder, git branch and
+// title, never from what is on screen, and only when those change. Nothing
+// leaves the machine.
 //
 // tmux.conf runs it in the background from the client-session-changed and
 // session-window-changed hooks, and M-N runs it with -force after storing what
 // was typed in @label_pin: a typed label sticks, and an empty one asks the
-// model again. It keeps its state in session options:
+// model again. It keeps the label's state in session options:
 //
 //	@label      the label the status line shows
 //	@label_pin  a label typed with M-N, which wins over the model's
@@ -15,12 +17,20 @@
 //	@label_at   when the model was last asked, in Unix seconds
 //	@label_err  why the last attempt failed
 //
+// and each window's in window options (-force only hurries the label):
+//
+//	@wlabel      the name the window list shows, in place of the program's
+//	@wlabel_fp   the fingerprint of the window's panes @wlabel was made from
+//	@wlabel_at   when the model was last asked about the window
+//	@wlabel_err  why the window's last attempt failed
+//
 // It always exits 0 and prints nothing: run-shell shows output or a non-zero
 // exit over the pane.
 //
-// Each label is one llama-completion process, so the model takes memory (about
-// 2 GB) only for the few seconds it runs. A GBNF grammar holds its answer to
-// the label's shape, and sanitize checks it again before tmux sees it.
+// Each label or name is one llama-completion process, so the model takes
+// memory (about 2 GB) only for the few seconds it runs, one call at a time. A
+// GBNF grammar holds its answer to the label's or the name's shape, and
+// sanitize or word checks it again before tmux sees it.
 package main
 
 import (
@@ -40,8 +50,9 @@ import (
 	"time"
 )
 
-// cooldown is the least time between two unforced model calls for a session:
-// a pane that keeps changing program asks once a minute, not on every switch.
+// cooldown is the least time between two unforced model calls for a session,
+// or for a window: a pane that keeps changing program asks once a minute, not
+// on every switch.
 const cooldown = 60 * time.Second
 
 // modelTimeout bounds one model call.
@@ -52,7 +63,11 @@ const modelTimeout = 60 * time.Second
 const stateFormat = "#{session_attached}\t#{@label}\t#{@label_fp}\t#{@label_at}\t#{@label_err}\t#{host}\t#{@label_pin}"
 
 // paneFormat lists a session's panes for parsePanes.
-const paneFormat = "#{window_index}\t#{pane_current_command}\t#{pane_current_path}\t#{pane_title}"
+const paneFormat = "#{window_id}\t#{window_index}\t#{pane_current_command}\t#{pane_current_path}\t#{pane_title}"
+
+// windowFormat lists a session's windows for parseWindows. The name comes
+// last, so a tab in it stays in it.
+const windowFormat = "#{window_id}\t#{@wlabel_fp}\t#{@wlabel_at}\t#{@wlabel_err}\t#{@wlabel}"
 
 // llamaCompletion and modelPath are set at build time (default.nix ldflags) to
 // the llama.cpp binary and the GGUF model file.
@@ -93,12 +108,40 @@ func parseState(out string) state {
 	}
 }
 
+// windowState is a window's name state, as windowFormat reads it.
+type windowState struct {
+	id    string
+	label string
+	fp    string
+	at    int64
+	err   string
+}
+
+func parseWindows(out string) []windowState {
+	var windows []windowState
+	for _, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
+		f := strings.SplitN(line, "\t", 5)
+		if len(f) != 5 {
+			continue
+		}
+		at, _ := strconv.ParseInt(f[2], 10, 64)
+		windows = append(windows, windowState{id: f[0], fp: f[1], at: at, err: f[3], label: f[4]})
+	}
+	return windows
+}
+
+// query is one question for the model: its system message, the pane lines it
+// is about, and the GBNF grammar that holds the answer to its shape.
+type query struct {
+	system, lines, grammar string
+}
+
 // deps are run's effects, replaced in tests.
 type deps struct {
 	// tmux runs one tmux command line and returns its output.
 	tmux func(args ...string) (string, error)
-	// ask gives the model the pane lines in prompt and returns its answer.
-	ask func(prompt string) (string, error)
+	// ask gives the model q and returns its answer.
+	ask func(q query) (string, error)
 	// branch gives a directory's git branch.
 	branch func(dir string) string
 	// lock takes the session's lock, or reports that another run holds it.
@@ -107,8 +150,9 @@ type deps struct {
 	home string
 }
 
-// run updates the label of session id. The error it returns says why a label
-// could not be made; a session that is gone or holds no client is no error.
+// run updates the label of session id and the names of its windows. The
+// error it returns says why a label or a name could not be made; a session
+// that is gone or holds no client is no error.
 func run(id string, force bool, d deps) error {
 	out, err := d.tmux("display-message", "-p", "-t", id, stateFormat)
 	if err != nil {
@@ -116,10 +160,15 @@ func run(id string, force bool, d deps) error {
 	}
 	st := parseState(out)
 	if !st.attached && !force {
-		return nil // only the current session's label is on show
+		return nil // only the current session's label and names are on show
 	}
-	if pin := sanitize(st.pin); pin != "" {
-		return write(d, id, st, pin, st.fp, st.at, "")
+	// A typed label needs no model: it shows at once, even while another run
+	// holds the lock.
+	pin := sanitize(st.pin)
+	if pin != "" {
+		if err = write(d, id, st, pin, st.fp, st.at, ""); err != nil {
+			return err
+		}
 	}
 	unlock, ok := d.lock(id)
 	if !ok {
@@ -131,6 +180,15 @@ func run(id string, force bool, d deps) error {
 		return nil
 	}
 	panes := parsePanes(out, d.home, st.host, d.branch)
+	if pin == "" {
+		err = labelSession(id, force, st, panes, d)
+	}
+	return errors.Join(err, nameWindows(id, panes, d))
+}
+
+// labelSession updates the label of session id, whose state is st, from its
+// panes.
+func labelSession(id string, force bool, st state, panes []pane, d deps) error {
 	fp := fingerprint(panes)
 	if !force && fp == st.fp && st.label != "" {
 		return nil
@@ -142,7 +200,7 @@ func run(id string, force bool, d deps) error {
 		return nil
 	}
 	at := d.now.Unix()
-	reply, err := d.ask(prompt(panes))
+	reply, err := d.ask(query{system: systemPrompt, lines: prompt(panes), grammar: labelGrammar})
 	label := sanitize(reply)
 	if err == nil && label == "" {
 		err = fmt.Errorf("no label in the answer %q", reply)
@@ -162,33 +220,119 @@ func run(id string, force bool, d deps) error {
 	return write(d, id, st, label, fp, at, "")
 }
 
-// write sets the label options that differ from st in one tmux call: setting
-// an option redraws every client, so unchanged ones are left alone.
-func write(d deps, id string, st state, label, fp string, at int64, errText string) error {
-	var args []string
-	set := func(name, old, value string) {
-		if value == old {
-			return
-		}
-		if len(args) > 0 {
-			args = append(args, ";")
-		}
-		if value == "" {
-			args = append(args, "set-option", "-u", "-t", id, name)
-			return
-		}
-		args = append(args, "set-option", "-t", id, "--", name, value)
+// nameWindows names each window of session id in one word, after what its
+// panes work on, when they changed since its name was made.
+func nameWindows(id string, panes []pane, d deps) error {
+	out, err := d.tmux("list-windows", "-t", id, "-F", windowFormat)
+	if err != nil {
+		return nil // the session closed meanwhile
 	}
-	set("@label", st.label, label)
-	set("@label_fp", st.fp, fp)
-	if at != st.at {
-		set("@label_at", "", strconv.FormatInt(at, 10))
+	byWindow := make(map[string][]pane)
+	for _, p := range panes {
+		byWindow[p.windowID] = append(byWindow[p.windowID], p)
 	}
-	set("@label_err", st.err, errText)
-	if len(args) == 0 {
+	var errs []error
+	for _, w := range parseWindows(out) {
+		errs = append(errs, nameWindow(w, byWindow[w.id], d))
+	}
+	return errors.Join(errs...)
+}
+
+// nameWindow updates the name of window w from its panes. A window whose
+// panes say nothing but their folder is named after it, with no model call.
+func nameWindow(w windowState, panes []pane, d deps) error {
+	if len(panes) == 0 {
+		return nil // opened after list-panes ran
+	}
+	fp := fingerprint(panes)
+	if fp == w.fp {
 		return nil
 	}
-	_, err := d.tmux(args...)
+	if plain(panes) {
+		if name, ok := folderWord(panes); ok {
+			return writeWindow(d, w, name, fp, w.at, "")
+		}
+	}
+	if d.now.Sub(time.Unix(w.at, 0)) < cooldown {
+		return nil
+	}
+	at := d.now.Unix()
+	reply, err := d.ask(query{system: windowSystemPrompt, lines: windowLines(panes), grammar: wordGrammar})
+	name := word(reply)
+	if err == nil && name == "" {
+		err = fmt.Errorf("no word in the answer %q", reply)
+	}
+	if err != nil {
+		err = fmt.Errorf("model: %w", err)
+		// As for the session: keep the name and its fingerprint, and try
+		// again on a change once the cooldown has passed.
+		_ = writeWindow(d, w, w.label, w.fp, at, oneLine(err.Error()))
+		return fmt.Errorf("window %s: %w", w.id, err)
+	}
+	if saysNothing(name, panes) {
+		name, _ = folderWord(panes)
+	}
+	return writeWindow(d, w, name, fp, at, "")
+}
+
+// write sets the session's label options that differ from st.
+func write(d deps, id string, st state, label, fp string, at int64, errText string) error {
+	c := changes{target: []string{"-t", id}}
+	c.set("@label", st.label, label)
+	c.set("@label_fp", st.fp, fp)
+	if at != st.at {
+		c.set("@label_at", "", strconv.FormatInt(at, 10))
+	}
+	c.set("@label_err", st.err, errText)
+	return c.apply(d)
+}
+
+// writeWindow sets the window's name options that differ from w.
+func writeWindow(d deps, w windowState, label, fp string, at int64, errText string) error {
+	c := changes{target: []string{"-w", "-t", w.id}}
+	c.set("@wlabel", w.label, label)
+	c.set("@wlabel_fp", w.fp, fp)
+	if at != w.at {
+		c.set("@wlabel_at", "", strconv.FormatInt(at, 10))
+	}
+	c.set("@wlabel_err", w.err, errText)
+	return c.apply(d)
+}
+
+// changes builds one tmux command line that sets the options of a session or
+// a window whose values changed: setting an option redraws every client, so
+// unchanged ones are left alone.
+type changes struct {
+	target []string // set-option's target: -t <session>, or -w -t <window>
+	args   []string
+}
+
+// set sets option name to value, or unsets it when value is empty, unless
+// value is old.
+func (c *changes) set(name, old, value string) {
+	if value == old {
+		return
+	}
+	if len(c.args) > 0 {
+		c.args = append(c.args, ";")
+	}
+	c.args = append(c.args, "set-option")
+	if value == "" {
+		c.args = append(c.args, "-u")
+		c.args = append(c.args, c.target...)
+		c.args = append(c.args, name)
+		return
+	}
+	c.args = append(c.args, c.target...)
+	c.args = append(c.args, "--", name, value)
+}
+
+// apply runs the command line, if anything changed.
+func (c *changes) apply(d deps) error {
+	if len(c.args) == 0 {
+		return nil
+	}
+	_, err := d.tmux(c.args...)
 	return err
 }
 
@@ -208,20 +352,20 @@ func runTmux(args ...string) (string, error) {
 	return string(out), err
 }
 
-// runModel asks the local model for the label: one llama-completion run of
-// model on the ChatML prompt, greedy (the same panes always get the same
-// label), its answer held to labelGrammar, on every core. llama.cpp logs to
+// runModel asks the local model a query: one llama-completion run of model on
+// the ChatML prompt, greedy (the same panes always get the same answer), its
+// answer held to the query's grammar, on every core. llama.cpp logs to
 // stderr, whose last line says why a run failed.
-func runModel(bin, model string) func(string) (string, error) {
-	return func(prompt string) (string, error) {
+func runModel(bin, model string) func(query) (string, error) {
+	return func(q query) (string, error) {
 		if model == "" {
 			return "", errors.New("no model was built in")
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), modelTimeout)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, bin,
-			"-m", model, "-no-cnv", "-p", chatPrompt(prompt),
-			"--grammar", labelGrammar, "-n", "12", "--temp", "0",
+			"-m", model, "-no-cnv", "-p", chatPrompt(q.system, q.lines),
+			"--grammar", q.grammar, "-n", "12", "--temp", "0",
 			"-c", "1024", "-t", strconv.Itoa(runtime.NumCPU()),
 			"--no-display-prompt", "--no-warmup")
 		var stderr bytes.Buffer
