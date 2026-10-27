@@ -187,19 +187,23 @@ __claude_build_cmd() {
       ;;
   esac
   # Which session claude has open, for claude-sessions' backup and restore
-  # (packages/claude/sessions/open.go): flock holds a lock on a file of this
-  # launch's own, in the profile's open-sessions/, for as long as claude runs,
-  # and claude's SessionStart hook (claude-sessions mark) writes into it the id
-  # of each session claude starts, resumes or clears into. A held lock that
-  # names a session says for sure it is open; watching for a process that names
-  # it could miss it, and the restore then started an open session again. -o
-  # keeps the lock out of claude and what it starts. flock is resolved here, as
-  # the launcher is, for the pane's PATH. Without it, or in the microVM, whose
-  # sessions the restore doesn't start, claude runs as before.
+  # (packages/claude/sessions/open.go): flock locks a file of this launch's
+  # own, in the profile's open-sessions/, for as long as claude runs, and
+  # claude's SessionStart hook (claude-sessions mark) writes into it the id of
+  # each session claude starts, resumes or clears into. A held lock that names
+  # a session says for sure it is open; watching for a process that names it
+  # could miss it, and the restore then started an open session again. -F
+  # execs into the launcher rather than wait as its parent, which tmux would
+  # name the window after, and tmux-session-name label the session after. The
+  # lock passes on to claude and what it starts, which the sandbox's PID
+  # namespace ends with claude; the launcher's cleanup watcher holds it up to
+  # 15 s longer. flock is resolved here, as the launcher is, for the pane's
+  # PATH. Without it, or in the microVM, whose sessions the restore doesn't
+  # start, claude runs as before.
   open_dir="$HOME/$(__claude_profile)/open-sessions"
   if [ "${__CLAUDE_LAUNCHER:-}" != claude-vm ] && flock_bin=$(command -v flock) &&
     command mkdir -p "$open_dir" && file=$(mktemp "$open_dir/XXXXXXXX"); then
-    open="CLAUDE_SESSIONS_OPEN=$(printf '%q' "$file") $(printf '%q' "$flock_bin") -o $(printf '%q' "$file") "
+    open="CLAUDE_SESSIONS_OPEN=$(printf '%q' "$file") $(printf '%q' "$flock_bin") -F $(printf '%q' "$file") "
   fi
   # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
   __CLAUDE_CMD="${flags}${secrets}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/$(__claude_profile) ${open}${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5-5 $__claude_args"
