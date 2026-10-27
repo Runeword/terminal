@@ -307,6 +307,23 @@ let
           *) fail "the microVM chord does not refuse without claude-vm: $refusal" ;;
         esac
 
+        # The review paid by the API credits (__claude_review) runs claude in
+        # this pane, since a tmux window would start without the key, hands it
+        # the key in its environment, and launches it with Read as its only
+        # tool and the repository's settings ignored. Stand-ins for git and pass
+        # give it a change to review and a key.
+        review='. ${self}/.config/shell/functions/claude.bash
+          git() { case $1 in rev-parse) [ "$2" = --show-toplevel ] && pwd || return 1 ;; diff) echo change ;; esac; }
+          pass() { echo sk-test; }
+          __claude_run() { printf "%s|%s|%s\n" "$TMUX" "$ANTHROPIC_API_KEY" "$__CLAUDE_CMD"; }
+          __claude_review'
+        case "$(TMUX=x CLAUDE_SANDBOX=0 PATH=${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$review")" in
+          "|sk-test|"*" -p --bare --tools Read --setting-sources user --strict-mcp-config --add-dir "*)
+            ok "the review runs claude in this pane, with its key in the environment and Read as its only tool"
+            ;;
+          *) fail "the review does not run claude Read-only, in this pane, with its key in the environment" ;;
+        esac
+
         # The session eraser (leader cx) hands every marked session to one
         # `claude-sessions rm -ask`, which asks about them all at once. A
         # stand-in fzf, given --multi, marks every row and presses enter: it
