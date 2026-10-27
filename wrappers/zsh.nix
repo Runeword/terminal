@@ -46,7 +46,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, oa edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, a launch drops what a session planted for the next one, in the project and in its profile, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, oa edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /experts command, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows and previews them without the file's escape sequences, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -213,16 +213,17 @@ let
         fi
 
         # Bundled mode: this bundle has no .claude, so a claude profile comes from
-        # the claude wrapper's, with this OS's sandbox overlay merged in; an overlay
-        # that does not merge refuses the launch instead.
+        # the claude wrapper's, with this OS's sandbox overlay merged in and its
+        # commands linked; an overlay that does not merge refuses the launch instead.
         os=$(uname -s | tr '[:upper:]' '[:lower:]')
         provision='. ${self}/.config/shell/functions/claude.bash; __claude_instance=1; __claude_provision_config'
         if PATH=${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$provision" \
           && [ "$(${pkgs.jq}/bin/jq -c .sandbox "$HOME/.claude-1/settings.json")" \
-            = "$(${pkgs.jq}/bin/jq -c .sandbox ${claude}/.claude/settings.$os.json)" ]; then
-          ok "bundled mode provisions the claude profile with the $os sandbox overlay"
+            = "$(${pkgs.jq}/bin/jq -c .sandbox ${claude}/.claude/settings.$os.json)" ] \
+          && [ -f "$HOME/.claude-1/commands/experts.md" ]; then
+          ok "bundled mode provisions the claude profile with the $os sandbox overlay and the /experts command"
         else
-          fail "bundled mode does not provision the claude profile with its sandbox overlay"
+          fail "bundled mode does not provision the claude profile with its sandbox overlay and the /experts command"
         fi
         # PERMEANCE_STRICT=0: the launcher's strict check would refuse this tree,
         # which has no .config, before zsh ran; the message pins the refusal on
@@ -341,13 +342,15 @@ let
         # still there. A stand-in claude-sessions saved two sessions, one with
         # gh, jira, extra hosts and figma-mcp, the other plain; a stand-in fzf
         # picks both, a stand-in tmux knows session work and prints the windows
-        # it is asked for.
+        # it is asked for. The aliases load first, as in .zshrc, since they
+        # expand inside the functions: cd there is __cd, which takes no --.
         mkdir -p "$HOME/restore/bin" "$HOME/proj" "$HOME/proj2"
         printf 'a\t1\t%s\tgh,jira\tx.example\tnix-lsp,figma-mcp\twork\tA\tshown A\nb\t1\t%s\t-\t-\t-\tgone\tB\tshown B\n' \
           "$HOME/proj" "$HOME/proj2" > "$HOME/restore/rows"
         printf '#!/bin/sh\ncase $1 in saved) cat "$HOME/restore/rows" ;; *) echo "$*" ;; esac\n' > "$HOME/restore/bin/claude-sessions"
         chmod +x "$HOME/restore/bin/claude-sessions"
-        restore='. ${self}/.config/shell/functions/claude.bash
+        restore='. ${self}/.config/shell/aliases.sh; . ${self}/.config/shell/functions/cd.sh
+          . ${self}/.config/shell/functions/claude.bash
           fzf() { cat; }
           tmux() { case $1 in has-session) [ "$3" = "=work" ] ;; new-window) shift; printf "%s|" "$@"; echo ;; esac; }
           __claude_sessions_backup
@@ -387,6 +390,23 @@ let
           ok "a launch removes the agents, CLAUDE.md and skills a session planted in its profile"
         else
           fail "a launch keeps instructions a session planted in its profile"
+        fi
+
+        # A launch runs claude under flock, which holds a lock on a file of the
+        # launch's own for as long as claude runs, and names the file to claude,
+        # whose SessionStart hook writes the session's id into it (claude-sessions
+        # mark): a stand-in claude finds the file it was named, in the profile,
+        # locked.
+        mkdir -p "$HOME/lock/bin"
+        printf '#!/bin/sh\ncase $CLAUDE_SESSIONS_OPEN in "$HOME"/.claude-1/open-sessions/?*) ;; *) exit ;; esac\nflock -n "$CLAUDE_SESSIONS_OPEN" true || echo held\n' \
+          > "$HOME/lock/bin/claude"
+        chmod +x "$HOME/lock/bin/claude"
+        locked='. ${self}/.config/shell/functions/claude.bash
+          __claude'
+        if [ "$(cd "$HOME/proj" && CLAUDE_SANDBOX=0 PATH=$HOME/lock/bin:${pkgs.lib.getBin pkgs.util-linux}/bin:${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$locked" 2>/dev/null)" = held ]; then
+          ok "a launch runs claude under a lock on a file of its own, which it names to claude"
+        else
+          fail "a launch does not run claude under a lock on a file it names to claude"
         fi
 
         # The untracked-file preview hands git diff its path after --: git obeys
@@ -429,11 +449,13 @@ let
         # hands on the row's hash. Both steps show the
         # preview below the list, in three quarters of fzf's height, with no
         # blank line before the diff: a commit's diff alone, a file's under its
-        # path. Both start with the search on (no trigger(alt-i)), and the file
-        # step's j/k step between matches, f12/f11 adding the 4 more steps of
-        # a 5-step move (FZF_DEFAULT_OPTS). Neither binds y, which types into
-        # the query as other letters do, nor a key of its own to jump to a row
-        # by its label, and neither has a header. The file step hands fzf the
+        # path. Both start with the search off, as alt-i leaves it, the file
+        # step before it searches with !/$: turning the search off after would
+        # cancel that search. The file step's j/k step between matches,
+        # f12/f11 adding the 4 more steps of a 5-step move (FZF_DEFAULT_OPTS).
+        # Neither binds y, which types into the query as other letters do, nor
+        # a key of its own to jump to a row by its label, and neither has a
+        # header. The file step hands fzf the
         # commit's tree rows, searched with !/$ so that no directory's row
         # matches, and the count of its files for the info line, and the
         # editor what tree-quote makes of the row numbers fzf accepts: the
@@ -441,12 +463,12 @@ let
         gl='. ${self}/.config/shell/functions/git.bash
           git() { case $1 in log) [ "$*" != "log --no-renames --diff-merges=first-parent --name-status --date=format-local:%y-%m-%d %H:%M --format=%x1e%an, %ad%x1f%h%x1f %<|(91,trunc)%s %x1f%h %s%x1f%at%x1f%ar" ] || printf "\36a, 26-10-25 21:42\37abc\37 Delete f \37abc Delete f\37%s\37%s\n\nD\tf\nD\tg\n\36b, 70-01-01 00:00\37def\37 x \37def x\37%s\37%s\n" $(($(date +%s) - 120)) "2 minutes ago" 0 "56 years ago" ;; rev-list) [ "$*" != "rev-list --count HEAD" ] || echo 10 ;; rev-parse) [ "$2" != --show-cdup ] || echo ../ ;; esac; }
           git-hunk-pick() { case $1 in tree) printf "%s\0" "$*" ;; paths) printf "x\0y\0" ;; tree-quote) printf "%s<%s" "$*" "$(tr "\0" ,)" ;; esac; }
-          fzf() { case "$TREE_FILES $*" in *jump* | *"--bind y:"* | *"--header="* | *"trigger(alt-i)"*) ;; "2 "*"--accept-nth={n}"*"start:+search(!/\$)"*"j:trigger(f12)+down-match,k:trigger(f11)+up-match"*"f12:down-match+down-match+down-match+down-match,f11:up-match+up-match+up-match+up-match"*"--info-command="*"show --color=always --format= "*"/^\$/d}"*"--preview-window=down,75%,"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *"show --color=always --format= {3} "*"/^\$/d}"*"--preview-window=down,75%,"*"--ansi --delimiter="?"|^ *[0-9]+  --with-nth={1} {6}{3}{4}{2} --nth=2.. --accept-nth=3"*) awk -F "$(printf "\37")" -v c="$(printf "\33[1;38;2;168;77;95m-\33[0m ")" "\$1 == \" 1\" && \$2 == \"a, 2 minutes ago\" && \$6 == c && \$4 ~ /^ f {9}\$/ { h = \$3 } \$1 == \" 2\" && \$2 == \"b, 70-01-01 00:00\" { print h }" ;; esac; }
+          fzf() { case "$TREE_FILES $*" in *jump* | *"--bind y:"* | *"--header="*) ;; "2 "*"--accept-nth={n}"*"start:+trigger(alt-i)+search(!/\$)"*"j:trigger(f12)+down-match,k:trigger(f11)+up-match"*"f12:down-match+down-match+down-match+down-match,f11:up-match+up-match+up-match+up-match"*"--info-command="*"show --color=always --format= "*"/^\$/d}"*"--preview-window=down,75%,"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *"show --color=always --format= {3} "*"/^\$/d}"*"--preview-window=down,75%,"*"--ansi --delimiter="?"|^ *[0-9]+  --with-nth={1} {6}{3}{4}{2} --nth=2.. --accept-nth=3"*"start:+trigger(alt-i)"*) awk -F "$(printf "\37")" -v c="$(printf "\33[1;38;2;168;77;95m-\33[0m ")" "\$1 == \" 1\" && \$2 == \"a, 2 minutes ago\" && \$6 == c && \$4 ~ /^ f {9}\$/ { h = \$3 } \$1 == \" 2\" && \$2 == \"b, 70-01-01 00:00\" { print h }" ;; esac; }
           COLUMNS=100 EDITOR=ed __git_log'
         if [ "$(${self}/bin/zsh -f -c "$gl")" = "ed -- tree-quote commit abc ../<4," ]; then
-          ok "gl lists commits numbered from 1, right-aligned and unsearched, with their change next, in its colour, in place of the verb it stands for, and their author and date flush right in the row's colours, the date how long ago a commit of the last hour was made and an older one's date and time, previews each diff below its list, in three quarters of the height, a commit's alone, starts both lists with the search on, steps the file list's j/k and f12/f11 between matches, no header and no y or jump binding of their own, lists the commit's files as tree rows, directories unpickable and uncounted, and opens the files of the rows picked"
+          ok "gl lists commits numbered from 1, right-aligned and unsearched, with their change next, in its colour, in place of the verb it stands for, and their author and date flush right in the row's colours, the date how long ago a commit of the last hour was made and an older one's date and time, previews each diff below its list, in three quarters of the height, a commit's alone, starts both lists with the search off, steps the file list's j/k and f12/f11 between matches, no header and no y or jump binding of their own, lists the commit's files as tree rows, directories unpickable and uncounted, and opens the files of the rows picked"
         else
-          fail "gl lists commits without their right-aligned number first, or searches it, or without their change in its colour in place of the verb it stands for, or without their author and date flush right in the row's colours, dates a commit of the last hour other than by how long ago it was made or an older one other than by its date and time, previews a diff beside a list or in other than three quarters of the height, or a commit's under a line, starts a list with the search off, steps the file list's j/k or f12/f11 onto directories, gives a list a header, binds y or a jump in a list, or does not hand the rows fzf picks from its tree to tree-quote"
+          fail "gl lists commits without their right-aligned number first, or searches it, or without their change in its colour in place of the verb it stands for, or without their author and date flush right in the row's colours, dates a commit of the last hour other than by how long ago it was made or an older one other than by its date and time, previews a diff beside a list or in other than three quarters of the height, or a commit's under a line, starts a list with the search on or turns the file list's off after its !/$ search, steps the file list's j/k or f12/f11 onto directories, gives a list a header, binds y or a jump in a list, or does not hand the rows fzf picks from its tree to tree-quote"
         fi
 
         # gda, gdc and gdd (__git_diff) number their paths from 1,
