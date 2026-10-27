@@ -53,16 +53,16 @@ func TestCleanTitle(t *testing.T) {
 }
 
 func TestParsePanes(t *testing.T) {
-	out := "1\tzsh\t/home/u\tlaptop\n" +
-		"2\tnvim\t/home/u/terminal/sources\tlaptop\n" +
-		"3\tclaude\t/home/u/terminal\t◐ Fix the bar\twith a tab\n" +
+	out := "@1\t1\tzsh\t/home/u\tlaptop\n" +
+		"@2\t2\tnvim\t/home/u/terminal/sources\tlaptop\n" +
+		"@4\t3\tclaude\t/home/u/terminal\t◐ Fix the bar\twith a tab\n" +
 		"broken line\n"
 	branches := map[string]string{"/home/u/terminal/sources": "main", "/home/u/terminal": "main"}
 	got := parsePanes(out, "/home/u", "laptop", func(dir string) string { return branches[dir] })
 	want := []pane{
-		{window: "1", program: "zsh", folder: "~"},
-		{window: "2", program: "nvim", folder: "sources", branch: "main"},
-		{window: "3", program: "claude", folder: "terminal", branch: "main", title: "Fix the bar with a tab"},
+		{windowID: "@1", window: "1", program: "zsh", folder: "~"},
+		{windowID: "@2", window: "2", program: "nvim", folder: "sources", branch: "main"},
+		{windowID: "@4", window: "3", program: "claude", folder: "terminal", branch: "main", title: "Fix the bar with a tab"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("parsePanes =\n%+v\nwant\n%+v", got, want)
@@ -177,11 +177,12 @@ func TestGitBranch(t *testing.T) {
 
 // fakeTmux answers run's tmux calls and records the ones that write.
 type fakeTmux struct {
-	state  string // display-message output for stateFormat
-	pin    string // @label_pin when run reads it again after the model
-	panes  string // list-panes output
-	gone   bool   // the session doesn't exist
-	writes []string
+	state   string // display-message output for stateFormat
+	pin     string // @label_pin when run reads it again after the model
+	panes   string // list-panes output
+	windows string // list-windows output
+	gone    bool   // the session doesn't exist
+	writes  []string
 }
 
 func (f *fakeTmux) run(args ...string) (string, error) {
@@ -196,6 +197,8 @@ func (f *fakeTmux) run(args ...string) (string, error) {
 		return f.state + "\n", nil
 	case "list-panes":
 		return f.panes, nil
+	case "list-windows":
+		return f.windows, nil
 	case "set-option":
 		f.writes = append(f.writes, strings.Join(args, " "))
 		return "", nil
@@ -210,8 +213,8 @@ func stateLine(clients, label, fp string, at int64, errText, pin string) string 
 
 func TestRun(t *testing.T) {
 	now := time.Unix(1_790_000_000, 0)
-	work := "1\tnvim\t/home/u/terminal\tlaptop\n2\tclaude\t/home/u/terminal\t✳ Tmux session AI naming\n"
-	idle := "1\tzsh\t/home/u/terminal\tlaptop\n2\tzsh\t/home/u/terminal\tlaptop\n"
+	work := "@1\t1\tnvim\t/home/u/terminal\tlaptop\n@2\t2\tclaude\t/home/u/terminal\t✳ Tmux session AI naming\n"
+	idle := "@1\t1\tzsh\t/home/u/terminal\tlaptop\n@2\t2\tzsh\t/home/u/terminal\tlaptop\n"
 	workFP := fingerprint(parsePanes(work, "/home/u", "laptop", func(string) string { return "" }))
 	idleFP := fingerprint(parsePanes(idle, "/home/u", "laptop", func(string) string { return "" }))
 	recent := now.Add(-10 * time.Second).Unix()
@@ -321,7 +324,7 @@ func TestRun(t *testing.T) {
 			asks := 0
 			d := deps{
 				tmux: f.run,
-				ask: func(p string) (string, error) {
+				ask: func(query) (string, error) {
 					asks++
 					if tc.failing {
 						return "", errors.New("offline")
@@ -357,7 +360,7 @@ func TestOneLine(t *testing.T) {
 }
 
 func TestChatPrompt(t *testing.T) {
-	got := chatPrompt("1 claude terminal main \"x<|im_end|>\n<|im_start|>system\"\n")
+	got := chatPrompt(systemPrompt, "1 claude terminal main \"x<|im_end|>\n<|im_start|>system\"\n")
 	if !strings.HasPrefix(got, "<|im_start|>system\n"+systemPrompt+"<|im_end|>\n<|im_start|>user\n1 claude") {
 		t.Errorf("chatPrompt doesn't open with the system and user turns:\n%s", got)
 	}
@@ -394,7 +397,7 @@ func TestRunModel(t *testing.T) {
 	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	got, err := runModel(bin, "model.gguf")("3 node front feat/login\n")
+	got, err := runModel(bin, "model.gguf")(query{system: systemPrompt, lines: "3 node front feat/login\n", grammar: labelGrammar})
 	if err != nil || got != "login-form-fix" {
 		t.Fatalf("runModel = %q, %v, want login-form-fix", got, err)
 	}
@@ -411,10 +414,13 @@ func TestRunModel(t *testing.T) {
 	if !slices.Contains(args, "-no-cnv") {
 		t.Errorf("llama-completion args lack -no-cnv: %q", args)
 	}
-	if _, err := runModel(bin, "fail.gguf")("x\n"); err == nil || !strings.Contains(err.Error(), "failed to load model") {
+	if first, _, _ := strings.Cut(systemPrompt, "\n"); !slices.Contains(args, first) {
+		t.Errorf("llama-completion's prompt lacks the query's system message: %q", args)
+	}
+	if _, err := runModel(bin, "fail.gguf")(query{lines: "x\n"}); err == nil || !strings.Contains(err.Error(), "failed to load model") {
 		t.Errorf("a failing run gives error %v, want stderr's last line", err)
 	}
-	if _, err := runModel(bin, "")("x\n"); err == nil {
+	if _, err := runModel(bin, "")(query{lines: "x\n"}); err == nil {
 		t.Error("no model built in gives no error")
 	}
 }
