@@ -12,15 +12,16 @@ import (
 )
 
 // Which session a claude has open, as its launch records it. __claude
-// (claude.bash) starts claude under `flock -o <file>`, <file> being a file of
+// (claude.bash) starts claude under `flock -F <file>`, <file> being a file of
 // the launch's own in the profile's open-sessions/, which it names to claude
 // in $CLAUDE_SESSIONS_OPEN, and claude's SessionStart hook runs mark, which
 // writes into it the id of each session claude starts, resumes or clears
-// into. flock holds a lock on the file for as long as claude runs, and the
-// kernel drops it when claude ends, however it ends: a held lock that names a
-// session says for sure that session is open, where watching for a process
-// that names it can miss it (APUE §13.5's single-instance lock, with the
-// session where it writes the PID).
+// into. flock locks the file and execs into claude, which holds the lock for
+// as long as it runs, and the kernel drops it once claude and what it started
+// have ended, however they end (the sandbox ends them together): a held lock
+// that names a session says for sure that session is open, where watching for
+// a process that names it can miss it (APUE §13.5's single-instance lock, with
+// the session where it writes the PID).
 const (
 	openVar = "CLAUDE_SESSIONS_OPEN"
 	openDir = "open-sessions"
@@ -32,8 +33,8 @@ const (
 
 // mark is claude's SessionStart hook: it writes the session the hook's input
 // in names into file, $CLAUDE_SESSIONS_OPEN, and does nothing for a claude
-// started without one. It writes in place: flock holds its lock on that very
-// file, which a rename would replace. A claude a claude starts (`claude -p`
+// started without one. It writes in place: the lock is on that very file,
+// which a rename would replace. A claude a claude starts (`claude -p`
 // in the Bash tool) inherits the variable, so the claude above process pid,
 // which ran the hook, is passed over when a claude is above it in turn, as
 // backup passes it over; with no /proc (proc "") that can't be told, and it
