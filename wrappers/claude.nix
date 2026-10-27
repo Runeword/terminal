@@ -12,6 +12,9 @@
 let
   claudeStatusline = import ../packages/claude/statusline { inherit pkgs; };
   claudeDocsGuard = import ../packages/claude/docs-guard { inherit pkgs; };
+  # Its `mark` is the SessionStart hook that names the open session to the
+  # backup and restore (packages/claude/sessions/open.go).
+  claudeSessions = import ../packages/claude/sessions { inherit pkgs; };
   gitAllowlistHook = claudeSandbox.git-allowlist-hook;
   # Stand-in bwrap for that dry run: prints the argv it was handed, one per line,
   # and saves the environment it inherited to $BWRAP_ENV.
@@ -46,6 +49,7 @@ let
   tools = [
     claudeStatusline
     claudeDocsGuard
+    claudeSessions
     gitAllowlistHook
     pkgs.nixfmt
     pkgs.shfmt
@@ -111,6 +115,9 @@ let
 
   config = files.mkConfig "claude-config" [
     ".claude/rules"
+    # User-level skills, such as /experts: claude.bash clears the profile's
+    # skills/ at each launch, so they ship as commands/<name>.md files.
+    ".claude/commands"
     ".claude/plugins"
     ".claude/settings.json"
     # The per-OS sandbox overlays claude.bash merges into each profile; bundled
