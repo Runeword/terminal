@@ -18,6 +18,9 @@
 //	claude-sessions saved              one row per session of the last
 //	                                   backup that can be resumed, for
 //	                                   __claude_sessions_restore
+//	claude-sessions mark               claude's SessionStart hook: write the
+//	                                   session's id into the file its launch
+//	                                   holds a lock on (open.go)
 //
 // Transcripts live in $CLAUDE_CONFIG_DIR (else ~/.claude) at
 // projects/<project>/<id>.jsonl, <project> being the working directory with
@@ -92,7 +95,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: claude-sessions list | preview <id> | rm [-ask] <id>... | backup | saved")
+	fmt.Fprintln(os.Stderr, "usage: claude-sessions list | preview <id> | rm [-ask] <id>... | backup | saved | mark")
 	os.Exit(2)
 }
 
@@ -141,6 +144,15 @@ func run(cmd string, args []string, cfg string, now time.Time) error {
 		if err = saved(&out, os.Stderr, h, backupDir(h.home), now); err != nil {
 			return err
 		}
+	case "mark":
+		if len(args) != 0 {
+			usage()
+		}
+		h, err := defaultHost()
+		if err != nil {
+			return err
+		}
+		return mark(os.Stdin, os.Getenv(openVar), h.proc, os.Getppid())
 	default:
 		usage()
 	}
