@@ -421,6 +421,64 @@ __claude_vm() {
   __claude "$@"
 }
 
+# /review paid by the Max plan's monthly API credits, not its usage limits:
+# __claude_review [low|medium|high|xhigh|max] [revision]. The credits pay for the
+# Agent SDK, whose CLI is headless `claude -p`, and not for interactive Claude
+# Code. The key is claude's own Console key, from pass (claude/anthropic-api-key),
+# made in a workspace with a spend limit.
+# The review can read files and nothing else, and the repository under review
+# can't steer it (each flag checked against a hostile repo and a stand-in API):
+# - --tools Read: no Bash, Edit, Write, WebFetch or WebSearch, so no command, no
+#   connection and no write. Read refuses a symlink out of the repo, such as one
+#   to /proc/self/environ, which holds the key.
+# - --bare: no hooks, MCP servers, CLAUDE.md or skills from the repo, and no OAuth,
+#   so a missing key fails rather than falling back to the Max login.
+# - --setting-sources user, after the wrapper's user,project,local: the repo's
+#   .claude/settings*.json is ignored. Its env can point ANTHROPIC_BASE_URL at a
+#   host of its own, which then gets the key, even under --bare and untrusted.
+# - --strict-mcp-config: no MCP server from anywhere.
+# Your git makes the diff here, with no external diff or textconv driver, against
+# revision: by default @{upstream}, so unpushed commits and uncommitted changes
+# (HEAD with no upstream); untracked files aren't in it. The key reaches only this
+# launch's environment, and the session gets no other credential.
+# TMUX='' keeps __claude in this pane: a tmux window starts from the server's
+# environment, without the key, and closes with the review. A subshell, so the cd,
+# the trap and these variables end with it. --max-budget-usd stops a run at $5.
+__claude_review() (
+  review_level=${1:-high} review_rev=${2:-}
+  case "$review_level" in
+    low | medium | high | xhigh | max) ;;
+    *)
+      echo "usage: __claude_review [low|medium|high|xhigh|max] [revision]" >&2
+      exit 2
+      ;;
+  esac
+  review_top=$(git rev-parse --show-toplevel) || exit 1
+  builtin cd "$review_top" || exit 1
+  if [ -z "$review_rev" ]; then
+    review_rev=HEAD
+    git rev-parse --verify --quiet '@{upstream}' >/dev/null && review_rev='@{upstream}'
+  fi
+  review_dir=$(mktemp -d) || exit 1
+  trap 'rm -f -- "$review_dir/changes.diff"; rmdir -- "$review_dir"' EXIT
+  git diff --no-ext-diff --no-textconv "$review_rev" >"$review_dir/changes.diff" || exit 1
+  if [ ! -s "$review_dir/changes.diff" ]; then
+    echo "claude: nothing to review against $review_rev" >&2
+    exit 0
+  fi
+  review_key=$(pass show claude/anthropic-api-key) || exit 1
+  review_key=${review_key%%$'\n'*}
+  if [ -z "$review_key" ]; then
+    echo "claude: the pass entry claude/anthropic-api-key is empty" >&2
+    exit 1
+  fi
+  # No other credential: __claude_build_cmd and the launcher read these.
+  export CLAUDE_SANDBOX_ALLOW_FIREBASE=0 CLAUDE_SANDBOX_ALLOW_JIRA=0 CLAUDE_SANDBOX_ALLOW_GH=0
+  TMUX='' ANTHROPIC_API_KEY=$review_key CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
+    __claude -p --bare --tools Read --setting-sources user --strict-mcp-config \
+    --add-dir "$review_dir" --max-budget-usd 5 "/review $review_level $review_dir/changes.diff"
+)
+
 __claude_plugins() {
   __claude_init_fzf "$@" || return 0
   __claude_run
