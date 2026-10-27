@@ -409,21 +409,24 @@ let
           fail "a launch keeps instructions a session planted in its profile"
         fi
 
-        # A launch runs claude under flock, which holds a lock on a file of the
-        # launch's own for as long as claude runs, and names the file to claude,
-        # whose SessionStart hook writes the session's id into it (claude-sessions
+        # A launch runs claude under flock, which locks a file of the launch's
+        # own for as long as claude runs, and names the file to claude, whose
+        # SessionStart hook writes the session's id into it (claude-sessions
         # mark): a stand-in claude finds the file it was named, in the profile,
-        # locked.
+        # locked. flock execs into claude rather than wait as its parent, which
+        # tmux would name the window after: the stand-in claude runs as the very
+        # process a stand-in flock recorded.
         mkdir -p "$HOME/lock/bin"
-        printf '#!/bin/sh\ncase $CLAUDE_SESSIONS_OPEN in "$HOME"/.claude-1/open-sessions/?*) ;; *) exit ;; esac\nflock -n "$CLAUDE_SESSIONS_OPEN" true || echo held\n' \
+        printf '#!/bin/sh\necho $$ > "$HOME/lock/pid"\nexec ${pkgs.lib.getBin pkgs.util-linux}/bin/flock "$@"\n' > "$HOME/lock/bin/flock"
+        printf '#!/bin/sh\ncase $CLAUDE_SESSIONS_OPEN in "$HOME"/.claude-1/open-sessions/?*) ;; *) exit ;; esac\n[ "$(cat "$HOME/lock/pid")" = $$ ] && printf "exec "\nflock -n "$CLAUDE_SESSIONS_OPEN" true || echo held\n' \
           > "$HOME/lock/bin/claude"
-        chmod +x "$HOME/lock/bin/claude"
+        chmod +x "$HOME/lock/bin/claude" "$HOME/lock/bin/flock"
         locked='. ${self}/.config/shell/functions/claude.bash
           __claude'
-        if [ "$(cd "$HOME/proj" && CLAUDE_SANDBOX=0 PATH=$HOME/lock/bin:${pkgs.lib.getBin pkgs.util-linux}/bin:${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$locked" 2>/dev/null)" = held ]; then
-          ok "a launch runs claude under a lock on a file of its own, which it names to claude"
+        if [ "$(cd "$HOME/proj" && CLAUDE_SANDBOX=0 PATH=$HOME/lock/bin:${pkgs.lib.getBin pkgs.util-linux}/bin:${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$locked" 2>/dev/null)" = "exec held" ]; then
+          ok "a launch runs claude in flock's place, under a lock on a file of its own, which it names to claude"
         else
-          fail "a launch does not run claude under a lock on a file it names to claude"
+          fail "a launch does not run claude in flock's place, under a lock on a file it names to claude"
         fi
 
         # The untracked-file preview hands git diff its path after --: git obeys
