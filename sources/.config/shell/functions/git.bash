@@ -628,7 +628,9 @@ __git_log() {
   # the whole subject from it) and the change. The delimiter's second half
   # (^ *[0-9]+ ) splits the number and its space off the row shown, so that
   # the search skips it (--nth=2..): in the row read, 0x1f follows the
-  # number, and it can't match there. fzf prints the hash of the row picked.
+  # number, and it can't match there. fzf prints the hash of the row
+  # picked. Both steps start with the search off, as alt-i leaves it
+  # (FZF_DEFAULT_OPTS): j/k, g/G and q act at once, and i turns the search on.
   local change='
     function pad(n,  p) {
       while (n-- > 0) p = p " "
@@ -667,6 +669,7 @@ __git_log() {
     END { put() }'
   local -a log_view=(
     --ansi --delimiter=$'\x1f|^ *[0-9]+ ' '--with-nth={1} {6}{3}{4}{2}' --nth=2.. --accept-nth=3
+    --bind 'start:+trigger(alt-i)'
   )
   local count commit
   count=$(git rev-list --count HEAD 2>/dev/null)
@@ -700,11 +703,12 @@ __git_log() {
   # Enter and the mouse's clicks act on a match only (Enter on the marks too).
   # fzf counts every row, so the info line counts the files instead: matches
   # over TREE_FILES, the commit's files. fzf prints the picked rows' indices,
-  # which tree-quote turns back into paths.
+  # which tree-quote turns back into paths. alt-i turns the search off before
+  # search(!/$), as turning it off after cancels that search.
   local accept='[ "$FZF_RAW" = 1 ] || [ "$FZF_SELECT_COUNT" != 0 ] && echo accept'
   local -a tree_view=(
     --ansi --raw --gutter-raw=' ' --delimiter=$'\x1f' --with-nth='{1}' --accept-nth='{n}'
-    --bind 'start:+search(!/$),change:transform-search:printf "%s !/$" "$FZF_QUERY"'
+    --bind 'start:+trigger(alt-i)+search(!/$),change:transform-search:printf "%s !/$" "$FZF_QUERY"'
     --bind 'result:best,up:up-match,down:down-match,btab:deselect+up-match'
     --bind 'j:trigger(f12)+down-match,k:trigger(f11)+up-match'
     --bind 'f12:down-match+down-match+down-match+down-match,f11:up-match+up-match+up-match+up-match'
