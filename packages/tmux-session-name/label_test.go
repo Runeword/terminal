@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -386,41 +388,160 @@ func TestAnswer(t *testing.T) {
 }
 
 // TestRunModel runs runModel against a stand-in llama-completion that records
-// its arguments, as the real one would get them.
+// its arguments, as the real one would get them, and makes the prompt cache
+// that --prompt-cache names when it isn't there yet.
 func TestRunModel(t *testing.T) {
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "llama-completion")
-	argsFile := filepath.Join(dir, "args")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + argsFile + "\n" +
+	argsFile, makeFile := filepath.Join(dir, "args"), filepath.Join(dir, "make")
+	script := "#!/bin/sh\n" +
+		"for a in \"$@\"; do\n" +
+		"  [ \"$p\" = --prompt-cache ] && [ ! -e \"$a\" ] && { printf '%s\\n' \"$@\" > " + makeFile + "; : > \"$a\"; exit 0; }\n" +
+		"  p=$a\n" +
+		"done\n" +
+		"printf '%s\\n' \"$@\" > " + argsFile + "\n" +
 		"[ \"$2\" = fail.gguf ] && { echo 'loading model' >&2; echo 'error: failed to load model' >&2; exit 1; }\n" +
 		"echo 'login-form-fix [end of text]'\n"
 	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	got, err := runModel(bin, "model.gguf")(query{system: systemPrompt, lines: "3 node front feat/login\n", grammar: labelGrammar})
+	readArgs := func(path string) []string {
+		t.Helper()
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.Split(strings.TrimSuffix(string(b), "\n"), "\n")
+	}
+	hasPair := func(args []string, flag, value string) bool {
+		i := slices.Index(args, flag)
+		return i >= 0 && i+1 < len(args) && args[i+1] == value
+	}
+	cacheDir := filepath.Join(dir, "cache")
+	q := query{system: systemPrompt, lines: "3 node front feat/login\n", grammar: labelGrammar, cache: "label"}
+	got, err := runModel(bin, "model.gguf", cacheDir)(q)
 	if err != nil || got != "login-form-fix" {
 		t.Fatalf("runModel = %q, %v, want login-form-fix", got, err)
 	}
-	b, err := os.ReadFile(argsFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	args := strings.Split(strings.TrimSuffix(string(b), "\n"), "\n")
-	for _, pair := range [][2]string{{"-m", "model.gguf"}, {"--grammar", labelGrammar}, {"--temp", "0"}} {
-		if i := slices.Index(args, pair[0]); i < 0 || i+1 >= len(args) || args[i+1] != pair[1] {
+	args := readArgs(argsFile)
+	cache := filepath.Join(cacheDir, cacheFile("label", bin+"\nmodel.gguf\n"+promptPrefix(systemPrompt)))
+	for _, pair := range [][2]string{
+		{"-m", "model.gguf"},
+		{"--grammar", labelGrammar},
+		{"--temp", "0"},
+		{"-t", strconv.Itoa(min(runtime.NumCPU(), 4))},
+		{"-ub", "31"},
+		{"--prompt-cache", cache},
+	} {
+		if !hasPair(args, pair[0], pair[1]) {
 			t.Errorf("llama-completion args lack %s %s: %q", pair[0], pair[1], args)
 		}
 	}
-	if !slices.Contains(args, "-no-cnv") {
-		t.Errorf("llama-completion args lack -no-cnv: %q", args)
+	for _, f := range []string{"-no-cnv", "--prompt-cache-ro"} {
+		if !slices.Contains(args, f) {
+			t.Errorf("llama-completion args lack %s: %q", f, args)
+		}
 	}
 	if first, _, _ := strings.Cut(systemPrompt, "\n"); !slices.Contains(args, first) {
 		t.Errorf("llama-completion's prompt lacks the query's system message: %q", args)
 	}
-	if _, err := runModel(bin, "fail.gguf")(query{lines: "x\n"}); err == nil || !strings.Contains(err.Error(), "failed to load model") {
+	// The cache holds the system message alone, read up to the user turn.
+	made := readArgs(makeFile)
+	paneLine := func(s string) bool { return strings.Contains(s, "feat/login") }
+	if !hasPair(made, "-n", "1") || !slices.Contains(made, "<|im_start|>user") || slices.ContainsFunc(made, paneLine) {
+		t.Errorf("the prompt cache was made with %q, want the system message alone", made)
+	}
+	if _, err := os.Stat(cache); err != nil {
+		t.Errorf("no prompt cache: %v", err)
+	}
+	// The next call loads it without making it again.
+	if err := os.Remove(makeFile); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runModel(bin, "model.gguf", cacheDir)(q); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(makeFile); !errors.Is(err, os.ErrNotExist) {
+		t.Error("the second call made the prompt cache again")
+	}
+	// Without a cache directory, the call reads the whole prompt.
+	if _, err := runModel(bin, "model.gguf", "")(q); err != nil {
+		t.Fatal(err)
+	}
+	if args := readArgs(argsFile); slices.Contains(args, "--prompt-cache") {
+		t.Errorf("a call without a cache directory got %q", args)
+	}
+	if _, err := runModel(bin, "fail.gguf", "")(query{lines: "x\n"}); err == nil || !strings.Contains(err.Error(), "failed to load model") {
 		t.Errorf("a failing run gives error %v, want stderr's last line", err)
 	}
-	if _, err := runModel(bin, "")(query{lines: "x\n"}); err == nil {
+	if _, err := runModel(bin, "", "")(query{lines: "x\n"}); err == nil {
 		t.Error("no model built in gives no error")
+	}
+}
+
+func TestPromptCache(t *testing.T) {
+	const key = "llama\nmodel\nprefix"
+	current, older, window := cacheFile("label", key), cacheFile("label", "older llama"), cacheFile("window", key)
+	write := func(path string) error { return os.WriteFile(path, []byte("state"), 0o600) }
+	for _, tc := range []struct {
+		name   string
+		before []string // files in the cache directory
+		build  func(path string) error
+		built  bool // whether build runs
+		ok     bool // whether a cache comes back
+		after  []string
+	}{
+		{"made on first use", nil, write, true, true, []string{current}},
+		{"used when there", []string{current}, write, false, true, []string{current}},
+		{
+			"replaces the older one",
+			[]string{older, older + ".7.tmp", window},
+			write, true, true,
+			[]string{current, window},
+		},
+		{
+			"left out when making it fails",
+			nil, func(path string) error { _ = write(path); return errors.New("killed") }, true, false, nil,
+		},
+		{"left out when nothing was made", nil, func(string) error { return nil }, true, false, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "cache")
+			for _, f := range tc.before {
+				if err := os.MkdirAll(dir, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := write(filepath.Join(dir, f)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			built := false
+			got := promptCache(dir, "label", key, func(path string) error {
+				built = true
+				return tc.build(path)
+			})
+			if built != tc.built {
+				t.Errorf("build ran: %v, want %v", built, tc.built)
+			}
+			if want := filepath.Join(dir, current); (got != "") != tc.ok || (tc.ok && got != want) {
+				t.Errorf("promptCache = %q, want a cache: %v (%s)", got, tc.ok, want)
+			}
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var after []string
+			for _, e := range entries {
+				after = append(after, e.Name())
+			}
+			want := slices.Clone(tc.after)
+			slices.Sort(want)
+			if !slices.Equal(after, want) {
+				t.Errorf("cache directory holds %q, want %q", after, want)
+			}
+		})
+	}
+	if got := promptCache("", "label", key, func(string) error { return nil }); got != "" {
+		t.Errorf("promptCache without a directory = %q, want none", got)
 	}
 }
