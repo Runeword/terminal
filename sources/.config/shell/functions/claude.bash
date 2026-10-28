@@ -464,7 +464,8 @@ __claude_review() (
     git rev-parse --verify --quiet '@{upstream}' >/dev/null && review_rev='@{upstream}'
   fi
   review_dir=$(mktemp -d) || exit 1
-  trap 'rm -f -- "$review_dir/changes.diff"; rmdir -- "$review_dir"' EXIT
+  # command: aliases.sh makes rmdir --verbose, which an alias would print here.
+  trap 'rm -f -- "$review_dir/changes.diff"; command rmdir -- "$review_dir"' EXIT
   git diff --no-ext-diff --no-textconv "$review_rev" >"$review_dir/changes.diff" || exit 1
   if [ ! -s "$review_dir/changes.diff" ]; then
     echo "claude: nothing to review against $review_rev" >&2
@@ -481,6 +482,68 @@ __claude_review() (
   TMUX='' ANTHROPIC_API_KEY=$review_key CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
     __claude -p --bare --tools Read --setting-sources user --strict-mcp-config \
     --add-dir "$review_dir" --max-budget-usd 5 "/review $review_level $review_dir/changes.diff"
+)
+
+# /code-review in the microVM, paid by the same API credits as __claude_review:
+# __claude_vm_review [/code-review arguments], such as a level, a branch, a path
+# or --max-findings. Claude has Bash there, so /code-review runs git, searches
+# and tests itself, as in any session: the VM is the boundary, not the tools.
+# - The key stays on the host. claude-vm's relay adds the Console key
+#   (CLAUDE_VM_CREDENTIAL_PASS, claude/anthropic-api-key) to each API request,
+#   and the guest holds a placeholder. claude -p is the Agent SDK's CLI, which
+#   the credits cover.
+# - The VM gets a throwaway clone, since it shares its cwd read-write: your
+#   commits, your upstream's commit as the clone's upstream, and your
+#   uncommitted changes to tracked files (git add -N brings a new file in). Not
+#   hardlinked, so the guest can't rewrite your objects, and under
+#   $XDG_CACHE_HOME, which sandboxed sessions can't write as they can /tmp: git
+#   runs on the clone here.
+# - PERMEANCE_TREE is the bundle and PERMEANCE_ROOT unset, so the live tree,
+#   which claude-vm would share read-write, stays out, and so does any other
+#   credential (the CLAUDE_SANDBOX_ALLOW_* opt-ins).
+# - --fix, --comment and ultra are refused: the clone is thrown away, the VM has
+#   no GitHub token, and ultra needs your claude.ai login. A PR number fails the
+#   same way, in /code-review.
+# --max-budget-usd stops claude at $5, but the guest can spend the key through
+# the relay while the session lasts: the workspace's spend limit is the cap.
+# TMUX='' keeps it in this pane, as in __claude_review.
+__claude_vm_review() (
+  for review_arg; do
+    case "$review_arg" in
+      --fix | --comment | ultra)
+        echo "claude: __claude_vm_review reviews a throwaway clone, with no GitHub token or claude.ai login, so it can't take $review_arg" >&2
+        exit 2
+        ;;
+    esac
+  done
+  review_top=$(git rev-parse --show-toplevel) || exit 1
+  review_cache=${XDG_CACHE_HOME:-$HOME/.cache}
+  command mkdir -p -- "$review_cache" || exit 1
+  review_dir=$(mktemp -d "$review_cache/claude-review.XXXXXX") || exit 1
+  # chmod first, since the guest can leave a directory unwritable.
+  trap 'command chmod -R u+w -- "$review_dir" 2>/dev/null; command rm -rf -- "$review_dir"' EXIT
+  review_clone=$review_dir/${review_top##*/}
+  git clone --quiet --no-hardlinks -- "$review_top" "$review_clone" || exit 1
+  # The clone's branch tracks origin/<branch>, which the clone made from your
+  # branch itself: point it at your upstream's commit, or drop it with none.
+  if review_branch=$(git -C "$review_top" symbolic-ref --quiet --short HEAD); then
+    if review_up=$(git -C "$review_top" rev-parse --verify --quiet '@{upstream}'); then
+      git -C "$review_clone" update-ref "refs/remotes/origin/$review_branch" "$review_up" || exit 1
+    else
+      git -C "$review_clone" branch --unset-upstream || exit 1
+    fi
+  fi
+  # --default-prefix: git apply wants a/ and b/, whatever diff.mnemonicPrefix says.
+  git -C "$review_top" diff --no-ext-diff --no-textconv --binary --default-prefix HEAD >"$review_dir/changes.diff" || exit 1
+  if [ -s "$review_dir/changes.diff" ]; then
+    git -C "$review_clone" apply --index --whitespace=nowarn "$review_dir/changes.diff" || exit 1
+  fi
+  builtin cd "$review_clone" || exit 1
+  unset PERMEANCE_ROOT
+  TMUX='' CLAUDE_VM_CREDENTIAL_PASS=claude/anthropic-api-key CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
+    PERMEANCE_TREE=$NIX_OUT_SHELL \
+    CLAUDE_SANDBOX_ALLOW_FIREBASE=0 CLAUDE_SANDBOX_ALLOW_JIRA=0 CLAUDE_SANDBOX_ALLOW_GH=0 \
+    __claude_vm -p --allowedTools Bash --no-session-persistence --max-budget-usd 5 "/code-review $*"
 )
 
 __claude_plugins() {
