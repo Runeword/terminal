@@ -110,6 +110,29 @@ func TestRowsOrder(t *testing.T) {
 	}
 }
 
+func TestRowsLongLine(t *testing.T) {
+	defer func(n int) { lineMax = n }(lineMax)
+	lineMax = 16 // "a\x001:" and 12 bytes of code
+	tests := []struct {
+		name, in, want string
+	}{
+		{"a match in the head is listed, cut there", "a\x001:foo 456789abcdef\n", header("a", "1") + match("a", "1", hl+"foo"+rs+" 456789ab")},
+		{"a match past the head is not", "a\x001:0123456789ab foo\n", ""},
+		{"a character the cut splits goes", "a\x001:foo 4567891中\n", header("a", "1") + match("a", "1", hl+"foo"+rs+" 4567891")},
+		{
+			"a line longer than the read buffer is skipped to its end",
+			"a\x001:" + strings.Repeat("x", 70<<10) + "foo\nb\x002:foo\n", header("b", "2") + match("b", "2", hl+"foo"+rs),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := runRows(t, "'foo", tt.in); got != tt.want {
+				t.Errorf("rows(%q)\n got %q\nwant %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMark(t *testing.T) {
 	tests := []struct {
 		name, query, in, want string
