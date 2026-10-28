@@ -631,6 +631,9 @@ __git_log() {
   # number, and it can't match there. fzf prints the hash of the row
   # picked. Both steps start with the search off, as alt-i leaves it
   # (FZF_DEFAULT_OPTS): j/k, g/G and q act at once, and i turns the search on.
+  # Unlike the other pickers, neither step cycles: --no-cycle, after
+  # _GIT_FZF_BASE's --cycle, stops the cursor at either end of the list
+  # rather than wrap it around to the other.
   local change='
     function pad(n,  p) {
       while (n-- > 0) p = p " "
@@ -677,7 +680,7 @@ __git_log() {
     --date=format-local:'%y-%m-%d %H:%M' \
     --format="%x1e%an, %ad%x1f%h%x1f %<|($((COLUMNS - 7 - ${#count})),trunc)%s %x1f%h %s%x1f%at%x1f%ar" |
     awk -v w="${#count}" -v now="$(date +%s)" "$change" |
-    fzf "${_GIT_FZF_BASE[@]}" "${inline[@]}" "${preview[@]}" "${log_view[@]}")
+    fzf "${_GIT_FZF_BASE[@]}" --no-cycle "${inline[@]}" "${preview[@]}" "${log_view[@]}")
 
   [ "$commit" = "" ] && return
 
@@ -723,7 +726,7 @@ __git_log() {
   files=$(($(git-hunk-pick paths commit "$commit" </dev/null | tr -cd '\000' | wc -c)))
   local args
   args=$(git-hunk-pick tree commit "$commit" </dev/null |
-    TREE_FILES=$files fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "${inline[@]}" "${tree_view[@]}" "${file_preview[@]}" |
+    TREE_FILES=$files fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" --no-cycle "${inline[@]}" "${tree_view[@]}" "${file_preview[@]}" |
     git-hunk-pick tree-quote commit "$commit" "$repo_cdup")
   [ "$args" != "" ] && echo "$EDITOR -- $args"
 }
