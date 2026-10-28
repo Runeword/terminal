@@ -248,10 +248,10 @@ let
           *) fail "status-left is not the number-sorted unroll: '$sl'" ;;
         esac
 
-        # A session label's range stops after its first space (tmux ends a range a
-        # cell late, so one over both spaces took the next label's first cell), and
-        # a click or a drag along the bar goes by the range under the pointer, not
-        # by mouse_x, which counts from a pane.
+        # A session label's range stops after its first space (tmux 3.7c ended a
+        # range a cell late, so one over both spaces took the next label's first
+        # cell), and a click or a drag along the bar goes by the range under the
+        # pointer, not by mouse_x, which counts from a pane.
         slabel="$sl $(binding root MouseDown1Status) $(binding root MouseDrag1Status)"
         case "$slabel" in
           *"#{session_name}#{E:@claude_idle_session} #[norange] "*"session}\" { switch-client -t = ;"*"#{!=:#{session_name},#{client_session}}"*) ok "a click or drag on a session label resolves the label under the pointer" ;;
@@ -277,12 +277,12 @@ let
         esac
 
         # A window whose Claude waits for you, its title "✳ <topic>" rather
-        # than a ◐/◑ spinner, gets a ● after its name, and its session one
+        # than a ◐/◑ spinner, gets a * after its name, and its session one
         # after its number, though the window isn't the session's current
         # one; another program's ✳ title doesn't count. The stand-in claude is
         # sh run as claude (pane_current_command is the argv[0] of the pane's
         # foreground process), which signals once it runs. -u: the build has
-        # no UTF-8 locale, and tmux would print the ● as _.
+        # no UTF-8 locale, and tmux would print a non-ASCII mark as _.
         idle=$(
           PATH=${self}/bin:$PATH
           tmux start-server \; set -g default-shell "$(command -v sh)" \; \
@@ -299,10 +299,10 @@ let
           tmux kill-server
         ) || true
         idle=$(printf '%s\n' "$idle" | sed 's/#\[[^]]*\]//g' | tr '\n' ';' | tr -s ' ')
-        if [ "$idle" = "2 b ●|2 b ●|1 ● 2 ;2 b|2 b|1 2 ;1 a;" ]; then
-          ok "a window whose Claude waits for you gets a ● after its name, and its session after its number"
+        if [ "$idle" = "2 b*|2 b*|1* 2 ;2 b|2 b|1 2 ;1 a;" ]; then
+          ok "a window whose Claude waits for you gets a * after its name, and its session after its number"
         else
-          fail "window 2 of session 1, with an idle then a busy claude, and the bar's sessions, then window 1 with a ✳ title, are '$idle', expected '2 b ●|2 b ●|1 ● 2 ;2 b|2 b|1 2 ;1 a;'"
+          fail "window 2 of session 1, with an idle then a busy claude, and the bar's sessions, then window 1 with a ✳ title, are '$idle', expected '2 b*|2 b*|1* 2 ;2 b|2 b|1 2 ;1 a;'"
         fi
 
         # Programs inside tmux can neither set nor read the clipboard through it,
