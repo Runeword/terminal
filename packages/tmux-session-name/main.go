@@ -28,7 +28,9 @@
 // exit over the pane.
 //
 // Each label or name is one llama-completion process, so the model takes
-// memory (about 2 GB) only for the few seconds it runs, one call at a time. A
+// memory (about 2 GB) only for the few seconds it runs, one call at a time.
+// The call loads a prompt cache of its system message, which the first call
+// makes under the user's cache directory, and reads only the pane lines. A
 // GBNF grammar holds its answer to the label's or the name's shape, and
 // sanitize or word checks it again before tmux sees it.
 package main
@@ -36,6 +38,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -131,9 +135,10 @@ func parseWindows(out string) []windowState {
 }
 
 // query is one question for the model: its system message, the pane lines it
-// is about, and the GBNF grammar that holds the answer to its shape.
+// is about, the GBNF grammar that holds the answer to its shape, and the name
+// of the prompt cache that holds the system message.
 type query struct {
-	system, lines, grammar string
+	system, lines, grammar, cache string
 }
 
 // deps are run's effects, replaced in tests.
@@ -200,7 +205,7 @@ func labelSession(id string, force bool, st state, panes []pane, d deps) error {
 		return nil
 	}
 	at := d.now.Unix()
-	reply, err := d.ask(query{system: systemPrompt, lines: prompt(panes), grammar: labelGrammar})
+	reply, err := d.ask(query{system: systemPrompt, lines: prompt(panes), grammar: labelGrammar, cache: "label"})
 	label := sanitize(reply)
 	if err == nil && label == "" {
 		err = fmt.Errorf("no label in the answer %q", reply)
@@ -257,7 +262,7 @@ func nameWindow(w windowState, panes []pane, d deps) error {
 		return nil
 	}
 	at := d.now.Unix()
-	reply, err := d.ask(query{system: windowSystemPrompt, lines: windowLines(panes), grammar: wordGrammar})
+	reply, err := d.ask(query{system: windowSystemPrompt, lines: windowLines(panes), grammar: wordGrammar, cache: "window"})
 	name := word(reply)
 	if err == nil && name == "" {
 		err = fmt.Errorf("no word in the answer %q", reply)
@@ -354,32 +359,105 @@ func runTmux(args ...string) (string, error) {
 
 // runModel asks the local model a query: one llama-completion run of model on
 // the ChatML prompt, greedy (the same panes always get the same answer), its
-// answer held to the query's grammar, on every core. llama.cpp logs to
-// stderr, whose last line says why a run failed.
-func runModel(bin, model string) func(query) (string, error) {
+// answer held to the query's grammar. It starts from the prompt cache of the
+// query's system message in cacheDir, so it reads only the pane lines, a few
+// dozen tokens, which 4 threads read as fast as 16 for half the CPU time. It
+// keeps each batch under 32 tokens: from 32 on, llama.cpp hands a batch to
+// the BLAS library nixpkgs builds it with, which takes several times the CPU
+// time of llama.cpp's own code for this model.
+func runModel(bin, model, cacheDir string) func(query) (string, error) {
 	return func(q query) (string, error) {
 		if model == "" {
 			return "", errors.New("no model was built in")
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), modelTimeout)
-		defer cancel()
-		cmd := exec.CommandContext(ctx, bin,
+		threads := strconv.Itoa(min(runtime.NumCPU(), 4))
+		prefix := promptPrefix(q.system)
+		cache := promptCache(cacheDir, q.cache, bin+"\n"+model+"\n"+prefix, func(path string) error {
+			// In one batch, not in batches of 31 like the calls: a cache
+			// made this way kept the names of 24 of the 26 tuning samples,
+			// against 22 (measured 2026-10-28). llama-completion saves the
+			// cache when it samples its first token.
+			_, err := llama(bin, "-m", model, "-no-cnv", "-p", prefix, "-n", "1", "--temp", "0",
+				"-c", "1024", "-t", threads, "--no-display-prompt", "--no-warmup", "--prompt-cache", path)
+			return err
+		})
+		args := []string{
 			"-m", model, "-no-cnv", "-p", chatPrompt(q.system, q.lines),
 			"--grammar", q.grammar, "-n", "12", "--temp", "0",
-			"-c", "1024", "-t", strconv.Itoa(runtime.NumCPU()),
-			"--no-display-prompt", "--no-warmup")
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-		out, err := cmd.Output()
+			"-c", "1024", "-t", threads, "-ub", "31",
+			"--no-display-prompt", "--no-warmup",
+		}
+		if cache != "" {
+			args = append(args, "--prompt-cache", cache, "--prompt-cache-ro")
+		}
+		out, err := llama(bin, args...)
 		if err != nil {
-			lines := strings.Split(strings.TrimSpace(stderr.String()), "\n")
-			if last := strings.TrimSpace(lines[len(lines)-1]); last != "" {
-				return "", fmt.Errorf("%w: %s", err, last)
-			}
 			return "", err
 		}
-		return answer(string(out)), nil
+		return answer(out), nil
 	}
+}
+
+// llama runs llama-completion bin with args and returns what it printed.
+// llama.cpp logs to stderr, whose last line says why a run failed.
+func llama(bin string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), modelTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, bin, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err == nil {
+		return string(out), nil
+	}
+	lines := strings.Split(strings.TrimSpace(stderr.String()), "\n")
+	if last := strings.TrimSpace(lines[len(lines)-1]); last != "" {
+		return "", fmt.Errorf("%w: %s", err, last)
+	}
+	return "", err
+}
+
+// cacheFile is the file name of the prompt cache called name whose content
+// depends on key.
+func cacheFile(name, key string) string {
+	sum := sha256.Sum256([]byte(key))
+	return name + "-" + hex.EncodeToString(sum[:8]) + ".cache"
+}
+
+// promptCache returns the path of the prompt cache called name in dir, made
+// with build first if it isn't there. key is everything its content depends
+// on (llama.cpp, the model and the system message), and its file name holds
+// key's hash, so an upgrade or a new prompt makes a new cache, which replaces
+// the old one. It returns "" when the cache can't be made: the call then reads
+// the whole prompt.
+func promptCache(dir, name, key string, build func(path string) error) string {
+	if dir == "" {
+		return ""
+	}
+	path := filepath.Join(dir, cacheFile(name, key))
+	if _, err := os.Stat(path); err == nil {
+		return path
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return ""
+	}
+	// Made under a name of its own and renamed into place: no call loads a
+	// half-written cache, and two runs making it at once don't mix.
+	tmp := fmt.Sprintf("%s.%d.tmp", path, os.Getpid())
+	defer func() { _ = os.Remove(tmp) }()
+	if err := build(tmp); err != nil {
+		return ""
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return ""
+	}
+	old, _ := filepath.Glob(filepath.Join(dir, name+"-*"))
+	for _, f := range old {
+		if f != path {
+			_ = os.Remove(f)
+		}
+	}
+	return path
 }
 
 // lockSession takes an exclusive, non-blocking flock on the session's lock
@@ -406,10 +484,14 @@ func main() {
 	if flag.NArg() != 1 || !sessionID.MatchString(id) {
 		return
 	}
-	// A background job: let the model's few seconds of every core yield to
-	// what the user is doing. llama-completion inherits the niceness.
+	// A background job: let the model's few seconds of CPU yield to what the
+	// user is doing. llama-completion inherits the niceness.
 	_ = syscall.Setpriority(syscall.PRIO_PROCESS, 0, 10)
 	home, _ := os.UserHomeDir()
+	cacheDir := ""
+	if base, err := os.UserCacheDir(); err == nil {
+		cacheDir = filepath.Join(base, "tmux-session-name")
+	}
 	runDir := os.Getenv("XDG_RUNTIME_DIR")
 	if runDir == "" {
 		runDir = os.TempDir()
@@ -420,7 +502,7 @@ func main() {
 	}
 	d := deps{
 		tmux:   runTmux,
-		ask:    runModel(llamaCompletion, modelPath),
+		ask:    runModel(llamaCompletion, modelPath, cacheDir),
 		branch: gitBranch,
 		lock:   lockSession(dir),
 		now:    time.Now(),
