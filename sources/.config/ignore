@@ -1,17 +1,13 @@
-# Shared ignore patterns for fd and ripgrep
+# Shared ignore patterns for fd and ripgrep. A pattern holding a slash is
+# anchored at the search's working directory, wherever that is, so $HOME's own
+# trees are listed in shell/scripts/fm_home.ignore instead, which the pickers
+# add in $HOME only.
 
 .git
 flake-inputs
 .nix-defexpr
 .nix-profile
-/.config/figma-linux/Cache
-/.config/Slack/Cache
-/.config/Slack/Service Worker
-/.config/google-chrome
-/.local/share/containers/storage/overlay
-/go/pkg
 .cache
 .tldrc
 node_modules
-/.local
 .direnv
