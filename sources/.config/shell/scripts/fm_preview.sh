@@ -134,19 +134,21 @@ else
   # line-range flag, so it gets the slice as a file that keeps the original
   # basename, in a temp dir, so language detection -- by extension OR full name
   # (Makefile, go.mod, .zshrc) -- still fires. It runs from that dir, as it also
-  # loads a grammar it finds in its working directory. Empty output => no grammar
-  # for this file type; fall back to bat below. fzf SIGKILLs a preview it no
-  # longer shows, so the rm below may never run: the temp dir goes in the
-  # per-session dir the caller removes after fzf ($FM_SESSION_DIR), else in the
-  # per-user runtime dir (the claude sandbox shares /tmp, while it has a private
-  # $XDG_RUNTIME_DIR).
+  # loads a grammar it finds in its working directory, and the slice sits one
+  # level down: a previewed tree-sitter.json in the working directory would be
+  # read as a grammar's, whose paths tree-sitter compiles and loads. Empty
+  # output => no grammar for this file type; fall back to bat below. fzf
+  # SIGKILLs a preview it no longer shows, so the rm below may never run: the
+  # temp dir goes in the per-session dir the caller removes after fzf
+  # ($FM_SESSION_DIR), else in the per-user runtime dir (the claude sandbox
+  # shares /tmp, while it has a private $XDG_RUNTIME_DIR).
   base=${1##*/}
   ts_out=""
   if command -v tree-sitter >/dev/null 2>&1 &&
     tsdir=$(mktemp -d "${FM_SESSION_DIR:-${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}}/fm_ts.XXXXXX" 2>/dev/null); then
     scope=$(shebang_scope "$1")
-    slice "$1" >"$tsdir/$base"
-    ts_out=$(cd "$tsdir" && tree-sitter highlight -q ${scope:+--scope "$scope"} "./$base" 2>/dev/null)
+    mkdir "$tsdir/f" && slice "$1" >"$tsdir/f/$base" &&
+      ts_out=$(cd "$tsdir" && tree-sitter highlight -q ${scope:+--scope "$scope"} "f/$base" 2>/dev/null)
     rm -rf "$tsdir"
   fi
 
