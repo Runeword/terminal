@@ -28,7 +28,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "ripgrep";
-      description = "Verify ripgrep respects the bundled ignore file";
+      description = "Verify ripgrep respects the bundled ignore file, which hides no project's own go/pkg or .local";
       script = ''
         mkdir -p $TMPDIR/rg-test/node_modules
         echo "secret" > $TMPDIR/rg-test/node_modules/file.txt
@@ -48,6 +48,18 @@ let
           ok "visible files found"
         else
           fail "visible files not found"
+        fi
+
+        # rg anchors an --ignore-file's patterns at its working directory, so
+        # an anchored entry (one for $HOME's own trees) would hide a project's
+        # own go/pkg or .local wherever rg runs.
+        mkdir -p $TMPDIR/rg-proj/go/pkg $TMPDIR/rg-proj/.local
+        echo "x" > $TMPDIR/rg-proj/go/pkg/a.txt
+        echo "x" > $TMPDIR/rg-proj/.local/b.txt
+        if [ "$(cd $TMPDIR/rg-proj && ${self}/bin/rg --files --hidden 2>/dev/null | sort | tr '\n' ' ')" = ".local/b.txt go/pkg/a.txt " ]; then
+          ok "a project's own go/pkg and .local are searched"
+        else
+          fail "the bundled ignore file hides a project's own go/pkg or .local"
         fi
       '';
     };
