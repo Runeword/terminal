@@ -42,7 +42,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # No explicit -f — let the launcher's flags = [ "-f" "''${permeance.root}/.config/tmux/tmux.conf" ]
         # provide it, so the smoke exercises the launcher's flag routing. start-server
@@ -275,6 +275,33 @@ let
           *"session_name},10}"*"#{@label}"*"#I #{?@wlabel,#{@wlabel},#W}"*"#I #{?@wlabel,#{@wlabel},#W}"*"client-session-changed[0] run-shell"*tmux-session-name*"session-window-changed[0] run-shell"*tmux-session-name*"@label_pin"*"tmux-session-name -force"*) ok "the bar shows the session's AI label and the windows' AI names, refreshed on switches; M-N sets the label" ;;
           *) fail "status-left label / window formats / label hooks / M-N are '$label'" ;;
         esac
+
+        # A window whose Claude waits for you, its title "✳ <topic>" rather
+        # than a ◐/◑ spinner, gets a ● after its name; another program's ✳
+        # title doesn't count. The stand-in claude is sh run as claude
+        # (pane_current_command is the argv[0] of the pane's foreground
+        # process), which signals once it runs. -u: the build has no UTF-8
+        # locale, and tmux would print the ● as _.
+        idle=$(
+          PATH=${self}/bin:$PATH
+          tmux start-server \; set -g default-shell "$(command -v sh)" \; \
+            new-session -d -s t -n a "exec -a claude sh -c 'tmux wait-for -S up; sleep 60; :'" \; \
+            new-window -d -t =t: -n b sleep 60
+          timeout 10 tmux wait-for up
+          tmux select-pane -t =t:2 -T '✳ Docs'
+          for title in '✳ Docs' '◐ Docs'; do
+            tmux -u select-pane -t =t:1 -T "$title" \; \
+              display -p -t =t:1 '#{E:window-status-current-format}|#{E:window-status-format}'
+          done
+          tmux -u display -p -t =t:2 '#{E:window-status-format}'
+          tmux kill-server
+        ) || true
+        idle=$(printf '%s\n' "$idle" | sed 's/#\[[^]]*\]//g' | tr '\n' ' ')
+        if [ "$idle" = "1 a ●|1 a ● 1 a|1 a 2 b " ]; then
+          ok "a window whose Claude waits for you gets a ● after its name"
+        else
+          fail "windows with an idle, then a busy claude in 1 and a ✳ title in 2 are '$idle', expected '1 a ●|1 a ● 1 a|1 a 2 b '"
+        fi
 
         # Programs inside tmux can neither set nor read the clipboard through it,
         # and messages still clear the status line they are drawn over (tmux 3.7+).
