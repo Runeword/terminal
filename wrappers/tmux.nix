@@ -42,7 +42,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # No explicit -f — let the launcher's flags = [ "-f" "''${permeance.root}/.config/tmux/tmux.conf" ]
         # provide it, so the smoke exercises the launcher's flag routing. start-server
@@ -254,7 +254,7 @@ let
         # by mouse_x, which counts from a pane.
         slabel="$sl $(binding root MouseDown1Status) $(binding root MouseDrag1Status)"
         case "$slabel" in
-          *"#{session_name} #[norange] "*"session}\" { switch-client -t = ;"*"#{!=:#{session_name},#{client_session}}"*) ok "a click or drag on a session label resolves the label under the pointer" ;;
+          *"#{session_name}#{E:@claude_idle_session} #[norange] "*"session}\" { switch-client -t = ;"*"#{!=:#{session_name},#{client_session}}"*) ok "a click or drag on a session label resolves the label under the pointer" ;;
           *) fail "session label ranges / MouseDown1Status / MouseDrag1Status are '$slabel'" ;;
         esac
 
@@ -277,30 +277,32 @@ let
         esac
 
         # A window whose Claude waits for you, its title "✳ <topic>" rather
-        # than a ◐/◑ spinner, gets a ● after its name; another program's ✳
-        # title doesn't count. The stand-in claude is sh run as claude
-        # (pane_current_command is the argv[0] of the pane's foreground
-        # process), which signals once it runs. -u: the build has no UTF-8
-        # locale, and tmux would print the ● as _.
+        # than a ◐/◑ spinner, gets a ● after its name, and its session one
+        # after its number, though the window isn't the session's current
+        # one; another program's ✳ title doesn't count. The stand-in claude is
+        # sh run as claude (pane_current_command is the argv[0] of the pane's
+        # foreground process), which signals once it runs. -u: the build has
+        # no UTF-8 locale, and tmux would print the ● as _.
         idle=$(
           PATH=${self}/bin:$PATH
           tmux start-server \; set -g default-shell "$(command -v sh)" \; \
-            new-session -d -s t -n a "exec -a claude sh -c 'tmux wait-for -S up; sleep 60; :'" \; \
-            new-window -d -t =t: -n b sleep 60
+            new-session -d -s 1 -n a sleep 60 \; \
+            new-window -d -t =1: -n b "exec -a claude sh -c 'tmux wait-for -S up; sleep 60; :'" \; \
+            new-session -d -s 2 sleep 60
           timeout 10 tmux wait-for up
-          tmux select-pane -t =t:2 -T '✳ Docs'
+          tmux select-pane -t =1:1 -T '✳ Docs'
           for title in '✳ Docs' '◐ Docs'; do
-            tmux -u select-pane -t =t:1 -T "$title" \; \
-              display -p -t =t:1 '#{E:window-status-current-format}|#{E:window-status-format}'
+            tmux -u select-pane -t =1:2 -T "$title" \; \
+              display -p -t =1:2 '#{E:window-status-current-format}|#{E:window-status-format}|#{E:status-left}'
           done
-          tmux -u display -p -t =t:2 '#{E:window-status-format}'
+          tmux -u display -p -t =1:1 '#{E:window-status-format}'
           tmux kill-server
         ) || true
-        idle=$(printf '%s\n' "$idle" | sed 's/#\[[^]]*\]//g' | tr '\n' ' ')
-        if [ "$idle" = "1 a ●|1 a ● 1 a|1 a 2 b " ]; then
-          ok "a window whose Claude waits for you gets a ● after its name"
+        idle=$(printf '%s\n' "$idle" | sed 's/#\[[^]]*\]//g' | tr '\n' ';' | tr -s ' ')
+        if [ "$idle" = "2 b ●|2 b ●|1 ● 2 ;2 b|2 b|1 2 ;1 a;" ]; then
+          ok "a window whose Claude waits for you gets a ● after its name, and its session after its number"
         else
-          fail "windows with an idle, then a busy claude in 1 and a ✳ title in 2 are '$idle', expected '1 a ●|1 a ● 1 a|1 a 2 b '"
+          fail "window 2 of session 1, with an idle then a busy claude, and the bar's sessions, then window 1 with a ✳ title, are '$idle', expected '2 b ●|2 b ●|1 ● 2 ;2 b|2 b|1 2 ;1 a;'"
         fi
 
         # Programs inside tmux can neither set nor read the clipboard through it,
