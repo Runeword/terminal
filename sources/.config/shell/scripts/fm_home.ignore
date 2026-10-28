@@ -1,0 +1,13 @@
+# $HOME's own big trees, skipped by the interactive pickers (fm_rg.sh and
+# __open_file in functions/fm.sh), which add this file only when they run in
+# $HOME: rg and fd anchor an --ignore-file's patterns at their working
+# directory, so in the shared .config/ignore these would hide a project's own
+# go/pkg or .local.
+
+/.config/figma-linux/Cache
+/.config/Slack/Cache
+/.config/Slack/Service Worker
+/.config/google-chrome
+/.local/share/containers/storage/overlay
+/go/pkg
+/.local
