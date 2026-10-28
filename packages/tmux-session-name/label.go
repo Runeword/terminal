@@ -184,9 +184,14 @@ func prompt(panes []pane) string {
 // the lines: no title can close the user turn and open one of its own.
 func chatPrompt(system, lines string) string {
 	lines = strings.ReplaceAll(strings.TrimSpace(lines), "<|", "< |")
-	return "<|im_start|>system\n" + system + "<|im_end|>\n" +
-		"<|im_start|>user\n" + lines + "<|im_end|>\n" +
+	return promptPrefix(system) + lines + "<|im_end|>\n" +
 		"<|im_start|>assistant\n<think>\n\n</think>\n\n"
+}
+
+// promptPrefix is what every chatPrompt with this system message starts with,
+// up to the pane lines: what the prompt cache holds.
+func promptPrefix(system string) string {
+	return "<|im_start|>system\n" + system + "<|im_end|>\n<|im_start|>user\n"
 }
 
 // answer is the label part of llama-completion's output, which ends with
