@@ -31,6 +31,12 @@ var (
 	flushEvery = 50 * time.Millisecond
 )
 
+// rows reads a record's first lineMax bytes only: a longer line (a minified
+// file's, a source map's) is matched and shown by its head, so it costs no
+// more than a short one, and a match past the head is not listed. A variable
+// for the tests.
+var lineMax = 64 << 10
+
 // rows turns `rg --null --line-number` output (PATH NUL LINE:CODE per match)
 // into fm_rg.sh's tab-delimited rows, keeping the lines that match the query:
 // a bold header row per file, then one indented "line:code" row per match with
@@ -102,8 +108,9 @@ loop:
 	return s.w.Flush()
 }
 
-// records reads r into batches of whole newline-terminated records, each
-// sent once 32 KiB are read or nothing more is buffered, then reports the
+// records reads r into batches of whole newline-terminated records, each cut
+// to its first lineMax bytes (less a character the cut splits), and sends a
+// batch once 32 KiB are read or nothing more is buffered, then reports the
 // read error (nil at EOF). It stops early when done is closed. The batches
 // are buffered so reading runs ahead of matching.
 func records(r io.Reader, done <-chan struct{}) (<-chan string, <-chan error) {
@@ -112,19 +119,35 @@ func records(r io.Reader, done <-chan struct{}) (<-chan string, <-chan error) {
 		defer close(batches)
 		br := bufio.NewReaderSize(r, 64<<10)
 		var batch []byte
+		start, cut := 0, false // where the record being read starts in batch; whether it was cut
 		for {
 			frag, err := br.ReadSlice('\n')
-			batch = append(batch, frag...)
+			nl := len(frag) > 0 && frag[len(frag)-1] == '\n'
+			if nl {
+				frag = frag[:len(frag)-1]
+			}
+			if !cut {
+				if room := lineMax - (len(batch) - start); len(frag) > room {
+					batch = append(batch, frag[:room]...)
+					batch, cut = batch[:start+whole(batch[start:])], true
+				} else {
+					batch = append(batch, frag...)
+				}
+			}
+			if nl {
+				batch = append(batch, '\n')
+			}
 			if err == bufio.ErrBufferFull {
 				continue // the rest of a long record follows
 			}
+			start, cut = len(batch), false
 			if len(batch) > 0 && (err != nil || len(batch) >= 32<<10 || br.Buffered() == 0) {
 				select {
 				case batches <- string(batch):
 				case <-done:
 					return
 				}
-				batch = batch[:0]
+				batch, start = batch[:0], 0
 			}
 			if err != nil {
 				if err == io.EOF {
@@ -136,6 +159,19 @@ func records(r io.Reader, done <-chan struct{}) (<-chan string, <-chan error) {
 		}
 	}()
 	return batches, errc
+}
+
+// whole returns the length of b less a character its end cuts short.
+func whole(b []byte) int {
+	for i := len(b) - 1; i >= 0 && i >= len(b)-utf8.UTFMax; i-- {
+		if utf8.RuneStart(b[i]) {
+			if utf8.FullRune(b[i:]) {
+				return len(b)
+			}
+			return i
+		}
+	}
+	return len(b)
 }
 
 // block is one file's rows, held back while sorting.
