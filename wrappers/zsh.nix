@@ -324,6 +324,23 @@ let
           *) fail "the review does not run claude Read-only, in this pane, with its key in the environment" ;;
         esac
 
+        # The review in the microVM (__claude_vm_review) hands /code-review its
+        # arguments and Bash, in this pane, through claude-vm with the Console
+        # key's pass entry, on a clone under the cache rather than the
+        # repository, and with the bundle rather than the live tree. A stand-in
+        # git makes the clone; the stand-in claude-vm above passes the gate.
+        vmreview='. ${self}/.config/shell/functions/claude.bash
+          git() { case $1 in rev-parse) pwd ;; clone) mkdir -p "''${@[-1]}" ;; esac; }
+          __claude_run() { printf "%s|%s|%s|%s|%s|%s\n" "$TMUX" "$CLAUDE_VM_CREDENTIAL_PASS" "''${PERMEANCE_ROOT-unset}" "$PERMEANCE_TREE" "$PWD" "$__CLAUDE_CMD"; }
+          export PERMEANCE_ROOT=/live
+          __claude_vm_review low src/'
+        case "$(TMUX=x XDG_CACHE_HOME=$HOME/cache PATH=$HOME/vm/bin:${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$vmreview")" in
+          "|claude/anthropic-api-key|unset|/nix/store/"*"|$HOME/cache/claude-review."*"/claude-vm claude "*" -p --allowedTools Bash --no-session-persistence --max-budget-usd 5 /code-review\ low\ src/ ")
+            ok "the microVM review runs /code-review with Bash on a clone, in this pane, with the Console key's entry and without the live tree"
+            ;;
+          *) fail "the microVM review does not run /code-review on a clone with the Console key's entry and without the live tree" ;;
+        esac
+
         # The session eraser (leader cx) hands every marked session to one
         # `claude-sessions rm -ask`, which asks about them all at once. A
         # stand-in fzf, given --multi, marks every row and presses enter: it
