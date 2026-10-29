@@ -5,8 +5,11 @@
 # attributes whose names start with `test` are picked up.
 {
   lib,
+  isLinux,
   wrappers,
   terminal,
+  tools,
+  claudeMicrovm,
   devShellHelpers,
 }:
 {
@@ -18,6 +21,13 @@
   # invariant above can't see it — assert its smoke test separately.
   testTerminalHasSmoke = {
     expr = terminal ? passthru.tests.smoke;
+    expected = true;
+  };
+  # claude-microvm's macOS claude-vm boots an aarch64-linux guest, which a Mac
+  # builds only through a Linux builder, and GitHub's macOS runners can't run
+  # one: outside Linux, the tools leave it out (packages/default.nix).
+  testClaudeVmOnLinuxOnly = {
+    expr = isLinux || !(lib.elem (claudeMicrovm.default or null) tools);
     expected = true;
   };
   # The `h` help print (devshells/default.nix) is generated from every owned
