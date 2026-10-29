@@ -157,12 +157,21 @@ __home_manager_generation_switch() {
   "${selected_generation}/activate"
 }
 
-# Interactively selects and remove one or more home manager generations
+# Interactively selects and remove one or more home manager generations. The
+# current one is left out of the list, as in __nixos_generation_remove:
+# home-manager refuses to remove it.
 __home_manager_generation_remove() {
-  local selected_generations
+  local generations hm_generations selected_generations
+  generations=$(home-manager generations) || return 1
+  hm_generations=$(echo "$generations" | grep -vF '(current)')
+
+  if [ -z "$hm_generations" ]; then
+    echo "Nothing to remove: the current generation is the only one"
+    return 1
+  fi
 
   selected_generations=$(
-    home-manager generations |
+    echo "$hm_generations" |
       fzf --multi --info=inline:'' --reverse --no-separator --prompt='  ' --border none --cycle --height 70% --header-first --bind='ctrl-a:select-all' --header="home-manager remove-generations" |
       awk '{print $5}'
   )
@@ -196,10 +205,18 @@ __nixos_generation_switch() {
   sudo /nix/var/nix/profiles/system-"$selected_generation"-link/bin/switch-to-configuration switch
 }
 
-# Interactively selects and remove one or more nixos generations
+# Interactively selects and remove one or more nixos generations. The current
+# one is left out of the list: nix-env refuses a list that names it and then
+# removes none of the others, so select-all would remove nothing.
 __nixos_generation_remove() {
-  local nixos_generations selected_generations
-  nixos_generations=$(sudo nix-env --list-generations --profile /nix/var/nix/profiles/system | sort -rn)
+  local generations nixos_generations selected_generations
+  generations=$(sudo nix-env --list-generations --profile /nix/var/nix/profiles/system) || return 1
+  nixos_generations=$(echo "$generations" | grep -vF '(current)' | sort -rn)
+
+  if [ -z "$nixos_generations" ]; then
+    echo "Nothing to remove: the current generation is the only one"
+    return 1
+  fi
 
   selected_generations=$(
     echo "$nixos_generations" |
