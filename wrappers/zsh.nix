@@ -46,7 +46,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, oa edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /experts command, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, oa edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /experts command, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -113,6 +113,37 @@ let
           ok "yp prints the current directory and copies it without a newline"
         else
           fail "yp does not print and copy the current directory as it is"
+        fi
+
+        # hgr leaves the current home-manager generation out of its list, as
+        # ngr does below: home-manager refuses to remove it. A stand-in fzf
+        # records the list.
+        hm_generations='. ${self}/.config/shell/functions/nix.sh
+          home-manager() { print -l "2026-01-02 00:00 : id 2 -> /nix/store/b (current)" "2026-01-01 00:00 : id 1 -> /nix/store/a"; }
+          fzf() { cat > "$HOME/offered-hm"; }
+          __home_manager_generation_remove'
+        if ${leaderAliases}/bin/leader-aliases ${self}/.config/shell/leader.conf \
+          | awk -F "$sep" '$1 ~ /^hgr +$/ && $5 == "__home_manager_generation_remove" && $6 == "run" { found = 1 } END { exit !found }' \
+          && { ${self}/bin/zsh -f -c "$hm_generations"; [ "$(awk '{ print $5 }' "$HOME/offered-hm")" = 1 ]; }; then
+          ok "hgr lists every home-manager generation but the current one"
+        else
+          fail "hgr lists the current home-manager generation, which home-manager refuses to remove"
+        fi
+
+        # ngr leaves the current NixOS generation out of its list: nix-env
+        # refuses a list that names it and removes none of the others, so
+        # select-all would remove nothing. A stand-in fzf records the list.
+        nixos_generations='. ${self}/.config/shell/functions/nix.sh
+          sudo() { "$@"; }
+          nix-env() { print -l " 1   2026-01-01 00:00:00   " " 2   2026-01-02 00:00:00   (current)"; }
+          fzf() { cat > "$HOME/offered"; }
+          __nixos_generation_remove'
+        if ${leaderAliases}/bin/leader-aliases ${self}/.config/shell/leader.conf \
+          | awk -F "$sep" '$1 ~ /^ngr +$/ && $5 == "__nixos_generation_remove" && $6 == "run" { found = 1 } END { exit !found }' \
+          && { ${self}/bin/zsh -f -c "$nixos_generations"; [ "$(awk '{ print $1 }' "$HOME/offered")" = 1 ]; }; then
+          ok "ngr lists every NixOS generation but the current one"
+        else
+          fail "ngr lists the current NixOS generation, which nix-env refuses to delete"
         fi
 
         # The picker renders the table once per shell and width: a second press
