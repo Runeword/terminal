@@ -44,25 +44,31 @@ let
       name = "tmux";
       description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
       script = ''
+        # Each $(…) below runs its tmux server in a socket directory of its
+        # own (fresh): kill-server returns before the server has exited, and a
+        # server on its way out drops the clients that reach it, so a server
+        # started on the same socket right after could lose its commands.
+        fresh() { TMUX_TMPDIR=$(mktemp -d) && export TMUX_TMPDIR; }
+
         # No explicit -f — let the launcher's flags = [ "-f" "''${permeance.root}/.config/tmux/tmux.conf" ]
         # provide it, so the smoke exercises the launcher's flag routing. start-server
         # exits 0 and prints nothing even when that load fails: tmux keeps its parse
         # and command errors until the next source-file prints them, so source
         # /dev/null.
-        if err=$(${self}/bin/tmux start-server \; source-file /dev/null \; kill-server 2>&1) && [ -z "$err" ]; then
+        if err=$(fresh; ${self}/bin/tmux start-server \; source-file /dev/null \; kill-server 2>&1) && [ -z "$err" ]; then
           ok "tmux.conf loads without errors (via launcher -f routing)"
         else
           fail "tmux.conf: ''${err:-tmux exited non-zero}"
         fi
 
-        tmux_shell=$(${self}/bin/tmux start-server \; show-option -gv default-shell \; kill-server 2>/dev/null)
+        tmux_shell=$(fresh; ${self}/bin/tmux start-server \; show-option -gv default-shell \; kill-server 2>/dev/null)
         if [ "$tmux_shell" = "${zsh}/bin/zsh" ]; then
           ok "default-shell is zsh wrapper"
         else
           fail "default-shell is '$tmux_shell', expected '${zsh}/bin/zsh'"
         fi
 
-        cap=$(${self}/bin/tmux start-server \; show-option -gqv @resurrect-capture-pane-contents \; kill-server 2>/dev/null)
+        cap=$(fresh; ${self}/bin/tmux start-server \; show-option -gqv @resurrect-capture-pane-contents \; kill-server 2>/dev/null)
         if [ "$cap" = "on" ]; then
           ok "resurrect pane-content capture enabled"
         else
@@ -81,7 +87,7 @@ let
         # window/pane table, so -gw (a plain -g comes back empty). Off: a pane
         # could otherwise pass an OSC 52 straight to the terminal and set the
         # clipboard, around set-clipboard external.
-        passthrough=$(${self}/bin/tmux start-server \; show-options -gwv allow-passthrough \; kill-server 2>/dev/null)
+        passthrough=$(fresh; ${self}/bin/tmux start-server \; show-options -gwv allow-passthrough \; kill-server 2>/dev/null)
         if [ "$passthrough" = "off" ]; then
           ok "panes can't pass escape sequences through to the terminal"
         else
@@ -92,6 +98,7 @@ let
         # list-keys that matches a single key shows it as a status message
         # instead of printing it.
         binding() {
+          fresh
           ${self}/bin/tmux start-server \; list-keys -T "$1" \; kill-server 2>/dev/null |
             while read -r _ _ _ key rest; do
               if [ "$key" = "$2" ]; then printf '%s\n' "$rest"; fi
@@ -147,7 +154,7 @@ let
         # Mouse handlers reset the drag flags only while one is set: setting any
         # option redraws every attached client in full, on every click.
         guarded='#{||:#{@wdrag},#{@sdrag}}" { set-option -g @wdrag 0'
-        keys=$(${self}/bin/tmux start-server \; list-keys -T root \; kill-server 2>/dev/null)
+        keys=$(fresh; ${self}/bin/tmux start-server \; list-keys -T root \; kill-server 2>/dev/null)
         case "''${keys//"$guarded"/}" in
           "$keys" | *"@wdrag 0"*) fail "a mouse handler resets the drag flags outside a drag" ;;
           *) ok "mouse handlers reset the drag flags only during a drag" ;;
@@ -169,6 +176,7 @@ let
         swap=$(binding root C-S-9)
         order=$(
           PATH=${self}/bin:$PATH
+          fresh
           tmux new-session -d -s t -n a sleep 60 \; \
             new-window -d -n b sleep 60 \; new-window -d -n c sleep 60
           printf '%s\n' "$swap" | sed 's/ \\; / ; /g' | tmux source-file -
@@ -190,11 +198,14 @@ let
         # M-t is pressed through an attached client's key table (send-keys -K,
         # which returns once the binding, run-shell included, has run), and the
         # pane of a second, config-less tmux server is the terminal that client
-        # needs (a client-attached hook signals it is attached). list-clients
-        # reads where the client is: display-message -c expands its format for
-        # the newest session. New windows run sh, so that is their name.
+        # needs (a client-attached hook signals it is attached; that pane
+        # inherits the fresh directory, so its attach finds the first server).
+        # list-clients reads where the client is: display-message -c expands
+        # its format for the newest session. New windows run sh, so that is
+        # their name.
         overflow=$(
           PATH=${self}/bin:$PATH
+          fresh
           mkdir "$HOME/C#S"
           tmux new-session -d -s 1 -n a -c "$HOME/C##S" sleep 60 \; \
             set -g default-shell "$(command -v sh)" \; set -g automatic-rename off \; \
@@ -233,7 +244,7 @@ let
 
         # Closing a session's last window moves its clients to the previous
         # session, the one left of it in the status bar, instead of detaching.
-        dod=$(${self}/bin/tmux start-server \; show -gv detach-on-destroy \; kill-server 2>/dev/null)
+        dod=$(fresh; ${self}/bin/tmux start-server \; show -gv detach-on-destroy \; kill-server 2>/dev/null)
         if [ "$dod" = "previous" ]; then
           ok "closing a session's last window focuses the previous session"
         else
@@ -242,7 +253,7 @@ let
 
         # Sessions render sorted by their number (not #{S:}'s creation order) so a
         # drag can reorder them; the sort is unrolled one filtered pass per number.
-        sl=$(${self}/bin/tmux start-server \; show -gv status-left \; kill-server 2>/dev/null)
+        sl=$(fresh; ${self}/bin/tmux start-server \; show -gv status-left \; kill-server 2>/dev/null)
         case "$sl" in
           *"session_name},1}"*"session_name},2}"*"session_name},3}"*) ok "status-left renders sessions sorted by number" ;;
           *) fail "status-left is not the number-sorted unroll: '$sl'" ;;
@@ -270,7 +281,7 @@ let
         # right after the session numbers, and each window's one-word AI name
         # in place of its program: switching sessions or windows runs the
         # labeller, and M-N pins a typed label or asks the model again.
-        label=$(${self}/bin/tmux start-server \; show -gv status-left \; show -gv window-status-current-format \; show -gv window-status-format \; show-hooks -g \; kill-server 2>/dev/null)$(binding root M-N)
+        label=$(fresh; ${self}/bin/tmux start-server \; show -gv status-left \; show -gv window-status-current-format \; show -gv window-status-format \; show-hooks -g \; kill-server 2>/dev/null)$(binding root M-N)
         case "$label" in
           *"session_name},10}"*"#{@label}"*"#I #{?@wlabel,#{@wlabel},#W}"*"#I #{?@wlabel,#{@wlabel},#W}"*"client-session-changed[0] run-shell"*tmux-session-name*"session-window-changed[0] run-shell"*tmux-session-name*"@label_pin"*"tmux-session-name -force"*) ok "the bar shows the session's AI label and the windows' AI names, refreshed on switches; M-N sets the label" ;;
           *) fail "status-left label / window formats / label hooks / M-N are '$label'" ;;
@@ -279,15 +290,20 @@ let
         # A window whose Claude waits for you, its title "✳ <topic>" rather
         # than a ◐/◑ spinner, gets a * after its name, and its session one
         # after its number, though the window isn't the session's current
-        # one; another program's ✳ title doesn't count. The stand-in claude is
-        # sh run as claude (pane_current_command is the argv[0] of the pane's
-        # foreground process), which signals once it runs. -u: the build has
-        # no UTF-8 locale, and tmux would print a non-ASCII mark as _.
+        # one; another program's ✳ title doesn't count. The stand-in claude
+        # runs as the real one does on both systems: nixpkgs' claude runs the
+        # file .claude-wrapped as claude, and tmux names a pane's program after
+        # its argv[0] on Linux but after the file run on macOS. So it is a copy
+        # of bash by that name, run as claude, which signals once it runs. -u:
+        # the build has no UTF-8 locale, and tmux would print a non-ASCII mark
+        # as _.
         idle=$(
           PATH=${self}/bin:$PATH
+          fresh
+          cp ${pkgs.bash}/bin/bash "$HOME/.claude-wrapped"
           tmux start-server \; set -g default-shell "$(command -v sh)" \; \
             new-session -d -s 1 -n a sleep 60 \; \
-            new-window -d -t =1: -n b "exec -a claude sh -c 'tmux wait-for -S up; sleep 60; :'" \; \
+            new-window -d -t =1: -n b "exec -a claude $HOME/.claude-wrapped -c 'tmux wait-for -S up; sleep 60; :'" \; \
             new-session -d -s 2 sleep 60
           timeout 10 tmux wait-for up
           tmux select-pane -t =1:1 -T '✳ Docs'
@@ -305,9 +321,20 @@ let
           fail "window 2 of session 1, with an idle then a busy claude, and the bar's sessions, then window 1 with a ✳ title, are '$idle', expected '2 b*|2 b*|1* 2 ;2 b|2 b|1 2 ;1 a;'"
         fi
 
+        # The stand-in titles its pane as the packaged claude does; check that
+        # it still does. Its title code declares the ◐/◑ spinner and then the ✳
+        # that @claude_idle matches, as \u escapes in the bundle, and the file
+        # is .claude-wrapped, the name tmux sees on macOS. A failure means a
+        # claude-code update changed one of them: see what claude writes now.
+        if grep -aqE '\["\\u25D0","\\u25D1"],[[:alnum:]_$]+="\\u2733"' ${pkgs.claude-code}/bin/.claude-wrapped; then
+          ok "the packaged claude, .claude-wrapped, still has the ◐/◑ title spinner and the ✳ the idle mark matches"
+        else
+          fail "${pkgs.claude-code}/bin/.claude-wrapped is missing, or no longer declares the title spinner \\u25D0/\\u25D1 followed by \\u2733: see what claude titles its pane now, and update @claude_idle"
+        fi
+
         # Programs inside tmux can neither set nor read the clipboard through it,
         # and messages still clear the status line they are drawn over (tmux 3.7+).
-        opts=$(${self}/bin/tmux start-server \; show -sv set-clipboard \; show -sv get-clipboard \; show -gv message-style \; kill-server 2>/dev/null)
+        opts=$(fresh; ${self}/bin/tmux start-server \; show -sv set-clipboard \; show -sv get-clipboard \; show -gv message-style \; kill-server 2>/dev/null)
         case "$opts" in
           external*off*fill=terminal*) ok "panes can't set or read the clipboard; messages clear the status line" ;;
           *) fail "set-clipboard / get-clipboard / message-style are '$opts'" ;;
@@ -315,7 +342,7 @@ let
 
         # tmux can't detect that Alacritty takes synchronized updates; without
         # them, the cursor blinks on every move in fzf.
-        features=$(${self}/bin/tmux start-server \; show -sv terminal-features \; kill-server 2>/dev/null)
+        features=$(fresh; ${self}/bin/tmux start-server \; show -sv terminal-features \; kill-server 2>/dev/null)
         case "$features" in
           *alacritty:sync*) ok "tmux synchronizes its redraws in Alacritty" ;;
           *) fail "terminal-features lacks alacritty:sync: '$features'" ;;
