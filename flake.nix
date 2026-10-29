@@ -32,7 +32,8 @@
       mkClaudeSandbox = pkgs: inputs.claude-sandbox.packages.${pkgs.stdenv.hostPlatform.system};
 
       # The microVM launcher the leader cv chord starts claude through, for
-      # pkgs' system: claude-microvm builds for x86_64-linux only.
+      # pkgs' system: claude-microvm builds for x86_64-linux and aarch64-darwin,
+      # and packages/default.nix takes it on Linux only.
       mkClaudeMicrovm = pkgs: inputs.claude-microvm.packages.${pkgs.stdenv.hostPlatform.system} or { };
 
       mkWrappers =
@@ -90,7 +91,9 @@
 
           unitTests = import ./lib/tests-unit.nix {
             inherit (pkgs) lib;
-            inherit wrappers terminal;
+            inherit (pkgs.stdenv.hostPlatform) isLinux;
+            inherit wrappers terminal tools;
+            claudeMicrovm = mkClaudeMicrovm pkgs;
             devShellHelpers = devShell.helpers;
           };
         in
