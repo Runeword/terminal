@@ -2,13 +2,6 @@
   "claudeMdExcludes": [
     "**/CLAUDE.local.md"
   ],
-  "permissions": {
-    "ask": [
-      "Bash(gh *)",
-      "Bash(curl *)",
-      "Bash(wget *)"
-    ]
-  },
   "hooks": {
     "SessionStart": [
       {
