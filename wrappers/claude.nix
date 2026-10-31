@@ -185,7 +185,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "claude";
-      description = "Verify claude binary executes, settings.json commands resolve and keep CLAUDE.local.md files out of context, the status line renders, comma looks packages up offline, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
+      description = "Verify claude binary executes, settings.json commands resolve, keep CLAUDE.local.md files out of context and keep the bypass-mode warning accepted, the status line renders, comma looks packages up offline, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
       script = ''
         # claude-code does not expose a config-loading probe that works in a
         # sandbox without auth/network. This only verifies the wrapper's binary
@@ -221,6 +221,16 @@ let
           ok "settings.json keeps CLAUDE.local.md files out of context"
         else
           fail "settings.json lets CLAUDE.local.md files into context"
+        fi
+
+        # Claude records the accepted bypass-mode warning in the profile's
+        # settings.json, which claude.bash re-provisions from this file at every
+        # launch: the acceptance has to live here, or the warning comes back on
+        # each start (the launcher passes --allow-dangerously-skip-permissions).
+        if ${pkgs.jq}/bin/jq -e '.skipDangerousModePermissionPrompt == true' "$settings" > /dev/null; then
+          ok "settings.json keeps the accepted bypass-mode warning"
+        else
+          fail "settings.json drops the accepted bypass-mode warning"
         fi
 
         # Run the status line the way Claude Code does (sh -c, claude's PATH) on
