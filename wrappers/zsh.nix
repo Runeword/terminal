@@ -366,7 +366,7 @@ let
           export PERMEANCE_ROOT=/live
           __claude_vm_review low src/'
         case "$(TMUX=x XDG_CACHE_HOME=$HOME/cache PATH=$HOME/vm/bin:${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$vmreview")" in
-          "|claude/anthropic-api-key|unset|/nix/store/"*"|$HOME/cache/claude-review."*"/claude-vm claude "*" -p --allowedTools Bash --no-session-persistence --max-budget-usd 5 /code-review\ low\ src/ ")
+          "|claude/anthropic-api-key|unset|/nix/store/"*"|$HOME/cache/claude-review."*"/claude-vm claude "*" -p --allowedTools Bash --no-session-persistence --max-budget-usd 5 /code-review\ low\ src/  --allow-dangerously-skip-permissions")
             ok "the microVM review runs /code-review with Bash on a clone, in this pane, with the Console key's entry and without the live tree"
             ;;
           *) fail "the microVM review does not run /code-review on a clone with the Console key's entry and without the live tree" ;;
@@ -397,7 +397,7 @@ let
           __claude_run() { printf "%s\n" "$__CLAUDE_CMD"; }
           __claude_sessions_fork'
         case "$(CLAUDE_SANDBOX=0 PATH=$HOME/sessions/bin:${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$fork")" in
-          *" --resume a --fork-session ") ok "the fork picker resumes the picked session as a fork" ;;
+          *" --resume a --fork-session  --allow-dangerously-skip-permissions") ok "the fork picker resumes the picked session as a fork" ;;
           *) fail "the fork picker does not fork the picked session" ;;
         esac
 
@@ -421,7 +421,7 @@ let
           __claude_sessions_backup
           TMUX=x __claude_sessions_restore'
         case "$(CLAUDE_SANDBOX=0 PATH=$HOME/restore/bin:${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$restore" | tr '\n' '#')" in
-          "backup#-d|-t|=work:|-c|$HOME/proj|CLAUDE_SANDBOX_ALLOW_GH=1 CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_SANDBOX_NET_ALLOW=x.example "*"/nix-lsp --plugin-dir "*"/figma-mcp "*" --resume a |#claude: resumed A in $HOME/proj#-d|-c|$HOME/proj2|CLAUDE_CODE_SYNTAX_HIGHLIGHT=false "*" claude  --allowedTools "*" --resume b |#claude: resumed B in $HOME/proj2#")
+          "backup#-d|-t|=work:|-c|$HOME/proj|CLAUDE_SANDBOX_ALLOW_GH=1 CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_SANDBOX_NET_ALLOW=x.example "*"/nix-lsp --plugin-dir "*"/figma-mcp "*" --resume a  --allow-dangerously-skip-permissions|#claude: resumed A in $HOME/proj#-d|-c|$HOME/proj2|CLAUDE_CODE_SYNTAX_HIGHLIGHT=false "*" claude  --allowedTools "*" --resume b  --allow-dangerously-skip-permissions|#claude: resumed B in $HOME/proj2#")
             ok "the session backup's restore resumes each picked session with its connections and plugins, in its directory and tmux session"
             ;;
           *) fail "the session backup's restore does not resume the picked sessions as they were started" ;;
