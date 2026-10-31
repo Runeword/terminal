@@ -42,7 +42,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # Each $(…) below runs its tmux server in a socket directory of its
         # own (fresh): kill-server returns before the server has exited, and a
@@ -111,37 +111,76 @@ let
           *) fail "copy-mode-vi y is '$yank', expected copy-selection" ;;
         esac
 
-        # Dragging a window's status-bar name reorders it. swap-window's -t= can't
-        # resolve the window under the pointer, so the swap is routed through the
-        # marked window: MouseDown marks the grabbed window (select-pane -m) and each
-        # MouseDrag swaps it toward the pointer via swap-window. Assert both halves.
-        grab=$(binding root MouseDown1Status)
-        case "$grab" in
-          *"select-pane -m"*) ok "MouseDown1Status marks the grabbed window" ;;
-          *) fail "MouseDown1Status is '$grab', expected select-pane -m" ;;
-        esac
-
-        drag=$(binding root MouseDrag1Status)
-        case "$drag" in
-          *swap-window*) ok "MouseDrag1Status reorders windows via swap-window" ;;
-          *) fail "MouseDrag1Status is '$drag', expected swap-window" ;;
-        esac
-
-        # The grab survives the pointer straying below the titles: MouseDrag1Pane gates
-        # copy-mode on the @wdrag flag so a downward stray doesn't hijack the drag.
-        pdrag=$(binding root MouseDrag1Pane)
-        case "$pdrag" in
-          *@wdrag*copy-mode*) ok "MouseDrag1Pane gates copy-mode on the window-drag flag" ;;
-          *) fail "MouseDrag1Pane is '$pdrag', expected @wdrag-gated copy-mode" ;;
-        esac
-
-        # Below the bar mouse_x counts from the pane's left edge, so the window drag
-        # adds pane_left; and a pane border it crosses doesn't start a pane resize.
-        below="$pdrag $(binding root MouseDrag1Border)"
-        case "$below" in
-          *"#{e|+:#{mouse_x},#{pane_left}}"*"if-shell -F \"#{||:#{@wdrag},#{@sdrag}}\" {  } { resize-pane -M }"*) ok "window drags below the bar count screen columns and skip border resizes" ;;
-          *) fail "MouseDrag1Pane / MouseDrag1Border are '$below'" ;;
-        esac
+        # A name dragged along the bar moves to where the pointer is, and on
+        # by columns of travel once the pointer strays below the bar. tmux 3.8
+        # reports every move of a drag that starts on the bar where it started,
+        # so while it lasts the labels name themselves in their click range
+        # (@wrange, @srange). The mouse bytes are typed into a client hosted in
+        # a pane of a config-less tmux server.
+        drags=$(
+          PATH=${self}/bin:$PATH
+          fresh
+          tmux new-session -d -s 1 -n a sleep 60 \; set -g default-shell "$(command -v sh)" \; \
+            new-window -d -t =1: -n b sleep 60 \; new-window -d -t =1: -n c sleep 60 \; \
+            new-session -d -s 2 sleep 60 \; set-hook -g client-attached 'wait-for -S attached'
+          ${pkgs.tmux}/bin/tmux -L outer -f /dev/null new-session -d -x 40 -y 6 'env -u TMUX tmux attach -t =1'
+          timeout 10 tmux wait-for attached
+          ev() { ${pkgs.tmux}/bin/tmux -L outer send-keys -H $(printf '\033[<%s;%s;%s%s' "$@" | od -An -tx1); }
+          # until_ <want> <command…>: wait up to 5 s for the command to print <want>.
+          until_() {
+            want=$1
+            shift
+            for _ in $(seq 50); do
+              [ "$("$@")" = "$want" ] && return
+              sleep 0.1
+            done
+          }
+          # to <col> <row> <want> <command…>: drag there until the command prints
+          # <want>. A move that beats the redraw naming the labels is lost, so it
+          # is sent again, a column over each time: tmux drops a move to where
+          # the pointer already is.
+          to() {
+            col=$1 row=$2 want=$3
+            shift 3
+            for i in $(seq 50); do
+              ev 32 $((col + i % 2)) "$row" M
+              [ "$("$@")" = "$want" ] && return
+              sleep 0.1
+            done
+          }
+          bar() { ${pkgs.tmux}/bin/tmux -L outer capture-pane -p -S 0 -E 0; }
+          drawn() { case "$(bar)" in *"3 c"*) echo yes ;; esac; }
+          windows() { tmux list-windows -t "$1" -F '#W' | tr '\n' ' '; }
+          until_ yes drawn
+          b=$(bar)
+          pre=''${b%%1 a*}
+          a=$((''${#pre} + 3))
+          pre=''${b%%3 c*}
+          c=$((''${#pre} + 3))
+          # Window a onto c along the bar: they swap. Then 4 columns (@wstep)
+          # left below the bar: a moves one place left.
+          ev 0 "$a" 1 M
+          to "$c" 1 "c b a " windows =1:
+          ev 32 "$c" 4 M
+          to $((c - 4)) 4 "c a b " windows =1:
+          ev 0 $((c - 4)) 4 m
+          sleep 0.4 # a press within 0.3 s of the last is a second click
+          # Session 1 onto 2 along the bar: they trade numbers.
+          ev 0 1 1 M
+          to 4 1 2 tmux list-clients -F '#S'
+          ev 0 4 1 m
+          until_ 0 tmux show -gv @sdrag
+          tmux list-clients -F '#S'
+          windows =2:
+          tmux kill-server
+          ${pkgs.tmux}/bin/tmux -L outer kill-server
+        ) || true
+        drags=$(printf '%s\n' "$drags" | tr '\n' '|')
+        if [ "$drags" = "2|c a b |" ]; then
+          ok "a window or session name dragged along the bar, or below it, moves there"
+        else
+          fail "window a dragged onto c along the bar, then 4 columns left below it, and session 1 onto 2, left '$drags', expected '2|c a b |'"
+        fi
 
         # A release over a pane that ends no status-bar drag is passed on to the
         # pane's program (nvim, fzf --mouse), as tmux does with nothing bound.
@@ -259,22 +298,26 @@ let
           *) fail "status-left is not the number-sorted unroll: '$sl'" ;;
         esac
 
-        # A session label's range stops after its first space (tmux 3.7c ended a
-        # range a cell late, so one over both spaces took the next label's first
-        # cell), and a click or a drag along the bar goes by the range under the
-        # pointer, not by mouse_x, which counts from a pane.
-        slabel="$sl $(binding root MouseDown1Status) $(binding root MouseDrag1Status)"
+        # A click on the bar goes by the click range under the pointer, not by
+        # mouse_x, which counts from a pane. Every cell between
+        # two names is in the range of one of them, so a click there picks the
+        # nearer: a session label's range takes the space on either side of it
+        # (none before the first), and a window's range one space at each end,
+        # in place of window-status-separator, which tmux draws outside the
+        # ranges. In the bar as tmux expands it, ( and ) below are where a
+        # range starts and ends, and ranges that touch leave no cell between.
+        ranges=$(
+          PATH=${self}/bin:$PATH
+          fresh
+          tmux new-session -d -s 1 -n a sleep 60 \; new-window -d -t =1: -n b sleep 60 \; \
+            new-session -d -s 2 sleep 60 \; display -p -t =1: '#{E:status-format[0]}'
+          tmux kill-server
+        ) || true
+        ranges=$(printf '%s\n' "$ranges" | sed -E -e 's/#\[[^]]*range=(session|window)[|][^]]*\]/(/g' -e 's/#\[norange[^]]*\]/)/g' -e 's/#\[[^]]*\]//g')
+        slabel="$ranges $(binding root MouseDown1Status)"
         case "$slabel" in
-          *"#{session_name}#{E:@claude_idle_session} #[norange] "*"session}\" { switch-client -t = ;"*"#{!=:#{session_name},#{client_session}}"*) ok "a click or drag on a session label resolves the label under the pointer" ;;
-          *) fail "session label ranges / MouseDown1Status / MouseDrag1Status are '$slabel'" ;;
-        esac
-
-        # Dragging a session name reorders it by swapping numbers (tmux has no
-        # swap-session): the pane handler routes a session grab through the helper.
-        sdrag=$(binding root MouseDrag1Pane)
-        case "$sdrag" in
-          *__tmux_drag_session*) ok "session drag reorders via __tmux_drag_session" ;;
-          *) fail "MouseDrag1Pane lacks __tmux_drag_session session wiring" ;;
+          *"(1 )( 2 )"*"( 1 a )( 2 b )"*"session}\" { switch-client -t = ;"*) ok "a click on the bar, on a name or between two, picks the name under or nearest the pointer" ;;
+          *) fail "bar click ranges / MouseDown1Status are '$slabel'" ;;
         esac
 
         # The current session's AI label (packages/tmux-session-name) shows
@@ -315,10 +358,10 @@ let
           tmux kill-server
         ) || true
         idle=$(printf '%s\n' "$idle" | sed 's/#\[[^]]*\]//g' | tr '\n' ';' | tr -s ' ')
-        if [ "$idle" = "2 b*|2 b*|1* 2 ;2 b|2 b|1 2 ;1 a;" ]; then
+        if [ "$idle" = " 2 b* | 2 b* |1* 2 ; 2 b | 2 b |1 2 ; 1 a ;" ]; then
           ok "a window whose Claude waits for you gets a * after its name, and its session after its number"
         else
-          fail "window 2 of session 1, with an idle then a busy claude, and the bar's sessions, then window 1 with a ✳ title, are '$idle', expected '2 b*|2 b*|1* 2 ;2 b|2 b|1 2 ;1 a;'"
+          fail "window 2 of session 1, with an idle then a busy claude, and the bar's sessions, then window 1 with a ✳ title, are '$idle', expected ' 2 b* | 2 b* |1* 2 ; 2 b | 2 b |1 2 ; 1 a ;'"
         fi
 
         # The stand-in titles its pane as the packaged claude does; check that
