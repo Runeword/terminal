@@ -42,7 +42,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # Each $(…) below runs its tmux server in a socket directory of its
         # own (fresh): kill-server returns before the server has exited, and a
@@ -272,13 +272,88 @@ let
           fail "M-t in full sessions left '$overflow', expected '1:2 C#S 2:1 1:1a 1:2sh 1:3b 1:4c 2:1sh 3:1d 4:1e 4:2f 4:3g 4:4h '"
         fi
 
-        # Ctrl+` / Ctrl+~ cycle sessions; Alacritty sends them as CSI-u C-` / C-S-`.
-        # Ctrl+Space (NUL) goes to the next session too, like Ctrl+`.
-        cycle="$(binding root 'C-`') / $(binding root 'C-S-`') / $(binding root C-Space)"
-        if [ "$cycle" = "switch-client -n / switch-client -p / switch-client -n" ]; then
-          ok 'C-` and C-Space / C-S-` switch to the next / previous session'
+        # Moving a window to another session (C-M-Enter, M-S-<n>) closes up
+        # the window numbers of the session it left, as closing a window does:
+        # tmux skips renumber-windows for a move-window given -s. With one
+        # session, C-M-Enter does nothing, and shows nothing over the pane
+        # (send-keys -K prints what a binding's run-shell would show there).
+        moves=$(
+          PATH=${self}/bin:$PATH
+          fresh
+          tmux new-session -d -s 1 -n a sleep 60 \; new-window -d -t =1: -n b sleep 60 \; \
+            new-window -d -t =1: -n c sleep 60 \; select-window -t =1:2 \; \
+            set-hook -g client-attached 'wait-for -S attached'
+          ${pkgs.tmux}/bin/tmux -L outer -f /dev/null new-session -d 'env -u TMUX tmux attach -t =1'
+          timeout 10 tmux wait-for attached
+          client=$(tmux list-clients -F '#{client_name}')
+          tmux send-keys -K -c "$client" C-M-Enter 2>&1
+          tmux new-session -d -s 2 -n d sleep 60 \; new-window -d -t =2: -n e sleep 60
+          tmux send-keys -K -c "$client" C-M-Enter # b, to the end of 2
+          tmux list-windows -a -F '#S:#I#W' | tr '\n' ' '
+          tmux select-window -t =2:2
+          tmux send-keys -K -c "$client" M-S-1 # e, to 1 as its window 2
+          tmux list-windows -a -F '#S:#I#W' | tr '\n' ' '
+          tmux kill-server
+          ${pkgs.tmux}/bin/tmux -L outer kill-server
+        ) || true
+        if [ "$moves" = "1:1a 1:2c 2:1d 2:2e 2:3b 1:1a 1:2e 1:3c 2:1d 2:2b " ]; then
+          ok "a window moved to another session leaves no gap in the numbers of the one it left; with one session, C-M-Enter does nothing"
         else
-          fail "C-\` / C-S-\` / C-Space are '$cycle'"
+          fail "C-M-Enter with one session, then on b of 1 (a b c), then M-S-1 on e of 2 (d e b), left '$moves', expected '1:1a 1:2c 2:1d 2:2e 2:3b 1:1a 1:2e 1:3c 2:1d 2:2b '"
+        fi
+
+        # When a session closes, the numbered ones close up to 1..N, a session
+        # 0 too (plain `tmux` names its first session 0): 0 1 3 becomes 1 2 3.
+        renumber=$(
+          PATH=${self}/bin:$PATH
+          fresh
+          tmux new-session -d sleep 60 \; new-session -d -s 1 sleep 60 \; \
+            new-session -d -s 2 sleep 60 \; new-session -d -s 3 sleep 60 \; kill-session -t =2
+          for _ in $(seq 50); do
+            [ "$(tmux list-sessions -F '#S' | tr '\n' ' ')" = "1 2 3 " ] && break
+            sleep 0.1
+          done
+          tmux list-sessions -F '#S' | tr '\n' ' '
+          tmux kill-server
+        ) || true
+        if [ "$renumber" = "1 2 3 " ]; then
+          ok "sessions close up to 1..N when one closes, a session 0 included"
+        else
+          fail "sessions 0 1 2 3, after closing 2, are '$renumber', expected '1 2 3 '"
+        fi
+
+        # Next and previous session go in the bar's order, by number, not by
+        # name as text (1 10 2 …): from 9, M-Tab, C-`, C-S-Enter, M-BTab,
+        # C-Space, C-Enter and C-S-` (Alacritty sends Ctrl+` / Ctrl+~ as CSI-u
+        # C-` / C-S-`) go to 10 1 10 9 10 1 10. And a client whose session
+        # closes goes to the one before it by number: closing 2 lands on 1,
+        # where detach-on-destroy picks 10.
+        cycle=$(
+          PATH=${self}/bin:$PATH
+          fresh
+          tmux new-session -d -s 1 sleep 60 \; set-hook -g client-attached 'wait-for -S attached'
+          for n in 2 3 4 5 6 7 8 9 10; do tmux new-session -d -s "$n" sleep 60; done
+          ${pkgs.tmux}/bin/tmux -L outer -f /dev/null new-session -d 'env -u TMUX tmux attach -t =9'
+          timeout 10 tmux wait-for attached
+          client=$(tmux list-clients -F '#{client_name}')
+          for key in M-Tab 'C-`' C-S-Enter M-BTab C-Space C-Enter 'C-S-`'; do
+            tmux send-keys -K -c "$client" "$key"
+            tmux list-clients -F '#S'
+          done
+          tmux switch-client -c "$client" -t =2 \; kill-pane -t =2:
+          for _ in $(seq 50); do
+            [ "$(tmux list-clients -F '#S')" = 1 ] && break
+            sleep 0.1
+          done
+          tmux list-clients -F '#S'
+          tmux kill-server
+          ${pkgs.tmux}/bin/tmux -L outer kill-server
+        ) || true
+        cycle=$(printf '%s\n' "$cycle" | tr '\n' ' ')
+        if [ "$cycle" = "10 1 10 9 10 1 10 1 " ]; then
+          ok "next and previous session go by number, from 9 to 10, and closing a session lands on the one before it by number"
+        else
+          fail "from 9 of 10 sessions, M-Tab C-\` C-S-Enter M-BTab C-Space C-Enter C-S-\`, then closing 2, left '$cycle', expected '10 1 10 9 10 1 10 1 '"
         fi
 
         # Closing a session's last window moves its clients to the previous
