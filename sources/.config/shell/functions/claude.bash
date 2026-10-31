@@ -205,8 +205,7 @@ __claude_build_cmd() {
     command mkdir -p "$open_dir" && file=$(mktemp "$open_dir/XXXXXXXX"); then
     open="CLAUDE_SESSIONS_OPEN=$(printf '%q' "$file") $(printf '%q' "$flock_bin") -F $(printf '%q' "$file") "
   fi
-  # __CLAUDE_CMD="CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-$__claude_instance command claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-4-5-20251101 $args"
-  __CLAUDE_CMD="${flags}${secrets}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/$(__claude_profile) ${open}${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5-5 $__claude_args"
+  __CLAUDE_CMD="${flags}${secrets}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/$(__claude_profile) ${open}${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5-5 $__claude_args --allow-dangerously-skip-permissions"
 }
 
 # The profile a session runs with, under $HOME: .claude-N, or .claude-vm-N for
