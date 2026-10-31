@@ -65,6 +65,7 @@
   "disableArtifact": true,
   "disableRemoteControl": true,
   "feedbackDrafts": "off",
+  "skipDangerousModePermissionPrompt": true,
   "env": {
     "DISABLE_AUTOUPDATER": "1"
   },
