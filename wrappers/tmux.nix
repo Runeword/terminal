@@ -172,8 +172,13 @@ let
           until_ 0 tmux show -gv @sdrag
           tmux list-clients -F '#S'
           windows =2:
-          tmux kill-server
+          # The outer server goes first, here and in the tests below: killing
+          # the inner one first ends the client in the outer server's only
+          # pane, and so the outer server, which a kill-server sent after that
+          # may find gone ("no server running") or going ("server exited
+          # unexpectedly").
           ${pkgs.tmux}/bin/tmux -L outer kill-server
+          tmux kill-server
         ) || true
         drags=$(printf '%s\n' "$drags" | tr '\n' '|')
         if [ "$drags" = "2|c a b |" ]; then
@@ -262,8 +267,8 @@ let
           tmux send-keys -K -c "$client" M-t # after c, the last: on to a new 2
           tmux list-clients -F '#S:#I'
           tmux list-windows -a -F '#S:#I#W'
-          tmux kill-server
           ${pkgs.tmux}/bin/tmux -L outer kill-server
+          tmux kill-server
         ) || true
         overflow=$(printf '%s\n' "$overflow" | tr '\n' ' ')
         if [ "$overflow" = "1:2 C#S 2:1 1:1a 1:2sh 1:3b 1:4c 2:1sh 3:1d 4:1e 4:2f 4:3g 4:4h " ]; then
@@ -293,8 +298,8 @@ let
           tmux select-window -t =2:2
           tmux send-keys -K -c "$client" M-S-1 # e, to 1 as its window 2
           tmux list-windows -a -F '#S:#I#W' | tr '\n' ' '
-          tmux kill-server
           ${pkgs.tmux}/bin/tmux -L outer kill-server
+          tmux kill-server
         ) || true
         if [ "$moves" = "1:1a 1:2c 2:1d 2:2e 2:3b 1:1a 1:2e 1:3c 2:1d 2:2b " ]; then
           ok "a window moved to another session leaves no gap in the numbers of the one it left; with one session, C-M-Enter does nothing"
@@ -346,8 +351,8 @@ let
             sleep 0.1
           done
           tmux list-clients -F '#S'
-          tmux kill-server
           ${pkgs.tmux}/bin/tmux -L outer kill-server
+          tmux kill-server
         ) || true
         cycle=$(printf '%s\n' "$cycle" | tr '\n' ' ')
         if [ "$cycle" = "10 1 10 9 10 1 10 1 " ]; then
