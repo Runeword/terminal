@@ -21,7 +21,8 @@
 // starting with # is a comment; blank lines are ignored. The chord <space> is
 // the space key. A chord listed on adjacent lines is a submenu, which the
 // picker can only resolve by tab-selecting, since the chord never narrows to
-// a single row.
+// a single row. A byte-order mark at the start of the file, which some
+// editors write, is ignored, and -fmt drops it.
 //
 // Every row is six fields separated by U+00A0 (no-break space, which no
 // chord, command or description may contain): the four display columns
@@ -188,6 +189,7 @@ func parse(name, src string) ([]row, []line, error) {
 		first  = map[string]int{}    // chord -> its first line
 		last   string                // chord of the latest chord line
 	)
+	src = strings.TrimPrefix(src, "\uFEFF")
 	texts := strings.Split(strings.TrimSuffix(src, "\n"), "\n")
 	if src == "" {
 		texts = nil
