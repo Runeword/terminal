@@ -46,7 +46,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /experts command, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, which it makes again at the current window's size once it is gone, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, zr removes the directories picked in fzf from zoxide's list, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /experts command, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, which it makes again at the current window's size once it is gone, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -144,6 +144,25 @@ let
           ok "ngr lists every NixOS generation but the current one"
         else
           fail "ngr lists the current NixOS generation, which nix-env refuses to delete"
+        fi
+
+        # zr removes the directories picked in fzf from zoxide's list and keeps
+        # the rest: a stand-in fzf picks the first and the last of three rows,
+        # the first a path with a space.
+        zoxide_remove='. ${self}/.config/shell/functions/zoxide.sh
+          export _ZO_DATA_DIR=$HOME/zoxide
+          mkdir -p "$_ZO_DATA_DIR" "$HOME/z/a" "$HOME/z/b" "$HOME/z/c d"
+          zoxide add "$HOME/z/a" "$HOME/z/b" "$HOME/z/c d"
+          zoxide add "$HOME/z/b" "$HOME/z/c d"
+          zoxide add "$HOME/z/c d"
+          fzf() { awk "NR != 2"; }
+          __zoxide_remove && zoxide query --list'
+        if ${leaderAliases}/bin/leader-aliases ${self}/.config/shell/leader.conf \
+          | awk -F "$sep" '$1 ~ /^zr +$/ && $5 == "__zoxide_remove" && $6 == "run" { found = 1 } END { exit !found }' \
+          && [ "$(PATH=${pkgs.zoxide}/bin:$PATH ${self}/bin/zsh -f -c "$zoxide_remove")" = "$HOME/z/b" ]; then
+          ok "zr removes the directories picked in fzf from zoxide's list"
+        else
+          fail "zr does not remove the directories picked in fzf, or removes others"
         fi
 
         # The picker renders the table once per shell and width: a second press
