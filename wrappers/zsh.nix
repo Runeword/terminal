@@ -46,7 +46,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /experts command, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /experts command, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, which it makes again at the current window's size once it is gone, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -427,26 +427,31 @@ let
 
         # The backup (leader cb) is claude-sessions backup; its restore (leader
         # cbr) resumes each picked session as __claude started it, from its
-        # directory, in a window of the tmux session it was in while that is
-        # still there. A stand-in claude-sessions saved two sessions, one with
-        # gh, jira, extra hosts and figma-mcp, the other plain; a stand-in fzf
-        # picks both, a stand-in tmux knows session work and prints the windows
-        # it is asked for. The aliases load first, as in .zshrc, since they
-        # expand inside the functions: cd there is __cd, which takes no --.
-        mkdir -p "$HOME/restore/bin" "$HOME/proj" "$HOME/proj2"
-        printf 'a\t1\t%s\tgh,jira\tx.example\tnix-lsp,figma-mcp\twork\tA\tshown A\nb\t1\t%s\t-\t-\t-\tgone\tB\tshown B\n' \
-          "$HOME/proj" "$HOME/proj2" > "$HOME/restore/rows"
+        # directory, in a window of the tmux session it was in, which it makes
+        # again at the current window's size once it is gone, then closes the
+        # gaps in the session numbers. A stand-in claude-sessions saved three
+        # sessions: one with gh, jira, extra hosts and figma-mcp in session
+        # work, a plain one in session gone, and one in no session; a stand-in
+        # fzf picks them all, a stand-in tmux knows session work and a 120x40
+        # window and prints the windows and sessions it is asked for, and a
+        # stand-in renumbering says when it runs. The aliases load first, as in
+        # .zshrc, since they expand inside the functions: cd there is __cd,
+        # which takes no --.
+        mkdir -p "$HOME/restore/bin" "$HOME/proj" "$HOME/proj2" "$HOME/proj3"
+        printf 'a\t1\t%s\tgh,jira\tx.example\tnix-lsp,figma-mcp\twork\tA\tshown A\nb\t1\t%s\t-\t-\t-\tgone\tB\tshown B\nc\t1\t%s\t-\t-\t-\t-\tC\tshown C\n' \
+          "$HOME/proj" "$HOME/proj2" "$HOME/proj3" > "$HOME/restore/rows"
         printf '#!/bin/sh\ncase $1 in saved) cat "$HOME/restore/rows" ;; *) echo "$*" ;; esac\n' > "$HOME/restore/bin/claude-sessions"
         chmod +x "$HOME/restore/bin/claude-sessions"
         restore='. ${self}/.config/shell/aliases.sh; . ${self}/.config/shell/functions/cd.sh
           . ${self}/.config/shell/functions/claude.bash
           fzf() { cat; }
-          tmux() { case $1 in has-session) [ "$3" = "=work" ] ;; new-window) shift; printf "%s|" "$@"; echo ;; esac; }
+          tmux() { case $1 in has-session) [ "$3" = "=work" ] ;; display-message) echo "120 40" ;; new-window) shift; printf "%s|" "$@"; echo ;; new-session) printf "%s|" "$@"; echo ;; esac; }
+          __tmux_renumber_sessions() { echo renumber; }
           __claude_sessions_backup
           TMUX=x __claude_sessions_restore'
         case "$(CLAUDE_SANDBOX=0 PATH=$HOME/restore/bin:${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$restore" | tr '\n' '#')" in
-          "backup#-d|-t|=work:|-c|$HOME/proj|CLAUDE_SANDBOX_ALLOW_GH=1 CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_SANDBOX_NET_ALLOW=x.example "*"/nix-lsp --plugin-dir "*"/figma-mcp "*" --resume a  --allow-dangerously-skip-permissions|#claude: resumed A in $HOME/proj#-d|-c|$HOME/proj2|CLAUDE_CODE_SYNTAX_HIGHLIGHT=false "*" claude  --allowedTools "*" --resume b  --allow-dangerously-skip-permissions|#claude: resumed B in $HOME/proj2#")
-            ok "the session backup's restore resumes each picked session with its connections and plugins, in its directory and tmux session"
+          "backup#-d|-t|=work:|-c|$HOME/proj|CLAUDE_SANDBOX_ALLOW_GH=1 CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_SANDBOX_NET_ALLOW=x.example "*"/nix-lsp --plugin-dir "*"/figma-mcp "*" --resume a  --allow-dangerously-skip-permissions|#claude: resumed A in $HOME/proj#new-session|-d|-s|gone|-x|120|-y|40|-c|$HOME/proj2|CLAUDE_CODE_SYNTAX_HIGHLIGHT=false "*" claude  --allowedTools "*" --resume b  --allow-dangerously-skip-permissions|#claude: resumed B in $HOME/proj2#-d|-c|$HOME/proj3|CLAUDE_CODE_SYNTAX_HIGHLIGHT=false "*" claude  --allowedTools "*" --resume c  --allow-dangerously-skip-permissions|#claude: resumed C in $HOME/proj3#renumber#")
+            ok "the session backup's restore resumes each picked session with its connections and plugins, in its directory and tmux session, which it makes again once it is gone"
             ;;
           *) fail "the session backup's restore does not resume the picked sessions as they were started" ;;
         esac
