@@ -33,10 +33,11 @@
   # __git_pick_files invokes it by bare name.
   (import ./git/stash-hunks { inherit pkgs; })
   # Renders sources/.config/shell/leader.conf into the fzf rows behind the
-  # leader-key picker (sources/.config/shell/functions/aliases.sh), and lines
-  # up its columns for __leader_edit (-fmt). Here so it lands in
-  # packages.tools and is on the interactive PATH inside the terminal, where
-  # the zle widget and __leader_edit invoke it by bare name.
+  # leader-key picker (the sources/.config/zsh/plugins/leader-aliases zsh
+  # plugin), and lines up its columns for leader-aliases-edit (-fmt). Here so
+  # it lands in packages.tools and is on the interactive PATH inside the
+  # terminal, where the zle widget and leader-aliases-edit invoke it by bare
+  # name.
   (import ./leader-aliases { inherit pkgs; })
   # Labels a tmux session with what its windows are doing, asking a local
   # model (Qwen3.5 2B through llama.cpp, both pinned in its default.nix) from
