@@ -676,7 +676,7 @@ __claude_sessions_rm() {
 # on macOS, and through /proc on Linux, where the registry loses every
 # sandboxed session but one; it keeps its 20 newest backups in
 # $XDG_STATE_HOME/claude-sessions, read-only in the sandbox.
-__claude_sessions_backup() {
+__claude_sessions_save() {
   __claude_sessions_on_path || return 0
   claude-sessions backup
 }
