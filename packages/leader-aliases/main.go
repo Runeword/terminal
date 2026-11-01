@@ -1,6 +1,7 @@
 // Command leader-aliases renders the leader-key table
-// (sources/.config/shell/leader.conf) as the rows the picker in
-// functions/aliases.sh feeds to fzf, and with -fmt lines up its columns.
+// (sources/.config/shell/leader.conf) as the rows the picker in the
+// leader-aliases zsh plugin (sources/.config/zsh/plugins/leader-aliases) feeds
+// to fzf, and with -fmt lines up its columns.
 //
 // The table is plain text, one chord per line, in four columns:
 //
@@ -41,7 +42,7 @@
 //
 // An error (wrong column count, unknown mode, a chord in two groups, a
 // submenu split apart, ...) goes to stderr as FILE:LINE: and exit status 1,
-// so the widget can display it and __leader_edit can reopen the line.
+// so the widget can display it and leader-aliases-edit can reopen the line.
 //
 // Usage:
 //
