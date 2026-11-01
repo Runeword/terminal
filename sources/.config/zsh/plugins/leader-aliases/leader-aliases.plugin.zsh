@@ -104,9 +104,13 @@ _leader_aliases_pick() {
         ;;
     esac
   elif [ "$selected" ]; then
-    # Nothing matched: the query as typed, without its leading ^.
+    # Nothing matched: the query as typed, without its leading ^. Space in the
+    # picker types a backslash and a space, which fzf matches as a space
+    # rather than as the start of a new search term; the line gets the space
+    # alone.
     local query=${selected%%$'\n'*}
-    LBUFFER+=${query#"^"}
+    query=${query#"^"}
+    LBUFFER+=${query//'\ '/ }
   fi
 
   _leader_aliases_suggest
@@ -150,6 +154,9 @@ _leader_aliases_suggest() {
 leader-aliases-edit() {
   local table="${1:-${LEADER_ALIASES_FILE:-$_leader_aliases_default}}"
   local cache="${XDG_CACHE_HOME:-$HOME/.cache}" dir copy err line='' answer
+  # $EDITOR can hold arguments (code --wait): split it into words the way
+  # zsh's edit-command-line does.
+  local -a editor=("${(@Q)${(z)${EDITOR:-vi}}}")
   if [ ! -w "$table" ]; then
     printf 'leader: %s is read-only\n' "$table" >&2
     return 1
@@ -157,7 +164,7 @@ leader-aliases-edit() {
   mkdir -p -- "$cache" && dir=$(mktemp -d "$cache/leader-edit.XXXXXX") || return 1
   copy=$dir/leader.conf
   command cp -- "$table" "$copy" || return 1
-  while "${EDITOR:-vi}" ${line:+"+$line"} -- "$copy"; do
+  while "${editor[@]}" ${line:+"+$line"} -- "$copy"; do
     if err=$(leader-aliases -fmt "$copy" 2>&1); then
       cat -- "$copy" >|"$table" && rm -rf -- "$dir"
       return
