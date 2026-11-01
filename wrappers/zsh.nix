@@ -546,14 +546,14 @@ let
         # hands on the row's hash. Both steps show the
         # preview below the list, in three quarters of fzf's height, with no
         # blank line before the diff: a commit's diff alone, a file's under its
-        # path. Both start with the search off, as alt-i leaves it, the file
-        # step before it searches with !/$: turning the search off after would
-        # cancel that search. The file step's j/k step between matches,
+        # path. Both start with the search off, as alt-i leaves it, triggered
+        # once (a second would turn the search back on), the file step before
+        # it searches with !/$: turning the search off after would cancel that
+        # search. The file step's j/k step between matches,
         # f12/f11 adding the 4 more steps of a 5-step move (FZF_DEFAULT_OPTS).
         # Neither binds y, which types into the query as other letters do, nor
         # a key of its own to jump to a row by its label, and neither has a
-        # header. Neither cycles: --no-cycle comes after the pickers' shared
-        # --cycle. The file step hands fzf the
+        # header. Neither cycles: there is no --cycle. The file step hands fzf the
         # commit's tree rows, searched with !/$ so that no directory's row
         # matches, and the count of its files for the info line, and the
         # editor what tree-quote makes of the row numbers fzf accepts: the
@@ -561,7 +561,7 @@ let
         gl='. ${self}/.config/shell/functions/git.bash
           git() { case $1 in log) [ "$*" != "log --no-renames --diff-merges=first-parent --name-status --date=format-local:%y-%m-%d %H:%M --format=%x1e%an, %ad%x1f%h%x1f %<|(91,trunc)%s %x1f%h %s%x1f%at%x1f%ar" ] || printf "\36a, 26-10-25 21:42\37abc\37 Delete f \37abc Delete f\37%s\37%s\n\nD\tf\nD\tg\n\36b, 70-01-01 00:00\37def\37 x \37def x\37%s\37%s\n" $(($(date +%s) - 120)) "2 minutes ago" 0 "56 years ago" ;; rev-list) [ "$*" != "rev-list --count HEAD" ] || echo 10 ;; rev-parse) [ "$2" != --show-cdup ] || echo ../ ;; esac; }
           git-hunk-pick() { case $1 in tree) printf "%s\0" "$*" ;; paths) printf "x\0y\0" ;; tree-quote) printf "%s<%s" "$*" "$(tr "\0" ,)" ;; esac; }
-          fzf() { case "$TREE_FILES $*" in *jump* | *"--bind y:"* | *"--header="* | *"--no-cycle"*" --cycle"*) ;; "2 "*"--no-cycle "*"--accept-nth={n}"*"start:+trigger(alt-i)+search(!/\$)"*"j:trigger(f12)+down-match,k:trigger(f11)+up-match"*"f12:down-match+down-match+down-match+down-match,f11:up-match+up-match+up-match+up-match"*"--info-command="*"show --color=always --format= "*"/^\$/d}"*"--preview-window=down,75%,"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *"--no-cycle "*"show --color=always --format= {3} "*"/^\$/d}"*"--preview-window=down,75%,"*"--ansi --delimiter="?"|^ *[0-9]+  --with-nth={1} {6}{3}{4}{2} --nth=2.. --accept-nth=3"*"start:+trigger(alt-i)"*) awk -F "$(printf "\37")" -v c="$(printf "\33[1;38;2;168;77;95m-\33[0m ")" "\$1 == \" 1\" && \$2 == \"a, 2 minutes ago\" && \$6 == c && \$4 ~ /^ f {9}\$/ { h = \$3 } \$1 == \" 2\" && \$2 == \"b, 70-01-01 00:00\" { print h }" ;; esac; }
+          fzf() { case "$TREE_FILES $*" in *jump* | *"--bind y:"* | *"--header="* | *" --cycle"* | *"trigger(alt-i)"*"trigger(alt-i)"*) ;; "2 "*"--no-cycle "*"start:+trigger(alt-i)"*"--accept-nth={n}"*"start:+search(!/\$)"*"j:trigger(f12)+down-match,k:trigger(f11)+up-match"*"f12:down-match+down-match+down-match+down-match,f11:up-match+up-match+up-match+up-match"*"--info-command="*"show --color=always --format= "*"/^\$/d}"*"--preview-window=down,75%,"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *"--no-cycle "*"start:+trigger(alt-i)"*"show --color=always --format= {3} "*"/^\$/d}"*"--preview-window=down,75%,"*"--ansi --delimiter="?"|^ *[0-9]+  --with-nth={1} {6}{3}{4}{2} --nth=2.. --accept-nth=3"*) awk -F "$(printf "\37")" -v c="$(printf "\33[1;38;2;168;77;95m-\33[0m ")" "\$1 == \" 1\" && \$2 == \"a, 2 minutes ago\" && \$6 == c && \$4 ~ /^ f {9}\$/ { h = \$3 } \$1 == \" 2\" && \$2 == \"b, 70-01-01 00:00\" { print h }" ;; esac; }
           COLUMNS=100 EDITOR=ed __git_log'
         if [ "$(${self}/bin/zsh -f -c "$gl")" = "ed -- tree-quote commit abc ../<4," ]; then
           ok "gl lists commits numbered from 1, right-aligned and unsearched, with their change next, in its colour, in place of the verb it stands for, and their author and date flush right in the row's colours, the date how long ago a commit of the last hour was made and an older one's date and time, previews each diff below its list, in three quarters of the height, a commit's alone, starts both lists with the search off, steps the file list's j/k and f12/f11 between matches, no header, no cycling and no y or jump binding of their own, lists the commit's files as tree rows, directories unpickable and uncounted, and opens the files of the rows picked"
@@ -597,6 +597,22 @@ let
           ok "grs numbers its commits from 1, for HEAD, right-aligned and unsearched, and row n resets n commits"
         else
           fail "grs lists its commits without a right-aligned number from 1, searches it, or resets other than the commits up to the row picked"
+        fi
+
+        # The other git pickers open as gl does, with the options they share
+        # (_GIT_FZF_BASE, which git-branches' pickers get too, and
+        # _GIT_FZF_PREVIEW_WINDOW): the search off, alt-i triggered once, the
+        # cursor stopping at either end of the list, and the preview below
+        # it, in three quarters of fzf's height. grs stands for them: its
+        # stand-in fzf picks the commit only when asked for all of that.
+        like_gl='. ${self}/.config/shell/functions/git.bash
+          git() { case $1 in log) echo "abc x" ;; rev-list) echo 0 ;; esac; }
+          fzf() { case "$*" in *" --cycle"* | *"trigger(alt-i)"*"trigger(alt-i)"*) ;; *"--no-cycle "*"--bind=start:+trigger(alt-i) "*"--preview-window=down,75%,border-top,"*) head -n 1 ;; esac; }
+          __git_reset_soft'
+        if [ "$(${self}/bin/zsh -f -c "$like_gl")" = "git reset --soft HEAD~1 " ]; then
+          ok "the git pickers start with the search off, stop at either end of their list and preview below it, as gl does"
+        else
+          fail "a git picker starts with the search on, cycles, or previews beside its list"
         fi
 
         # Run from the leader (a zle widget), both of gl's steps are typed on
@@ -678,6 +694,15 @@ let
         case "$fzf_opts" in
           *'+unbind(f12,f11)+trigger(j)" || echo "toggle-bind(f12,f11)+trigger(j)"'*"j:trigger(f12)+down,k:trigger(f11)+up"*"f12:down+down+down+down,f11:up+up+up+up"*"i:toggle-search+toggle-bind(j,k,g,G,i,q)+unbind(f12,f11)"*"start:unbind(j,k,g,G,i,q,f12,f11)"*) ok "with the search off, each ctrl-j/k switches j/k between 1 and 5 rows and moves one step, and the search's switches reset them to 1" ;;
           *) fail "ctrl-j/k do not switch j/k between 1 and 5 rows with the search off, or a switch of the search keeps the 5-row step" ;;
+        esac
+
+        # forgit's pickers (gkf, gbm, …) open as the git pickers do: the
+        # search off, the cursor stopping at either end of the list, and the
+        # preview below it.
+        case "$(${self}/bin/zsh -i -c 'print -r -- "$FORGIT_FZF_DEFAULT_OPTS"' 2>/dev/null)" in
+          *" --cycle"*) fail "forgit's pickers wrap around at the ends of their list" ;;
+          *"--no-cycle "*"--preview-window down,75%,border-top,"*"start:+trigger(alt-i)"*) ok "forgit's pickers start with the search off, stop at either end of their list and preview below it, as the git pickers do" ;;
+          *) fail "forgit's pickers start with the search on or preview beside their list" ;;
         esac
 
         # Shift+Tab's search (fm_rg.sh) lists dotfiles too, as the rows fm.sh's
