@@ -6,10 +6,10 @@
 }:
 
 let
-  # The leader-key picker (.config/shell/functions/aliases.sh) renders the
-  # bundled .config/shell/leader.conf through this binary, and __leader_edit
-  # lines it up with it; the smoke test exercises both against the wrapper's
-  # own copy of the table.
+  # The leader-key picker (the .config/zsh/plugins/leader-aliases plugin)
+  # renders the bundled .config/shell/leader.conf through this binary, and
+  # leader-aliases-edit lines it up with it; the smoke test exercises both
+  # against the wrapper's own copy of the table.
   leaderAliases = import ../packages/leader-aliases { inherit pkgs; };
   # Shift+Tab's search (.config/shell/scripts/fm_rg.sh) matches through it.
   fmQuery = import ../packages/fm-query { inherit pkgs; };
@@ -46,7 +46,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, oa edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /experts command, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, oa edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /experts command, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -154,12 +154,12 @@ let
         chmod u+w "$HOME/leader/leader.conf"
         printf '#!/bin/sh\necho >> "%s"\nexec %s "$@"\n' "$HOME/leader/renders" ${leaderAliases}/bin/leader-aliases > "$HOME/leader/bin/leader-aliases"
         chmod +x "$HOME/leader/bin/leader-aliases"
-        rows='. ${self}/.config/shell/functions/aliases.sh
+        rows='. ${self}/.config/zsh/plugins/leader-aliases/leader-aliases.plugin.zsh
           t=$HOME/leader/leader.conf
-          COLUMNS=100; __aliases_rows "$t"; first=$REPLY
-          __aliases_rows "$t"; [ "$REPLY" = "$first" ] && print same
-          COLUMNS=90; __aliases_rows "$t"
-          print "# edited" >> "$t"; __aliases_rows "$t"'
+          COLUMNS=100; _leader_aliases_rows "$t"; first=$REPLY
+          _leader_aliases_rows "$t"; [ "$REPLY" = "$first" ] && print same
+          COLUMNS=90; _leader_aliases_rows "$t"
+          print "# edited" >> "$t"; _leader_aliases_rows "$t"'
         if [ "$(PATH=$HOME/leader/bin:$PATH ${self}/bin/zsh -f -c "$rows")" = same ] \
           && [ "$(wc -l < "$HOME/leader/renders")" -eq 3 ]; then
           ok "the leader picker renders its table once, then again only after a resize or an edit"
@@ -167,14 +167,14 @@ let
           fail "the leader picker does not reuse its rows until a resize or an edit"
         fi
 
-        # oa (__leader_edit) edits the table in a copy that reaches it only
+        # oa (leader-aliases-edit) edits the table in a copy that reaches it only
         # valid and lined up: a stand-in editor adds a line with an unknown
         # mode, then, reopened at that line, fixes it.
         printf '[git]\ngt  run  status  git status\n' > "$HOME/leader/edit.conf"
         printf '#!/bin/sh\necho "$*" >> "%s"\nfor f; do :; done\ncase $1 in\n  --) echo "zz  rnu  sleep  sleep 1" >> "$f" ;;\n  +3) sed "s/ rnu / run /" "$f" > "$f.new" && cat "$f.new" > "$f" ;;\nesac\n' \
           "$HOME/leader/edits" > "$HOME/leader/bin/edit"
         chmod +x "$HOME/leader/bin/edit"
-        edit='. ${self}/.config/shell/functions/aliases.sh; __leader_edit "$HOME/leader/edit.conf"'
+        edit='. ${self}/.config/zsh/plugins/leader-aliases/leader-aliases.plugin.zsh; leader-aliases-edit "$HOME/leader/edit.conf"'
         if echo y | EDITOR=edit PATH=$HOME/leader/bin:$PATH ${self}/bin/zsh -f -c "$edit" 2>/dev/null \
           && [ "$(cat "$HOME/leader/edit.conf")" = "$(printf '[git]\ngt \trun \tstatus \tgit status\nzz \trun \tsleep  \tsleep 1')" ] \
           && [ "$(awk '{ print $1 }' "$HOME/leader/edits" | tr '\n' ' ')" = "-- +3 " ]; then
@@ -183,14 +183,14 @@ let
           fail "oa does not reopen a broken line, or writes the table back broken or unaligned"
         fi
 
-        # The picker reads its pick without starting a process, and as it
-        # always fails, __on_empty_buffer only redraws the line: reset-prompt
-        # would re-expand the prompt, rerunning starship twice, before an
-        # accepted command even starts. Nor does an accepted line fetch a
-        # suggestion. A stand-in zle records the widgets called; a stand-in fzf
-        # prints what fzf --print-query would, the query and the chord's row.
-        # leader-aliases goes on the path inside the script: zsh -i reads
-        # /etc/zshenv, and nix-darwin's (in an unsandboxed build) resets PATH.
+        # The picker reads its pick without starting a process, and the widget
+        # then only redraws the line: reset-prompt would re-expand the prompt,
+        # rerunning starship twice, before an accepted command even starts. Nor
+        # does an accepted line fetch a suggestion. A stand-in zle records the
+        # widgets called; a stand-in fzf prints what fzf --print-query would,
+        # the query and the chord's row. leader-aliases goes on the path inside
+        # the script: zsh -i reads /etc/zshenv, and nix-darwin's (in an
+        # unsandboxed build) resets PATH.
         stubs='path=(${leaderAliases}/bin $path)
           zle() { print -r -- "zle $*"; }
           pick() { print -r -- "^$1"; grep -m 1 "^$1 *$SEP"; }
@@ -198,7 +198,7 @@ let
         picker() {
           SEP=$sep ${self}/bin/zsh -i -c "$stubs
             $1"'
-            BUFFER= PREBUFFER=; __on_empty_buffer __aliases :
+            BUFFER= CONTEXT=start; _leader_aliases_key
             print -r -- "LBUFFER=$LBUFFER"' 2>/dev/null
         }
         picked=$(picker 'fzf() { pick gt; }')
@@ -216,6 +216,30 @@ let
           *"$(printf 'zle autosuggest-fetch\nzle redisplay\nLBUFFER=zz')") ok "a chord that matches nothing is inserted as typed, without its ^" ;;
           *) fail "a chord that matches nothing is not inserted as typed: $picked" ;;
         esac
+
+        # Off an empty prompt, Space and Enter run the widgets they had before
+        # the plugin was sourced, in a bare zsh with no .zshrc and no
+        # zsh-autosuggestions: a stand-in zle records the widgets called on a
+        # non-empty line and on an empty select prompt.
+        bare='. ${self}/.config/zsh/plugins/leader-aliases/leader-aliases.plugin.zsh
+          zle() { print -r -- "zle $*"; }
+          BUFFER=ls CONTEXT=start WIDGET=_leader_aliases_space _leader_aliases_key
+          BUFFER= CONTEXT=select WIDGET=_leader_aliases_enter _leader_aliases_key'
+        if [ "$(${self}/bin/zsh -f -c "$bare" 2>&1)" = "$(printf 'zle self-insert\nzle accept-line')" ]; then
+          ok "off an empty prompt, Space and Enter run their previous widgets, in a bare zsh"
+        else
+          fail "off an empty prompt, Space or Enter does not run its previous widget in a bare zsh"
+        fi
+
+        # The plugin's example.conf, the table it points newcomers to, renders
+        # and is lined up the way -fmt writes it.
+        example=${self}/.config/zsh/plugins/leader-aliases/example.conf
+        if ${leaderAliases}/bin/leader-aliases "$example" > /dev/null \
+          && [ "$(${leaderAliases}/bin/leader-aliases -fmt - < "$example")" = "$(cat "$example")" ]; then
+          ok "the leader plugin's example.conf renders and is lined up"
+        else
+          fail "the leader plugin's example.conf does not render, or is not lined up"
+        fi
 
         # godc (and gow when it stops) clears the Go dev builds that shadow the
         # Nix copies: every compiled binary in .direnv/bin, not nix-direnv's script.
