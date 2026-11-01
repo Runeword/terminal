@@ -46,7 +46,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, oa edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /experts command, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts leave continuation lines alone, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /experts command, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -167,7 +167,7 @@ let
           fail "the leader picker does not reuse its rows until a resize or an edit"
         fi
 
-        # oa (leader-aliases-edit) edits the table in a copy that reaches it only
+        # ol (leader-aliases-edit) edits the table in a copy that reaches it only
         # valid and lined up: a stand-in editor adds a line with an unknown
         # mode, then, reopened at that line, fixes it.
         printf '[git]\ngt  run  status  git status\n' > "$HOME/leader/edit.conf"
@@ -178,9 +178,9 @@ let
         if echo y | EDITOR=edit PATH=$HOME/leader/bin:$PATH ${self}/bin/zsh -f -c "$edit" 2>/dev/null \
           && [ "$(cat "$HOME/leader/edit.conf")" = "$(printf '[git]\ngt \trun \tstatus \tgit status\nzz \trun \tsleep  \tsleep 1')" ] \
           && [ "$(awk '{ print $1 }' "$HOME/leader/edits" | tr '\n' ' ')" = "-- +3 " ]; then
-          ok "oa reopens the table copy at a broken line and writes it back lined up"
+          ok "ol reopens the table copy at a broken line and writes it back lined up"
         else
-          fail "oa does not reopen a broken line, or writes the table back broken or unaligned"
+          fail "ol does not reopen a broken line, or writes the table back broken or unaligned"
         fi
 
         # The picker reads its pick without starting a process, and the widget
@@ -749,12 +749,19 @@ let
           fail "Shift+Tab's search does not open several picks as a quickfix list set from them, with absolute paths"
         fi
 
-        # A continuation line (an open quote, a loop, a heredoc) has an empty
-        # BUFFER but is not an empty prompt: the shortcuts that act on one
-        # (Enter's leader picker, Space, Esc, …) must leave it alone.
-        case "$(${self}/bin/zsh -i -c 'BUFFER=; PREBUFFER="cat <<EOF"; __on_empty_buffer "print EMPTY" "print LINE"' 2>/dev/null)" in
-          *LINE*) ok "the empty-prompt shortcuts leave a continuation line alone" ;;
-          *) fail "an empty-prompt shortcut fires on a continuation line" ;;
+        # The empty-prompt shortcuts (Shift+Delete, Esc, Shift+Esc) fire only at
+        # the prompt itself, where zle sets CONTEXT to start. The line is empty
+        # on a continuation line (cont), in a select menu (select) and in vared
+        # (vared) too, and there they must leave it alone. Outside zle the test
+        # sets CONTEXT itself; the shortcut fails on purpose, since a success
+        # would run the prompt's precmd hooks.
+        contexts='BUFFER=
+          for CONTEXT in cont select vared start; do
+            __on_empty_buffer "print EMPTY; false" "print LINE"
+          done'
+        case "$(${self}/bin/zsh -i -c "$contexts" 2>/dev/null | tr '\n' ' ')" in
+          *"LINE LINE LINE EMPTY ") ok "the empty-prompt shortcuts fire only at the prompt, not on a continuation line, in a select menu or in vared" ;;
+          *) fail "an empty-prompt shortcut fires on a continuation line, in a select menu or in vared, or not at the prompt" ;;
         esac
 
         # The tools' completions, which the alacritty launcher exports as one
