@@ -447,7 +447,7 @@ let
           fzf() { cat; }
           tmux() { case $1 in has-session) [ "$3" = "=work" ] ;; display-message) echo "120 40" ;; new-window) shift; printf "%s|" "$@"; echo ;; new-session) printf "%s|" "$@"; echo ;; esac; }
           __tmux_renumber_sessions() { echo renumber; }
-          __claude_sessions_backup
+          __claude_sessions_save
           TMUX=x __claude_sessions_restore'
         case "$(CLAUDE_SANDBOX=0 PATH=$HOME/restore/bin:${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$restore" | tr '\n' '#')" in
           "backup#-d|-t|=work:|-c|$HOME/proj|CLAUDE_SANDBOX_ALLOW_GH=1 CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_SANDBOX_NET_ALLOW=x.example "*"/nix-lsp --plugin-dir "*"/figma-mcp "*" --resume a  --allow-dangerously-skip-permissions|#claude: resumed A in $HOME/proj#new-session|-d|-s|gone|-x|120|-y|40|-c|$HOME/proj2|CLAUDE_CODE_SYNTAX_HIGHLIGHT=false "*" claude  --allowedTools "*" --resume b  --allow-dangerously-skip-permissions|#claude: resumed B in $HOME/proj2#-d|-c|$HOME/proj3|CLAUDE_CODE_SYNTAX_HIGHLIGHT=false "*" claude  --allowedTools "*" --resume c  --allow-dangerously-skip-permissions|#claude: resumed C in $HOME/proj3#renumber#")
