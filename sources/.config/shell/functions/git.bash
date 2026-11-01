@@ -100,24 +100,33 @@ __git_open_url() {
 # fzf args used by every picker. Arrays (not strings) so values containing
 # spaces or quotes round-trip through `"${arr[@]}"` without re-parsing — the
 # previous string form required `eval` or `sh -c` everywhere it was consumed.
+# Every picker, git-branches' included, starts with the search off, as alt-i
+# leaves it (FZF_DEFAULT_OPTS): j/k, g/G and q act at once, ctrl-j/k switch
+# j/k between 1 and 5 rows, and i turns the search on. The cursor stops at
+# either end of the list (--no-cycle) rather than wrap around to the other.
 _GIT_FZF_BASE=(
   --reverse --no-separator --keep-right
   --border none
-  --cycle
+  --no-cycle
   --height 70%
   --info=inline:
   --header-first
   '--prompt=  '
   --wrap-sign=
   --scheme=path
+  '--bind=start:+trigger(alt-i)'
 )
 _GIT_FZF_MULTI=(--multi --bind=ctrl-a:select-all)
 _GIT_FZF_DEFAULT=("${_GIT_FZF_BASE[@]}" "${_GIT_FZF_MULTI[@]}")
 # Used as the leading clause of every --preview value; keeps the focused
 # line visible above the preview body.
 _GIT_FZF_PREVIEW_CMD="echo {};"
-# Used as the value of --preview-window=...
-_GIT_FZF_PREVIEW_WINDOW="right,75%,border-none,wrap,~1"
+# Used as the value of --preview-window=...: below the list, in three
+# quarters of fzf's height, which leaves the list a few rows, enough to pick
+# from, and the full width, where a quarter of it would cut long paths short.
+# ~1 keeps the preview's first line, the focused row, at the top as the diff
+# scrolls.
+_GIT_FZF_PREVIEW_WINDOW="down,75%,border-top,wrap,~1"
 
 __git_diff_tracked() {
   local ph="$1" root quoted
@@ -199,8 +208,9 @@ __git_fzf_select() {
 # accepts, and `git-hunk-pick finalize` prints the command (leader flag `e`): whole
 # files (ALL) batched into one whole-file command, each hunk subset its own clause,
 # which applies nothing if the file's picked hunks changed since. Esc in the files list
-# cancels. The lists are NUL-separated (--read0, and --print0 for {+f}), so a path git
-# would quote (café.txt, a tab or newline in the name) reaches every command as is.
+# cancels, or turns the search on while it is off, as the global esc does. The lists
+# are NUL-separated (--read0, and --print0 for {+f}), so a path git would quote
+# (café.txt, a tab or newline in the name) reaches every command as is.
 __git_pick_files() {
   __git_require_repo || return 1
 
@@ -565,14 +575,14 @@ __git_drop_commit() {
 __git_log() {
   __git_require_repo || return 1
 
-  # The preview goes below the list, not to its right as in the other pickers:
-  # the list then has the full width, where a quarter of it would cut the
-  # commit subjects and the tree's deeper rows. The preview takes three
-  # quarters of fzf's height, which leaves the list a few rows, enough to pick
-  # from. Even then, git's header and message would fill much of the preview,
-  # and a commit's row has its author and date, so its preview is the diff
-  # alone ({3} is the row's hash, see below): --format= leaves out the header,
-  # and sed the blank line delta puts before the diff.
+  # The preview goes below the list, as in the other pickers
+  # (_GIT_FZF_PREVIEW_WINDOW): the list then has the full width, where a
+  # quarter of it would cut the commit subjects and the tree's deeper rows.
+  # Even then, git's header and message would fill much of the preview, and a
+  # commit's row has its author and date, so its preview is the diff alone
+  # ({3} is the row's hash, see below), with no first line to keep (no ~1):
+  # --format= leaves out the header, and sed the blank line delta puts before
+  # the diff.
   local preview_window='down,75%,border-top,wrap'
   local -a preview=(
     --preview "git show --color=always --format= {3} | $_GIT_PAGER | sed '1{/^\$/d}'"
@@ -629,11 +639,8 @@ __git_log() {
   # (^ *[0-9]+ ) splits the number and its space off the row shown, so that
   # the search skips it (--nth=2..): in the row read, 0x1f follows the
   # number, and it can't match there. fzf prints the hash of the row
-  # picked. Both steps start with the search off, as alt-i leaves it
-  # (FZF_DEFAULT_OPTS): j/k, g/G and q act at once, and i turns the search on.
-  # Unlike the other pickers, neither step cycles: --no-cycle, after
-  # _GIT_FZF_BASE's --cycle, stops the cursor at either end of the list
-  # rather than wrap it around to the other.
+  # picked. Both steps start with the search off and stop the cursor at either
+  # end of the list, as every picker does (_GIT_FZF_BASE).
   local change='
     function pad(n,  p) {
       while (n-- > 0) p = p " "
@@ -672,7 +679,6 @@ __git_log() {
     END { put() }'
   local -a log_view=(
     --ansi --delimiter=$'\x1f|^ *[0-9]+ ' '--with-nth={1} {6}{3}{4}{2}' --nth=2.. --accept-nth=3
-    --bind 'start:+trigger(alt-i)'
   )
   local count commit
   count=$(git rev-list --count HEAD 2>/dev/null)
@@ -680,7 +686,7 @@ __git_log() {
     --date=format-local:'%y-%m-%d %H:%M' \
     --format="%x1e%an, %ad%x1f%h%x1f %<|($((COLUMNS - 7 - ${#count})),trunc)%s %x1f%h %s%x1f%at%x1f%ar" |
     awk -v w="${#count}" -v now="$(date +%s)" "$change" |
-    fzf "${_GIT_FZF_BASE[@]}" --no-cycle "${inline[@]}" "${preview[@]}" "${log_view[@]}")
+    fzf "${_GIT_FZF_BASE[@]}" "${inline[@]}" "${preview[@]}" "${log_view[@]}")
 
   [ "$commit" = "" ] && return
 
@@ -706,12 +712,13 @@ __git_log() {
   # Enter and the mouse's clicks act on a match only (Enter on the marks too).
   # fzf counts every row, so the info line counts the files instead: matches
   # over TREE_FILES, the commit's files. fzf prints the picked rows' indices,
-  # which tree-quote turns back into paths. alt-i turns the search off before
-  # search(!/$), as turning it off after cancels that search.
+  # which tree-quote turns back into paths. _GIT_FZF_BASE's start turns the
+  # search off (alt-i) before search(!/$): turning it off after would cancel
+  # that search.
   local accept='[ "$FZF_RAW" = 1 ] || [ "$FZF_SELECT_COUNT" != 0 ] && echo accept'
   local -a tree_view=(
     --ansi --raw --gutter-raw=' ' --delimiter=$'\x1f' --with-nth='{1}' --accept-nth='{n}'
-    --bind 'start:+trigger(alt-i)+search(!/$),change:transform-search:printf "%s !/$" "$FZF_QUERY"'
+    --bind 'start:+search(!/$),change:transform-search:printf "%s !/$" "$FZF_QUERY"'
     --bind 'result:best,up:up-match,down:down-match,btab:deselect+up-match'
     --bind 'j:trigger(f12)+down-match,k:trigger(f11)+up-match'
     --bind 'f12:down-match+down-match+down-match+down-match,f11:up-match+up-match+up-match+up-match'
@@ -726,7 +733,7 @@ __git_log() {
   files=$(($(git-hunk-pick paths commit "$commit" </dev/null | tr -cd '\000' | wc -c)))
   local args
   args=$(git-hunk-pick tree commit "$commit" </dev/null |
-    TREE_FILES=$files fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" --no-cycle "${inline[@]}" "${tree_view[@]}" "${file_preview[@]}" |
+    TREE_FILES=$files fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "${inline[@]}" "${tree_view[@]}" "${file_preview[@]}" |
     git-hunk-pick tree-quote commit "$commit" "$repo_cdup")
   [ "$args" != "" ] && echo "$EDITOR -- $args"
 }
