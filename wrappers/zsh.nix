@@ -425,8 +425,8 @@ let
           *) fail "the fork picker does not fork the picked session" ;;
         esac
 
-        # The backup (leader cb) is claude-sessions backup; its restore (leader
-        # cbr) resumes each picked session as __claude started it, from its
+        # The backup (leader css) is claude-sessions backup; its restore (leader
+        # csr) resumes each picked session as __claude started it, from its
         # directory, in a window of the tmux session it was in, which it makes
         # again at the current window's size once it is gone, then closes the
         # gaps in the session numbers. A stand-in claude-sessions saved three
