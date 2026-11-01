@@ -8,11 +8,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1793057480,
-        "narHash": "sha256-q2c19GloBCPy5w7N85veGVmyBBzBWzhLXJtDebAbd/c=",
+        "lastModified": 1793551298,
+        "narHash": "sha256-v26K9Z4eUf0mtyIOo3D07M65HpZkg9kS5qsdEwRECd4=",
         "owner": "Runeword",
         "repo": "claude-microvm",
-        "rev": "d757c1408cb6467e7377ad59693b7631ae764685",
+        "rev": "0c18a15730cbdba3e883fac34e0f9386d4e4d400",
         "type": "github"
       },
       "original": {
