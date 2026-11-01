@@ -408,9 +408,10 @@ _profile "functions: %.0fms\n" $(( (__TF2 - __TF1) * 1000 ))
 
 __on_empty_buffer() {
   local precmd_function
-  # On a continuation line (an open quote, a loop, a heredoc) BUFFER is empty
-  # but the lines above it are in PREBUFFER: that is not an empty prompt.
-  if [[ -n "$BUFFER" || -n "$PREBUFFER" ]]; then
+  # Only at the prompt itself, where zle sets CONTEXT to start. An empty line
+  # elsewhere is not an empty prompt: a continuation line (an open quote, a
+  # loop, a heredoc) is cont, a select menu select, and vared vared.
+  if [[ -n "$BUFFER" || "$CONTEXT" != start ]]; then
       eval "$2"
       return
   fi
@@ -474,23 +475,6 @@ _zsh_autosuggest_strategy_custom() {
       return
     fi
   done
-}
-
-__aliases_() {
-    local output
-    output=$(aliases-fzf -f "$PERMEANCE_TREE/.config/shell/functions/leader-aliases" 2>/dev/null)
-    if [[ -n $output ]]; then
-        if [[ $output == *$'\n' ]]; then
-            BUFFER=$output
-            zle accept-line
-            zle reset-prompt
-        else
-            BUFFER=$output
-            zle end-of-line
-            zle autosuggest-fetch
-            zle reset-prompt
-        fi
-    fi
 }
 
 ZSH_AUTOSUGGEST_STRATEGY=(custom history completion)
