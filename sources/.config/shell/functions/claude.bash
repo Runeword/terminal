@@ -684,7 +684,9 @@ __claude_sessions_backup() {
 # Start the sessions of the last backup again, each in a tmux window of its
 # own: fzf lists them all marked, tab unmarks one, enter resumes the marked
 # ones. claude-sessions saved leaves out, saying why, a session still open and
-# one whose conversation or directory is gone.
+# one whose conversation or directory is gone. A tmux session made again can
+# leave a gap in the session numbers, which __tmux_renumber_sessions (tmux.sh)
+# then closes, as when a session closes.
 __claude_sessions_restore() {
   __claude_sessions_on_path || return 0
   if [ -z "$TMUX" ]; then
@@ -706,13 +708,19 @@ __claude_sessions_restore() {
     __claude_sessions_reopen "$id" "$instance" "$dir" "$conns" "$net" "$plugins" "$tsession" &&
       printf 'claude: resumed %s in %s\n' "$title" "$dir"
   done <<<"$rows"
+  __tmux_renumber_sessions
 }
 
 # Resume session $1 of profile $2 as __claude started it: from its directory
 # $3, with the connections $4 and plugins $6 it had (comma-separated, set as
 # __claude_connect sets its picks) and the extra hosts $5 of its network
-# filter, in a new window of tmux session $7 while that is still there; "-"
-# stands for none. A subshell keeps the directory and variables to it.
+# filter, in a new window of tmux session $7, which it makes again once it is
+# gone, as after a reboot, rather than put every session in the current one;
+# "-" stands for none, and the window goes into the current session. Sessions
+# are named by number, so one of that name may be another session by then,
+# which the window joins. A session made again takes the current window's
+# size: tmux would make it 80x24, and -x - takes the size of the pane this runs
+# in. A subshell keeps the directory and variables to it.
 __claude_sessions_reopen() {
   (
     builtin cd -- "$3" || exit 1
@@ -733,10 +741,13 @@ __claude_sessions_reopen() {
       esac
     done
     __claude_init "$2" --resume "$1" || exit 1
-    if [ "$7" != - ] && tmux has-session -t "=$7" 2>/dev/null; then
+    if [ "$7" = - ]; then
+      tmux new-window -d -c "$3" "$__CLAUDE_CMD"
+    elif tmux has-session -t "=$7" 2>/dev/null; then
       tmux new-window -d -t "=$7:" -c "$3" "$__CLAUDE_CMD"
     else
-      tmux new-window -d -c "$3" "$__CLAUDE_CMD"
+      size=$(tmux display-message -p '#{window_width} #{window_height}')
+      tmux new-session -d -s "$7" -x "${size% *}" -y "${size#* }" -c "$3" "$__CLAUDE_CMD"
     fi
   )
 }
