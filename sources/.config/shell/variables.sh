@@ -14,15 +14,19 @@ export NIXOS_PATH="$HOME/nixos"
 # _____________________________________________ FZF
 
 export FZF_DEFAULT_OPTS_FILE=""
+# forgit's pickers (the leader's gkf, gbm, …) open as the git pickers do
+# (functions/git.bash): with the search off, the cursor stopping at either end
+# of the list, and the preview below it.
 export FORGIT_FZF_DEFAULT_OPTS="
 --exact \
---cycle \
+--no-cycle \
 --reverse \
 --prompt='  ' \
 --no-separator \
 --info=inline:'' \
---preview-window right,75%,border-none \
+--preview-window down,75%,border-top,wrap \
 --bind='ctrl-a:select-all' \
+--bind='start:+trigger(alt-i)' \
 "
 # export FZF_DEFAULT_COMMAND="
 # fd \
