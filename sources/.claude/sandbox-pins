@@ -20,8 +20,9 @@
 .config/shell/variables.sh
 .config/shell/aliases.sh
 .config/shell/functions
-# The leader-key command table: aliases.sh's __aliases widget (pinned above)
-# renders it and runs the picked chord's cmd in the host shell — accept-line
+# The leader-key command table: the leader-aliases plugin's widget
+# (.config/zsh/plugins/leader-aliases, pinned above with .config/zsh) renders
+# it and runs the picked chord's cmd in the host shell — accept-line
 # for the default run mode, eval for eval entries — on every leader press.
 # Writable, a session could rewrite a familiar chord into its own host command;
 # this is the data the pinned widget executes, moved out of the pinned
