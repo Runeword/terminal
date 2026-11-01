@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	fzf "github.com/junegunn/fzf/src"
 )
 
 func TestWorktreeChoice(t *testing.T) {
@@ -89,6 +91,16 @@ func TestRunFzf(t *testing.T) {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestPreviewWindow has fzf read the pickers' preview window: one it can't
+// read would stop every picker with an error.
+func TestPreviewWindow(t *testing.T) {
+	t.Setenv("FZF_DEFAULT_OPTS_FILE", "")
+	t.Setenv("FZF_DEFAULT_OPTS", "")
+	if _, err := fzf.ParseOptions(true, []string{previewWindow}); err != nil {
+		t.Fatal(err)
 	}
 }
 
