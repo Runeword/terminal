@@ -332,6 +332,12 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 	}, nil
 }
 
+// previewWindow is every picker's preview window: below the list, in three
+// quarters of fzf's height, as gl's (git.bash), so that the list has the full
+// width. Its first line, the focused row the preview echoes, stays at the top
+// as the rest scrolls (~1).
+const previewWindow = "--preview-window=down,75%,border-top,wrap,~1"
+
 // runFzf runs fzf on lines, in-process through its library, and returns the
 // selection, one item per line. args apply after $FZF_DEFAULT_OPTS_FILE and
 // $FZF_DEFAULT_OPTS, as they do on the fzf command line. Returns "" on no
@@ -427,7 +433,7 @@ func switchBranch() error {
 		"--delimiter=\t",
 		"--with-nth=1,2",
 		fmt.Sprintf("--preview=echo {}; git diff --color=always --end-of-options %s..{1} | %s", shellQuote(info.current), info.pager),
-		"--preview-window=right,65%,border-none,wrap,~1",
+		previewWindow,
 	}
 	args = append(args, os.Args[2:]...)
 
@@ -478,7 +484,7 @@ func mergeBranch() error {
 		fmt.Sprintf("--header=merge into %s", info.current),
 		"--bind=tab:down,btab:up",
 		fmt.Sprintf("--preview=echo {}; git diff --color=always --end-of-options %s...{} | %s", shellQuote(info.current), info.pager),
-		"--preview-window=right,75%,border-none,wrap,~1",
+		previewWindow,
 	}
 	args = append(args, os.Args[2:]...)
 
@@ -508,7 +514,7 @@ func cherryPick() error {
 	branchArgs := []string{
 		fmt.Sprintf("--header=cherry-pick into %s", info.current),
 		"--preview=echo {}; git log --oneline --color=always --end-of-options {}",
-		"--preview-window=right,75%,border-none,wrap,~1",
+		previewWindow,
 	}
 	branchArgs = append(branchArgs, os.Args[2:]...)
 
@@ -535,7 +541,7 @@ func cherryPick() error {
 		"--bind=ctrl-a:select-all",
 		fmt.Sprintf("--header=%s", branch),
 		fmt.Sprintf("--preview=echo {}; git show --color=always --decorate {1} | %s", info.pager),
-		"--preview-window=right,75%,border-none,wrap,~1",
+		previewWindow,
 	}
 	commitArgs = append(commitArgs, os.Args[2:]...)
 
@@ -585,7 +591,7 @@ func diffBranches() error {
 	branchArgs := []string{
 		"--multi",
 		"--preview=echo {}; git log --oneline --color=always --end-of-options {}",
-		"--preview-window=right,75%,border-none,wrap,~1",
+		previewWindow,
 	}
 	branchArgs = append(branchArgs, os.Args[2:]...)
 
@@ -629,7 +635,7 @@ func diffBranches() error {
 		"--bind=ctrl-a:select-all",
 		fmt.Sprintf("--preview=echo {}; cd %s && git diff --color=always --end-of-options %s %s -- {} | %s",
 			shellQuote(repoRoot), shellQuote(branch1), shellQuote(branch2), info.pager),
-		"--preview-window=right,75%,border-none,wrap,~1",
+		previewWindow,
 	}
 	fileArgs = append(fileArgs, os.Args[2:]...)
 
@@ -716,7 +722,7 @@ func worktreeAdd() error {
 		fmt.Sprintf("--header=%s", header),
 		fmt.Sprintf("--preview=echo {}; git diff --color=always --end-of-options %s..{} | %s",
 			shellQuote(info.current), info.pager),
-		"--preview-window=right,75%,border-none,wrap,~1",
+		previewWindow,
 	}
 	fzfArgs = append(fzfArgs, os.Args[2:]...)
 
@@ -839,7 +845,7 @@ func worktreeRemove() error {
 		"--delimiter=\t",
 		fmt.Sprintf("--preview=echo {1} {2} {3}; git diff --color=always --end-of-options %s..{5} | %s",
 			shellQuote(currentBranch), pager),
-		"--preview-window=right,75%,border-none,wrap,~1",
+		previewWindow,
 	}
 	fzfArgs = append(fzfArgs, os.Args[2:]...)
 
@@ -946,7 +952,7 @@ func worktreeSwitch() error {
 		"--with-nth=1,2,3",
 		"--delimiter=\t",
 		"--preview=echo {1} {2} {3}; echo; git -C {4} status --short --branch; echo; git log --oneline --color=always -n 20 --end-of-options {5}",
-		"--preview-window=right,75%,border-none,wrap,~1",
+		previewWindow,
 	}
 	fzfArgs = append(fzfArgs, os.Args[2:]...)
 
@@ -994,7 +1000,7 @@ func stashApply() error {
 		"--header=select stash to apply",
 		"--delimiter=:",
 		fmt.Sprintf("--preview=echo {}; git stash show --color=always {1} | %s", pager),
-		"--preview-window=right,75%,border-none,wrap,~1",
+		previewWindow,
 	}
 	stashArgs = append(stashArgs, os.Args[2:]...)
 
@@ -1033,7 +1039,7 @@ func stashApply() error {
 		"--header=select files to apply (ctrl-a: all)",
 		fmt.Sprintf("--preview=echo {}; cd %s && git diff --color=always %s^ %s -- {} | %s",
 			shellQuote(repoRoot), stashRef, stashRef, pager),
-		"--preview-window=right,75%,border-none,wrap,~1",
+		previewWindow,
 	}
 	fileArgs = append(fileArgs, os.Args[2:]...)
 
