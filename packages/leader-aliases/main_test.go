@@ -106,6 +106,30 @@ func TestParseErrors(t *testing.T) {
 	}
 }
 
+// Some editors start a UTF-8 file with a byte-order mark: the table reads the
+// same with one, and the formatter drops it.
+func TestParseIgnoresByteOrderMark(t *testing.T) {
+	want, wantLines, err := parse("t", sample)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, lines, err := parse("t", "\uFEFF"+sample)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d rows, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("row %d: got %+v, want %+v", i, got[i], want[i])
+		}
+	}
+	if format(lines) != format(wantLines) {
+		t.Errorf("format kept the mark: %q", format(lines))
+	}
+}
+
 func TestFormatAlignsEachRunOfChords(t *testing.T) {
 	src := "# c\n[git]\ngt  run  x  git status\n" +
 		"gbs  eval  branch › switch\t__git_branch_switch  -a  b\n" +
