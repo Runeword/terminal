@@ -168,19 +168,20 @@ let
         fi
 
         # ol (leader-aliases-edit) edits the table in a copy that reaches it only
-        # valid and lined up: a stand-in editor adds a line with an unknown
-        # mode, then, reopened at that line, fixes it.
+        # valid and lined up: a stand-in editor, which takes an argument the way
+        # EDITOR='code --wait' does, adds a line with an unknown mode, then,
+        # reopened at that line, fixes it.
         printf '[git]\ngt  run  status  git status\n' > "$HOME/leader/edit.conf"
-        printf '#!/bin/sh\necho "$*" >> "%s"\nfor f; do :; done\ncase $1 in\n  --) echo "zz  rnu  sleep  sleep 1" >> "$f" ;;\n  +3) sed "s/ rnu / run /" "$f" > "$f.new" && cat "$f.new" > "$f" ;;\nesac\n' \
+        printf '#!/bin/sh\n[ "$1" = -w ] || exit 1; shift\necho "$*" >> "%s"\nfor f; do :; done\ncase $1 in\n  --) echo "zz  rnu  sleep  sleep 1" >> "$f" ;;\n  +3) sed "s/ rnu / run /" "$f" > "$f.new" && cat "$f.new" > "$f" ;;\nesac\n' \
           "$HOME/leader/edits" > "$HOME/leader/bin/edit"
         chmod +x "$HOME/leader/bin/edit"
         edit='. ${self}/.config/zsh/plugins/leader-aliases/leader-aliases.plugin.zsh; leader-aliases-edit "$HOME/leader/edit.conf"'
-        if echo y | EDITOR=edit PATH=$HOME/leader/bin:$PATH ${self}/bin/zsh -f -c "$edit" 2>/dev/null \
+        if echo y | EDITOR='edit -w' PATH=$HOME/leader/bin:$PATH ${self}/bin/zsh -f -c "$edit" 2>/dev/null \
           && [ "$(cat "$HOME/leader/edit.conf")" = "$(printf '[git]\ngt \trun \tstatus \tgit status\nzz \trun \tsleep  \tsleep 1')" ] \
           && [ "$(awk '{ print $1 }' "$HOME/leader/edits" | tr '\n' ' ')" = "-- +3 " ]; then
-          ok "ol reopens the table copy at a broken line and writes it back lined up"
+          ok "ol runs an EDITOR with arguments, reopens the table copy at a broken line and writes it back lined up"
         else
-          fail "ol does not reopen a broken line, or writes the table back broken or unaligned"
+          fail "ol does not run an EDITOR with arguments, does not reopen a broken line, or writes the table back broken or unaligned"
         fi
 
         # The picker reads its pick without starting a process, and the widget
@@ -211,9 +212,9 @@ let
           *"$(printf 'zle redisplay\nzle accept-line\nzle redisplay\nLBUFFER=nix shell nixpkgs#hello')") ok "an eval chord (nps) runs its helper and accepts its output between bare redraws" ;;
           *) fail "an eval chord (nps) re-expands the prompt or does not accept its helper's output: $picked" ;;
         esac
-        picked=$(picker 'fzf() { print -r -- "^zz"; return 1; }')
+        picked=$(picker 'fzf() { print -r -- "^z\ z"; return 1; }')
         case "$picked" in
-          *"$(printf 'zle autosuggest-fetch\nzle redisplay\nLBUFFER=zz')") ok "a chord that matches nothing is inserted as typed, without its ^" ;;
+          *"$(printf 'zle autosuggest-fetch\nzle redisplay\nLBUFFER=z z')") ok "a chord that matches nothing is inserted as typed, without its ^ or the backslash fzf puts before a space" ;;
           *) fail "a chord that matches nothing is not inserted as typed: $picked" ;;
         esac
 
