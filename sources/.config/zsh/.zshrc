@@ -116,6 +116,10 @@ _profile "keys: %.0fms\n" $(( (__TK2 - __TK1) * 1000 ))
 # Force emacs keymap regardless of $EDITOR (nvim would otherwise auto-select viins)
 bindkey -e
 
+# The leader-aliases plugin (plugins/leader-aliases) reads its table from here,
+# at each press.
+LEADER_ALIASES_FILE=$PERMEANCE_TREE/.config/shell/leader.conf
+
 for f in "$PERMEANCE_TREE"/.config/zsh/plugins/*/*.plugin.zsh(N); do
   source "$f"
 done
@@ -412,10 +416,10 @@ __on_empty_buffer() {
   fi
 
   # $1 succeeding means it ran something whose effect the prompt may show: the
-  # precmd hooks run and reset-prompt re-expands the prompt. Failing (as the
-  # leader picker always does, even when it accepts a line) it changed nothing
-  # the prompt shows, so the line is only redrawn: reset-prompt is redisplay
-  # plus re-expansion, which reruns the prompt's commands (starship, twice).
+  # precmd hooks run and reset-prompt re-expands the prompt. Failing, it changed
+  # nothing the prompt shows, so the line is only redrawn: reset-prompt is
+  # redisplay plus re-expansion, which reruns the prompt's commands (starship,
+  # twice).
   if eval "$1"; then
     for precmd_function in "${precmd_functions[@]}"; do
       "$precmd_function"
@@ -488,15 +492,6 @@ __aliases_() {
         fi
     fi
 }
-
-__aliases_or_space() { __on_empty_buffer __aliases "LBUFFER+=' '; zle autosuggest-fetch"; }
-# __aliases_or_space() { __aliases_; }
-zle -N __aliases_or_space
-bindkey "${KEYS[SPACE]}" __aliases_or_space
-
-__aliases_or_enter() { __on_empty_buffer __aliases 'zle accept-line'; }
-zle -N __aliases_or_enter
-bindkey "${KEYS[ENTER]}" __aliases_or_enter
 
 ZSH_AUTOSUGGEST_STRATEGY=(custom history completion)
 
