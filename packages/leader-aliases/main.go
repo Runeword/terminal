@@ -17,6 +17,10 @@
 //	           helpers), then insert that and run it
 //	eval-edit  the same, leaving the printed command for editing
 //
+// A command can hold #LINE, once, in a run or edit row: on a typed line, the
+// plugin puts such a command in place of the line, #LINE standing for it
+// (sudo #LINE). An eval row can't hold it, since its command is evaluated.
+//
 // A [name] line starts a group, which the chords below it belong to; a line
 // starting with # is a comment; blank lines are ignored. The chord <space> is
 // the space key. A chord listed on adjacent lines is a submenu, which the
@@ -68,6 +72,9 @@ const sep = " "
 // spaceChord is how the table writes the space key, which a blank-separated
 // column cannot hold.
 const spaceChord = "<space>"
+
+// lineMarker, in a command, stands for the line already typed.
+const lineMarker = "#LINE"
 
 // Layout budget applied when the terminal width is known: fzf draws a
 // two-cell pointer gutter before each row, the description keeps up to
@@ -245,6 +252,14 @@ func parse(name, src string) ([]row, []line, error) {
 			for _, f := range [][2]string{{"a description", cells[2]}, {"a command", cells[3]}} {
 				if err := checkText(f[0], f[1]); err != nil {
 					return fail("%v", err)
+				}
+			}
+			if n := strings.Count(cells[3], lineMarker); n > 0 {
+				if e.eval {
+					return fail("%s can't be in an eval row: its command is evaluated, and the typed line must not be", lineMarker)
+				}
+				if n > 1 {
+					return fail("%s is in the command %d times; it can be there once", lineMarker, n)
 				}
 			}
 			if prev, dup := owner[chord]; dup {
