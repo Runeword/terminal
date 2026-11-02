@@ -63,6 +63,7 @@ func TestParseSplitsCells(t *testing.T) {
 		{"a tab alone separates", "gx\trun\tx y\tgit status", "x y", "git status"},
 		{"padding before a tab is one separator", "gx   \trun  \tx y     \tgit status", "x y", "git status"},
 		{"surrounding blanks are trimmed", "  gx  run  x  git status  \r", "x", "git status"},
+		{"an edit row can hold the typed line", "gx  edit  sudo  sudo #LINE", "sudo", "sudo #LINE"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -90,6 +91,8 @@ func TestParseErrors(t *testing.T) {
 		{"unclosed group", "[git\n", "t:1: a group line is [name] alone"},
 		{"text after a group", "[git] x\n", "t:1: a group line is [name] alone"},
 		{"empty group", "[ ]\n", "t:1: empty group name"},
+		{"typed line in an eval row", "[line]\nls  eval  sudo  sudo #LINE\n", "t:2: #LINE can't be in an eval row"},
+		{"typed line twice", "[line]\nlt  edit  twice  #LINE && #LINE\n", "t:2: #LINE is in the command 2 times"},
 		{"separator in a description", "[git]\ngt  run  x y  git status\n", "t:2: a description must not contain"},
 		{"separator in a command", "[git]\ngt  run  x  git status\n", "t:2: a command must not contain"},
 	}
