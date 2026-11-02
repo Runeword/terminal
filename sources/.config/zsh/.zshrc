@@ -124,6 +124,9 @@ for f in "$PERMEANCE_TREE"/.config/zsh/plugins/*/*.plugin.zsh(N); do
   source "$f"
 done
 
+# Alt+Space: the leader picker on any line (Space opens it on an empty one).
+bindkey '^[ ' _leader_aliases_line
+
 # ------------------------------------ ZSH hooks
 typeset -F __TH1="$SECONDS"
 autoload -Uz add-zsh-hook
