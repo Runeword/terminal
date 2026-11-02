@@ -231,6 +231,16 @@ __nixos_generation_remove() {
   sudo /run/current-system/bin/switch-to-configuration boot
 }
 
+# Deletes every home manager and NixOS generation but the current ones and
+# collects the garbage they leave, hd and nd in one, then refreshes the boot
+# menu, as ngr does, so it lists no deleted generation. The home manager
+# profile goes first, as this user: root's nix-collect-garbage never sees it.
+__nix_garbage_clean_all() {
+  nix-env -p "${XDG_STATE_HOME:-$HOME/.local/state}/nix/profiles/home-manager" --delete-generations old &&
+    sudo nix-collect-garbage --verbose --delete-old &&
+    sudo /run/current-system/bin/switch-to-configuration boot
+}
+
 # Rebuilds the current system
 __nix_system_rebuild() {
   if [ "$(uname)" = "Linux" ]; then
