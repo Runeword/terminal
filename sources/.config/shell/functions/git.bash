@@ -357,9 +357,10 @@ __git_ignore() {
 __git_diff() {
   __git_require_repo || return 1
 
-  # The rows are numbered (see below), so the preview takes the path from the
-  # fields before the number ({s..-2}, spaces kept), not from the whole row.
-  local repo_cdup kind ph='{s..-2}'
+  # A row has three fields after its path (see below), so the preview takes
+  # the path from the fields before them ({s..-4}, spaces kept), not from the
+  # whole row.
+  local repo_cdup kind ph='{s..-4}'
   repo_cdup="$(git rev-parse --show-cdup)"
   local -a preview
 
@@ -390,24 +391,100 @@ __git_diff() {
   # The staged files picked open in Neovim's gdc (its gl.nvim): their staged change marked in them
   local args open=
   [ "$kind" = staged ] && open='GL_OPEN=staged '
-  # As __git_fzf_select, with each path numbered from 1: awk reads every path
-  # before it prints one, to right-align the numbers to the widest, and puts
-  # the number after the path and 0x1f, so that the path is every field
-  # before it (..-2), whatever it holds (a 0x1f, a newline, a space at either
-  # end). Not a read -d loop: zsh's read -d puts back the terminal modes it
-  # found, over the ones fzf sets meanwhile. fzf shows the number first
-  # ({-1} {..-2}), and the delimiter's second half (^ *[0-9]+ ) splits it and
-  # its space off the row shown, so that the search skips it (--nth=2..). It
-  # can split a path that starts with a number off the row read too, but
-  # ..-2 joins it back. The number stays in view when fzf cuts a long path
-  # short (--freeze-left), and fzf prints the path alone.
+  # As __git_fzf_select, with a path's row laid out as gl lays out a
+  # commit's: its number from 1, right-aligned, its change, the path, then
+  # its author and date flush right, with no colour of their own, so that
+  # fzf shows and highlights them as the rest of the row. The change is + if
+  # the file is new, - if it is deleted, ~ otherwise, in gl's bold green, red
+  # or blue: gdc's is the staged change, gdd's the unstaged one and gda's the
+  # file's against HEAD, as git status lists them. git status leaves out the
+  # untracked files (-uno: the list's own search found them, and a second
+  # one would walk the whole work tree again), so a path it doesn't list is
+  # new, and so is one in gdd's list that it lists with no unstaged change
+  # (git rm --cached). The author is the name git will commit the change
+  # under (user.name): git keeps none for a change not committed. The date is
+  # when the file was last saved, worded as gl words a commit's: how long ago
+  # (23 minutes ago) if that is less than an hour, and its local date and
+  # time otherwise, the year in two digits (26-10-24 14:30). stat prints both
+  # times, for a few hundred paths a run; a deleted file has none. awk reads
+  # every path before it prints one, to right-align the numbers to the
+  # widest, and pads the path so that the author and date end at column
+  # $COLUMNS - 3, the width of fzf's list, as gl's do. A row's fields are
+  # 0x1f-separated: the path, its change, the padding with the author and
+  # date, and the number, so that the path is every field before them
+  # (..-4), whatever it holds (a 0x1f, a newline, a space at either end), but
+  # for an escape sequence, which fzf reads as colours (--ansi) and drops, as
+  # in gl. Not a read -d loop: zsh's read -d puts back the terminal modes it
+  # found, over the ones fzf sets meanwhile. fzf shows the number first, then
+  # the change, the path and the author and date ({-1} {-3}…), with a 0x1f,
+  # which fzf draws as nothing, on each side of the path: those split the
+  # change and the author and date off the row shown, as the delimiter's
+  # second half (^ *[0-9]+ ) splits the number and its space off, so that
+  # the search takes the path alone (--nth=3..-2). That half can split a path
+  # that starts with a number off the row read too, but ..-4 joins it back.
+  # When fzf cuts a long path short, the number and the change stay in view
+  # (--freeze-left), and so do the author and date (--freeze-right). fzf
+  # prints the path alone.
+  local rows='
+    function quote(s) {
+      gsub(/\047/, "\047\\\047\047", s)
+      return "\047" s "\047"
+    }
+    function sym(x) {
+      return x == "A" || x == "?" ? "+" : x == "D" ? "-" : "~"
+    }
+    BEGIN {
+      cmd = "git config user.name"
+      cmd | getline author
+      close(cmd)
+      RS = ORS = "\0"
+      cmd = "git --no-optional-locks status --porcelain -z --no-renames --untracked-files=no"
+      while ((cmd | getline r) > 0) st[substr(r, 4)] = substr(r, 1, 2)
+      close(cmd)
+      badge["+"] = "\033[1;38;2;47;143;83m+\033[0m "
+      badge["-"] = "\033[1;38;2;168;77;95m-\033[0m "
+      badge["~"] = "\033[1;38;2;58;93;153m~\033[0m "
+    }
+    { p[NR] = $0 }
+    END {
+      for (i = 1; i <= NR; i += 500) {
+        cmd = "stat --printf=\"%n\\0%Y\\0%y\\0\" --"
+        for (j = i; j <= NR && j < i + 500; j++) cmd = cmd " " quote(p[j])
+        cmd = cmd " 2>/dev/null"
+        while ((cmd | getline f) > 0) {
+          cmd | getline t[f]
+          cmd | getline d[f]
+        }
+        close(cmd)
+      }
+      w = length(NR)
+      for (i = 1; i <= NR; i++) {
+        s = (p[i] in st) ? st[p[i]] : "??"
+        x = substr(s, 1, 1)
+        y = substr(s, 2, 1)
+        if (kind == "staged") c = sym(x)
+        else if (kind == "unstaged") c = sym(y == " " ? "?" : y)
+        else if (y == "D") c = "-"
+        else c = x == "A" ? "+" : sym(y == " " ? x : y)
+        dt = ""
+        if (p[i] in t) {
+          a = now - t[p[i]]
+          if (a >= 0 && a < 90) dt = a (a == 1 ? " second ago" : " seconds ago")
+          else if (a >= 0 && a < 3600) dt = int((a + 30) / 60) " minutes ago"
+          else dt = substr(d[p[i]], 3, 14)
+        }
+        r = (author == "" || dt == "") ? author dt : author ", " dt
+        n = cols - w - 6 - length(p[i]) - length(r)
+        print p[i] "\037" badge[c] "\037" sprintf("%" (n > 1 ? n : 1) "s", "") r "\037" sprintf("%" w "d", i)
+      }
+    }'
   args=$(
     __git_cd_root || exit 1
     git-hunk-pick paths "$kind" </dev/null |
-      awk 'BEGIN { RS = ORS = "\0" } { r[NR] = $0 } END { for (i = 1; i <= NR; i++) print r[i] "\037" sprintf("%" length(NR) "d", i) }' |
+      awk -v kind="$kind" -v now="$(date +%s)" -v cols="$COLUMNS" "$rows" |
       fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "${preview[@]}" \
-        --delimiter=$'\x1f|^ *[0-9]+ ' '--with-nth={-1} {..-2}' --nth=2.. \
-        --accept-nth=..-2 --freeze-left=1 |
+        --ansi --delimiter=$'\x1f|^ *[0-9]+ ' "--with-nth={-1} {-3}"$'\x1f'"{..-4}"$'\x1f'"{-2}" \
+        --nth=3..-2 --accept-nth=..-4 --freeze-left=2 --freeze-right=1 |
       git-hunk-pick quote "$repo_cdup"
   )
   [ "$args" != "" ] && echo "$open$EDITOR -- $args"
