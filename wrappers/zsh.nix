@@ -237,6 +237,24 @@ let
           *) fail "a chord that matches nothing is not inserted as typed: $picked" ;;
         esac
 
+        # Alt+Space (_leader_aliases_line) opens the picker on a typed line: a
+        # chord holding #LINE (ls: sudo #LINE) puts its command in place of the
+        # line, the cursor on the same character; any other chord, a run chord
+        # (gt) too, goes in at the cursor and is not run. The buffers stand in
+        # for the typed line, split at the cursor.
+        typed() {
+          SEP=$sep ${self}/bin/zsh -i -c "$stubs
+            fzf() { pick $1; }
+            BUFFER='$2$3' LBUFFER='$2' RBUFFER='$3'"'
+            _leader_aliases_line
+            print -r -- "[$LBUFFER|$RBUFFER]"' 2>/dev/null
+        }
+        picked="$(typed ls apt ' install foo')$(typed gt 'time ' "")"
+        case "$picked" in
+          *'[sudo apt| install foo]'*"$(printf 'zle autosuggest-fetch\nzle redisplay\n[time git status |]')") ok "on a typed line, a #LINE chord (ls) replaces the line around the cursor, and a run chord (gt) is only inserted at the cursor" ;;
+          *) fail "on a typed line, a #LINE chord does not replace the line around the cursor, or a run chord is run or misplaced: $picked" ;;
+        esac
+
         # Off an empty prompt, Space and Enter run the widgets they had before
         # the plugin was sourced, in a bare zsh with no .zshrc and no
         # zsh-autosuggestions: a stand-in zle records the widgets called on a
@@ -589,20 +607,33 @@ let
           fail "gl lists commits without their right-aligned number first, or searches it, or without their change in its colour in place of the verb it stands for, or without their author and date flush right in the row's colours, dates a commit of the last hour other than by how long ago it was made or an older one other than by its date and time, previews a diff beside a list or in other than three quarters of the height, or a commit's under a line, starts a list with the search on or turns the file list's off after its !/$ search, steps the file list's j/k or f12/f11 onto directories, gives a list a header, lets a list cycle, binds y or a jump in a list, or does not hand the rows fzf picks from its tree to tree-quote"
         fi
 
-        # gda, gdc and gdd (__git_diff) number their paths from 1,
-        # right-aligned, and fzf shows each number before its path, searches
-        # the path only and prints it as is: the real fzf, filtering for a 1,
-        # picks the one path with a 1 in it, not the paths numbered 1 and 10,
-        # and the stand-in quote shows what it got.
+        # gda, gdc and gdd (__git_diff) lay out a path's row as gl lays out a
+        # commit's: numbered from 1, right-aligned, then the path's change,
+        # in its colour (gdc's is the staged one: - in bold red for a deleted
+        # file, ~ in bold blue for a changed one, + in bold green for a new
+        # one, which git status doesn't list), and its author and date flush
+        # right, at column $COLUMNS - 3: how long ago a file saved in the
+        # last hour was saved, in git's words (100 seconds: 2 minutes ago),
+        # an older one's date and time, and nothing for a file that is gone.
+        # fzf searches the path only and prints it as is: the real fzf,
+        # filtering for a 1, picks the one path with a 1 in it, not the paths
+        # numbered 1 and 10, nor those dated 1970, and the stand-in quote
+        # shows what it got. A stand-in git on PATH answers the git status
+        # and user.name that awk asks for.
+        mkdir -p "$HOME/gd/bin"
+        (cd "$HOME/gd" && touch -d @0 b c d e f g h j && touch -d "@$(($(date +%s) - 100))" "i 1")
+        printf '#!/bin/sh\ncase $1 in config) echo u ;; *) printf "%%s\\0" "D   a" "M  b" ;; esac\n' > "$HOME/gd/bin/git"
+        chmod +x "$HOME/gd/bin/git"
         gdc='. ${self}/.config/shell/functions/git.bash
-          git() { [ "$2" != --show-toplevel ] || echo /; }
+          git() { [ "$2" != --show-toplevel ] || echo "$HOME/gd"; }
           git-hunk-pick() { case $1 in paths) printf "%s\0" " a" b c d e f g h "i 1" j ;; quote) tr "\0" , ;; esac; }
           fzf() { tee "$HOME/gdc" | ${pkgs.fzf}/bin/fzf --filter=1 "$@"; }
-          EDITOR=ed __git_diff staged'
-        if [ "$(${self}/bin/zsh -f -c "$gdc")" = "GL_OPEN=staged ed -- i 1," ] && [ "$(tr '\0\37' '\n:' < "$HOME/gdc" | sed -n '1p;10p')" = "$(printf ' a: 1\nj:10')" ]; then
-          ok "gda, gdc and gdd number their paths from 1, right-aligned, search the paths only and hand on the path picked as is"
+          COLUMNS=40 EDITOR=ed __git_diff staged'
+        if [ "$(PATH=$HOME/gd/bin:$PATH TZ=UTC ${self}/bin/zsh -f -c "$gdc")" = "GL_OPEN=staged ed -- i 1," ] \
+          && [ "$(tr '\0\37' '\n:' < "$HOME/gdc" | sed -n '1p;2p;9p')" = "$(printf ' a:\33[1;38;2;168;77;95m-\33[0m :%29su: 1\nb:\33[1;38;2;58;93;153m~\33[0m :%14su, 70-01-01 00:00: 2\ni 1:\33[1;38;2;47;143;83m+\33[0m :%13su, 2 minutes ago: 9' "" "" "")" ]; then
+          ok "gda, gdc and gdd number their paths from 1, right-aligned, show each one's change in its colour and its author and date flush right, the date how long ago a file saved in the last hour was saved and an older one's date and time, search the paths only and hand on the path picked as is"
         else
-          fail "gda, gdc or gdd lists its paths without a right-aligned number, searches the number or hands on more than the path picked"
+          fail "gda, gdc or gdd lists its paths without a right-aligned number, its change in its colour or its author and date flush right, dates a file saved in the last hour other than by how long ago it was saved or an older one other than by its date and time, searches more than the path or hands on more than the path picked"
         fi
 
         # grs (__git_reset_soft) numbers its commits from 1, for HEAD,
