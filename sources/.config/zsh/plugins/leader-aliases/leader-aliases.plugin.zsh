@@ -4,6 +4,16 @@
 # left. A chord that matches nothing is typed into the line as is. On any
 # other line, Space and Enter do what they did before this file was sourced.
 #
+# _leader_aliases_line opens the same list on any line. It is left unbound,
+# since every key is taken somewhere (Alt+Space opens the window menu on GNOME
+# and Windows); bind it yourself:
+#
+#   bindkey '^[ ' _leader_aliases_line    # Alt+Space
+#
+# On a typed line, a chord's command goes in at the cursor and is not run. A
+# command holding #LINE replaces the line instead, #LINE standing for it
+# (sudo #LINE), and is run or not as its mode says.
+#
 # Needs fzf 0.40 or newer and the leader-aliases binary, which renders and
 # checks the table:
 #
@@ -82,6 +92,12 @@ _leader_aliases_pick() {
     row=${row%"$sep"*}
     cmd=${row##*"$sep"}
 
+    # On a typed line, a command goes in at the cursor and is not run: a run
+    # chord would run the typed line with its command spliced in. A command
+    # holding #LINE (once, and never in an eval row: leader-aliases checks)
+    # replaces the line instead, #LINE standing for it, and is run as its mode
+    # says; the cursor stays on the same character of the typed line.
+    local typed=$BUFFER
     case "$mode" in
       eval-run | eval-insert)
         local output
@@ -89,14 +105,22 @@ _leader_aliases_pick() {
         output=$(eval "$cmd")
         if [ -n "$output" ]; then
           LBUFFER+=$output
-          if [ "$mode" = eval-run ]; then
+          if [ "$mode" = eval-run ] && [ -z "$typed" ]; then
             zle accept-line
             return
           fi
         fi
         ;;
       *)
-        LBUFFER+="$cmd "
+        if [[ $cmd == *'#LINE'* ]]; then
+          LBUFFER=${cmd%%'#LINE'*}$LBUFFER
+          RBUFFER+=${cmd#*'#LINE'}
+        else
+          LBUFFER+="$cmd "
+          if [ -n "$typed" ]; then
+            mode=insert
+          fi
+        fi
         if [ "$mode" = run ]; then
           zle accept-line
           return
@@ -220,6 +244,13 @@ _leader_aliases_key() {
 }
 zle -N _leader_aliases_space _leader_aliases_key
 zle -N _leader_aliases_enter _leader_aliases_key
+
+# The picker on any line, for the key bound to it (see the top of this file).
+_leader_aliases_line() {
+  _leader_aliases_pick
+  zle redisplay
+}
+zle -N _leader_aliases_line
 
 if [[ ${LEADER_ALIASES_BINDINGS:-1} != 0 ]]; then
   bindkey -M emacs ' ' _leader_aliases_space '^M' _leader_aliases_enter
