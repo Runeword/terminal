@@ -572,7 +572,7 @@ _profile "zoxide: %.0fms, fzf: %.0fms\n" \
 # an nvim command line, run like a typed one, so it lands in history and the
 # prompt, precmd hooks and bracketed paste come back as after any command. Esc
 # just redraws the prompt. With text on the line (or a continuation line in
-# progress), the completion menu, as Tab.
+# progress), the completion menu, even where Tab would fill in a suggestion.
 __ripgrep_or_menu_select() {
   if [[ -n $BUFFER || -n $PREBUFFER ]]; then
     zle menu-select
@@ -590,6 +590,11 @@ __ripgrep_or_menu_select() {
 zle -N __ripgrep_or_menu_select
 bindkey "${KEYS[SHIFT_TAB]}" __ripgrep_or_menu_select
 
+# Tab on an empty command line: the file picker. With a suggestion showing and
+# the cursor at the end of the line, it fills the suggestion in, as Esc does.
+# Otherwise, and also while a suggestion is still being fetched, the completion
+# menu: Tab never runs the line. Completion supplies suggestions too, so one
+# shows almost always, and Shift+Tab is the key that always opens the menu.
 __tab_handler() {
   if [[ -z "$BUFFER" && -z "$PREBUFFER" ]]; then
     __open_file
@@ -597,16 +602,9 @@ __tab_handler() {
     # turns it back on only at the next prompt: until then a multi-line paste
     # would run its first line.
     print -rn -- "${zle_bracketed_paste[1]}"
-    # if [[ -z "$BUFFER" ]]; then
-    #   # __ripgrep
-    #   # zle reset-prompt
-    #   __open_file
-    #   # return
-    # # If buffer has text, accept autosuggestion
-    # elif [[ -n "$POSTDISPLAY" ]]; then
-    #   # zle autosuggest-accept
-    #   __autosuggest_accept
     zle reset-prompt
+  elif [[ -n "$POSTDISPLAY" ]] && (( CURSOR == $#BUFFER )); then
+    __autosuggest_accept
   else
     zle menu-select
   fi
