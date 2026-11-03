@@ -33,6 +33,7 @@ allow = [
   "add",
   "fetch",
   "merge-base",
+  "merge-tree",
   "ls-tree",
   "stash",
   "cat-file",
