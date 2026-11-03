@@ -5,15 +5,9 @@ pre-push:
     smoke:
       # Stream nix's build logs live to the terminal
       interactive: true
-      # Only run when something that affects wrapper outputs has changed.
-      # Pre-push uses {push_files}; if none match, lefthook skips the command.
-      glob:
-        - "flake.nix"
-        - "flake.lock"
-        - "lib/**"
-        - "wrappers/**"
-        - "packages/**"
-        - "overlays/**"
+      # No glob, so every push runs it: nix rebuilds only the checks whose
+      # inputs changed, and a push that changes none of them costs one
+      # evaluation. (lefthook still skips a push that only deletes files.)
       # Check the commit being pushed (HEAD), not the working tree, whose
       # uncommitted edits (another session's work) would fail the push. A stale
       # committed flake.lock fails rather than being silently rewritten.
