@@ -17,6 +17,7 @@
 
   inputs.claude-microvm.url = "github:Runeword/claude-microvm";
   inputs.claude-microvm.inputs.nixpkgs.follows = "nixpkgs";
+  inputs.claude-microvm.inputs.lefthook.follows = "lefthook";
 
   inputs.nix-index-database.url = "github:nix-community/nix-index-database";
   inputs.nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
