@@ -15,6 +15,9 @@ let
   # Its `mark` is the SessionStart hook that names the open session to the
   # backup and restore (packages/claude/sessions/open.go).
   claudeSessions = import ../packages/claude/sessions { inherit pkgs; };
+  # The PreToolUse, Stop and UserPromptSubmit hook that holds Claude's memory
+  # changes until its work is done (packages/claude/memory-gate/main.go).
+  claudeMemoryGate = import ../packages/claude/memory-gate { inherit pkgs; };
   gitAllowlistHook = claudeSandbox.git-allowlist-hook;
   # Stand-in bwrap for that dry run: prints the argv it was handed, one per line,
   # and saves the environment it inherited to $BWRAP_ENV.
@@ -50,6 +53,7 @@ let
     claudeStatusline
     claudeDocsGuard
     claudeSessions
+    claudeMemoryGate
     gitAllowlistHook
     pkgs.nixfmt
     pkgs.shfmt
