@@ -655,6 +655,15 @@ let
           fail "gda, gdc or gdd lists its paths without a right-aligned number, its change in its colour or its author and date flush right, dates a file saved in the last hour other than by how long ago it was saved or an older one other than by its date and time, searches more than the path or hands on more than the path picked"
         fi
 
+        # gdd and gda open the paths picked in Neovim as gdc does, each in its
+        # own picker there (gl.nvim): GL_OPEN names it by the kind of path.
+        if [ "$(PATH=$HOME/gd/bin:$PATH TZ=UTC ${self}/bin/zsh -f -c "''${gdc% staged} unstaged")" = "GL_OPEN=unstaged ed -- i 1," ] \
+          && [ "$(PATH=$HOME/gd/bin:$PATH TZ=UTC ${self}/bin/zsh -f -c "''${gdc% staged}")" = "GL_OPEN=changed ed -- i 1," ]; then
+          ok "gdd and gda open the paths picked in Neovim's own gdd and gda (GL_OPEN=unstaged, changed)"
+        else
+          fail "gdd or gda opens the paths picked in Neovim without naming its own picker there (GL_OPEN=unstaged, changed)"
+        fi
+
         # grs (__git_reset_soft) numbers its commits from 1, for HEAD,
         # right-aligned, and fzf searches past the number: the real fzf,
         # filtering for a 1, picks the one commit with a 1 in it, the 10th,
