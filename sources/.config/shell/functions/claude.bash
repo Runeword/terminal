@@ -6,7 +6,7 @@ __CLAUDE_FZF="--reverse --no-separator --keep-right --border none --cycle --heig
 # every launch (its own server init, not uvx overhead; no faster version exists),
 # so loading it unconditionally taxed every session. Pick it from __claude_plugins
 # (the fzf plugin picker) when you need nixpkgs/option search.
-__CLAUDE_DEFAULT_PLUGINS=(nix-lsp typescript-lsp)
+__CLAUDE_DEFAULT_PLUGINS=(nix-lsp typescript-lsp go-lsp shell-lsp)
 
 # Prefix that runs claude inside the bubblewrap boundary: claude-sandbox, from
 # github:Runeword/claude-sandbox (on PATH through the tools env). Whole-process
