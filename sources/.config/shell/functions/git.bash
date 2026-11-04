@@ -388,9 +388,9 @@ __git_diff() {
       ;;
   esac
 
-  # The staged files picked open in Neovim's gdc (its gl.nvim): their staged change marked in them
-  local args open=
-  [ "$kind" = staged ] && open='GL_OPEN=staged '
+  # The files picked open in Neovim's own gdc, gdd or gda (its gl.nvim, which GL_OPEN tells
+  # by their kind): their change marked in them
+  local args open="GL_OPEN=$kind "
   # As __git_fzf_select, with a path's row laid out as gl lays out a
   # commit's: its number from 1, right-aligned, its change, the path, then
   # its author and date flush right, with no colour of their own, so that
