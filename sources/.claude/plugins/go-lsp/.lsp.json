@@ -1,6 +1,9 @@
 {
   "go": {
     "command": "gopls",
+    "env": {
+      "GOPLSCACHE": "${CLAUDE_CONFIG_DIR:-/tmp}/.gopls-cache"
+    },
     "extensionToLanguage": {
       ".go": "go",
       ".mod": "go.mod",
