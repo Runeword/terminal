@@ -18,6 +18,10 @@ let
   # The PreToolUse, Stop and UserPromptSubmit hook that holds Claude's memory
   # changes until its work is done (packages/claude/memory-gate/main.go).
   claudeMemoryGate = import ../packages/claude/memory-gate { inherit pkgs; };
+  # CLAUDE_CODE_SHELL_PREFIX: runs every shell command, hook and MCP server
+  # Claude Code starts under Landlock, with the config folders' projects/, which
+  # holds memory, read-only (packages/claude/shell-guard/main.go).
+  claudeShellGuard = import ../packages/claude/shell-guard { inherit pkgs; };
   gitAllowlistHook = claudeSandbox.git-allowlist-hook;
   # Stand-in bwrap for that dry run: prints the argv it was handed, one per line,
   # and saves the environment it inherited to $BWRAP_ENV.
@@ -54,6 +58,7 @@ let
     claudeDocsGuard
     claudeSessions
     claudeMemoryGate
+    claudeShellGuard
     gitAllowlistHook
     pkgs.nixfmt
     pkgs.shfmt
@@ -189,7 +194,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "claude";
-      description = "Verify claude binary executes, settings.json commands resolve, keep CLAUDE.local.md files out of context and keep the bypass-mode warning accepted, the status line renders, comma looks packages up offline, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
+      description = "Verify claude binary executes, settings.json commands resolve, keep CLAUDE.local.md files out of context and keep the bypass-mode warning accepted, the status line renders, comma looks packages up offline, the Go language server keeps its cache where the sandbox can write and the shell one skips the checks .shellcheckrc disables, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
       script = ''
         # claude-code does not expose a config-loading probe that works in a
         # sandbox without auth/network. This only verifies the wrapper's binary
@@ -200,9 +205,10 @@ let
           fail "binary failed to execute"
         fi
 
-        # settings.json names the status line and hooks by bare command, so each
-        # must resolve on claude's PATH; at runtime a missing one fails silently
-        # (the status line just goes blank).
+        # settings.json names the status line, the hooks and the shell prefix by
+        # bare command, so each must resolve on claude's PATH; at runtime a
+        # missing one fails (the status line just goes blank, and without the
+        # prefix every shell command fails).
         claudePath=${
           pkgs.lib.concatMapStringsSep ":" (builtins.replaceStrings
             [ permeance.out ]
@@ -210,7 +216,7 @@ let
           ) pathPrefix
         }
         settings=${self}/.claude/settings.json
-        for cmd in $(${pkgs.jq}/bin/jq -r '[.statusLine.command] + [.hooks[][].hooks[] | .command // empty] | .[] | split(" ")[0]' "$settings" | sort -u); do
+        for cmd in $(${pkgs.jq}/bin/jq -r '[.statusLine.command] + [.hooks[][].hooks[] | .command // empty] + [.env.CLAUDE_CODE_SHELL_PREFIX // empty] | .[] | split(" ")[0]' "$settings" | sort -u); do
           if PATH="$claudePath" command -v "$cmd" > /dev/null; then
             ok "on claude's PATH: $cmd"
           else
@@ -237,6 +243,17 @@ let
           fail "settings.json drops the accepted bypass-mode warning"
         fi
 
+        # Memory changes: the ask rule asks before each write by Claude's file
+        # tools, claude-shell-guard keeps shell commands from writing memory, and
+        # claude-memory-gate holds the prompts until Claude's work is done. Hooks
+        # stay on: this file outranks a disableAllHooks a session could write
+        # into .claude/settings.local.json.
+        if ${pkgs.jq}/bin/jq -e '(.permissions.ask | index("Edit(~/.claude*/projects/*/memory/**)")) and .env.CLAUDE_CODE_SHELL_PREFIX == "claude-shell-guard" and .disableAllHooks == false and ([.hooks.PreToolUse, .hooks.Stop, .hooks.UserPromptSubmit] | all(any(.[].hooks[].command; . == "claude-memory-gate")))' "$settings" > /dev/null; then
+          ok "settings.json asks before each memory change, after Claude's work, and keeps the shell out of memory"
+        else
+          fail "settings.json lets Claude change its memory mid-task, without asking, or from the shell"
+        fi
+
         # Run the status line the way Claude Code does (sh -c, claude's PATH) on
         # a fixed payload. No rate_limits, so the line doesn't depend on the clock.
         payload='{"session_id":"3f2c8a9e-7b41-4d6a-9c05-1e8f6b2d4a73","model":{"id":"claude-opus-5-5","display_name":"Opus 5.5"},"context_window":{"used_percentage":42,"current_usage":{"input_tokens":2000,"output_tokens":1500,"cache_creation_input_tokens":8000,"cache_read_input_tokens":120000}},"prompt_cache":{"ttl":"1h"},"cost":{"total_cost_usd":1.5}}'
@@ -255,6 +272,26 @@ let
           ok "comma looks up rg's package offline"
         else
           fail "comma lookup failed: $(PATH="$claudePath" , -p rg 2>&1)"
+        fi
+
+        # Plugin language servers run inside the sandbox, where ~/.cache is
+        # read-only: gopls quits when it cannot make its cache there, so go-lsp
+        # keeps it under the claude profile, as the MCP plugins keep theirs.
+        if ${pkgs.jq}/bin/jq -e '.go.env.GOPLSCACHE | startswith("''${CLAUDE_CONFIG_DIR")' ${self}/.claude/plugins/go-lsp/.lsp.json > /dev/null; then
+          ok "go-lsp keeps gopls's cache under the claude profile"
+        else
+          fail "go-lsp leaves gopls's cache in ~/.cache, where gopls quits in the sandbox"
+        fi
+
+        # bash-language-server runs shellcheck on stdin from the project root,
+        # where it never finds .config/shell/.shellcheckrc, so shell-lsp passes
+        # the checks that file disables itself.
+        disabled=$(sed -n 's/^disable=//p' ${../sources}/.config/shell/.shellcheckrc | sort | paste -sd, -)
+        excluded=$(${pkgs.jq}/bin/jq -r '.shell.env.SHELLCHECK_OPTS // "" | ltrimstr("--exclude=") | split(",") | sort | join(",")' ${self}/.claude/plugins/shell-lsp/.lsp.json)
+        if [ -n "$disabled" ] && [ "$excluded" = "$disabled" ]; then
+          ok "shell-lsp skips the checks .shellcheckrc disables: $excluded"
+        else
+          fail "shell-lsp skips '$excluded', .shellcheckrc disables '$disabled'"
         fi
       ''
       # The bubblewrap launcher is Linux-only (macOS uses Claude Code's built-in
