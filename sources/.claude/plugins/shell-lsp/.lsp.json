@@ -2,6 +2,9 @@
   "shell": {
     "command": "bash-language-server",
     "args": ["start"],
+    "env": {
+      "SHELLCHECK_OPTS": "--exclude=SC3043,SC3028,SC3044"
+    },
     "extensionToLanguage": {
       ".sh": "shellscript",
       ".bash": "shellscript"
