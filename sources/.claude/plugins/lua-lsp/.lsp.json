@@ -1,0 +1,11 @@
+{
+  "lua": {
+    "command": "lua-language-server",
+    "env": {
+      "XDG_CACHE_HOME": "${CLAUDE_CONFIG_DIR:-/tmp}/.lua-ls-cache"
+    },
+    "extensionToLanguage": {
+      ".lua": "lua"
+    }
+  }
+}
