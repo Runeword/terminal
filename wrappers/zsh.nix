@@ -46,7 +46,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, na deletes every old home-manager and NixOS generation, collects the garbage and refreshes the boot menu, zr removes the directories picked in fzf from zoxide's list, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /experts command, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, which it makes again at the current window's size once it is gone, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Tab fills in a suggestion showing at the end of the line and otherwise opens the completion menu, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, na deletes every old home-manager and NixOS generation, collects the garbage and refreshes the boot menu, zr removes the directories picked in fzf from zoxide's list, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /experts command, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, which it makes again at the current window's size once it is gone, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Tab fills in a suggestion showing at the end of the line and otherwise opens the completion menu, Alt+H has Claude Haiku explain the typed line, sent as text and never when it looks like a secret, signed in with the token in pass, and Alt+Shift+H hands the command to man, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -613,17 +613,32 @@ let
         # header. Neither cycles: there is no --cycle. The file step hands fzf the
         # commit's tree rows, searched with !/$ so that no directory's row
         # matches, and the count of its files for the info line, and the
-        # editor what tree-quote makes of the row numbers fzf accepts: the
+        # editor what tree-quote makes of the row numbers fzf accepts, to open
+        # in Neovim's own gl on their commit (GL_OPEN=log, GL_COMMIT): the
         # stand-ins pick the commit and a row, and say what they were asked.
         gl='. ${self}/.config/shell/functions/git.bash
           git() { case $1 in log) [ "$*" != "log --no-renames --diff-merges=first-parent --name-status --date=format-local:%y-%m-%d %H:%M --format=%x1e%an, %ad%x1f%h%x1f %<|(91,trunc)%s %x1f%h %s%x1f%at%x1f%ar" ] || printf "\36a, 26-10-25 21:42\37abc\37 Delete f \37abc Delete f\37%s\37%s\n\nD\tf\nD\tg\n\36b, 70-01-01 00:00\37def\37 x \37def x\37%s\37%s\n" $(($(date +%s) - 120)) "2 minutes ago" 0 "56 years ago" ;; rev-list) [ "$*" != "rev-list --count HEAD" ] || echo 10 ;; rev-parse) [ "$2" != --show-cdup ] || echo ../ ;; esac; }
           git-hunk-pick() { case $1 in tree) printf "%s\0" "$*" ;; paths) printf "x\0y\0" ;; tree-quote) printf "%s<%s" "$*" "$(tr "\0" ,)" ;; esac; }
           fzf() { case "$TREE_FILES $*" in *jump* | *"--bind y:"* | *"--header="* | *" --cycle"* | *"trigger(alt-i)"*"trigger(alt-i)"*) ;; "2 "*"--no-cycle "*"start:+trigger(alt-i)"*"--accept-nth={n}"*"start:+search(!/\$)"*"j:trigger(f12)+down-match,k:trigger(f11)+up-match"*"f12:down-match+down-match+down-match+down-match,f11:up-match+up-match+up-match+up-match"*"--info-command="*"show --color=always --format= "*"/^\$/d}"*"--preview-window=down,75%,"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *"--no-cycle "*"start:+trigger(alt-i)"*"show --color=always --format= {3} "*"/^\$/d}"*"--preview-window=down,75%,"*"--ansi --delimiter="?"|^ *[0-9]+  --with-nth={1} {6}{3}{4}{2} --nth=2.. --accept-nth=3"*) awk -F "$(printf "\37")" -v c="$(printf "\33[1;38;2;168;77;95m-\33[0m ")" "\$1 == \" 1\" && \$2 == \"a, 2 minutes ago\" && \$6 == c && \$4 ~ /^ f {9}\$/ { h = \$3 } \$1 == \" 2\" && \$2 == \"b, 70-01-01 00:00\" { print h }" ;; esac; }
           COLUMNS=100 EDITOR=ed __git_log'
-        if [ "$(${self}/bin/zsh -f -c "$gl")" = "ed -- tree-quote commit abc ../<4," ]; then
-          ok "gl lists commits numbered from 1, right-aligned and unsearched, with their change next, in its colour, in place of the verb it stands for, and their author and date flush right in the row's colours, the date how long ago a commit of the last hour was made and an older one's date and time, previews each diff below its list, in three quarters of the height, a commit's alone, starts both lists with the search off, steps the file list's j/k and f12/f11 between matches, no header, no cycling and no y or jump binding of their own, lists the commit's files as tree rows, directories unpickable and uncounted, and opens the files of the rows picked"
+        if [ "$(${self}/bin/zsh -f -c "$gl")" = "GL_OPEN=log GL_COMMIT=abc ed -- tree-quote commit abc ../<4," ]; then
+          ok "gl lists commits numbered from 1, right-aligned and unsearched, with their change next, in its colour, in place of the verb it stands for, and their author and date flush right in the row's colours, the date how long ago a commit of the last hour was made and an older one's date and time, previews each diff below its list, in three quarters of the height, a commit's alone, starts both lists with the search off, steps the file list's j/k and f12/f11 between matches, no header, no cycling and no y or jump binding of their own, lists the commit's files as tree rows, directories unpickable and uncounted, and opens the files of the rows picked in Neovim's own gl, on their commit"
         else
-          fail "gl lists commits without their right-aligned number first, or searches it, or without their change in its colour in place of the verb it stands for, or without their author and date flush right in the row's colours, dates a commit of the last hour other than by how long ago it was made or an older one other than by its date and time, previews a diff beside a list or in other than three quarters of the height, or a commit's under a line, starts a list with the search on or turns the file list's off after its !/$ search, steps the file list's j/k or f12/f11 onto directories, gives a list a header, lets a list cycle, binds y or a jump in a list, or does not hand the rows fzf picks from its tree to tree-quote"
+          fail "gl lists commits without their right-aligned number first, or searches it, or without their change in its colour in place of the verb it stands for, or without their author and date flush right in the row's colours, dates a commit of the last hour other than by how long ago it was made or an older one other than by its date and time, previews a diff beside a list or in other than three quarters of the height, or a commit's under a line, starts a list with the search on or turns the file list's off after its !/$ search, steps the file list's j/k or f12/f11 onto directories, gives a list a header, lets a list cycle, binds y or a jump in a list, or does not hand the rows fzf picks from its tree to tree-quote, or opens their files other than in Neovim's own gl, on their commit"
+        fi
+
+        # Given a commit, as Neovim's gl (gl.nvim) runs it on the one picked
+        # here, gl lists that commit's files alone: the stand-in fzf picks a
+        # row of them only, and another commit from a list of commits.
+        glc='. ${self}/.config/shell/functions/git.bash
+          git() { case $1 in log) echo commit ;; rev-parse) case $2 in --show-cdup) echo ../ ;; --verify) [ "$*" != "rev-parse --verify --quiet --short abc^{commit}" ] || echo abc ;; esac ;; esac; }
+          git-hunk-pick() { case $1 in tree) printf "%s\0" "$*" ;; paths) printf "x\0" ;; tree-quote) printf "%s<%s" "$*" "$(tr "\0" ,)" ;; esac; }
+          fzf() { case "$*" in *"--accept-nth={n}"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *) echo def ;; esac; }
+          EDITOR=ed __git_log abc'
+        if [ "$(${self}/bin/zsh -f -c "$glc")" = "GL_OPEN=log GL_COMMIT=abc ed -- tree-quote commit abc ../<4," ]; then
+          ok "gl given a commit (Neovim's gl, on the one picked) lists that commit's files alone"
+        else
+          fail "gl given a commit lists the commits first, or the files of another"
         fi
 
         # gda, gdc and gdd (__git_diff) lay out a path's row as gl lays out a
@@ -698,17 +713,19 @@ let
         # the prompt's line: fzf's prompt is the last line of the shell's, as
         # the shell drew it. Each step leaves its last frame up (--no-clear)
         # and reads its whole list before it starts (--sync), so that the line
-        # doesn't go blank between frames.
+        # doesn't go blank between frames. (The stand-ins hand on whole rows:
+        # the commit the line names is one.)
         glw='. ${self}/.config/shell/functions/git.bash
           git() { [ "$1" != log ] || printf "\36abc subject\n"; }
           git-hunk-pick() { case $1 in tree) echo row ;; tree-quote) cat ;; esac; }
           fzf() { case "$*" in *"--prompt=two% --no-bold --color=query:bold --no-clear --sync"*) head -n 1 ;; esac; }
           WIDGET=leader PS1=$(print "one\ntwo%%") EDITOR=ed __git_log'
-        if [ "$(${self}/bin/zsh -f -c "$glw")" = "ed -- row" ]; then
-          ok "gl run from the leader takes the prompt's line for its input, without blanking it as its steps start"
-        else
-          fail "gl run from the leader opens its input under the prompt's line, or blanks that line as its steps start"
-        fi
+        case "$(${self}/bin/zsh -f -c "$glw")" in
+          "GL_OPEN=log GL_COMMIT="*" ed -- row")
+            ok "gl run from the leader takes the prompt's line for its input, without blanking it as its steps start"
+            ;;
+          *) fail "gl run from the leader opens its input under the prompt's line, or blanks that line as its steps start" ;;
+        esac
 
         # __open_file hands the editor its picks after --: nvim runs a +cmd
         # argument, so a file named "+so x.vim" would source x.vim.
@@ -843,6 +860,39 @@ let
         case "$(${self}/bin/zsh -i -c "$tabs" 2>/dev/null)" in
           *"$(printf 'zle autosuggest-accept\nzle redisplay\nzle menu-select\nzle menu-select')") ok "Tab fills in a suggestion showing at the end of the line, and otherwise opens the completion menu" ;;
           *) fail "Tab does not fill in a suggestion showing at the end of the line, or does not open the completion menu otherwise" ;;
+        esac
+
+        # Alt+H asks Claude Haiku to explain the typed line: the line reaches
+        # claude on stdin as text, never run, with what the shell says its
+        # words are (a function's code too), and claude runs with no tools,
+        # nothing saved, only the user's settings and no CLAUDE_CONFIG_DIR, so
+        # with the host's own profile, signed in with pass's claude/oauth-token
+        # in its environment, read with bracketed paste off so that a pasted
+        # passphrase reaches gpg as is; its answer shows under the line. A
+        # line that looks like it holds a secret is not sent, and Alt+Shift+H
+        # is still zsh's run-help, which hands the command to man. Stand-ins:
+        # a claude that records what it got, pass, a zle that prints -M
+        # messages, man.
+        mkdir -p "$HOME/explain/bin"
+        printf '#!/bin/sh\necho "config=$CLAUDE_CONFIG_DIR token=$CLAUDE_CODE_OAUTH_TOKEN $*" > "$HOME/explain/args"\ncat > "$HOME/explain/stdin"\necho It lists commits.\n' > "$HOME/explain/bin/claude"
+        printf '#!/bin/sh\n[ "$*" = "show claude/oauth-token" ] && echo sk-ant-oat01-fake\n' > "$HOME/explain/bin/pass"
+        chmod +x "$HOME/explain/bin/claude" "$HOME/explain/bin/pass"
+        explain='path=($HOME/explain/bin $path); export CLAUDE_CONFIG_DIR=$HOME/.claude-1
+          zle() { [[ $1 != -M ]] || print -r -- "M: $argv[-1]"; }
+          man() { print -r -- "man $*"; }
+          bindkey "^[h"; bindkey "^[H"
+          BUFFER="echo \$(touch $HOME/ran) | __copy"; __explain_line
+          BUFFER="export GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxx"; __explain_line
+          run-help rsync'
+        explained=$(${self}/bin/zsh -i -c "$explain" 2>/dev/null || :; cat "$HOME/explain/args" "$HOME/explain/stdin" 2>/dev/null || :)
+        case "$explained" in
+          *'"^[h" __explain_line'*'"^[H" run-help'*'[?2004l'*'[?2004h'*'M: It lists commits.'*'M: Not sent: the line looks like it holds a secret.'*'man rsync'*'config= token=sk-ant-oat01-fake -p '*'--tools  --strict-mcp-config --no-session-persistence --setting-sources user '*'Command line: echo $(touch '*'/ran) | __copy'*'__copy () {'*)
+            if [ -e "$HOME/ran" ]; then
+              fail "Alt+H ran the typed line it was to explain"
+            else
+              ok "Alt+H has Claude Haiku explain the typed line, sent as text with what its words are to a claude with no tools, nothing saved, the host's profile and the token in pass, shows the answer under the line and holds back a line that looks like a secret, and Alt+Shift+H is still run-help"
+            fi ;;
+          *) fail "Alt+H does not send the typed line as text with what its words are to a tool-less claude, does not show the answer under the line or sends a secret, or Alt+Shift+H is no longer run-help: $explained" ;;
         esac
 
         # The search binds nothing to y either, so that y types into its query:
