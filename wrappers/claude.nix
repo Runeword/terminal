@@ -69,6 +69,7 @@ let
     pkgs.typescript-language-server
     pkgs.gopls
     pkgs.bash-language-server
+    pkgs.lua-language-server
     pkgs.yaml-language-server
     pkgs.terraform-ls
     pkgs.marksman
@@ -194,7 +195,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "claude";
-      description = "Verify claude binary executes, settings.json commands resolve, keep CLAUDE.local.md files out of context and keep the bypass-mode warning accepted, the status line renders, comma looks packages up offline, the Go language server keeps its cache where the sandbox can write and the shell one skips the checks .shellcheckrc disables, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
+      description = "Verify claude binary executes, settings.json commands resolve, keep CLAUDE.local.md files out of context and keep the bypass-mode warning accepted, the status line renders, comma looks packages up offline, the Go and Lua language servers keep their caches where the sandbox can write and the shell one skips the checks .shellcheckrc disables, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
       script = ''
         # claude-code does not expose a config-loading probe that works in a
         # sandbox without auth/network. This only verifies the wrapper's binary
@@ -281,6 +282,15 @@ let
           ok "go-lsp keeps gopls's cache under the claude profile"
         else
           fail "go-lsp leaves gopls's cache in ~/.cache, where gopls quits in the sandbox"
+        fi
+
+        # lua-language-server quits the same way over its log and meta files,
+        # which its nixpkgs launcher keeps under XDG_CACHE_HOME (~/.cache when
+        # unset), so lua-lsp points that at the claude profile too.
+        if ${pkgs.jq}/bin/jq -e '.lua.env.XDG_CACHE_HOME | startswith("''${CLAUDE_CONFIG_DIR")' ${self}/.claude/plugins/lua-lsp/.lsp.json > /dev/null; then
+          ok "lua-lsp keeps lua-language-server's cache under the claude profile"
+        else
+          fail "lua-lsp leaves lua-language-server's cache in ~/.cache, where it quits in the sandbox"
         fi
 
         # bash-language-server runs shellcheck on stdin from the project root,
