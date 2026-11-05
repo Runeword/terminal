@@ -11,19 +11,23 @@
 // settings.json runs it, with no arguments, on three hook events, and it reads
 // the event's JSON on stdin:
 //
-//   - PreToolUse (Write, Edit, MultiEdit, NotebookEdit, Bash): a write to a
-//     memory folder, or a shell command that names one, is denied while Claude
-//     works, and the session is marked as holding a change. Once Claude has
-//     been given the turn back, the same call is asked about instead, so the
-//     user approves each change.
+//   - PreToolUse (Write, Edit, MultiEdit, NotebookEdit): a write to a memory
+//     folder is denied while Claude works, and the session is marked as holding
+//     a change. Once Claude has been given the turn back, the same call is
+//     asked about instead, so the user approves each change.
 //   - Stop: a session holding a change is kept going (decision "block") to
 //     make its changes again; the next stop ends the turn.
 //   - UserPromptSubmit: a new prompt closes memory again.
 //
-// The state is one file per session in <config>/memory-gate/. An error (input
-// it can't read, state it can't write) exits 1, which Claude Code treats as a
-// non-blocking error: the call then goes through the normal permission check,
-// where the ask rule still asks before a memory write.
+// It only decides when the prompts come. Whether a change is made is settled
+// elsewhere: the ask rule asks before each write by the file tools, and
+// claude-shell-guard keeps shell commands from writing memory at all. So an
+// error here (input it can't read, state it can't write), which exits 1 and
+// which Claude Code treats as non-blocking, only brings a prompt forward.
+//
+// The state is one file per session in $XDG_RUNTIME_DIR/claude-memory-gate
+// (else the temp folder), which claude-shell-guard, which runs hooks too,
+// leaves writable.
 package main
 
 import (
@@ -51,10 +55,9 @@ const (
 // What Claude reads back from a denial and a block, and what the user's
 // permission prompt says.
 const (
-	heldReason  = "Held: memory changes wait until your work is done, so that their permission prompt doesn't stop it. Carry on with the task; once you finish, you get the turn back to make this change again, and the user is asked then."
-	shellReason = "Held: this command names a memory folder, which waits until your work is done. While you work, read memory with Read, Grep or Glob; once you finish, you get the turn back to make memory changes."
-	stopReason  = "Your work is done, so memory is open: make again the memory changes that were held (Write or Edit; rm to delete a memory file). Each one asks the user. If none is still worth making, stop."
-	askReason   = "Claude held this memory change until its work was done."
+	heldReason = "Held: memory changes wait until your work is done, so that their permission prompt doesn't stop it. Carry on with the task; once you finish, you get the turn back to make this change again, and the user is asked then."
+	stopReason = "Your work is done, so memory is open: make again the memory changes that were held, with Write or Edit (the shell can't change memory; to delete a memory file, ask the user). Each one asks the user. If none is still worth making, stop."
+	askReason  = "Claude held this memory change until its work was done."
 )
 
 // sessionRE matches a session id, which names the session's state file.
@@ -64,10 +67,6 @@ var sessionRE = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 // clean, lowercased, slash-separated path.
 var memoryRE = regexp.MustCompile(`/\.claude[^/]*/projects/[^/]+/memory(/|$)`)
 
-// shellProjectsRE finds the projects folder of a config directory in a shell
-// command: ~/.claude-1/projects, ~/.claude*/projects, $CLAUDE_CONFIG_DIR/projects.
-var shellProjectsRE = regexp.MustCompile(`(?i)(\.claude[^/\s'"]*|\$\{?CLAUDE_CONFIG_DIR\}?)/projects\b`)
-
 type hookInput struct {
 	SessionID     string `json:"session_id"`
 	HookEventName string `json:"hook_event_name"`
@@ -75,7 +74,6 @@ type hookInput struct {
 	ToolInput     struct {
 		FilePath     string `json:"file_path"`
 		NotebookPath string `json:"notebook_path"`
-		Command      string `json:"command"`
 	} `json:"tool_input"`
 }
 
@@ -93,10 +91,19 @@ type stopDecision struct {
 }
 
 func main() {
-	if err := run(os.Stdin, os.Stdout, configDir()); err != nil {
+	if err := run(os.Stdin, os.Stdout, configDir(), stateDir()); err != nil {
 		fmt.Fprintln(os.Stderr, "claude-memory-gate:", err)
 		os.Exit(1)
 	}
+}
+
+// stateDir holds the sessions' state: $XDG_RUNTIME_DIR/claude-memory-gate,
+// else the temp folder's.
+func stateDir() string {
+	if d := os.Getenv("XDG_RUNTIME_DIR"); d != "" {
+		return filepath.Join(d, "claude-memory-gate")
+	}
+	return filepath.Join(os.TempDir(), "claude-memory-gate")
 }
 
 // configDir is Claude Code's config directory: $CLAUDE_CONFIG_DIR, else
@@ -113,45 +120,38 @@ func configDir() string {
 }
 
 // run answers the hook event read from in on out. config is Claude Code's
-// config directory, which holds the memory folders and the state.
-func run(in io.Reader, out io.Writer, config string) error {
+// config directory, which holds the memory folders, and states the folder of
+// the sessions' state files.
+func run(in io.Reader, out io.Writer, config, states string) error {
 	var input hookInput
 	if err := json.NewDecoder(in).Decode(&input); err != nil {
 		return fmt.Errorf("reading the hook's input: %w", err)
 	}
 	switch input.HookEventName {
 	case "PreToolUse":
-		return gate(input, out, config)
+		return gate(input, out, config, states)
 	case "Stop":
-		return stop(input, out, config)
+		return stop(input, out, states)
 	case "UserPromptSubmit":
-		return prompt(input, config)
+		return prompt(input, states)
 	}
 	return fmt.Errorf("unexpected hook event %q", input.HookEventName)
 }
 
-// gate denies a call that changes memory while Claude works, and asks about it
-// once Claude has the turn back for memory. Any other call passes untouched.
-func gate(input hookInput, out io.Writer, config string) error {
-	reason := heldReason
+// gate denies a write to memory while Claude works, and asks about it once
+// Claude has the turn back for memory. Any other call passes untouched.
+func gate(input hookInput, out io.Writer, config, states string) error {
+	var path string
 	switch input.ToolName {
 	case "Write", "Edit", "MultiEdit":
-		if !inMemory(input.ToolInput.FilePath, config) {
-			return nil
-		}
+		path = input.ToolInput.FilePath
 	case "NotebookEdit":
-		if !inMemory(input.ToolInput.NotebookPath, config) {
-			return nil
-		}
-	case "Bash":
-		if !namesMemory(input.ToolInput.Command, config) {
-			return nil
-		}
-		reason = shellReason
-	default:
+		path = input.ToolInput.NotebookPath
+	}
+	if !inMemory(path, config) {
 		return nil
 	}
-	file, err := stateFile(input.SessionID, config)
+	file, err := stateFile(input.SessionID, states)
 	if err != nil {
 		return err
 	}
@@ -165,13 +165,13 @@ func gate(input hookInput, out io.Writer, config string) error {
 	if err := writeState(file, holding); err != nil {
 		return err
 	}
-	return decide(out, "deny", reason)
+	return decide(out, "deny", heldReason)
 }
 
 // stop gives the turn back to a session holding a memory change, and lets the
 // turn end once it had it back.
-func stop(input hookInput, out io.Writer, config string) error {
-	file, err := stateFile(input.SessionID, config)
+func stop(input hookInput, out io.Writer, states string) error {
+	file, err := stateFile(input.SessionID, states)
 	if err != nil {
 		return err
 	}
@@ -194,8 +194,8 @@ func stop(input hookInput, out io.Writer, config string) error {
 // prompt closes memory again when the user writes, which ends a turn given
 // back for memory even when an interruption kept Claude from stopping. A
 // change still held waits for the end of the new turn.
-func prompt(input hookInput, config string) error {
-	file, err := stateFile(input.SessionID, config)
+func prompt(input hookInput, states string) error {
+	file, err := stateFile(input.SessionID, states)
 	if err != nil {
 		return err
 	}
@@ -231,28 +231,12 @@ func inMemory(path, config string) bool {
 	return ok && (inProject == "memory" || strings.HasPrefix(inProject, "memory/"))
 }
 
-// namesMemory reports whether a shell command names a memory folder: it names
-// the projects folder of a config directory (~/.claude-1/projects,
-// $CLAUDE_CONFIG_DIR/projects, or config's own path) and "mem" (memory, or a
-// glob such as mem*). It goes by the command's text, so a command that builds
-// the path at run time gets through.
-func namesMemory(command, config string) bool {
-	lower := strings.ToLower(command)
-	if !strings.Contains(lower, "mem") {
-		return false
-	}
-	if shellProjectsRE.MatchString(command) {
-		return true
-	}
-	return strings.Contains(lower, strings.ToLower(filepath.ToSlash(filepath.Clean(config)))+"/projects")
-}
-
-// stateFile is the session's state file, in <config>/memory-gate.
-func stateFile(session, config string) (string, error) {
+// stateFile is the session's state file, in states.
+func stateFile(session, states string) (string, error) {
 	if !sessionRE.MatchString(session) {
 		return "", fmt.Errorf("the hook's input names no session: %q", session)
 	}
-	return filepath.Join(config, "memory-gate", session), nil
+	return filepath.Join(states, session), nil
 }
 
 func readState(file string) (string, error) {
