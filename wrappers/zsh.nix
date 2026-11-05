@@ -641,6 +641,23 @@ let
           fail "gl given a commit lists the commits first, or the files of another"
         fi
 
+        # Commits marked with Tab (--multi): their files in one list, each
+        # commit's tree under a row of its own that no search matches (!^●),
+        # and tree-quote gets each commit's picks numbered from its own first
+        # row, past the rows before it (the stand-in picks the second and the
+        # fourth); the files open in Neovim's own gl on all of the commits
+        # (GL_COMMITS), from the first file's (GL_COMMIT).
+        glm='. ${self}/.config/shell/functions/git.bash
+          git() { case $1 in log) [ "$2" != --no-walk ] || printf "abc\37A\ndef\37D\n" ;; rev-parse) echo ../ ;; esac; }
+          git-hunk-pick() { case $1 in tree) printf "t\37%s\0" "$3" ;; paths) printf "x\0" ;; tree-quote) printf "%s<%s" "$3" "$(tr "\0" ,)" ;; esac; }
+          fzf() { case "$*" in *"search(!/\$ !^●)"*) cat >/dev/null; printf "1\n3\n" ;; *--multi*) printf "abc\ndef\n" ;; esac; }
+          EDITOR=ed __git_log'
+        if [ "$(${self}/bin/zsh -f -c "$glm")" = "GL_OPEN=log GL_COMMIT=abc GL_COMMITS='abc def' ed -- abc<0, def<0," ]; then
+          ok "gl lists the files of the commits marked with Tab in one list, a row over each commit's, and opens those picked in Neovim's own gl on all of the commits"
+        else
+          fail "gl takes one commit only, or lists the files of several without a row over each that no search matches, or opens them other than in Neovim's own gl on all of the commits"
+        fi
+
         # gda, gdc and gdd (__git_diff) lay out a path's row as gl lays out a
         # commit's: numbered from 1, right-aligned, then the path's change,
         # in its colour (gdc's is the staged one: - in bold red for a deleted
