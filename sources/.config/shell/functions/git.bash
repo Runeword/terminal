@@ -757,13 +757,19 @@ __git_log() {
   local -a log_view=(
     --ansi --delimiter=$'\x1f|^ *[0-9]+ ' '--with-nth={1} {6}{3}{4}{2}' --nth=2.. --accept-nth=3
   )
+  # Given a commit, gl lists its files alone: Neovim's gl (gl.nvim) runs it
+  # so on the commit picked here (see below).
   local count commit
-  count=$(git rev-list --count HEAD 2>/dev/null)
-  commit=$(git log --no-renames --diff-merges=first-parent --name-status \
-    --date=format-local:'%y-%m-%d %H:%M' \
-    --format="%x1e%an, %ad%x1f%h%x1f %<|($((COLUMNS - 7 - ${#count})),trunc)%s %x1f%h %s%x1f%at%x1f%ar" |
-    awk -v w="${#count}" -v now="$(date +%s)" "$change" |
-    fzf "${_GIT_FZF_BASE[@]}" "${inline[@]}" "${preview[@]}" "${log_view[@]}")
+  if [ -n "${1-}" ]; then
+    commit=$(git rev-parse --verify --quiet --short "$1^{commit}") || return 1
+  else
+    count=$(git rev-list --count HEAD 2>/dev/null)
+    commit=$(git log --no-renames --diff-merges=first-parent --name-status \
+      --date=format-local:'%y-%m-%d %H:%M' \
+      --format="%x1e%an, %ad%x1f%h%x1f %<|($((COLUMNS - 7 - ${#count})),trunc)%s %x1f%h %s%x1f%at%x1f%ar" |
+      awk -v w="${#count}" -v now="$(date +%s)" "$change" |
+      fzf "${_GIT_FZF_BASE[@]}" "${inline[@]}" "${preview[@]}" "${log_view[@]}")
+  fi
 
   [ "$commit" = "" ] && return
 
@@ -812,7 +818,10 @@ __git_log() {
   args=$(git-hunk-pick tree commit "$commit" </dev/null |
     TREE_FILES=$files fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "${inline[@]}" "${tree_view[@]}" "${file_preview[@]}" |
     git-hunk-pick tree-quote commit "$commit" "$repo_cdup")
-  [ "$args" != "" ] && echo "$EDITOR -- $args"
+  # The files picked open in Neovim's own gl (its gl.nvim, which GL_OPEN
+  # names), on their commit (GL_COMMIT): its files' list, the first file's
+  # change in it shown
+  [ "$args" != "" ] && echo "GL_OPEN=log GL_COMMIT=$commit $EDITOR -- $args"
 }
 
 __git_install_lefthook() {
