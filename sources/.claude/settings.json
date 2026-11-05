@@ -2,6 +2,7 @@
   "claudeMdExcludes": [
     "**/CLAUDE.local.md"
   ],
+  "disableAllHooks": false,
   "hooks": {
     "SessionStart": [
       {
@@ -20,6 +21,11 @@
           {
             "type": "command",
             "command": "claude-docs-guard",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "claude-memory-gate",
             "timeout": 5
           }
         ]
@@ -40,6 +46,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-memory-gate",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -50,6 +66,17 @@
             "type": "command",
             "command": "claude-format",
             "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude-memory-gate",
+            "timeout": 5
           }
         ]
       }
@@ -66,8 +93,14 @@
   "disableRemoteControl": true,
   "feedbackDrafts": "off",
   "skipDangerousModePermissionPrompt": true,
+  "permissions": {
+    "ask": [
+      "Edit(~/.claude*/projects/*/memory/**)"
+    ]
+  },
   "env": {
-    "DISABLE_AUTOUPDATER": "1"
+    "DISABLE_AUTOUPDATER": "1",
+    "CLAUDE_CODE_SHELL_PREFIX": "claude-shell-guard"
   },
     "skillOverrides": {
       "code-review": "on",
