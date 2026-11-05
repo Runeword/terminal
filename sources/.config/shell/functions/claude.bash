@@ -237,7 +237,11 @@ __claude_provision_config() {
   fi
   local dir name planted
   dir="$HOME/$(__claude_profile)"
-  mkdir -p "$dir"
+  # claude-shell-guard (CLAUDE_CODE_SHELL_PREFIX) lets nothing Claude Code
+  # starts, MCP servers included, create entries directly in the profile, so the
+  # caches the plugins keep there (sources/.claude/plugins/*/.mcp.json) are
+  # made here.
+  mkdir -p "$dir" "$dir/.npm-cache" "$dir/.uv-cache" "$dir/.uv-tools"
   # The profile's user-level instructions load into every session, in every
   # project: CLAUDE.md, rules/, agents/, commands/ and skills/. A session can
   # write its profile, so what one leaves there would steer every later one, a
