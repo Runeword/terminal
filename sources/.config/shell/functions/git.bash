@@ -716,8 +716,10 @@ __git_log() {
   # (^ *[0-9]+ ) splits the number and its space off the row shown, so that
   # the search skips it (--nth=2..): in the row read, 0x1f follows the
   # number, and it can't match there. fzf prints the hash of the row
-  # picked. Both steps start with the search off and stop the cursor at either
-  # end of the list, as every picker does (_GIT_FZF_BASE).
+  # picked, or of each row Tab marked (--multi): the files step then lists
+  # the files of all of them (see below). Both steps start with the search
+  # off and stop the cursor at either end of the list, as every picker does
+  # (_GIT_FZF_BASE).
   local change='
     function pad(n,  p) {
       while (n-- > 0) p = p " "
@@ -755,7 +757,7 @@ __git_log() {
     /^[A-Z]/ { o = 1 }
     END { put() }'
   local -a log_view=(
-    --ansi --delimiter=$'\x1f|^ *[0-9]+ ' '--with-nth={1} {6}{3}{4}{2}' --nth=2.. --accept-nth=3
+    --ansi --delimiter=$'\x1f|^ *[0-9]+ ' '--with-nth={1} {6}{3}{4}{2}' --nth=2.. --accept-nth=3 --multi
   )
   # Given a commit, gl lists its files alone: Neovim's gl (gl.nvim) runs it
   # so on the commit picked here (see below).
@@ -797,11 +799,18 @@ __git_log() {
   # over TREE_FILES, the commit's files. fzf prints the picked rows' indices,
   # which tree-quote turns back into paths. _GIT_FZF_BASE's start turns the
   # search off (alt-i) before search(!/$): turning it off after would cancel
-  # that search.
+  # that search. Of several commits, a commit's row is no pick either: the
+  # search also requires !^● (see below).
+  local -a commits=()
+  local line skip='!/$'
+  while IFS= read -r line; do
+    commits+=("$line")
+  done <<<"$commit"
+  [ "${#commits[@]}" -gt 1 ] && skip='!/$ !^●'
   local accept='[ "$FZF_RAW" = 1 ] || [ "$FZF_SELECT_COUNT" != 0 ] && echo accept'
   local -a tree_view=(
     --ansi --raw --gutter-raw=' ' --delimiter=$'\x1f' --with-nth='{1}' --accept-nth='{n}'
-    --bind 'start:+search(!/$),change:transform-search:printf "%s !/$" "$FZF_QUERY"'
+    --bind "start:+search($skip),change:transform-search:printf \"%s $skip\" \"\$FZF_QUERY\""
     --bind 'result:best,up:up-match,down:down-match,btab:deselect+up-match'
     --bind 'j:trigger(f12)+down-match,k:trigger(f11)+up-match'
     --bind 'f12:down-match+down-match+down-match+down-match,f11:up-match+up-match+up-match+up-match'
@@ -813,6 +822,58 @@ __git_log() {
 
   local repo_cdup files
   repo_cdup="$(git rev-parse --show-cdup)"
+
+  # Several commits picked: their files in one tree, each commit's under a
+  # row of its own, ● (in fzf's pointer colour) with its hash and subject, in
+  # the commit list's order (git log --no-walk sorts them so). Each row
+  # carries its commit as a second field, before the path: the preview shows
+  # a file's change in it, and a commit's row all of it (an empty path). fzf
+  # numbers the rows from 0 across the commits and prints the numbers of the
+  # rows picked, one a line; tree-quote gets, for each commit, those of its
+  # own tree, numbered from its first, past the commit's row and the rows of
+  # the commits before it. The files open in Neovim's own gl on all of the
+  # commits (GL_COMMITS), from the first file's (GL_COMMIT).
+  if [ "${#commits[@]}" -gt 1 ]; then
+    local -a groups=()
+    local g h s n off picked w words='' first='' hashes=''
+    files=0
+    while IFS=$'\x1f' read -r h s; do
+      n=$(($(git-hunk-pick tree commit "$h" </dev/null | tr -cd '\000' | wc -c)))
+      files=$((files + $(git-hunk-pick paths commit "$h" </dev/null | tr -cd '\000' | wc -c)))
+      groups+=("$h $n $s")
+      hashes="${hashes:+$hashes }$h"
+    done < <(git log --no-walk --format='%h%x1f%s' "${commits[@]}")
+    picked=$(
+      for g in "${groups[@]}"; do
+        h=${g%% *}
+        s=${g#* }
+        s=${s#* }
+        printf '\033[1;38;2;114;114;237m●\033[0m %s %s\037%s\037\0' "$h" "$s" "$h"
+        git-hunk-pick tree commit "$h" </dev/null |
+          awk -v h="$h" 'BEGIN { RS = ORS = "\0" } { i = index($0, "\037"); print substr($0, 1, i) h "\037" substr($0, i + 1) }'
+      done |
+        TREE_FILES=$files fzf --read0 "${_GIT_FZF_DEFAULT[@]}" "${inline[@]}" "${tree_view[@]}" \
+          --preview "echo {3..}; git show --color=always --format= {2} -- ':(top,literal)'{3..} | $_GIT_PAGER | sed '1{/^\$/d}'" \
+          --preview-window="$preview_window,~1"
+    )
+    off=0
+    for g in "${groups[@]}"; do
+      h=${g%% *}
+      n=${g#* }
+      n=${n%% *}
+      w=$(printf '%s\n' "$picked" |
+        awk -v off="$off" -v n="$n" 'BEGIN { ORS = "\0" } $1 > off && $1 <= off + n { print $1 - off - 1 }' |
+        git-hunk-pick tree-quote commit "$h" "$repo_cdup")
+      if [ -n "$w" ]; then
+        [ -n "$first" ] || first=$h
+        words="${words:+$words }$w"
+      fi
+      off=$((off + n + 1))
+    done
+    [ "$words" != "" ] && echo "GL_OPEN=log GL_COMMIT=$first GL_COMMITS='$hashes' $EDITOR -- $words"
+    return
+  fi
+
   files=$(($(git-hunk-pick paths commit "$commit" </dev/null | tr -cd '\000' | wc -c)))
   local args
   args=$(git-hunk-pick tree commit "$commit" </dev/null |
