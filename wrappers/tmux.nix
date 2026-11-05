@@ -42,7 +42,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # Each $(…) below runs its tmux server in a socket directory of its
         # own (fresh): kill-server returns before the server has exited, and a
@@ -211,6 +211,14 @@ let
           *__tmux_kill_pane*) fail "M-w/M-W still close panes and windows through the shell" ;;
           *"kill-pane -t "?"{last}"*"kill-window -t "?"{last}"*__tmux_kill_session*"kill-pane -t "?"{last}"*"kill-window -t "?"{last}"*__tmux_kill_session*) ok "M-w/M-W close panes and windows without a shell" ;;
           *) fail "M-w/M-W are '$close'" ;;
+        esac
+
+        # Alt+H reaches the shell, which has Haiku explain the typed line; the
+        # pane below opens on M-V instead.
+        below="$(binding root M-h)|$(binding root M-V)"
+        case "$below" in
+          "|split-window -v -l 8") ok "M-h is left to the shell and M-V opens the pane below" ;;
+          *) fail "M-h|M-V are '$below'" ;;
         esac
 
         # C-S-<n> with no window <n> moves the current window right after the
