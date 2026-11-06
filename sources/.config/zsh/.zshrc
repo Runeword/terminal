@@ -27,8 +27,6 @@ typeset -gU fpath
 # alacritty launcher exports as one directory. Appended, so zsh's own functions
 # (its _git, say) still win.
 [[ -n $TERMINAL_ZSH_COMPLETIONS ]] && fpath+=("$TERMINAL_ZSH_COMPLETIONS")
-typeset -g ZCOMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
-[[ -d ${ZCOMPDUMP:h} ]] || mkdir -p "${ZCOMPDUMP:h}"
 
 # Defer compinit until first tab completion for faster startup
 typeset -g __compinit_loaded=0
@@ -157,6 +155,13 @@ fi
 typeset -F __TE2="$SECONDS"
 [ -f "$PERMEANCE_TREE/.config/shell/variables.sh" ] && source "$PERMEANCE_TREE/.config/shell/variables.sh"
 typeset -F __TE3="$SECONDS"
+
+# zsh's caches (the completion dump, dircolors' output, the tools' init
+# scripts) share one directory under the cache home xdg.sh sets, made once it
+# has: made before it, under a cache home inherited from elsewhere, it left
+# them a directory nobody made, and the tools' hooks quietly unloaded.
+typeset -g ZCOMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
+[[ -d ${ZCOMPDUMP:h} ]] || mkdir -p "${ZCOMPDUMP:h}"
 
 # Cache dircolors output for faster loading
 typeset -g DIRCOLORS_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/dircolors.zsh"
