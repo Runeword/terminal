@@ -16,7 +16,8 @@
 //     a change. Once Claude has been given the turn back, the same call is
 //     asked about instead, so the user approves each change.
 //   - Stop: a session holding a change is kept going (decision "block") to
-//     make its changes again; the next stop ends the turn.
+//     make its changes again; the next stop, which Claude Code flags as
+//     following a block (stop_hook_active), ends the turn.
 //   - UserPromptSubmit: a new prompt closes memory again.
 //
 // It only decides when the prompts come. Whether a change is made is settled
@@ -68,10 +69,11 @@ var sessionRE = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 var memoryRE = regexp.MustCompile(`/\.claude[^/]*/projects/[^/]+/memory(/|$)`)
 
 type hookInput struct {
-	SessionID     string `json:"session_id"`
-	HookEventName string `json:"hook_event_name"`
-	ToolName      string `json:"tool_name"`
-	ToolInput     struct {
+	SessionID      string `json:"session_id"`
+	HookEventName  string `json:"hook_event_name"`
+	StopHookActive bool   `json:"stop_hook_active"`
+	ToolName       string `json:"tool_name"`
+	ToolInput      struct {
 		FilePath     string `json:"file_path"`
 		NotebookPath string `json:"notebook_path"`
 	} `json:"tool_input"`
@@ -168,8 +170,14 @@ func gate(input hookInput, out io.Writer, config, states string) error {
 	return decide(out, "deny", heldReason)
 }
 
-// stop gives the turn back to a session holding a memory change, and lets the
-// turn end once it had it back.
+// stop gives the turn back to a session holding a memory change, and ends the
+// turn at the next stop, which Claude Code flags as following a block
+// (stop_hook_active). While saving, a stop that isn't flagged gives the turn
+// back again: when settings.json and the plugin both run these hooks, the
+// second copy sees the stop that the first copy just blocked, and ending the
+// turn there would have the change held again. Two copies still disagree when
+// another Stop hook had already kept Claude going: both then see that stop
+// flagged.
 func stop(input hookInput, out io.Writer, states string) error {
 	file, err := stateFile(input.SessionID, states)
 	if err != nil {
@@ -184,11 +192,14 @@ func stop(input hookInput, out io.Writer, states string) error {
 		if err := writeState(file, saving); err != nil {
 			return err
 		}
-		return json.NewEncoder(out).Encode(stopDecision{Decision: "block", Reason: stopReason})
 	case saving:
-		return clearState(file)
+		if input.StopHookActive {
+			return clearState(file)
+		}
+	default:
+		return nil
 	}
-	return nil
+	return json.NewEncoder(out).Encode(stopDecision{Decision: "block", Reason: stopReason})
 }
 
 // prompt closes memory again when the user writes, which ends a turn given
