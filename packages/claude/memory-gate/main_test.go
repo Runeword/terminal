@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -89,6 +90,55 @@ func TestAnotherStopHook(t *testing.T) {
 	}, config, 1)
 }
 
+// TestFailsToAsk: a memory write the gate can't hold is asked about at once,
+// where an error would leave it to the ask rule. Any other write still passes
+// untouched.
+func TestFailsToAsk(t *testing.T) {
+	config := t.TempDir()
+	memory := filepath.Join(config, "projects", "-home-u-repo", "memory", "x.md")
+	// A file where the state folder should be: the state can't be read.
+	unreadable := filepath.Join(t.TempDir(), "a-file")
+	if err := os.WriteFile(unreadable, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// A link to nowhere: the state reads as absent, but can't be written,
+	// even by root.
+	unwritable := filepath.Join(t.TempDir(), "a-dangling-link")
+	if err := os.Symlink(filepath.Join(t.TempDir(), "gone"), unwritable); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name    string
+		session string
+		path    string
+		states  string
+		want    string // the decision printed, "" for none
+	}{
+		{"a session it can't name", "", memory, t.TempDir(), "ask"},
+		{"a session id that is a path", "../x", memory, t.TempDir(), "ask"},
+		{"state it can't read", session, memory, unreadable, "ask"},
+		{"state it can't write", session, memory, unwritable, "ask"},
+		{"a write elsewhere with no session", "", "/home/u/repo/main.go", t.TempDir(), ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := tool("Write", tt.path)
+			input.SessionID = tt.session
+			in, err := json.Marshal(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var out bytes.Buffer
+			if err := run(bytes.NewReader(in), &out, config, tt.states); err != nil {
+				t.Fatalf("run: %v", err)
+			}
+			if got := decision(t, out.Bytes()); got != tt.want {
+				t.Errorf("decision = %q, want %q (output %q)", got, tt.want, out.String())
+			}
+		})
+	}
+}
+
 func TestErrors(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -97,7 +147,6 @@ func TestErrors(t *testing.T) {
 		{"not JSON", "{"},
 		{"no session", `{"hook_event_name":"Stop"}`},
 		{"a session id that is a path", `{"hook_event_name":"Stop","session_id":"../x"}`},
-		{"a memory write with no session", `{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/home/u/.claude/projects/p/memory/x.md"}}`},
 		{"an event it isn't run on", `{"hook_event_name":"PostToolUse","session_id":"` + session + `"}`},
 	}
 	for _, tt := range tests {
