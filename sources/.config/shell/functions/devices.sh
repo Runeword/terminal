@@ -7,6 +7,7 @@ __open_device() {
   if [ "$devices" = "" ]; then return 0; fi
 
   local device
+  # shellcheck disable=SC2016 # the reload's shell expands $USER
   device=$(
     echo "$devices" | fzf \
       --reverse \
