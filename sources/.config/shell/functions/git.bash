@@ -393,30 +393,13 @@ __git_diff() {
   local args open="GL_OPEN=$kind "
   # As __git_fzf_select, with a path's row laid out as gl lays out a
   # commit's: its number from 1, right-aligned, its change, the path, then
-  # its author and date flush right, with no colour of their own, so that
-  # fzf shows and highlights them as the rest of the row. The change is + if
-  # the file is new, - if it is deleted, ~ otherwise, in gl's bold green, red
-  # or blue: gdc's is the staged change, gdd's the unstaged one and gda's the
-  # file's against HEAD, as git status lists them. git status leaves out the
-  # untracked files (-uno: the list's own search found them, and a second
-  # one would walk the whole work tree again), so a path it doesn't list is
-  # new, and so is one in gdd's list that it lists with no unstaged change
-  # (git rm --cached). The author is the name git will commit the change
-  # under (user.name): git keeps none for a change not committed. The date is
-  # when the file was last saved, worded as gl words a commit's: how long ago
-  # (23 minutes ago) if that is less than an hour, and its local date and
-  # time otherwise, the year in two digits (26-10-24 14:30). stat prints both
-  # times, for a few hundred paths a run; a deleted file has none. awk reads
-  # every path before it prints one, to right-align the numbers to the
-  # widest, and pads the path so that the author and date end at column
-  # $COLUMNS - 3, the width of fzf's list, as gl's do. A row's fields are
-  # 0x1f-separated: the path, its change, the padding with the author and
-  # date, and the number, so that the path is every field before them
-  # (..-4), whatever it holds (a 0x1f, a newline, a space at either end), but
-  # for an escape sequence, which fzf reads as colours (--ansi) and drops, as
-  # in gl. Not a read -d loop: zsh's read -d puts back the terminal modes it
-  # found, over the ones fzf sets meanwhile. fzf shows the number first, then
-  # the change, the path and the author and date ({-1} {-3}…), with a 0x1f,
+  # its author and date flush right (git-hunk-pick path-rows, rows.go). A
+  # row's fields are 0x1f-separated: the path, its change, the padding with
+  # the author and date, and the number, so that the path is every field
+  # before them (..-4), whatever it holds (a 0x1f, a newline, a space at
+  # either end), but for an escape sequence, which fzf reads as colours
+  # (--ansi) and drops, as in gl. fzf shows the number first, then the
+  # change, the path and the author and date ({-1} {-3}…), with a 0x1f,
   # which fzf draws as nothing, on each side of the path: those split the
   # change and the author and date off the row shown, as the delimiter's
   # second half (^ *[0-9]+ ) splits the number and its space off, so that
@@ -425,63 +408,9 @@ __git_diff() {
   # When fzf cuts a long path short, the number and the change stay in view
   # (--freeze-left), and so do the author and date (--freeze-right). fzf
   # prints the path alone.
-  local rows='
-    function quote(s) {
-      gsub(/\047/, "\047\\\047\047", s)
-      return "\047" s "\047"
-    }
-    function sym(x) {
-      return x == "A" || x == "?" ? "+" : x == "D" ? "-" : "~"
-    }
-    BEGIN {
-      cmd = "git config user.name"
-      cmd | getline author
-      close(cmd)
-      RS = ORS = "\0"
-      cmd = "git --no-optional-locks status --porcelain -z --no-renames --untracked-files=no"
-      while ((cmd | getline r) > 0) st[substr(r, 4)] = substr(r, 1, 2)
-      close(cmd)
-      badge["+"] = "\033[1;38;2;47;143;83m+\033[0m "
-      badge["-"] = "\033[1;38;2;168;77;95m-\033[0m "
-      badge["~"] = "\033[1;38;2;58;93;153m~\033[0m "
-    }
-    { p[NR] = $0 }
-    END {
-      for (i = 1; i <= NR; i += 500) {
-        cmd = "stat --printf=\"%n\\0%Y\\0%y\\0\" --"
-        for (j = i; j <= NR && j < i + 500; j++) cmd = cmd " " quote(p[j])
-        cmd = cmd " 2>/dev/null"
-        while ((cmd | getline f) > 0) {
-          cmd | getline t[f]
-          cmd | getline d[f]
-        }
-        close(cmd)
-      }
-      w = length(NR)
-      for (i = 1; i <= NR; i++) {
-        s = (p[i] in st) ? st[p[i]] : "??"
-        x = substr(s, 1, 1)
-        y = substr(s, 2, 1)
-        if (kind == "staged") c = sym(x)
-        else if (kind == "unstaged") c = sym(y == " " ? "?" : y)
-        else if (y == "D") c = "-"
-        else c = x == "A" ? "+" : sym(y == " " ? x : y)
-        dt = ""
-        if (p[i] in t) {
-          a = now - t[p[i]]
-          if (a >= 0 && a < 90) dt = a (a == 1 ? " second ago" : " seconds ago")
-          else if (a >= 0 && a < 3600) dt = int((a + 30) / 60) " minutes ago"
-          else dt = substr(d[p[i]], 3, 14)
-        }
-        r = (author == "" || dt == "") ? author dt : author ", " dt
-        n = cols - w - 6 - length(p[i]) - length(r)
-        print p[i] "\037" badge[c] "\037" sprintf("%" (n > 1 ? n : 1) "s", "") r "\037" sprintf("%" w "d", i)
-      }
-    }'
   args=$(
     __git_cd_root || exit 1
-    git-hunk-pick paths "$kind" </dev/null |
-      awk -v kind="$kind" -v now="$(date +%s)" -v cols="$COLUMNS" "$rows" |
+    git-hunk-pick path-rows "$kind" "$COLUMNS" </dev/null |
       fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "${preview[@]}" \
         --ansi --delimiter=$'\x1f|^ *[0-9]+ ' "--with-nth={-1} {-3}"$'\x1f'"{..-4}"$'\x1f'"{-2}" \
         --nth=3..-2 --accept-nth=..-4 --freeze-left=2 --freeze-right=1 |
@@ -685,91 +614,26 @@ __git_log() {
   fi
 
   # A commit's row is its number, its change, its hash and subject, then its
-  # author and date flush right, with no colour of their own, so that fzf
-  # shows and highlights them as the rest of the row. The date is how long
-  # ago the commit was made, as git words it (23 minutes ago), if that is
-  # less than an hour, and its local date and time otherwise, the year in
-  # two digits (26-10-24 14:30). The change is + if
-  # the commit only adds files, - if it only deletes some, ~ otherwise, as
-  # delta labels a file's, in bold green, red or blue. git lists the status
-  # of each of a commit's files under its line, which starts with 0x1e, and
-  # awk puts the change at the end of that line. A subject that starts with
-  # the verb its change stands for, as auto-commit writes them (Add, Delete
-  # or Remove, Update), loses it. git prints the date and time, 14 columns
-  # wide, and at the end of the line the commit's time in seconds and how
-  # long ago that was, which awk puts in their place for a commit of the
-  # last hour. The room the verb or the shorter date leaves goes back to the
-  # subject: as spaces where git padded it, or as more of it where git cut it
-  # short. A subject cut short that holds more than ASCII keeps its verb,
-  # and gets the date's room as spaces after git's cut: awk can't count its
-  # width. git pads the subject, or cuts it, up to column $COLUMNS - 7 less
-  # the number's width, and adds a space, so that a row is as wide as fzf's
-  # list: $COLUMNS less its pointer, marker and scrollbar columns, the
-  # change's two, and the number and its space. git counts that column from
-  # the start of the line, so it prints the author and date first, and fzf
-  # shows them last (--with-nth): the subject then ends where they leave it
-  # room. awk numbers the rows from 1, for the newest, right-aligned to the
-  # width of the count of commits, which git rev-list gives first, for that
-  # column. The fields are 0x1f-separated: the number, author and date,
-  # hash, subject, the row as git log --oneline prints it (hidden: awk takes
-  # the whole subject from it) and the change. The delimiter's second half
+  # author and date flush right (git-hunk-pick log-rows, rows.go). Its fields
+  # are 0x1f-separated: the number, author and date, hash, subject, git log
+  # --oneline's line (not shown) and the change. The delimiter's second half
   # (^ *[0-9]+ ) splits the number and its space off the row shown, so that
   # the search skips it (--nth=2..): in the row read, 0x1f follows the
-  # number, and it can't match there. fzf prints the hash of the row
-  # picked, or of each row Tab marked (--multi): the files step then lists
-  # the files of all of them (see below). Both steps start with the search
-  # off and stop the cursor at either end of the list, as every picker does
+  # number, and it can't match there. fzf prints the hash of the row picked,
+  # or of each row Tab marked (--multi): the files step then lists the files
+  # of all of them (see below). Both steps start with the search off and
+  # stop the cursor at either end of the list, as every picker does
   # (_GIT_FZF_BASE).
-  local change='
-    function pad(n,  p) {
-      while (n-- > 0) p = p " "
-      return p
-    }
-    function put(  c, v, f, full, s, t, room) {
-      if (row == "") return
-      c = "  "
-      if (a && !d && !o) { c = "\033[1;38;2;47;143;83m+\033[0m "; v = "^Add " }
-      else if (d && !a && !o) { c = "\033[1;38;2;168;77;95m-\033[0m "; v = "^(Delete|Remove) " }
-      else if (a || d || o) { c = "\033[1;38;2;58;93;153m~\033[0m "; v = "^Update " }
-      if (split(row, f, "\037") == 6) {
-        full = substr(f[4], length(f[2]) + 2)
-        s = substr(f[3], 2, length(f[3]) - 2)
-        t = full
-        if (v != "" && match(full, v)) t = substr(full, RLENGTH + 1)
-        if (f[5] <= now && now - f[5] < 3600) {
-          room = 14 - length(f[6])
-          f[1] = substr(f[1], 1, length(f[1]) - 14) f[6]
-        }
-        if (t != full || room) {
-          room += length(s)
-          if (substr(s, 1, length(full)) == full) s = t pad(room - length(t))
-          else if (full ~ /^[ -~]*$/ && room > 2)
-            s = length(t) > room ? substr(t, 1, room - 2) ".." : t pad(room - length(t))
-          else s = s pad(room - length(s))
-        }
-        row = f[1] "\037" f[2] "\037 " s " \037" f[4]
-      }
-      print sprintf("%" w "d", ++n) "\037" row "\037" c
-    }
-    substr($0, 1, 1) == "\036" { put(); row = substr($0, 2); a = d = o = 0; next }
-    /^A\t/ { a = 1; next }
-    /^D\t/ { d = 1; next }
-    /^[A-Z]/ { o = 1 }
-    END { put() }'
   local -a log_view=(
     --ansi --delimiter=$'\x1f|^ *[0-9]+ ' '--with-nth={1} {6}{3}{4}{2}' --nth=2.. --accept-nth=3 --multi
   )
   # Given a commit, gl lists its files alone: Neovim's gl (gl.nvim) runs it
   # so on the commit picked here (see below).
-  local count commit
+  local commit
   if [ -n "${1-}" ]; then
     commit=$(git rev-parse --verify --quiet --short "$1^{commit}") || return 1
   else
-    count=$(git rev-list --count HEAD 2>/dev/null)
-    commit=$(git log --no-renames --diff-merges=first-parent --name-status \
-      --date=format-local:'%y-%m-%d %H:%M' \
-      --format="%x1e%an, %ad%x1f%h%x1f %<|($((COLUMNS - 7 - ${#count})),trunc)%s %x1f%h %s%x1f%at%x1f%ar" |
-      awk -v w="${#count}" -v now="$(date +%s)" "$change" |
+    commit=$(git-hunk-pick log-rows "$COLUMNS" </dev/null |
       fzf "${_GIT_FZF_BASE[@]}" "${inline[@]}" "${preview[@]}" "${log_view[@]}")
   fi
 
