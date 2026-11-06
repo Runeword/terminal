@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -36,24 +37,29 @@ func TestInMemory(t *testing.T) {
 	}
 }
 
+// step is one hook event of a test's turns.
+type step struct {
+	name  string
+	input hookInput
+	want  string // the decision printed, "" for none
+	state string // the session's state after it
+}
+
 // TestTurns plays turns through the hook, in order: each step's state is the
-// next step's start.
+// next step's start. It plays them through one copy of the hooks, then two, as
+// when settings.json and the plugin both run them: each copy must decide as a
+// lone copy does.
 func TestTurns(t *testing.T) {
-	config, states := t.TempDir(), t.TempDir()
+	config := t.TempDir()
 	memory := filepath.Join(config, "projects", "-home-u-repo", "memory")
-	steps := []struct {
-		name  string
-		input hookInput
-		want  string // the decision printed, "" for none
-		state string // the session's state after it
-	}{
+	steps := []step{
 		{"a write elsewhere passes", tool("Write", "/home/u/repo/main.go"), "", ""},
 		{"a memory write is held", tool("Write", filepath.Join(memory, "user_role.md")), "deny", holding},
 		{"so is an edit of the index", tool("Edit", filepath.Join(memory, "MEMORY.md")), "deny", holding},
 		{"stopping gives the turn back", event("Stop"), "block", saving},
 		{"the write is asked about now", tool("Write", filepath.Join(memory, "user_role.md")), "ask", saving},
 		{"a shell command passes: claude-shell-guard keeps the shell out", bash(), "", saving},
-		{"the next stop ends the turn", event("Stop"), "", ""},
+		{"the next stop ends the turn", stopAfterBlock(), "", ""},
 		{"a stop with nothing held ends the turn", event("Stop"), "", ""},
 		{"a notebook in memory is held", tool("NotebookEdit", filepath.Join(memory, "n.ipynb")), "deny", holding},
 		{"a new prompt keeps what is held", event("UserPromptSubmit"), "", holding},
@@ -61,24 +67,26 @@ func TestTurns(t *testing.T) {
 		{"a new prompt closes memory", event("UserPromptSubmit"), "", ""},
 		{"a memory write is held again", tool("Edit", filepath.Join(memory, "MEMORY.md")), "deny", holding},
 	}
-	for _, step := range steps {
-		t.Run(step.name, func(t *testing.T) {
-			in, err := json.Marshal(step.input)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var out bytes.Buffer
-			if err := run(bytes.NewReader(in), &out, config, states); err != nil {
-				t.Fatalf("run: %v", err)
-			}
-			if got := decision(t, out.Bytes()); got != step.want {
-				t.Errorf("decision = %q, want %q (output %q)", got, step.want, out.String())
-			}
-			if got := state(t, states); got != step.state {
-				t.Errorf("state = %q, want %q", got, step.state)
-			}
+	for _, copies := range []int{1, 2} {
+		t.Run(fmt.Sprintf("%d copies", copies), func(t *testing.T) {
+			play(t, steps, config, copies)
 		})
 	}
+}
+
+// TestAnotherStopHook: a change held while another Stop hook keeps Claude
+// going is given back at the next stop, though Claude Code flags it as
+// following a block, and the stop after that ends the turn. Through one copy
+// of the hooks only: two disagree on that stop (see stop).
+func TestAnotherStopHook(t *testing.T) {
+	config := t.TempDir()
+	memory := filepath.Join(config, "projects", "-home-u-repo", "memory", "x.md")
+	play(t, []step{
+		{"a memory write is held", tool("Write", memory), "deny", holding},
+		{"the next stop gives the turn back", stopAfterBlock(), "block", saving},
+		{"the write is asked about now", tool("Write", memory), "ask", saving},
+		{"the stop after that ends the turn", stopAfterBlock(), "", ""},
+	}, config, 1)
 }
 
 func TestErrors(t *testing.T) {
@@ -121,6 +129,41 @@ func bash() hookInput {
 
 func event(name string) hookInput {
 	return hookInput{SessionID: session, HookEventName: name}
+}
+
+// stopAfterBlock is a stop that Claude Code flags as following a block.
+func stopAfterBlock() hookInput {
+	in := event("Stop")
+	in.StopHookActive = true
+	return in
+}
+
+// play runs steps in order, each through the given number of copies of the
+// hook, one after the other, and checks each copy's decision and the session's
+// state after it.
+func play(t *testing.T, steps []step, config string, copies int) {
+	t.Helper()
+	states := t.TempDir()
+	for _, s := range steps {
+		t.Run(s.name, func(t *testing.T) {
+			in, err := json.Marshal(s.input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for n := 1; n <= copies; n++ {
+				var out bytes.Buffer
+				if err := run(bytes.NewReader(in), &out, config, states); err != nil {
+					t.Fatalf("copy %d: run: %v", n, err)
+				}
+				if got := decision(t, out.Bytes()); got != s.want {
+					t.Errorf("copy %d: decision = %q, want %q (output %q)", n, got, s.want, out.String())
+				}
+				if got := state(t, states); got != s.state {
+					t.Errorf("copy %d: state = %q, want %q", n, got, s.state)
+				}
+			}
+		})
+	}
 }
 
 // decision is the permission decision or the stop decision printed, "" for
