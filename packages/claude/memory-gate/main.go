@@ -8,8 +8,9 @@
 //
 // # Protocol
 //
-// settings.json runs it, with no arguments, on three hook events, and it reads
-// the event's JSON on stdin:
+// The memory-gate plugin's hooks
+// (sources/.claude/plugins/memory-gate/hooks/hooks.json) run it, with no
+// arguments, on three hook events, and it reads the event's JSON on stdin:
 //
 //   - PreToolUse (Write, Edit, MultiEdit, NotebookEdit): a write to a memory
 //     folder is denied while Claude works, and the session is marked as holding
@@ -22,9 +23,11 @@
 //
 // It only decides when the prompts come. Whether a change is made is settled
 // elsewhere: the ask rule asks before each write by the file tools, and
-// claude-shell-guard keeps shell commands from writing memory at all. So an
-// error here (input it can't read, state it can't write), which exits 1 and
-// which Claude Code treats as non-blocking, only brings a prompt forward.
+// claude-shell-guard keeps shell commands from writing memory at all. A write
+// to memory that the gate fails to hold (a session it can't name, state it
+// can't read or write) is asked about at once, with the error. Any other
+// error, such as input it can't read, exits 1, which Claude Code treats as
+// non-blocking, and leaves the call to the ask rule.
 //
 // The state is one file per session in $XDG_RUNTIME_DIR/claude-memory-gate
 // (else the temp folder), which claude-shell-guard, which runs hooks too,
@@ -59,6 +62,9 @@ const (
 	heldReason = "Held: memory changes wait until your work is done, so that their permission prompt doesn't stop it. Carry on with the task; once you finish, you get the turn back to make this change again, and the user is asked then."
 	stopReason = "Your work is done, so memory is open: make again the memory changes that were held, with Write or Edit (the shell can't change memory; to delete a memory file, ask the user). Each one asks the user. If none is still worth making, stop."
 	askReason  = "Claude held this memory change until its work was done."
+	// failedReason is the prompt's for a change the gate could not hold, with
+	// the error.
+	failedReason = "claude-memory-gate could not hold this memory change (%v), so it asks now."
 )
 
 // sessionRE matches a session id, which names the session's state file.
@@ -141,7 +147,8 @@ func run(in io.Reader, out io.Writer, config, states string) error {
 }
 
 // gate denies a write to memory while Claude works, and asks about it once
-// Claude has the turn back for memory. Any other call passes untouched.
+// Claude has the turn back for memory, or when it can't hold it. Any other
+// call passes untouched.
 func gate(input hookInput, out io.Writer, config, states string) error {
 	var path string
 	switch input.ToolName {
@@ -153,21 +160,31 @@ func gate(input hookInput, out io.Writer, config, states string) error {
 	if !inMemory(path, config) {
 		return nil
 	}
-	file, err := stateFile(input.SessionID, states)
+	decision, reason, err := hold(input.SessionID, states)
 	if err != nil {
-		return err
+		return decide(out, "ask", fmt.Sprintf(failedReason, err))
+	}
+	return decide(out, decision, reason)
+}
+
+// hold decides a write to memory: asked about once Claude has the turn back
+// for memory, else denied, with the session marked as holding a change.
+func hold(session, states string) (decision, reason string, err error) {
+	file, err := stateFile(session, states)
+	if err != nil {
+		return "", "", err
 	}
 	state, err := readState(file)
 	if err != nil {
-		return err
+		return "", "", err
 	}
 	if state == saving {
-		return decide(out, "ask", askReason)
+		return "ask", askReason, nil
 	}
-	if err := writeState(file, holding); err != nil {
-		return err
+	if err = writeState(file, holding); err != nil {
+		return "", "", err
 	}
-	return decide(out, "deny", heldReason)
+	return "deny", heldReason, nil
 }
 
 // stop gives the turn back to a session holding a memory change, and ends the
