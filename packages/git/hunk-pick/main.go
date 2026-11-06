@@ -255,7 +255,7 @@ func fatal(msg string) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fatal("usage: git-hunk-pick <list|assemble [--sum SUM] INDEX...>  (diff on stdin), <files|key|load|hint|finalize> SD ..., paths KIND [REV], quote [PREFIX], tree KIND REV, or tree-quote KIND REV [PREFIX]")
+		fatal("usage: git-hunk-pick <list|assemble [--sum SUM] INDEX...>  (diff on stdin), <files|key|load|hint|finalize> SD ..., paths KIND [REV], quote [PREFIX], tree KIND REV, tree-quote KIND REV [PREFIX], log-rows COLUMNS, or path-rows KIND COLUMNS")
 	}
 
 	switch os.Args[1] {
@@ -271,6 +271,11 @@ func main() {
 		return
 	case "tree", "tree-quote":
 		if err := runTree(os.Args[1], os.Args[2:], runGit, os.Stdin, os.Stdout); err != nil {
+			fatal(err.Error())
+		}
+		return
+	case "log-rows", "path-rows":
+		if err := runRows(os.Args[1], os.Args[2:], os.Stdout); err != nil {
 			fatal(err.Error())
 		}
 		return
