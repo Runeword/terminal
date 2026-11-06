@@ -15,8 +15,9 @@ let
   # Its `mark` is the SessionStart hook that names the open session to the
   # backup and restore (packages/claude/sessions/open.go).
   claudeSessions = import ../packages/claude/sessions { inherit pkgs; };
-  # The PreToolUse, Stop and UserPromptSubmit hook that holds Claude's memory
-  # changes until its work is done (packages/claude/memory-gate/main.go).
+  # Holds Claude's memory changes until its work is done: the memory-gate
+  # plugin's PreToolUse, Stop and UserPromptSubmit hooks run it
+  # (packages/claude/memory-gate/main.go).
   claudeMemoryGate = import ../packages/claude/memory-gate { inherit pkgs; };
   # CLAUDE_CODE_SHELL_PREFIX: runs every shell command, hook and MCP server
   # Claude Code starts under Landlock, with the config folders' projects/, which
@@ -195,7 +196,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "claude";
-      description = "Verify claude binary executes, settings.json commands resolve, keep CLAUDE.local.md files out of context and keep the bypass-mode warning accepted, the status line renders, comma looks packages up offline, the Go and Lua language servers keep their caches where the sandbox can write and the shell one skips the checks .shellcheckrc disables, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
+      description = "Verify claude binary executes, settings.json and plugin hook commands resolve, keep CLAUDE.local.md files out of context and keep the bypass-mode warning accepted, the status line renders, comma looks packages up offline, the Go and Lua language servers keep their caches where the sandbox can write and the shell one skips the checks .shellcheckrc disables, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
       script = ''
         # claude-code does not expose a config-loading probe that works in a
         # sandbox without auth/network. This only verifies the wrapper's binary
@@ -207,9 +208,10 @@ let
         fi
 
         # settings.json names the status line, the hooks and the shell prefix by
-        # bare command, so each must resolve on claude's PATH; at runtime a
-        # missing one fails (the status line just goes blank, and without the
-        # prefix every shell command fails).
+        # bare command, and the plugins name their hooks' commands the same way,
+        # so each must resolve on claude's PATH; at runtime a missing one fails
+        # (the status line just goes blank, and without the prefix every shell
+        # command fails).
         claudePath=${
           pkgs.lib.concatMapStringsSep ":" (builtins.replaceStrings
             [ permeance.out ]
@@ -217,11 +219,16 @@ let
           ) pathPrefix
         }
         settings=${self}/.claude/settings.json
-        for cmd in $(${pkgs.jq}/bin/jq -r '[.statusLine.command] + [.hooks[][].hooks[] | .command // empty] + [.env.CLAUDE_CODE_SHELL_PREFIX // empty] | .[] | split(" ")[0]' "$settings" | sort -u); do
+        for cmd in $(
+          {
+            ${pkgs.jq}/bin/jq -r '[.statusLine.command] + [.hooks[][].hooks[] | .command // empty] + [.env.CLAUDE_CODE_SHELL_PREFIX // empty] | .[] | split(" ")[0]' "$settings"
+            ${pkgs.jq}/bin/jq -r '.hooks[][].hooks[] | .command // empty | split(" ")[0]' ${self}/.claude/plugins/*/hooks/hooks.json
+          } | sort -u
+        ); do
           if PATH="$claudePath" command -v "$cmd" > /dev/null; then
             ok "on claude's PATH: $cmd"
           else
-            fail "settings.json command not on claude's PATH: $cmd"
+            fail "settings.json or plugin hook command not on claude's PATH: $cmd"
           fi
         done
 
@@ -246,13 +253,26 @@ let
 
         # Memory changes: the ask rule asks before each write by Claude's file
         # tools, claude-shell-guard keeps shell commands from writing memory, and
-        # claude-memory-gate holds the prompts until Claude's work is done. Hooks
-        # stay on: this file outranks a disableAllHooks a session could write
-        # into .claude/settings.local.json.
-        if ${pkgs.jq}/bin/jq -e '(.permissions.ask | index("Edit(~/.claude*/projects/*/memory/**)")) and .env.CLAUDE_CODE_SHELL_PREFIX == "claude-shell-guard" and .disableAllHooks == false and ([.hooks.PreToolUse, .hooks.Stop, .hooks.UserPromptSubmit] | all(any(.[].hooks[].command; . == "claude-memory-gate")))' "$settings" > /dev/null; then
-          ok "settings.json asks before each memory change, after Claude's work, and keeps the shell out of memory"
+        # the memory-gate plugin's hooks run claude-memory-gate, which holds the
+        # prompts until Claude's work is done. Hooks stay on: this file outranks
+        # a disableAllHooks a session could write into .claude/settings.local.json.
+        if ${pkgs.jq}/bin/jq -e '(.permissions.ask | index("Edit(~/.claude*/projects/*/memory/**)")) and .env.CLAUDE_CODE_SHELL_PREFIX == "claude-shell-guard" and .disableAllHooks == false' "$settings" > /dev/null; then
+          ok "settings.json asks before each memory change and keeps the shell out of memory"
         else
-          fail "settings.json lets Claude change its memory mid-task, without asking, or from the shell"
+          fail "settings.json lets Claude change its memory without asking, or from the shell"
+        fi
+        memoryHooks=${self}/.claude/plugins/memory-gate/hooks/hooks.json
+        if ${pkgs.jq}/bin/jq -e '[.hooks.PreToolUse, .hooks.Stop, .hooks.UserPromptSubmit] | all(any(.[].hooks[].command; . == "claude-memory-gate"))' "$memoryHooks" > /dev/null; then
+          ok "the memory-gate plugin holds memory changes until Claude's work is done"
+        else
+          fail "the memory-gate plugin lets Claude change its memory mid-task"
+        fi
+        # claude.bash loads its default plugins on every launch but the plugin
+        # picker's (cpl), which loads only what is picked.
+        if grep -Eq '^__CLAUDE_DEFAULT_PLUGINS=\(([^)]* )?memory-gate( [^)]*)?\)' ${../sources/.config/shell/functions/claude.bash}; then
+          ok "claude.bash loads the memory-gate plugin by default"
+        else
+          fail "claude.bash doesn't load the memory-gate plugin by default"
         fi
 
         # Run the status line the way Claude Code does (sh -c, claude's PATH) on
