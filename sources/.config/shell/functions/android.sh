@@ -1,6 +1,8 @@
+#!/bin/bash
+
 __emu() {
   local ACTION="$1"
-  local DEVICES DEVICE AVD_NAME IMAGE_TYPE SYSTEM_IMAGE AVDS SELECTED RUNNING RUNNING_AVD
+  local DEVICES DEVICE AVD_NAME IMAGE_TYPE SYSTEM_IMAGE AVDS SELECTED RUNNING
 
   # If no action provided, show actions menu
   if [ "$ACTION" = "" ]; then
@@ -57,9 +59,7 @@ __emu() {
       echo "   System Image: $SYSTEM_IMAGE"
       echo ""
 
-      avdmanager create avd -n "$AVD_NAME" -k "$SYSTEM_IMAGE" -d "$DEVICE" >/dev/null 2>&1
-
-      if [ $? -eq 0 ]; then
+      if avdmanager create avd -n "$AVD_NAME" -k "$SYSTEM_IMAGE" -d "$DEVICE" >/dev/null 2>&1; then
         echo "Emulator '$AVD_NAME' created successfully !"
         echo "Run it with : emu run"
       else
@@ -116,8 +116,7 @@ __emu() {
       fi
 
       # Stop emulator
-      adb -s "$SELECTED" emu kill
-      if [ $? -eq 0 ]; then
+      if adb -s "$SELECTED" emu kill; then
         echo "Emulator '$SELECTED' stopped"
       else
         echo "Failed to stop emulator '$SELECTED'"
@@ -143,8 +142,7 @@ __emu() {
       fi
 
       # Delete emulator
-      avdmanager delete avd -n "$SELECTED" >/dev/null 2>&1
-      if [ $? -eq 0 ]; then
+      if avdmanager delete avd -n "$SELECTED" >/dev/null 2>&1; then
         echo "Emulator '$SELECTED' deleted successfully"
       else
         echo "Failed to delete emulator '$SELECTED'"
