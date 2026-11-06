@@ -13,6 +13,9 @@ let
   leaderAliases = import ../packages/leader-aliases { inherit pkgs; };
   # Shift+Tab's search (.config/shell/scripts/fm_rg.sh) matches through it.
   fmQuery = import ../packages/fm-query { inherit pkgs; };
+  # gl's and gda/gdc/gdd's rows (log-rows, path-rows) and gl's file tree come
+  # from it: the smoke test runs them on a real repo.
+  hunkPick = import ../packages/git/hunk-pick { inherit pkgs; };
   config = files.mkConfig "zsh-config" [
     ".config/zsh"
     ".config/shell"
@@ -46,7 +49,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, na deletes every old home-manager and NixOS generation, collects the garbage and refreshes the boot menu, zr removes the directories picked in fzf from zoxide's list, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /experts command, failing closed, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, which it makes again at the current window's size once it is gone, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl's file step lists a commit as tree rows with unpickable, uncounted directories and opens the picked rows' files, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, __open_recent offers nvim's recent files newest first, Tab fills in a suggestion showing at the end of the line and otherwise opens the completion menu, Alt+H has Claude Haiku explain the typed line, sent as text and never when it looks like a secret, signed in with the token in pass, and Alt+Shift+H hands the command to man, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, na deletes every old home-manager and NixOS generation, collects the garbage and refreshes the boot menu, zr removes the directories picked in fzf from zoxide's list, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /experts command, failing closed, a launch makes the profile and drops a session's stray settings without printing a line, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, which it makes again at the current window's size once it is gone, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl and gda/gdc/gdd, on a real repo through the real fzf, lay out each row as wide as fzf's list, search past its number and open what is picked in Neovim's own pickers, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, a cache home inherited from elsewhere still loads the tools' hooks and dircolors' colours,__open_recent offers nvim's recent files newest first, Tab fills in a suggestion showing at the end of the line and otherwise opens the completion menu, Alt+H has Claude Haiku explain the typed line, sent as text and never when it looks like a secret, signed in with the token in pass, and Alt+Shift+H hands the command to man, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -352,6 +355,23 @@ let
           esac
         fi
 
+        # A launch makes the profile and drops a session's stray local
+        # settings without printing a line. In a full start, aliases.sh (read
+        # before the function files) has mkdir and mv add --verbose, and zsh
+        # expands an alias in a function as it reads it, so claude.bash runs
+        # them through command: a fresh profile has its directories made, and
+        # the project's settings.local.json loses its hooks.
+        mkdir -p "$HOME/quiet/.claude"
+        echo '{"permissions":{},"hooks":{}}' > "$HOME/quiet/.claude/settings.local.json"
+        quiet='{ __claude_instance=7; __claude_provision_config && __claude_scrub_planted; } > "$HOME/quiet.out" 2>/dev/null'
+        if (cd "$HOME/quiet" && PATH=${pkgs.jq}/bin:$PATH ${self}/bin/zsh -i -c "$quiet" > /dev/null 2>&1) \
+          && [ -d "$HOME/.claude-7/.uv-tools" ] && [ ! -s "$HOME/quiet.out" ] \
+          && [ "$(${pkgs.jq}/bin/jq -c . "$HOME/quiet/.claude/settings.local.json")" = '{"permissions":{}}' ]; then
+          ok "a launch makes the claude profile's directories and drops a session's stray local settings without printing a line"
+        else
+          fail "a launch prints mkdir's or mv's --verbose lines as it makes the claude profile's directories or drops a session's stray local settings: $(cat "$HOME/quiet.out")"
+        fi
+
         # The connection picker (leader cc) launches a plain session plus what
         # was picked: a credential as the launcher's opt-in flag, an MCP plugin
         # on top of the default ones. A stand-in fzf picks jira, figma-mcp and
@@ -589,42 +609,48 @@ let
           *) fail "ga shows its files or hunks list under a header" ;;
         esac
 
-        # gl (__git_log) lists commits numbered from 1, right-aligned, then
-        # their change, in its colour, and their author and date flush right,
-        # in the row's colours: git lists each commit's files' statuses and
-        # pads its subject up to column $COLUMNS - 7 less the number's width
-        # (two: the stand-in rev-list counts 10 commits) of a line that starts
-        # with them, awk numbers the row, adds the change (a commit that only
-        # deletes files: - in bold red), drops the verb it stands for
-        # (Delete) and, for a commit of the last hour (the first, two minutes
-        # old, not the second), puts how long ago that was in place of its
-        # date and time, the row as wide, and fzf shows the number and the
-        # change first and them last, skips the number in its search, and
-        # hands on the row's hash. Both steps show the
-        # preview below the list, in three quarters of fzf's height, with no
-        # blank line before the diff: a commit's diff alone, a file's under its
-        # path. Both start with the search off, as alt-i leaves it, triggered
-        # once (a second would turn the search back on), the file step before
-        # it searches with !/$: turning the search off after would cancel that
-        # search. The file step's j/k step between matches,
-        # f12/f11 adding the 4 more steps of a 5-step move (FZF_DEFAULT_OPTS).
-        # Neither binds y, which types into the query as other letters do, nor
-        # a key of its own to jump to a row by its label, and neither has a
-        # header. Neither cycles: there is no --cycle. The file step hands fzf the
-        # commit's tree rows, searched with !/$ so that no directory's row
-        # matches, and the count of its files for the info line, and the
-        # editor what tree-quote makes of the row numbers fzf accepts, to open
-        # in Neovim's own gl on their commit (GL_OPEN=log, GL_COMMIT): the
-        # stand-ins pick the commit and a row, and say what they were asked.
+        # gl (__git_log), on a real repo through the real git-hunk-pick and
+        # fzf (log-rows lays the rows out; its own tests cover how): each row
+        # is as wide as fzf's list, COLUMNS - 3, shown as fzf shows it
+        # ({1} {6}{3}{4}{2}), numbered from 1 for the newest, right-aligned to
+        # the 10 commits' two digits. The newest, two minutes old, only
+        # deletes files: - in bold red, the verb it stands for (Delete)
+        # dropped, and how long ago it was made in place of its date and time;
+        # the oldest only adds one: + in bold green, its date and time; an
+        # empty commit has no change. The search finds a commit by its
+        # subject, past its number, and fzf hands on its hash; the file step
+        # lists the commit's files as tree rows, and tree-quote turns the row
+        # picked back into its path, which opens in Neovim's own gl on its
+        # commit (GL_OPEN=log, GL_COMMIT). fzf is the real one, filtering for
+        # zebra among the commits and for f8 among the files.
+        mkdir -p "$HOME/gl" && (
+          cd "$HOME/gl" || exit 1
+          export GIT_CONFIG_NOSYSTEM=1 GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=a@x GIT_COMMITTER_NAME=a GIT_COMMITTER_EMAIL=a@x
+          git() { ${pkgs.git}/bin/git "$@"; }
+          git init -q
+          for i in 1 2 3 4 5 6 7 8; do
+            echo "$i" > "f$i" && git add "f$i"
+            GIT_AUTHOR_DATE=@$((1700000000 + i)) GIT_COMMITTER_DATE=@$((1700000000 + i)) git commit -qm "Add f$i"
+          done
+          GIT_AUTHOR_DATE=@1700000009 GIT_COMMITTER_DATE=@1700000009 git commit -q --allow-empty -m Empty
+          git rm -q f7 f8
+          t=@$(($(date +%s) - 120))
+          GIT_AUTHOR_DATE=$t GIT_COMMITTER_DATE=$t git commit -qm "Delete zebra"
+        )
         gl='. ${self}/.config/shell/functions/git.bash
-          git() { case $1 in log) [ "$*" != "log --no-renames --diff-merges=first-parent --name-status --date=format-local:%y-%m-%d %H:%M --format=%x1e%an, %ad%x1f%h%x1f %<|(91,trunc)%s %x1f%h %s%x1f%at%x1f%ar" ] || printf "\36a, 26-10-25 21:42\37abc\37 Delete f \37abc Delete f\37%s\37%s\n\nD\tf\nD\tg\n\36b, 70-01-01 00:00\37def\37 x \37def x\37%s\37%s\n" $(($(date +%s) - 120)) "2 minutes ago" 0 "56 years ago" ;; rev-list) [ "$*" != "rev-list --count HEAD" ] || echo 10 ;; rev-parse) [ "$2" != --show-cdup ] || echo ../ ;; esac; }
-          git-hunk-pick() { case $1 in tree) printf "%s\0" "$*" ;; paths) printf "x\0y\0" ;; tree-quote) printf "%s<%s" "$*" "$(tr "\0" ,)" ;; esac; }
-          fzf() { case "$TREE_FILES $*" in *jump* | *"--bind y:"* | *"--header="* | *" --cycle"* | *"trigger(alt-i)"*"trigger(alt-i)"*) ;; "2 "*"--no-cycle "*"start:+trigger(alt-i)"*"--accept-nth={n}"*"start:+search(!/\$)"*"j:trigger(f12)+down-match,k:trigger(f11)+up-match"*"f12:down-match+down-match+down-match+down-match,f11:up-match+up-match+up-match+up-match"*"--info-command="*"show --color=always --format= "*"/^\$/d}"*"--preview-window=down,75%,"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *"--no-cycle "*"start:+trigger(alt-i)"*"show --color=always --format= {3} "*"/^\$/d}"*"--preview-window=down,75%,"*"--ansi --delimiter="?"|^ *[0-9]+  --with-nth={1} {6}{3}{4}{2} --nth=2.. --accept-nth=3"*) awk -F "$(printf "\37")" -v c="$(printf "\33[1;38;2;168;77;95m-\33[0m ")" "\$1 == \" 1\" && \$2 == \"a, 2 minutes ago\" && \$6 == c && \$4 ~ /^ f {9}\$/ { h = \$3 } \$1 == \" 2\" && \$2 == \"b, 70-01-01 00:00\" { print h }" ;; esac; }
-          COLUMNS=100 EDITOR=ed __git_log'
-        if [ "$(${self}/bin/zsh -f -c "$gl")" = "GL_OPEN=log GL_COMMIT=abc ed -- tree-quote commit abc ../<4," ]; then
-          ok "gl lists commits numbered from 1, right-aligned and unsearched, with their change next, in its colour, in place of the verb it stands for, and their author and date flush right in the row's colours, the date how long ago a commit of the last hour was made and an older one's date and time, previews each diff below its list, in three quarters of the height, a commit's alone, starts both lists with the search off, steps the file list's j/k and f12/f11 between matches, no header, no cycling and no y or jump binding of their own, lists the commit's files as tree rows, directories unpickable and uncounted, and opens the files of the rows picked in Neovim's own gl, on their commit"
+          fzf() { case "$*" in *"--accept-nth={n}"*) f=tree q=f8 ;; *) f=log q=zebra ;; esac; tee "$HOME/gl-$f" | ${pkgs.fzf}/bin/fzf --filter=$q "$@"; }
+          COLUMNS=60 EDITOR=ed __git_log'
+        gl_head=$(cd "$HOME/gl" && ${pkgs.git}/bin/git rev-parse --short HEAD)
+        if [ "$(cd "$HOME/gl" && PATH=${hunkPick}/bin:${pkgs.git}/bin:$PATH TZ=UTC ${self}/bin/zsh -f -c "$gl")" = "GL_OPEN=log GL_COMMIT=$gl_head ed -- 'f8'" ] \
+          && [ "$(sed 's/\x1b\[[0-9;]*m//g' "$HOME/gl-log" | awk -F '\037' '{ print length($1 " " $6 $3 $4 $2) }' | sort -u)" = 57 ] \
+          && awk -F '\037' -v red="$(printf '\33[1;38;2;168;77;95m-\33[0m ')" -v green="$(printf '\33[1;38;2;47;143;83m+\33[0m ')" '
+            NR == 1 && $1 == " 1" && $2 == "a, 2 minutes ago" && $4 ~ /^ zebra +$/ && $6 == red { n++ }
+            NR == 2 && $1 == " 2" && $4 ~ /^ Empty +$/ && $6 == "  " { n++ }
+            NR == 10 && $1 == "10" && $2 == "a, 23-11-14 22:13" && $4 ~ /^ f1 +$/ && $6 == green { n++ }
+            END { exit !(n == 3 && NR == 10) }' "$HOME/gl-log"; then
+          ok "gl, on a real repo through the real fzf, lists commits numbered from 1, right-aligned and unsearched, each row as wide as fzf's list, their change in its colour in place of the verb it stands for and their author and date flush right, the date how long ago a commit of the last hour was made and an older one's date and time, and opens the file picked in its commit's tree in Neovim's own gl, on that commit"
         else
-          fail "gl lists commits without their right-aligned number first, or searches it, or without their change in its colour in place of the verb it stands for, or without their author and date flush right in the row's colours, dates a commit of the last hour other than by how long ago it was made or an older one other than by its date and time, previews a diff beside a list or in other than three quarters of the height, or a commit's under a line, starts a list with the search on or turns the file list's off after its !/$ search, steps the file list's j/k or f12/f11 onto directories, gives a list a header, lets a list cycle, binds y or a jump in a list, or does not hand the rows fzf picks from its tree to tree-quote, or opens their files other than in Neovim's own gl, on their commit"
+          fail "gl, on a real repo through the real fzf, lists commits without their right-aligned number from 1, searches it, makes a row other than as wide as fzf's list, shows a change other than in its colour in place of its verb, dates a commit other than by how long ago (last hour) or its date and time, or does not open the file picked in its commit's tree in Neovim's own gl, on that commit"
         fi
 
         # Given a commit, as Neovim's gl (gl.nvim) runs it on the one picked
@@ -658,29 +684,34 @@ let
           fail "gl takes one commit only, or lists the files of several without a row over each that no search matches, or opens them other than in Neovim's own gl on all of the commits"
         fi
 
-        # gda, gdc and gdd (__git_diff) lay out a path's row as gl lays out a
-        # commit's: numbered from 1, right-aligned, then the path's change,
-        # in its colour (gdc's is the staged one: - in bold red for a deleted
-        # file, ~ in bold blue for a changed one, + in bold green for a new
-        # one, which git status doesn't list), and its author and date flush
-        # right, at column $COLUMNS - 3: how long ago a file saved in the
-        # last hour was saved, in git's words (100 seconds: 2 minutes ago),
-        # an older one's date and time, and nothing for a file that is gone.
-        # fzf searches the path only and prints it as is: the real fzf,
+        # gda, gdc and gdd (__git_diff), on a real repo through the real
+        # git-hunk-pick and fzf, lay out a path's row as gl lays out a
+        # commit's (path-rows; its own tests cover how): numbered from 1,
+        # right-aligned, then the path's change, in its colour (gdc's is the
+        # staged one: - in bold red for a deleted file, ~ in bold blue for a
+        # changed one, + in bold green for a new one), and its author and date
+        # flush right, at column COLUMNS - 3: how long ago a file saved in the
+        # last hour was saved, in git's words (100 seconds: 2 minutes ago), an
+        # older one's date and time, and nothing for a file that is gone. fzf
+        # searches the path only and hands it on as is: the real fzf,
         # filtering for a 1, picks the one path with a 1 in it, not the paths
-        # numbered 1 and 10, nor those dated 1970, and the stand-in quote
-        # shows what it got. A stand-in git on PATH answers the git status
-        # and user.name that awk asks for.
-        mkdir -p "$HOME/gd/bin"
-        (cd "$HOME/gd" && touch -d @0 b c d e f g h j && touch -d "@$(($(date +%s) - 100))" "i 1")
-        printf '#!/bin/sh\ncase $1 in config) echo u ;; *) printf "%%s\\0" "D   a" "M  b" ;; esac\n' > "$HOME/gd/bin/git"
-        chmod +x "$HOME/gd/bin/git"
+        # numbered 1 and 10, nor those dated 1970, and quote makes it one word.
+        mkdir -p "$HOME/gd" && (
+          cd "$HOME/gd" || exit 1
+          export GIT_CONFIG_NOSYSTEM=1 GIT_AUTHOR_NAME=u GIT_AUTHOR_EMAIL=u@x GIT_COMMITTER_NAME=u GIT_COMMITTER_EMAIL=u@x
+          git() { ${pkgs.git}/bin/git "$@"; }
+          git init -q && git config user.name u
+          echo 1 > " a" && echo 1 > b && git add " a" b && git commit -qm base
+          git rm -q " a" && echo 2 > b && git add b
+          for f in c d e f g h "i 1" j; do echo 1 > "$f" && git add "$f"; done
+          echo 2 > "i 1"
+          touch -d @0 b c d e f g h j && touch -d "@$(($(date +%s) - 100))" "i 1"
+        )
+        gd() { (cd "$HOME/gd" && PATH=${hunkPick}/bin:${pkgs.git}/bin:$PATH TZ=UTC ${self}/bin/zsh -f -c "$1"); }
         gdc='. ${self}/.config/shell/functions/git.bash
-          git() { [ "$2" != --show-toplevel ] || echo "$HOME/gd"; }
-          git-hunk-pick() { case $1 in paths) printf "%s\0" " a" b c d e f g h "i 1" j ;; quote) tr "\0" , ;; esac; }
           fzf() { tee "$HOME/gdc" | ${pkgs.fzf}/bin/fzf --filter=1 "$@"; }
           COLUMNS=40 EDITOR=ed __git_diff staged'
-        if [ "$(PATH=$HOME/gd/bin:$PATH TZ=UTC ${self}/bin/zsh -f -c "$gdc")" = "GL_OPEN=staged ed -- i 1," ] \
+        if [ "$(gd "$gdc")" = "GL_OPEN=staged ed -- 'i 1'" ] \
           && [ "$(tr '\0\37' '\n:' < "$HOME/gdc" | sed -n '1p;2p;9p')" = "$(printf ' a:\33[1;38;2;168;77;95m-\33[0m :%29su: 1\nb:\33[1;38;2;58;93;153m~\33[0m :%14su, 70-01-01 00:00: 2\ni 1:\33[1;38;2;47;143;83m+\33[0m :%13su, 2 minutes ago: 9' "" "" "")" ]; then
           ok "gda, gdc and gdd number their paths from 1, right-aligned, show each one's change in its colour and its author and date flush right, the date how long ago a file saved in the last hour was saved and an older one's date and time, search the paths only and hand on the path picked as is"
         else
@@ -689,8 +720,9 @@ let
 
         # gdd and gda open the paths picked in Neovim as gdc does, each in its
         # own picker there (gl.nvim): GL_OPEN names it by the kind of path.
-        if [ "$(PATH=$HOME/gd/bin:$PATH TZ=UTC ${self}/bin/zsh -f -c "''${gdc% staged} unstaged")" = "GL_OPEN=unstaged ed -- i 1," ] \
-          && [ "$(PATH=$HOME/gd/bin:$PATH TZ=UTC ${self}/bin/zsh -f -c "''${gdc% staged}")" = "GL_OPEN=changed ed -- i 1," ]; then
+        # "i 1", new and staged, has unstaged changes too: all three list it.
+        if [ "$(gd "''${gdc% staged} unstaged")" = "GL_OPEN=unstaged ed -- 'i 1'" ] \
+          && [ "$(gd "''${gdc% staged}")" = "GL_OPEN=changed ed -- 'i 1'" ]; then
           ok "gdd and gda open the paths picked in Neovim's own gdd and gda (GL_OPEN=unstaged, changed)"
         else
           fail "gdd or gda opens the paths picked in Neovim without naming its own picker there (GL_OPEN=unstaged, changed)"
@@ -734,7 +766,7 @@ let
         # the commit the line names is one.)
         glw='. ${self}/.config/shell/functions/git.bash
           git() { [ "$1" != log ] || printf "\36abc subject\n"; }
-          git-hunk-pick() { case $1 in tree) echo row ;; tree-quote) cat ;; esac; }
+          git-hunk-pick() { case $1 in log-rows) echo abc ;; tree) echo row ;; tree-quote) cat ;; esac; }
           fzf() { case "$*" in *"--prompt=two% --no-bold --color=query:bold --no-clear --sync"*) head -n 1 ;; esac; }
           WIDGET=leader PS1=$(print "one\ntwo%%") EDITOR=ed __git_log'
         case "$(${self}/bin/zsh -f -c "$glw")" in
@@ -959,6 +991,18 @@ let
           *"/tools-completions"*) ok "the tools' completions directory is on fpath" ;;
           *) fail "the tools' completions directory is not on fpath" ;;
         esac
+
+        # zsh's caches live under the cache home xdg.sh sets, in a directory
+        # made after it: started with a cache home inherited from elsewhere,
+        # the start still loads the tools' hooks (direnv's here) and dircolors'
+        # colours, and says nothing of a cache it could not write.
+        mkdir -p "$HOME/xdgc/home" "$HOME/xdgc/cache"
+        xdgc=$(HOME=$HOME/xdgc/home XDG_CACHE_HOME=$HOME/xdgc/cache PATH=${pkgs.direnv}/bin:$PATH ${self}/bin/zsh -i -c 'print -r -- "''${+functions[_direnv_hook]} ''${#LS_COLORS}"' 2>"$HOME/xdgc/err" | tail -n 1)
+        if [ "''${xdgc%% *}" = 1 ] && [ "''${xdgc#* }" -gt 0 ] && ! grep -q "no such file" "$HOME/xdgc/err"; then
+          ok "with a cache home inherited from elsewhere, the start still loads the tools' hooks and dircolors' colours"
+        else
+          fail "with a cache home inherited from elsewhere, the start loses the tools' hooks or dircolors' colours: $xdgc $(cat "$HOME/xdgc/err")"
+        fi
 
         # hs (__home_manager_switch) refreshes the home-manager flake's local
         # inputs before switching: path: ones and git+file: ones, never remote
