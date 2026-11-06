@@ -1,6 +1,7 @@
 #!/bin/sh
 
 __bluetoothctl() {
+  # shellcheck disable=SC2016 # the preview's shell expands $FZF_PREVIEW_LINES
   bluetoothctl devices | fzf \
     --preview 'bluetoothctl info {2} | head -$FZF_PREVIEW_LINES' \
     --preview-window right,65%,noborder \
