@@ -6,7 +6,10 @@ __CLAUDE_FZF="--reverse --no-separator --keep-right --border none --cycle --heig
 # every launch (its own server init, not uvx overhead; no faster version exists),
 # so loading it unconditionally taxed every session. Pick it from __claude_plugins
 # (the fzf plugin picker) when you need nixpkgs/option search.
-__CLAUDE_DEFAULT_PLUGINS=(nix-lsp typescript-lsp go-lsp shell-lsp lua-lsp)
+# memory-gate holds Claude's memory changes until its work is done
+# (packages/claude/memory-gate/main.go). The plugin picker (cpl) loads it only
+# when it is picked.
+__CLAUDE_DEFAULT_PLUGINS=(nix-lsp typescript-lsp go-lsp shell-lsp lua-lsp memory-gate)
 
 # Prefix that runs claude inside the bubblewrap boundary: claude-sandbox, from
 # github:Runeword/claude-sandbox (on PATH through the tools env). Whole-process
@@ -240,8 +243,9 @@ __claude_provision_config() {
   # claude-shell-guard (CLAUDE_CODE_SHELL_PREFIX) lets nothing Claude Code
   # starts, MCP servers included, create entries directly in the profile, so the
   # caches the plugins keep there (sources/.claude/plugins/*/.mcp.json) are
-  # made here.
-  mkdir -p "$dir" "$dir/.npm-cache" "$dir/.uv-cache" "$dir/.uv-tools"
+  # made here. Through command, as mv below: aliases.sh's mkdir and mv add
+  # --verbose, and the shell expands an alias in a function as it reads it.
+  command mkdir -p "$dir" "$dir/.npm-cache" "$dir/.uv-cache" "$dir/.uv-tools"
   # The profile's user-level instructions load into every session, in every
   # project: CLAUDE.md, rules/, agents/, commands/ and skills/. A session can
   # write its profile, so what one leaves there would steer every later one, a
@@ -349,11 +353,12 @@ __claude_scrub_planted() {
   fi
 }
 
-# Rewrite the JSON file $1 through the jq filter $2, atomically.
+# Rewrite the JSON file $1 through the jq filter $2, atomically, and quietly:
+# mv through command, past aliases.sh's mv --verbose.
 __claude_rewrite_json() {
   local tmp
   tmp=$(mktemp "$1.XXXXXX") || return 1
-  if jq "$2" "$1" >"$tmp" && mv -f "$tmp" "$1"; then
+  if jq "$2" "$1" >"$tmp" && command mv -f "$tmp" "$1"; then
     return 0
   fi
   rm -f "$tmp"
