@@ -590,9 +590,14 @@ __git_log() {
   # --format= leaves out the header, and sed the blank line delta puts before
   # the diff.
   local preview_window='down,75%,border-top,wrap'
+  # With the search off, J/K scroll each step's preview down and up 2 lines:
+  # FZF_DEFAULT_OPTS switches them with the search, as it does j/k, so that
+  # with the search on they type into the query.
+  local -a preview_scroll=(--bind 'J:preview-down+preview-down,K:preview-up+preview-up')
   local -a preview=(
     --preview "git show --color=always --format= {3} | $_GIT_PAGER | sed '1{/^\$/d}'"
     --preview-window="$preview_window"
+    "${preview_scroll[@]}"
   )
 
   # Run from the leader (a zle widget, at an empty prompt), each step's input
@@ -649,6 +654,7 @@ __git_log() {
     # line delta puts before the diff.
     --preview "echo {2..}; git show --color=always --format= $commit -- ':(top,literal)'{2..} | $_GIT_PAGER | sed '1{/^\$/d}'"
     --preview-window="$preview_window,~1"
+    "${preview_scroll[@]}"
   )
 
   # git-hunk-pick tree prints a row per directory and file of the commit: the
@@ -718,7 +724,7 @@ __git_log() {
       done |
         TREE_FILES=$files fzf --read0 "${_GIT_FZF_DEFAULT[@]}" "${inline[@]}" "${tree_view[@]}" \
           --preview "echo {3..}; git show --color=always --format= {2} -- ':(top,literal)'{3..} | $_GIT_PAGER | sed '1{/^\$/d}'" \
-          --preview-window="$preview_window,~1"
+          --preview-window="$preview_window,~1" "${preview_scroll[@]}"
     )
     off=0
     for g in "${groups[@]}"; do
