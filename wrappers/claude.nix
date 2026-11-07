@@ -23,6 +23,10 @@ let
   # Claude Code starts under Landlock, with the config folders' projects/, which
   # holds memory, read-only (packages/claude/shell-guard/main.go).
   claudeShellGuard = import ../packages/claude/shell-guard { inherit pkgs; };
+  # The PreToolUse hook on the read-only Explore agent's Bash
+  # (sources/.claude/agents/explore.md): lets through only commands that read
+  # (packages/claude/explore-guard/main.go).
+  claudeExploreGuard = import ../packages/claude/explore-guard { inherit pkgs; };
   gitAllowlistHook = claudeSandbox.git-allowlist-hook;
   # Stand-in bwrap for that dry run: prints the argv it was handed, one per line,
   # and saves the environment it inherited to $BWRAP_ENV.
@@ -60,6 +64,7 @@ let
     claudeSessions
     claudeMemoryGate
     claudeShellGuard
+    claudeExploreGuard
     gitAllowlistHook
     pkgs.nixfmt
     pkgs.shfmt
@@ -126,9 +131,12 @@ let
 
   config = files.mkConfig "claude-config" [
     ".claude/rules"
-    # User-level skills, such as /experts: claude.bash clears the profile's
+    # User-level skills, such as /x: claude.bash clears the profile's
     # skills/ at each launch, so they ship as commands/<name>.md files.
     ".claude/commands"
+    # User-level agents, such as the read-only Explore that replaces the
+    # built-in: claude.bash links the profile's agents/ to this copy.
+    ".claude/agents"
     ".claude/plugins"
     ".claude/settings.json"
     # The per-OS sandbox overlays claude.bash merges into each profile; bundled
@@ -196,7 +204,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "claude";
-      description = "Verify claude binary executes, settings.json and plugin hook commands resolve, keep CLAUDE.local.md files out of context and keep the bypass-mode warning accepted, the status line renders, comma looks packages up offline, the Go and Lua language servers keep their caches where the sandbox can write and the shell one skips the checks .shellcheckrc disables, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
+      description = "Verify claude binary executes, settings.json, plugin and agent hook commands resolve, keep CLAUDE.local.md files out of context and keep the bypass-mode warning accepted, the Explore agent's Bash runs only commands that read, the status line renders, comma looks packages up offline, the Go and Lua language servers keep their caches where the sandbox can write and the shell one skips the checks .shellcheckrc disables, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
       script = ''
         # claude-code does not expose a config-loading probe that works in a
         # sandbox without auth/network. This only verifies the wrapper's binary
@@ -208,10 +216,10 @@ let
         fi
 
         # settings.json names the status line, the hooks and the shell prefix by
-        # bare command, and the plugins name their hooks' commands the same way,
-        # so each must resolve on claude's PATH; at runtime a missing one fails
-        # (the status line just goes blank, and without the prefix every shell
-        # command fails).
+        # bare command, and the plugins and agents name their hooks' commands the
+        # same way, so each must resolve on claude's PATH; at runtime a missing
+        # one fails (the status line just goes blank, without the prefix every
+        # shell command fails, and the Explore agent's Bash is blocked).
         claudePath=${
           pkgs.lib.concatMapStringsSep ":" (builtins.replaceStrings
             [ permeance.out ]
@@ -223,14 +231,37 @@ let
           {
             ${pkgs.jq}/bin/jq -r '[.statusLine.command] + [.hooks[][].hooks[] | .command // empty] + [.env.CLAUDE_CODE_SHELL_PREFIX // empty] | .[] | split(" ")[0]' "$settings"
             ${pkgs.jq}/bin/jq -r '.hooks[][].hooks[] | .command // empty | split(" ")[0]' ${self}/.claude/plugins/*/hooks/hooks.json
+            ${pkgs.yq-go}/bin/yq --front-matter=extract '.hooks[][].hooks[].command | split(" ") | .[0]' ${self}/.claude/agents/*.md
           } | sort -u
         ); do
           if PATH="$claudePath" command -v "$cmd" > /dev/null; then
             ok "on claude's PATH: $cmd"
           else
-            fail "settings.json or plugin hook command not on claude's PATH: $cmd"
+            fail "settings.json, plugin or agent hook command not on claude's PATH: $cmd"
           fi
         done
+
+        # The Explore agent replaces the built-in, whose shell runs whatever the
+        # permission mode lets through. It keeps only Read and Bash, and its hook
+        # on Bash lets through only commands that read, and blocks when it can't
+        # run at all.
+        explore=${self}/.claude/agents/explore.md
+        if ${pkgs.yq-go}/bin/yq --front-matter=extract -e '.name == "Explore" and .tools == "Read, Bash" and ([.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[] | select(.command == "claude-explore-guard" and .onFailure == "block")] | length) == 1' "$explore" > /dev/null; then
+          ok "the Explore agent keeps to Read and a Bash its guard vets, which blocks when it can't run"
+        else
+          fail "the Explore agent has more tools, an unguarded Bash, or a guard that lets commands through when it can't run"
+        fi
+        guard() {
+          ${pkgs.jq}/bin/jq -n --arg c "$1" '{tool_name: "Bash", tool_input: {command: $c}}' \
+            | PATH="$claudePath" claude-explore-guard 2> /dev/null
+        }
+        if guard 'git log --oneline -5' && guard "grep -rn 'a|b' src" \
+          && ! guard 'git stash' && ! guard 'git log --output=x' \
+          && ! guard 'cat a > b' && ! guard 'find . -delete'; then
+          ok "claude-explore-guard lets reads through and blocks writes"
+        else
+          fail "claude-explore-guard lets a write through or blocks a read"
+        fi
 
         # CLAUDE.local.md is git-ignored, so one a session plants, at the root
         # or in a subdirectory, would steer every later session without ever
