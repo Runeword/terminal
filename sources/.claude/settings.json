@@ -38,7 +38,8 @@
           {
             "type": "command",
             "command": "git-allowlist-hook",
-            "timeout": 5
+            "timeout": 5,
+            "onFailure": "block"
           }
         ]
       }
