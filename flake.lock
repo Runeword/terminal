@@ -10,15 +10,17 @@
       "locked": {
         "lastModified": 1793551298,
         "narHash": "sha256-v26K9Z4eUf0mtyIOo3D07M65HpZkg9kS5qsdEwRECd4=",
-        "owner": "Runeword",
-        "repo": "claude-microvm",
+        "ref": "main",
         "rev": "0c18a15730cbdba3e883fac34e0f9386d4e4d400",
-        "type": "github"
+        "shallow": true,
+        "type": "git",
+        "url": "ssh://git@github.com/Runeword/claude-microvm"
       },
       "original": {
-        "owner": "Runeword",
-        "repo": "claude-microvm",
-        "type": "github"
+        "ref": "main",
+        "shallow": true,
+        "type": "git",
+        "url": "ssh://git@github.com/Runeword/claude-microvm"
       }
     },
     "claude-sandbox": {
@@ -33,15 +35,17 @@
       "locked": {
         "lastModified": 1791739864,
         "narHash": "sha256-eLbBx4uK51U8Zfx08avqbtUz1sDJVDxydU7xmnWHH/w=",
-        "owner": "Runeword",
-        "repo": "claude-sandbox",
+        "ref": "main",
         "rev": "9e041b4034e1856629d4987bd9ace7cff9ba7ac5",
-        "type": "github"
+        "shallow": true,
+        "type": "git",
+        "url": "ssh://git@github.com/Runeword/claude-sandbox"
       },
       "original": {
-        "owner": "Runeword",
-        "repo": "claude-sandbox",
-        "type": "github"
+        "ref": "main",
+        "shallow": true,
+        "type": "git",
+        "url": "ssh://git@github.com/Runeword/claude-sandbox"
       }
     },
     "flake-utils": {
@@ -149,15 +153,17 @@
       "locked": {
         "lastModified": 1792878423,
         "narHash": "sha256-dC9arpM4eUumuhKxsoAArgiTGP0H4nH2QhRYgqUvIto=",
-        "owner": "Runeword",
-        "repo": "permeance",
+        "ref": "main",
         "rev": "1592cfab119f06d151522a960d1ac311f6456be0",
-        "type": "github"
+        "shallow": true,
+        "type": "git",
+        "url": "ssh://git@github.com/Runeword/permeance"
       },
       "original": {
-        "owner": "Runeword",
-        "repo": "permeance",
-        "type": "github"
+        "ref": "main",
+        "shallow": true,
+        "type": "git",
+        "url": "ssh://git@github.com/Runeword/permeance"
       }
     },
     "root": {
