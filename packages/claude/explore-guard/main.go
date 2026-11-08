@@ -1,8 +1,9 @@
 // Command claude-explore-guard keeps the Explore agent's shell to commands
 // that only read. Claude Code's built-in Explore runs any shell command the
 // session's permission mode lets through, so in auto or bypass mode it can
-// write. sources/.claude/agents/explore.md replaces it with an agent that has
-// only Read, LSP and Bash, and runs this as its PreToolUse hook on Bash.
+// write. The claude wrapper replaces it, with --agents, by the agent that
+// agent.nix defines: it has only Read, LSP and Bash, and runs this, by store
+// path, as its PreToolUse hook on Bash.
 //
 // # Protocol
 //
