@@ -15,8 +15,8 @@
 # Everything happens under a throwaway $HOME, so nothing lands in a real one.
 # The tools come from the nixpkgs pinned in flake.lock (read with the runner's
 # jq), not from the flake, so permeance is never fetched; claude-sandbox,
-# private too, comes through the access token ci.yml sets up for nix. Run by
-# ci.yml on its macOS machine, after the flake check.
+# private too, comes through the token ci.yml hands git. Run by ci.yml on its
+# macOS machine, after the flake check.
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/../.." && pwd -P)
@@ -25,11 +25,12 @@ w=$(cd "$w" && pwd -P)
 trap 'rm -rf "$w"' EXIT
 
 nixpkgs=$(jq -r '.nodes.nixpkgs.locked | "github:\(.owner)/\(.repo)/\(.rev)"' "$repo/flake.lock")
-sandbox=$(jq -r '.nodes[.nodes.root.inputs["claude-sandbox"]].locked | "github:\(.owner)/\(.repo)/\(.rev)"' "$repo/flake.lock")
+sandbox=$(jq -r '.nodes[.nodes.root.inputs["claude-sandbox"]].locked | "git+\(.url)?ref=\(.ref)&rev=\(.rev)&shallow=1"' "$repo/flake.lock")
 sandbox_src=$(nix flake prefetch --json "$sandbox" | jq -r .storePath)
-# The access token ci.yml hands this step is for that prefetch alone: nothing
-# below needs it, least of all the commands run under Seatbelt.
-unset NIX_CONFIG
+# The token ci.yml hands this step, in git's config variables, is for that
+# prefetch alone: nothing below needs it, least of all the commands run under
+# Seatbelt.
+unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
 for p in sandbox-runtime ripgrep go; do
   PATH="$(nix build --no-link --print-out-paths "$nixpkgs#$p" | head -1)/bin:$PATH"
 done
