@@ -97,6 +97,37 @@ __git_open_url() {
   fi
 }
 
+# Creates a private GitHub repo from the current one and pushes the current
+# branch to it. The repo is named after the root directory unless $1 names it
+# (owner/name for an org's), and becomes origin over SSH, as the other remotes
+# are: gh would add an https one, which git has no credentials for. gh gets the
+# token the gh alias reads; \gh skips the alias, which would read it again.
+__git_create_github_repo() {
+  __git_require_repo || return 1
+
+  # Checked before gh creates anything, which would otherwise be left empty on
+  # GitHub: a branch with a commit to push, and no origin already.
+  local origin root name token url
+  if [ "$(git branch --show-current)" = "" ] || ! git rev-parse --verify --quiet HEAD >/dev/null; then
+    echo "No branch with a commit to push" >&2
+    return 1
+  fi
+  if origin="$(git remote get-url origin 2>/dev/null)"; then
+    echo "Remote origin already exists: $origin" >&2
+    return 1
+  fi
+
+  root="$(git rev-parse --show-toplevel)" || return 1
+  name="${1:-$(basename "$root")}"
+  token="$(pass show GH_TOKEN)" || return 1
+  # Its output captured, gh prints the new repo's URL alone,
+  # https://github.com/<owner>/<name>.
+  url="$(GH_TOKEN="$token" \gh repo create "$name" --private)" || return 1
+  echo "$url"
+  git remote add origin "git@github.com:${url#https://github.com/}.git" &&
+    git push --set-upstream origin HEAD
+}
+
 # fzf args used by every picker. Arrays (not strings) so values containing
 # spaces or quotes round-trip through `"${arr[@]}"` without re-parsing — the
 # previous string form required `eval` or `sh -c` everywhere it was consumed.
