@@ -69,4 +69,16 @@
       ];
     expected = [ ];
   };
+  # flake.nix spells out the ref of every input it fetches over ssh: a
+  # claude-sandbox session's git shim refuses the ls-remote nix would use to
+  # find the default branch, so updating one without a ref fails there, and
+  # only there. Lists the ones that don't.
+  testSshInputsNameTheirRef = {
+    expr = lib.attrNames (
+      lib.filterAttrs (
+        _: node: lib.hasPrefix "ssh://" (node.original.url or "") && !(node.original ? ref)
+      ) (lib.importJSON ../flake.lock).nodes
+    );
+    expected = [ ];
+  };
 }
