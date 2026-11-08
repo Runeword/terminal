@@ -49,7 +49,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, na deletes every old home-manager and NixOS generation, collects the garbage and refreshes the boot menu, zr removes the directories picked in fzf from zoxide's list, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, the /x and /r commands and the Explore agent, failing closed, a launch makes the profile and drops a session's stray settings without printing a line, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, which it makes again at the current window's size once it is gone, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl and gda/gdc/gdd, on a real repo through the real fzf, lay out each row as wide as fzf's list, search past its number and open what is picked in Neovim's own pickers, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, a cache home inherited from elsewhere still loads the tools' hooks and dircolors' colours,__open_recent offers nvim's recent files newest first, Tab fills in a suggestion showing at the end of the line and otherwise opens the completion menu, Alt+H has Claude Haiku explain the typed line, sent as text and never when it looks like a secret, signed in with the token in pass, and Alt+Shift+H hands the command to man, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, na deletes every old home-manager and NixOS generation, collects the garbage and refreshes the boot menu, zr removes the directories picked in fzf from zoxide's list, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay, the /x and /r commands and the Explore agent, failing closed, a launch makes the profile and drops a session's stray settings without printing a line, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore resumes each picked session as it was started, in its tmux session, which it makes again at the current window's size once it is gone, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl and gda/gdc/gdd, on a real repo through the real fzf, lay out each row as wide as fzf's list, search past its number and open what is picked in Neovim's own pickers, gpn has gh create a private repo named after the repo's root with the token in pass, makes it origin over SSH and pushes the branch to it, and creates none it could not push to, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, a cache home inherited from elsewhere still loads the tools' hooks and dircolors' colours,__open_recent offers nvim's recent files newest first, Tab fills in a suggestion showing at the end of the line and otherwise opens the completion menu, Alt+H has Claude Haiku explain the typed line, sent as text and never when it looks like a secret, signed in with the token in pass, and Alt+Shift+H hands the command to man, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -761,6 +761,51 @@ let
           ok "the git pickers start with the search off, stop at either end of their list and preview below it, as gl does"
         else
           fail "a git picker starts with the search on, cycles, or previews beside its list"
+        fi
+
+        # gpn (__git_create_github_repo), on real repos: gh, handed the token
+        # in pass, creates a private repo named after the repo's root, which
+        # becomes origin over SSH and gets the branch, its upstream set (a
+        # pushInsteadOf sends the push to a bare repo). The stand-in gh logs
+        # each call and prints the URL as gh does when its output is captured.
+        mkdir -p "$HOME/gpn" && (
+          cd "$HOME/gpn" || exit 1
+          export GIT_CONFIG_NOSYSTEM=1 GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=a@x GIT_COMMITTER_NAME=a GIT_COMMITTER_EMAIL=a@x
+          git() { ${pkgs.git}/bin/git "$@"; }
+          git init -q --bare remote.git
+          git init -q -b main proj && git -C proj commit -q --allow-empty -m first
+          git -C proj config url."$HOME/gpn/remote.git".pushInsteadOf git@github.com:a/proj.git
+          git init -q empty
+          git init -q detached && git -C detached commit -q --allow-empty -m first && git -C detached checkout -q --detach
+        )
+        gpn='. ${self}/.config/shell/functions/git.bash
+          pass() { [ "$*" = "show GH_TOKEN" ] && echo gh-test; }
+          gh() { echo "$GH_TOKEN $*" >> "$HOME/gpn/gh"; echo https://github.com/a/proj; }
+          __git_create_github_repo'
+        gpn_in() { (cd "$HOME/gpn/$1" && PATH=${pkgs.git}/bin:$PATH ${self}/bin/zsh -f -c "$gpn" > /dev/null 2>&1); }
+        if ${leaderAliases}/bin/leader-aliases ${self}/.config/shell/leader.conf \
+          | awk -F "$sep" '$1 ~ /^gpn +$/ && $5 == "__git_create_github_repo" && $6 == "insert" { found = 1 } END { exit !found }' \
+          && gpn_in proj \
+          && [ "$(cat "$HOME/gpn/gh")" = "gh-test repo create proj --private" ] \
+          && [ "$(${pkgs.git}/bin/git -C "$HOME/gpn/proj" config remote.origin.url)" = git@github.com:a/proj.git ] \
+          && [ "$(${pkgs.git}/bin/git -C "$HOME/gpn/proj" rev-parse --abbrev-ref '@{upstream}')" = origin/main ] \
+          && [ "$(${pkgs.git}/bin/git -C "$HOME/gpn/remote.git" rev-parse main)" = "$(${pkgs.git}/bin/git -C "$HOME/gpn/proj" rev-parse HEAD)" ]; then
+          ok "gpn has gh create a private repo named after the repo's root with the token in pass, makes it origin over SSH and pushes the branch to it, its upstream set"
+        else
+          fail "gpn creates its repo under another name, public or without the token in pass, makes no SSH origin, or does not push the branch to it with its upstream set"
+        fi
+
+        # Run again, now that origin is set, then on a repo with no commit and
+        # on a detached HEAD, gpn says why and fails before calling gh, which
+        # would leave an empty repo on GitHub: the log still holds the one call.
+        gpn_err() { (cd "$HOME/gpn/$1" && PATH=${pkgs.git}/bin:$PATH ${self}/bin/zsh -f -c "$gpn" 2>&1 > /dev/null) && echo created; }
+        if [ "$(gpn_err proj)" = "Remote origin already exists: git@github.com:a/proj.git" ] \
+          && [ "$(gpn_err empty)" = "No branch with a commit to push" ] \
+          && [ "$(gpn_err detached)" = "No branch with a commit to push" ] \
+          && [ "$(cat "$HOME/gpn/gh")" = "gh-test repo create proj --private" ]; then
+          ok "gpn creates no repo with an origin already, no commit or a detached HEAD"
+        else
+          fail "gpn creates a repo it cannot push to: with an origin already, no commit or a detached HEAD"
         fi
 
         # Run from the leader (a zle widget), both of gl's steps are typed on
