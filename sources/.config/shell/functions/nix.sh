@@ -1,14 +1,5 @@
 #!/bin/sh
 
-# Emit nix's `extra-access-tokens` line for the private Runeword/permeance input,
-# sourced from pass; empty output if pass can't provide it. Shared by nixtok and
-# __update_flake_inputs so the pass entry and token format live in one place.
-__nix_token_config() {
-  local tok
-  tok="$(pass show nix/github-token 2>/dev/null)" || return 0
-  printf 'extra-access-tokens = github.com/Runeword=%s' "$tok"
-}
-
 # Prompts the user to select one or more inputs from a specified Nix flake
 # then updates the selected inputs.
 # It exits the function if there is no inputs or no inputs are selected.
@@ -40,15 +31,9 @@ __update_flake_inputs() {
   )
   [ -z "$selected_inputs" ] && return 1
 
-  # Inject nix/github-token from pass once, if available, so a private input
-  # (Runeword/permeance) authenticates; without it, public inputs still update
-  # and nix reports the private one.
-  local nix_token_config
-  nix_token_config="$(__nix_token_config)"
-
   for i in $(echo "$selected_inputs" | xargs); do
     # nix flake update "$i" "$flake_path"
-    NIX_CONFIG="$nix_token_config" nix flake update --flake "$flake_path" "$i"
+    nix flake update --flake "$flake_path" "$i"
   done
 }
 
@@ -275,24 +260,6 @@ __nix_package() {
 # Interactively opens files from the nix store
 __nix_store_open() {
   cd /nix/store && __open_file
-}
-
-# Run a nix command with the private-input GitHub token injected from pass via
-# NIX_CONFIG, scoped to that one process — so the token is never written to the
-# cleartext ~/.config/nix/nix-access-tokens.conf include. Use for flake ops that
-# fetch the private Runeword/permeance input, e.g. `nixtok nix flake update`.
-nixtok() {
-  [ "$#" -gt 0 ] || {
-    echo "usage: nixtok <command> — runs it with nix/github-token in NIX_CONFIG" >&2
-    return 2
-  }
-  local cfg
-  cfg="$(__nix_token_config)"
-  [ -n "$cfg" ] || {
-    echo "nixtok: pass show nix/github-token failed" >&2
-    return 1
-  }
-  NIX_CONFIG="$cfg" "$@"
 }
 
 # "dir": "contrib", "owner": "sourcegraph", "repo": "src-cli", "type": "github" type:owner/repo?dir=dir
