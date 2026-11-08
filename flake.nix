@@ -8,14 +8,19 @@
   inputs.lefthook.url = "github:Runeword/lefthook";
   inputs.lefthook.inputs.nixpkgs.follows = "nixpkgs";
 
-  inputs.permeance.url = "github:Runeword/permeance";
+  # The three private inputs are fetched over ssh, so nix logs in through the
+  # ssh agent, from a claude-sandbox session too; ci.yml rewrites the address
+  # to https with a GitHub App token. The ref is spelled out because the
+  # session's git shim refuses the ls-remote nix would use to find the default
+  # branch, and shallow=1 skips the history, which a github: input never had.
+  inputs.permeance.url = "git+ssh://git@github.com/Runeword/permeance?ref=main&shallow=1";
   inputs.permeance.inputs.nixpkgs.follows = "nixpkgs";
 
-  inputs.claude-sandbox.url = "github:Runeword/claude-sandbox";
+  inputs.claude-sandbox.url = "git+ssh://git@github.com/Runeword/claude-sandbox?ref=main&shallow=1";
   inputs.claude-sandbox.inputs.nixpkgs.follows = "nixpkgs";
   inputs.claude-sandbox.inputs.lefthook.follows = "lefthook";
 
-  inputs.claude-microvm.url = "github:Runeword/claude-microvm";
+  inputs.claude-microvm.url = "git+ssh://git@github.com/Runeword/claude-microvm?ref=main&shallow=1";
   inputs.claude-microvm.inputs.nixpkgs.follows = "nixpkgs";
   inputs.claude-microvm.inputs.lefthook.follows = "lefthook";
 
