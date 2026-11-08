@@ -242,12 +242,12 @@ let
         done
 
         # The Explore agent replaces the built-in, whose shell runs whatever the
-        # permission mode lets through. It keeps only Read and Bash, and its hook
-        # on Bash lets through only commands that read, and blocks when it can't
-        # run at all.
+        # permission mode lets through. It keeps only Read, LSP and Bash, and its
+        # hook on Bash lets through only commands that read, and blocks when it
+        # can't run at all.
         explore=${self}/.claude/agents/explore.md
-        if ${pkgs.yq-go}/bin/yq --front-matter=extract -e '.name == "Explore" and .tools == "Read, Bash" and ([.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[] | select(.command == "claude-explore-guard" and .onFailure == "block")] | length) == 1' "$explore" > /dev/null; then
-          ok "the Explore agent keeps to Read and a Bash its guard vets, which blocks when it can't run"
+        if ${pkgs.yq-go}/bin/yq --front-matter=extract -e '.name == "Explore" and .tools == "Read, Bash, LSP" and ([.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[] | select(.command == "claude-explore-guard" and .onFailure == "block")] | length) == 1' "$explore" > /dev/null; then
+          ok "the Explore agent keeps to Read, LSP and a Bash its guard vets, which blocks when it can't run"
         else
           fail "the Explore agent has more tools, an unguarded Bash, or a guard that lets commands through when it can't run"
         fi
