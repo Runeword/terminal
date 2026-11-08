@@ -23,10 +23,16 @@ let
   # Claude Code starts under Landlock, with the config folders' projects/, which
   # holds memory, read-only (packages/claude/shell-guard/main.go).
   claudeShellGuard = import ../packages/claude/shell-guard { inherit pkgs; };
-  # The PreToolUse hook on the read-only Explore agent's Bash
-  # (sources/.claude/agents/explore.md): lets through only commands that read
-  # (packages/claude/explore-guard/main.go).
+  # The PreToolUse hook on the read-only Explore agent's Bash: lets through only
+  # commands that read (packages/claude/explore-guard/main.go).
   claudeExploreGuard = import ../packages/claude/explore-guard { inherit pkgs; };
+  # The read-only Explore agent, which replaces the built-in one, as claude's
+  # --agents value. Its hook runs the guard above by store path, so a claude
+  # only ever loads the agent that its own build enforces
+  # (packages/claude/explore-guard/agent.nix).
+  exploreAgents = builtins.toJSON {
+    Explore = import ../packages/claude/explore-guard/agent.nix { guard = claudeExploreGuard; };
+  };
   gitAllowlistHook = claudeSandbox.git-allowlist-hook;
   # Stand-in bwrap for that dry run: prints the argv it was handed, one per line,
   # and saves the environment it inherited to $BWRAP_ENV.
@@ -64,7 +70,6 @@ let
     claudeSessions
     claudeMemoryGate
     claudeShellGuard
-    claudeExploreGuard
     gitAllowlistHook
     pkgs.nixfmt
     pkgs.shfmt
@@ -134,9 +139,6 @@ let
     # User-level skills, such as /x: claude.bash clears the profile's
     # skills/ at each launch, so they ship as commands/<name>.md files.
     ".claude/commands"
-    # User-level agents, such as the read-only Explore that replaces the
-    # built-in: claude.bash links the profile's agents/ to this copy.
-    ".claude/agents"
     ".claude/plugins"
     ".claude/settings.json"
     # The per-OS sandbox overlays claude.bash merges into each profile; bundled
@@ -200,11 +202,13 @@ let
         "${permeance.root}/.claude/settings.json"
         "--setting-sources"
         "user,project,local"
+        "--agents"
+        exploreAgents
       ];
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "claude";
-      description = "Verify claude binary executes, settings.json, plugin and agent hook commands resolve, keep CLAUDE.local.md files out of context and keep the bypass-mode warning accepted, the Explore agent's Bash runs only commands that read, the status line renders, comma looks packages up offline, the Go and Lua language servers keep their caches where the sandbox can write and the shell one skips the checks .shellcheckrc disables, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
+      description = "Verify claude binary executes, settings.json and plugin hook commands resolve, keep CLAUDE.local.md files out of context and keep the bypass-mode warning accepted, git-allowlist-hook blocks when it can't run, claude starts with the read-only Explore agent and its own build's guard, which blocks writes, the status line renders, comma looks packages up offline, the Go and Lua language servers keep their caches where the sandbox can write and the shell one skips the checks .shellcheckrc disables, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
       script = ''
         # claude-code does not expose a config-loading probe that works in a
         # sandbox without auth/network. This only verifies the wrapper's binary
@@ -216,10 +220,10 @@ let
         fi
 
         # settings.json names the status line, the hooks and the shell prefix by
-        # bare command, and the plugins and agents name their hooks' commands the
-        # same way, so each must resolve on claude's PATH; at runtime a missing
-        # one fails (the status line just goes blank, without the prefix every
-        # shell command fails, and the Explore agent's Bash is blocked).
+        # bare command, and the plugins name their hooks' commands the same way,
+        # so each must resolve on claude's PATH; at runtime a missing one fails
+        # (the status line just goes blank, and without the prefix every shell
+        # command fails).
         claudePath=${
           pkgs.lib.concatMapStringsSep ":" (builtins.replaceStrings
             [ permeance.out ]
@@ -231,33 +235,47 @@ let
           {
             ${pkgs.jq}/bin/jq -r '[.statusLine.command] + [.hooks[][].hooks[] | .command // empty] + [.env.CLAUDE_CODE_SHELL_PREFIX // empty] | .[] | split(" ")[0]' "$settings"
             ${pkgs.jq}/bin/jq -r '.hooks[][].hooks[] | .command // empty | split(" ")[0]' ${self}/.claude/plugins/*/hooks/hooks.json
-            ${pkgs.yq-go}/bin/yq --front-matter=extract '.hooks[][].hooks[].command | split(" ") | .[0]' ${self}/.claude/agents/*.md
           } | sort -u
         ); do
           if PATH="$claudePath" command -v "$cmd" > /dev/null; then
             ok "on claude's PATH: $cmd"
           else
-            fail "settings.json, plugin or agent hook command not on claude's PATH: $cmd"
+            fail "settings.json or plugin hook command not on claude's PATH: $cmd"
           fi
         done
 
-        # The Explore agent replaces the built-in, whose shell runs whatever the
-        # permission mode lets through. It keeps only Read, LSP and Bash, and its
-        # hook on Bash lets through only commands that read, and blocks when it
-        # can't run at all.
-        explore=${self}/.claude/agents/explore.md
-        if ${pkgs.yq-go}/bin/yq --front-matter=extract -e '.name == "Explore" and .tools == "Read, Bash, LSP" and ([.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[] | select(.command == "claude-explore-guard" and .onFailure == "block")] | length) == 1' "$explore" > /dev/null; then
-          ok "the Explore agent keeps to Read, LSP and a Bash its guard vets, which blocks when it can't run"
+        # A git command git-allowlist-hook can't vet (its binary missing, a
+        # timeout) is blocked rather than let through; git-shim still checks the
+        # same allowlist when git runs.
+        if ${pkgs.jq}/bin/jq -e '[.hooks.PreToolUse[].hooks[] | select(.command == "git-allowlist-hook") | .onFailure] == ["block"]' "$settings" > /dev/null; then
+          ok "git-allowlist-hook blocks a git command when it can't run"
         else
-          fail "the Explore agent has more tools, an unguarded Bash, or a guard that lets commands through when it can't run"
+          fail "git-allowlist-hook lets git commands through when it can't run"
         fi
-        guard() {
-          ${pkgs.jq}/bin/jq -n --arg c "$1" '{tool_name: "Bash", tool_input: {command: $c}}' \
-            | PATH="$claudePath" claude-explore-guard 2> /dev/null
+
+        # The Explore agent replaces the built-in, whose shell runs whatever the
+        # permission mode lets through. claude gets it with --agents from the
+        # build that holds its guard, which its hook on Bash runs by store path
+        # and which blocks when it can't run. Claude Code checks an --agents
+        # value before anything else and refuses to start on one it can't load,
+        # so a print run without a prompt shows the value loads.
+        agents=${pkgs.writeText "explore-agents.json" exploreAgents}
+        guard=$(${pkgs.jq}/bin/jq -r '.Explore.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[] | select(.onFailure == "block") | .command' "$agents")
+        started=$(${self}/bin/claude -p < /dev/null 2>&1 || true)
+        if ${pkgs.jq}/bin/jq -e '.Explore.tools == ["Read", "Bash", "LSP"]' "$agents" > /dev/null \
+          && [ "$guard" = "${claudeExploreGuard}/bin/claude-explore-guard" ] && [ -x "$guard" ] \
+          && grep -aqF -- "$(cat "$agents")" ${self}/bin/claude \
+          && printf '%s' "$started" | grep -q 'Input must be provided'; then
+          ok "claude starts with the Explore agent, which keeps to Read, LSP and a Bash its own build's guard vets"
+        else
+          fail "claude lacks the Explore agent, can't load it, or gives it more tools or an unguarded Bash: $started"
+        fi
+        vet() {
+          ${pkgs.jq}/bin/jq -n --arg c "$1" '{tool_name: "Bash", tool_input: {command: $c}}' | "$guard" 2> /dev/null
         }
-        if guard 'git log --oneline -5' && guard "grep -rn 'a|b' src" \
-          && ! guard 'git stash' && ! guard 'git log --output=x' \
-          && ! guard 'cat a > b' && ! guard 'find . -delete'; then
+        if vet 'git log --oneline -5' && vet "grep -rn 'a|b' src" \
+          && ! vet 'git stash' && ! vet 'git log --output=x' \
+          && ! vet 'cat a > b' && ! vet 'find . -delete'; then
           ok "claude-explore-guard lets reads through and blocks writes"
         else
           fail "claude-explore-guard lets a write through or blocks a read"
