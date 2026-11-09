@@ -1,37 +1,16 @@
 name: dependabot-auto-merge
-# GitHub's documented pattern for Dependabot auto-merge: a pull_request run
-# started by Dependabot gets a read-only token unless the workflow asks for
-# more, as the permissions below do. Not pull_request_target: from 2026-12-02
-# GitHub blocks it by default in public repositories. The pull request's own
-# copy of this file runs, so a fetch-metadata bump runs once before it merges;
-# dependabot.yml's 7-day cooldown covers that.
+# Turns on auto-merge for Dependabot's pull requests, but for a major version
+# or an update that edits flake.nix, with the steps shared in
+# Runeword/workflows (its README), pinned here to a release. Dependabot
+# proposes the next release once it is a week old (dependabot.yml's
+# cooldown), and that pull request's own copy of this file runs it once, to
+# merge itself; a major release waits for a person.
 on: pull_request
-permissions:
-  contents: write
-  pull-requests: write
 jobs:
   auto-merge:
-    if: github.event.pull_request.user.login == 'dependabot[bot]'
-    runs-on: ubuntu-latest
-    steps:
-      - id: metadata
-        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3
-      # An update that edits flake.nix changes an input's ref, not only its
-      # locked revision: that is how nixpkgs-24-05 was moved to nixos-25.11
-      # (#5). It waits for a person, like a major version. A failed lookup
-      # fails the job, so nothing merges.
-      - id: files
-        run: |
-          files=$(gh pr diff --name-only "$PR_URL")
-          case "$files" in
-            *flake.nix*) echo "edits-flake-nix=true" ;;
-            *) echo "edits-flake-nix=false" ;;
-          esac >>"$GITHUB_OUTPUT"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - if: steps.metadata.outputs.update-type != 'version-update:semver-major' && steps.files.outputs.edits-flake-nix == 'false'
-        run: gh pr merge --auto --squash "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # A run Dependabot starts gets a read-only token unless the job asks for
+    # more; the shared workflow can only lower these.
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: Runeword/workflows/.github/workflows/dependabot-merge.yml@a094bb458572b9b4c0832bb4bf7cdc62a3bfcf7d # v1.0.0
