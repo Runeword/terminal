@@ -2,7 +2,7 @@
 
 ## GitHub settings (`Runeword/admin`)
 
-This repository's GitHub settings (merge buttons, the Actions allow-list and SHA pinning, branch protection on `main`) live in the private `Runeword/admin` repository with every other Runeword repository's: one OpenTofu map, local state, applied from a plain terminal. No secret is managed there. CI reads the three private flake inputs as a GitHub App installed on those repositories alone, with read-only access to their contents: its client ID and private key are the secrets `INPUTS_APP_CLIENT_ID` and `INPUTS_APP_PRIVATE_KEY`, each set with `gh secret set <name> --repo Runeword/terminal` and again with `--app dependabot`.
+This repository's GitHub settings (merge buttons, the Actions allow-list and SHA pinning, branch protection on `main`) live in the private `Runeword/admin` repository with every other Runeword repository's: one OpenTofu map, local state, applied from a plain terminal. No secret is managed there. CI reads the two private flake inputs as a GitHub App installed on those repositories alone, with read-only access to their contents: its client ID and private key are the secrets `INPUTS_APP_CLIENT_ID` and `INPUTS_APP_PRIVATE_KEY`, each set with `gh secret set <name> --repo Runeword/terminal` and again with `--app dependabot`.
 
 ## CI (`.github/workflows/`)
 
