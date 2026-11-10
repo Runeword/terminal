@@ -1,7 +1,6 @@
 {
   pkgs,
   claudeSandbox,
-  claudeMicrovm,
 }:
 import ./commons.nix { inherit pkgs; }
 ++ import ./custom.nix { inherit pkgs; }
@@ -9,13 +8,6 @@ import ./commons.nix { inherit pkgs; }
 # claude through and the helpers it runs by bare name, on macOS the credential
 # launcher. On the host PATH, where claude.bash and the launcher look for them.
 ++ [ claudeSandbox.default ]
-# github:Runeword/claude-microvm: claude-vm, the launcher the leader cv chord
-# starts claude through, on Linux, where that repo builds it (x86_64-linux).
-# Its macOS one boots an aarch64-linux guest, which a Mac builds only through a
-# Linux builder, and GitHub's macOS runners can't run one.
-++ pkgs.lib.optional (
-  pkgs.stdenv.hostPlatform.isLinux && claudeMicrovm ? default
-) claudeMicrovm.default
 ++ (
   if pkgs.stdenv.hostPlatform.isDarwin then
     import ./darwin.nix { inherit pkgs; }
