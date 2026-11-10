@@ -16,7 +16,6 @@ updates:
       # <input>`, with a key in the ssh agent).
       - dependency-name: "permeance"
       - dependency-name: "claude-sandbox"
-      - dependency-name: "claude-microvm"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
