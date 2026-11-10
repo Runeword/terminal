@@ -8,7 +8,7 @@
   inputs.lefthook.url = "github:Runeword/lefthook";
   inputs.lefthook.inputs.nixpkgs.follows = "nixpkgs";
 
-  # The three private inputs are fetched over ssh, so nix logs in through the
+  # The two private inputs are fetched over ssh, so nix logs in through the
   # ssh agent, from a claude-sandbox session too; ci.yml rewrites the address
   # to https with a GitHub App token. The ref is spelled out because the
   # session's git shim refuses the ls-remote nix would use to find the default
@@ -19,10 +19,6 @@
   inputs.claude-sandbox.url = "git+ssh://git@github.com/Runeword/claude-sandbox?ref=main&shallow=1";
   inputs.claude-sandbox.inputs.nixpkgs.follows = "nixpkgs";
   inputs.claude-sandbox.inputs.lefthook.follows = "lefthook";
-
-  inputs.claude-microvm.url = "git+ssh://git@github.com/Runeword/claude-microvm?ref=main&shallow=1";
-  inputs.claude-microvm.inputs.nixpkgs.follows = "nixpkgs";
-  inputs.claude-microvm.inputs.lefthook.follows = "lefthook";
 
   inputs.nix-index-database.url = "github:nix-community/nix-index-database";
   inputs.nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
@@ -36,11 +32,6 @@
 
       # The claude sandbox's launchers and helpers, for pkgs' system.
       mkClaudeSandbox = pkgs: inputs.claude-sandbox.packages.${pkgs.stdenv.hostPlatform.system};
-
-      # The microVM launcher the leader cv chord starts claude through, for
-      # pkgs' system: claude-microvm builds for x86_64-linux and aarch64-darwin,
-      # and packages/default.nix takes it on Linux only.
-      mkClaudeMicrovm = pkgs: inputs.claude-microvm.packages.${pkgs.stdenv.hostPlatform.system} or { };
 
       mkWrappers =
         pkgs: configPath:
@@ -56,7 +47,6 @@
         import ./packages {
           inherit pkgs;
           claudeSandbox = mkClaudeSandbox pkgs;
-          claudeMicrovm = mkClaudeMicrovm pkgs;
         }
         ++ builtins.attrValues wrappers;
 
@@ -97,9 +87,7 @@
 
           unitTests = import ./lib/tests-unit.nix {
             inherit (pkgs) lib;
-            inherit (pkgs.stdenv.hostPlatform) isLinux;
-            inherit wrappers terminal tools;
-            claudeMicrovm = mkClaudeMicrovm pkgs;
+            inherit wrappers terminal;
             devShellHelpers = devShell.helpers;
           };
         in
