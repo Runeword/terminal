@@ -28,7 +28,7 @@ jobs:
         with:
           name: runeword-terminal
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-      # A token that reads the three private inputs and nothing else, revoked
+      # A token that reads the two private inputs and nothing else, revoked
       # when the job ends. Both secrets are set twice, as Actions and as
       # Dependabot secrets: a run Dependabot triggers sees only the latter.
       - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
@@ -36,7 +36,7 @@ jobs:
         with:
           client-id: ${{ secrets.INPUTS_APP_CLIENT_ID }}
           private-key: ${{ secrets.INPUTS_APP_PRIVATE_KEY }}
-          repositories: permeance,claude-sandbox,claude-microvm
+          repositories: permeance,claude-sandbox
           permission-contents: read
       # flake.nix fetches those inputs over ssh; in the two steps that fetch
       # them, git rewrites the address to https with the token.
