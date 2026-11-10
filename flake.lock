@@ -1,28 +1,5 @@
 {
   "nodes": {
-    "claude-microvm": {
-      "inputs": {
-        "microvm": "microvm",
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1793551298,
-        "narHash": "sha256-v26K9Z4eUf0mtyIOo3D07M65HpZkg9kS5qsdEwRECd4=",
-        "ref": "main",
-        "rev": "0c18a15730cbdba3e883fac34e0f9386d4e4d400",
-        "shallow": true,
-        "type": "git",
-        "url": "ssh://git@github.com/Runeword/claude-microvm"
-      },
-      "original": {
-        "ref": "main",
-        "shallow": true,
-        "type": "git",
-        "url": "ssh://git@github.com/Runeword/claude-microvm"
-      }
-    },
     "claude-sandbox": {
       "inputs": {
         "lefthook": [
@@ -86,28 +63,6 @@
         "type": "github"
       }
     },
-    "microvm": {
-      "inputs": {
-        "nixpkgs": [
-          "claude-microvm",
-          "nixpkgs"
-        ],
-        "spectrum": "spectrum"
-      },
-      "locked": {
-        "lastModified": 1792810338,
-        "narHash": "sha256-0DS+A3BsygKRpKe0qmUWVDSfKqpIHZCpHJagAklE0o4=",
-        "owner": "microvm-nix",
-        "repo": "microvm.nix",
-        "rev": "4876e2ae2de6ce225f4ccf664ae441128aa3f03a",
-        "type": "github"
-      },
-      "original": {
-        "owner": "microvm-nix",
-        "repo": "microvm.nix",
-        "type": "github"
-      }
-    },
     "nix-index-database": {
       "inputs": {
         "nixpkgs": [
@@ -168,29 +123,12 @@
     },
     "root": {
       "inputs": {
-        "claude-microvm": "claude-microvm",
         "claude-sandbox": "claude-sandbox",
         "flake-utils": "flake-utils",
         "lefthook": "lefthook",
         "nix-index-database": "nix-index-database",
         "nixpkgs": "nixpkgs",
         "permeance": "permeance"
-      }
-    },
-    "spectrum": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1786032750,
-        "narHash": "sha256-+Ba/kIn5BjvV7PN8bWOo7RoqgTY/Yv2M7qeMf3wS2Ag=",
-        "ref": "refs/heads/main",
-        "rev": "77d2389874bb092b8dbf05ecc5b1030372e80e98",
-        "revCount": 1417,
-        "type": "git",
-        "url": "https://spectrum-os.org/git/spectrum"
-      },
-      "original": {
-        "type": "git",
-        "url": "https://spectrum-os.org/git/spectrum"
       }
     },
     "systems": {
