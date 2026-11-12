@@ -1,0 +1,5 @@
+{
+  "name": "playwright-mcp",
+  "description": "Headless Playwright MCP server",
+  "version": "1.0.0"
+}
