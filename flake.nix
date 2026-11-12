@@ -93,7 +93,7 @@
         in
         {
           packages.default = terminal;
-          packages.firefox-mcp = import ./packages/firefox-mcp.nix { inherit pkgs; };
+          packages.playwright-mcp = import ./packages/playwright-mcp.nix { inherit pkgs; };
           packages.tools = pkgs.buildEnv {
             name = "tools";
             paths = tools;
