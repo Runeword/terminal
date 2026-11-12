@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "firefox-mcp": {
-      "command": "firefox-devtools-mcp",
-      "args": ["--connect-existing"]
-    }
-  }
-}
