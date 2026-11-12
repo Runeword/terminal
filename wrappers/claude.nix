@@ -62,7 +62,15 @@ let
   # GIT_CONFIG_GLOBAL) applies whether git is invoked from claude or from the
   # interactive shell. The allowlist check still runs first on the same argv.
   gitShim = claudeSandbox.git-shim.override { realGit = "${git}/bin/git"; };
-  firefoxMcpPkg = import ../packages/firefox-mcp.nix { inherit pkgs; };
+  playwrightMcpPkg = import ../packages/playwright-mcp.nix { inherit pkgs; };
+  # The Playwright MCP's browser_run_code_unsafe runs any JavaScript in the
+  # server's own process, which on macOS is outside Claude Code's sandbox. Denied
+  # by glob for any server that offers it, and by full name for the plugin
+  # shipped here too, so a narrower reading of the glob still covers that one.
+  denyPlaywrightUnsafe = [
+    "mcp__*__browser_run_code_unsafe"
+    "mcp__plugin_playwright-mcp_playwright-mcp__browser_run_code_unsafe"
+  ];
 
   tools = [
     claudeStatusline
@@ -86,7 +94,6 @@ let
     pkgs.marksman
     pkgs.vscode-langservers-extracted
     pkgs.shellcheck
-    pkgs.firefox-devedition
     # firebase CLI on claude's PATH so sessions can run `firebase …`. Already in
     # packages/commons.nix for the interactive shell (usually inherited here too),
     # but listed explicitly so availability doesn't depend on the caller's PATH.
@@ -116,12 +123,12 @@ let
     # servers (nix-mcp, aws-api-mcp, google-workspace-mcp). uvx fetches the pinned
     # server from PyPI at run time (cached under $CLAUDE_CONFIG_DIR); python312 with
     # UV_PYTHON_PREFERENCE=only-system avoids a managed-Python download and gives
-    # broad wheel coverage. firefox-mcp stays Nix-packaged because it also needs
-    # a sidecar binary on PATH (geckodriver).
+    # broad wheel coverage. playwright-mcp stays Nix-packaged because its browsers
+    # come from nixpkgs and its wrapper gives it the scratch home they need.
     pkgs.nodejs
     pkgs.uv
     pkgs.python312
-    firefoxMcpPkg
+    playwrightMcpPkg
   ]
   # Deps for claude's built-in `/sandbox` on Linux (Seatbelt is built in on macOS).
   # Recent claude-code turns that sandbox ON by default when these sit on PATH; it
@@ -197,7 +204,13 @@ let
         COMMA_CACHING = "0";
       };
       unsetEnv = [ "TMUX" ];
+      # --disallowedTools takes several values, so it comes first: the next flag
+      # ends its list, where a prompt passed after the flags would join it.
       flags = [
+        "--disallowedTools"
+      ]
+      ++ denyPlaywrightUnsafe
+      ++ [
         "--settings"
         "${permeance.root}/.claude/settings.json"
         "--setting-sources"
@@ -208,7 +221,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "claude";
-      description = "Verify claude binary executes, settings.json and plugin hook commands resolve, keep CLAUDE.local.md files out of context and keep the bypass-mode warning accepted, git-allowlist-hook blocks when it can't run, claude starts with the read-only Explore agent and its own build's guard, which blocks writes, the status line renders, comma looks packages up offline, the Go and Lua language servers keep their caches where the sandbox can write and the shell one skips the checks .shellcheckrc disables, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
+      description = "Verify claude binary executes, settings.json, plugin hook and plugin MCP commands resolve, keep CLAUDE.local.md files out of context and keep the bypass-mode warning accepted, git-allowlist-hook blocks when it can't run, claude starts with the read-only Explore agent and its own build's guard, which blocks writes, the status line renders, comma looks packages up offline, the Playwright MCP starts in its scratch home with its testing and devtools tools, claude denies its unsafe tool and no plugin attaches it to an outside browser or widens its reach, the Go and Lua language servers keep their caches where the sandbox can write and the shell one skips the checks .shellcheckrc disables, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
       script = ''
         # claude-code does not expose a config-loading probe that works in a
         # sandbox without auth/network. This only verifies the wrapper's binary
@@ -220,10 +233,10 @@ let
         fi
 
         # settings.json names the status line, the hooks and the shell prefix by
-        # bare command, and the plugins name their hooks' commands the same way,
-        # so each must resolve on claude's PATH; at runtime a missing one fails
-        # (the status line just goes blank, and without the prefix every shell
-        # command fails).
+        # bare command, and the plugins name their hooks' and MCP servers'
+        # commands the same way, so each must resolve on claude's PATH; at
+        # runtime a missing one fails (the status line just goes blank, without
+        # the prefix every shell command fails, and a server never starts).
         claudePath=${
           pkgs.lib.concatMapStringsSep ":" (builtins.replaceStrings
             [ permeance.out ]
@@ -235,14 +248,89 @@ let
           {
             ${pkgs.jq}/bin/jq -r '[.statusLine.command] + [.hooks[][].hooks[] | .command // empty] + [.env.CLAUDE_CODE_SHELL_PREFIX // empty] | .[] | split(" ")[0]' "$settings"
             ${pkgs.jq}/bin/jq -r '.hooks[][].hooks[] | .command // empty | split(" ")[0]' ${self}/.claude/plugins/*/hooks/hooks.json
+            ${pkgs.jq}/bin/jq -r '(.mcpServers // {})[] | .command // empty | split(" ")[0]' ${self}/.claude/plugins/*/.mcp.json
           } | sort -u
         ); do
           if PATH="$claudePath" command -v "$cmd" > /dev/null; then
             ok "on claude's PATH: $cmd"
           else
-            fail "settings.json or plugin hook command not on claude's PATH: $cmd"
+            fail "settings.json, plugin hook or plugin MCP command not on claude's PATH: $cmd"
           fi
         done
+
+        # The Playwright MCP (packages/playwright-mcp.nix) starts from its
+        # wrapper, in its own scratch home, and offers the testing and devtools
+        # tools the wrapper turns on. Spoken to through a FIFO: a pipe would
+        # close its stdin, and the server with it, before it answers.
+        mcpDir=$(mktemp -d)
+        mkfifo "$mcpDir/in"
+        ${playwrightMcpPkg}/bin/playwright-mcp --headless < "$mcpDir/in" > "$mcpDir/out" 2> "$mcpDir/err" &
+        mcpPid=$!
+        exec 3> "$mcpDir/in"
+        mcpSay() { (trap "" PIPE; printf '%s\n' "$@" >&3) || true; }
+        mcpWait() {
+          for _ in $(seq 60); do
+            ${pkgs.jq}/bin/jq -e --argjson id "$1" 'select(.id == $id)' "$mcpDir/out" > /dev/null 2>&1 && return 0
+            sleep 1
+          done
+          return 1
+        }
+        mcpSay '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}'
+        if mcpWait 1; then
+          mcpSay '{"jsonrpc":"2.0","method":"notifications/initialized"}' '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+          mcpWait 2 || true
+        fi
+        exec 3>&-
+        kill "$mcpPid" 2> /dev/null || true
+        wait "$mcpPid" 2> /dev/null || true
+        mcpTools=$(${pkgs.jq}/bin/jq -r 'select(.id == 2) | .result.tools[].name' "$mcpDir/out" 2> /dev/null || true)
+        for tool in browser_navigate browser_verify_value browser_start_tracing; do
+          if grep -qx -- "$tool" <<< "$mcpTools"; then
+            ok "the Playwright MCP offers $tool"
+          else
+            fail "the Playwright MCP doesn't offer $tool: $(head -c 300 "$mcpDir/err")"
+          fi
+        done
+
+        # claude starts with browser_run_code_unsafe denied (denyPlaywrightUnsafe).
+        for rule in ${pkgs.lib.escapeShellArgs denyPlaywrightUnsafe}; do
+          if grep -aqF -- "$rule" ${self}/bin/claude; then
+            ok "claude denies $rule"
+          else
+            fail "claude doesn't deny $rule"
+          fi
+        done
+
+        # A plugin starts the Playwright MCP under the name its deny rule spells
+        # out, and passes none of the options that would attach it to an outside
+        # browser (cdp-endpoint, endpoint, extension), swap its browser or profile
+        # (executable-path, user-data-dir, storage-state, config), open it to the
+        # network (host, port), run code in it at start (init-page), or widen
+        # what it reaches (allow-unrestricted-file-access, no-sandbox). Its env
+        # can't: the wrapper drops every PLAYWRIGHT_MCP_* it is handed.
+        playwrightServers=0
+        for mcp in ${self}/.claude/plugins/*/.mcp.json; do
+          plugin=$(basename "$(dirname "$mcp")")
+          for server in $(${pkgs.jq}/bin/jq -r '(.mcpServers // {}) | to_entries[] | select(.value.command == "playwright-mcp") | .key' "$mcp"); do
+            playwrightServers=$((playwrightServers + 1))
+            rule="mcp__plugin_''${plugin}_''${server}__browser_run_code_unsafe"
+            if grep -aqF -- "$rule" ${self}/bin/claude; then
+              ok "claude denies $plugin's browser_run_code_unsafe by name"
+            else
+              fail "claude doesn't deny $plugin's browser_run_code_unsafe by name: $rule"
+            fi
+            if ${pkgs.jq}/bin/jq -e --arg s "$server" --argjson deny '["--allow-unrestricted-file-access","--cdp-endpoint","--config","--endpoint","--executable-path","--extension","--host","--init-page","--no-sandbox","--port","--storage-state","--user-data-dir"]' '[.mcpServers[$s].args // [] | .[] as $a | $deny[] as $d | select($a == $d or ($a | startswith($d + "=")))] == []' "$mcp" > /dev/null; then
+              ok "$plugin leaves the Playwright MCP's browser, profile and reach to its wrapper"
+            else
+              fail "$plugin attaches the Playwright MCP to an outside browser or widens what it can reach"
+            fi
+          done
+        done
+        if [ "$playwrightServers" -gt 0 ]; then
+          ok "a plugin starts the Playwright MCP"
+        else
+          fail "no plugin starts the Playwright MCP (sources/.claude/plugins/playwright-mcp)"
+        fi
 
         # A git command git-allowlist-hook can't vet (its binary missing, a
         # timeout) is blocked rather than let through; git-shim still checks the
