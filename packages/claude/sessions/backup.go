@@ -3,7 +3,8 @@ package main
 // backup saves the sessions open on this machine, and saved lists them again
 // for __claude_sessions_restore, which starts each as it was started: in its
 // profile and directory, with its connections and plugins, in its tmux
-// session.
+// session. listBackups lists the backups for the restore to pick from first,
+// and showBackup what one of them holds.
 //
 // Claude Code keeps a registry of the sessions it runs, sessions/<pid>.json in
 // each profile: the session each claude has open, rewritten as /clear and
@@ -835,15 +836,57 @@ func writeRows(w *bytes.Buffer, home string, sessions []savedSession, lead func(
 	}
 }
 
-// saved writes the sessions of the newest backup in dir as rows for the
-// restore picker, in the backup's order: the session's id, its profile's
-// number, its directory, its connections, its CLAUDE_SANDBOX_NET_ALLOW, its
-// plugins (the lists comma-separated) and its tmux session, each "-" when it
-// has none, then its title and the line the picker shows, a tab apart. It
-// says on notes which backup that is, and leaves out, with a note, a session
-// that can't be resumed: one open now, which a held lock names or a running
-// claude has, and one whose conversation or directory is gone.
-func saved(out, notes io.Writer, h host, dir string, now time.Time) error {
+// backupTime is when the backup in file name was made, which its name says.
+func backupTime(name string) time.Time {
+	t, _ := time.Parse("20060102T150405Z.json", name) // backups lists only names that parse
+	return t
+}
+
+// chosen is the backups in dir that names picks, newest first, or the newest
+// alone when names picks none. A name has to be one backups lists, so none
+// reaches outside dir.
+func chosen(dir string, names []string) ([]string, error) {
+	all, err := backups(dir)
+	if errors.Is(err, fs.ErrNotExist) || err == nil && len(all) == 0 {
+		return nil, errors.New("no backup yet")
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(names) == 0 {
+		return all[len(all)-1:], nil
+	}
+	picked := make([]string, 0, len(names))
+	for _, name := range names {
+		if !slices.Contains(all, name) {
+			return nil, fmt.Errorf("no backup %q", name)
+		}
+		if !slices.Contains(picked, name) {
+			picked = append(picked, name)
+		}
+	}
+	slices.SortFunc(picked, func(a, b string) int { return strings.Compare(b, a) })
+	return picked, nil
+}
+
+// readBackup reads the backup at path.
+func readBackup(home, path string) (backupFile, error) {
+	var b backupFile
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return b, err
+	}
+	if err = json.Unmarshal(data, &b); err != nil {
+		return b, fmt.Errorf("%s: %w", tilde(home, path), err)
+	}
+	return b, nil
+}
+
+// listBackups writes one row per backup in dir, newest first, for the
+// restore's first picker: the backup's file name, a tab, then how long ago
+// and when it was made, how many sessions it holds and their directories. It
+// leaves out, with a note, a backup it can't read.
+func listBackups(out, notes io.Writer, home, dir string, now time.Time) error {
 	names, err := backups(dir)
 	if errors.Is(err, fs.ErrNotExist) || err == nil && len(names) == 0 {
 		return errors.New("no backup yet")
@@ -851,14 +894,94 @@ func saved(out, notes io.Writer, h host, dir string, now time.Time) error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(dir, names[len(names)-1])
-	data, err := os.ReadFile(path)
+	type row struct{ name, sessions, dirs string }
+	rows := make([]row, 0, len(names))
+	width := 0
+	for i := len(names) - 1; i >= 0; i-- {
+		var b backupFile
+		if b, err = readBackup(home, filepath.Join(dir, names[i])); err != nil {
+			_, _ = fmt.Fprintf(notes, "claude-sessions: left out a backup: %v\n", err)
+			continue
+		}
+		var dirs []string
+		for _, s := range b.Sessions {
+			if d := clean(tilde(home, s.Cwd)); !slices.Contains(dirs, d) {
+				dirs = append(dirs, d)
+			}
+		}
+		r := row{name: names[i], sessions: count(len(b.Sessions), "session"), dirs: strings.Join(dirs, ", ")}
+		width = max(width, utf8.RuneCountInString(r.sessions))
+		rows = append(rows, r)
+	}
+	var w bytes.Buffer
+	for _, r := range rows {
+		t := backupTime(r.name)
+		line := pad(age(now.Sub(t)), 4) + "  " + t.Local().Format("Mon _2 Jan 15:04") + "  " + pad(r.sessions, width) + "  " + r.dirs
+		w.WriteString(r.name + "\t" + strings.TrimRight(line, " ") + "\n")
+	}
+	_, err = w.WriteTo(out)
+	return err
+}
+
+// showBackup writes the sessions backup name in dir holds, for the preview of
+// the restore's first picker: in the columns of its second, each led by how
+// long ago its conversation was last active.
+func showBackup(out io.Writer, home, dir, name string, now time.Time) error {
+	if _, err := chosen(dir, []string{name}); err != nil {
+		return err
+	}
+	b, err := readBackup(home, filepath.Join(dir, name))
 	if err != nil {
 		return err
 	}
-	var b backupFile
-	if err = json.Unmarshal(data, &b); err != nil {
-		return fmt.Errorf("%s: %w", tilde(h.home, path), err)
+	shown := make([]savedSession, len(b.Sessions))
+	ages := make(map[string]string, len(b.Sessions))
+	for i, s := range b.Sessions {
+		shown[i] = s
+		shown[i].Cwd, shown[i].Title = clean(s.Cwd), clean(s.Title)
+		ages[s.ID] = lastActive(s, now)
+	}
+	var w bytes.Buffer
+	writeRows(&w, home, shown, func(s savedSession) string { return pad(ages[s.ID], 4) + "  " })
+	_, err = w.WriteTo(out)
+	return err
+}
+
+// lastActive is how long ago session s's conversation was last active, or
+// "gone" once it is gone.
+func lastActive(s savedSession, now time.Time) string {
+	paths, err := transcripts(s.Config, s.ID)
+	if err != nil {
+		return "gone"
+	}
+	st, err := os.Stat(paths[0])
+	if err != nil {
+		return "gone"
+	}
+	return age(now.Sub(st.ModTime()))
+}
+
+// saved writes the sessions of the backups names picks in dir (the newest
+// alone when it picks none) as rows for the restore's second picker: the
+// newest backup's first, each backup's in its order, and a session several
+// saved once, as the newest of them saved it. A row: the session's id, its
+// profile's number, its directory, its connections, its
+// CLAUDE_SANDBOX_NET_ALLOW, its plugins (the lists comma-separated) and its
+// tmux session, each "-" when it has none, then its title and the line the
+// picker shows, a tab apart. It says on notes which backups those are, and
+// leaves out, with a note, a session that can't be resumed: one open now,
+// which a held lock names or a running claude has, and one whose conversation
+// or directory is gone.
+func saved(out, notes io.Writer, h host, dir string, names []string, now time.Time) error {
+	picked, err := chosen(dir, names)
+	if err != nil {
+		return err
+	}
+	files := make([]backupFile, len(picked))
+	for i, name := range picked {
+		if files[i], err = readBackup(h.home, filepath.Join(dir, name)); err != nil {
+			return err
+		}
 	}
 	open := openByLock(h.home, now)
 	if _, found, err := h.claudes(); err != nil {
@@ -870,10 +993,21 @@ func saved(out, notes io.Writer, h host, dir string, now time.Time) error {
 			}
 		}
 	}
-	_, _ = fmt.Fprintf(notes, "claude-sessions: the backup of %s, %s\n", b.Time.Local().Format("Mon 2 Jan 15:04"), ago(now.Sub(b.Time)))
+	var all []savedSession
+	seen := map[string]bool{}
+	for i, b := range files {
+		when := backupTime(picked[i])
+		_, _ = fmt.Fprintf(notes, "claude-sessions: the backup of %s, %s\n", when.Local().Format("Mon 2 Jan 15:04"), ago(now.Sub(when)))
+		for _, s := range b.Sessions {
+			if !seen[s.ID] {
+				seen[s.ID] = true
+				all = append(all, s)
+			}
+		}
+	}
 	var keep []savedSession
 	ages := map[string]string{}
-	for _, s := range b.Sessions {
+	for _, s := range all {
 		what := fmt.Sprintf("%q (%s)", s.Title, tilde(h.home, s.Cwd))
 		n, ok := instance(h.home, s.Config)
 		fields := s.Cwd + s.NetAllow + s.TmuxSession + s.Title + strings.Join(s.Connections, "") + strings.Join(s.Plugins, "")
