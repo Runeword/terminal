@@ -1,7 +1,8 @@
 { pkgs }:
 let
   # sources/ paths a wrapper compiles at build time (bat's theme cache), which
-  # PERMEANCE_ROOT can't redirect: `dev` rebuilds when they change.
+  # PERMEANCE_ROOT can't redirect: `build`, and so `dev`, rebuilds when they
+  # change.
   bakedSources = [ "sources/.config/bat/themes" ];
 
   # Opens the window in the environment from before direnv loaded this devshell.
@@ -9,31 +10,66 @@ let
   # its first cd out of the repo, dropping the tools of the build it runs.
   withoutDirenv = "${pkgs.direnv}/bin/direnv exec /";
 
+  # The build `dev` runs, which `build` makes and `run` opens. Evaluating the
+  # terminal takes ~8 s, and any edit to a tracked file invalidates nix's eval
+  # cache. So the build is kept as an out-link (a GC root), with the key of
+  # what nix built it from: everything outside sources/, which PERMEANCE_ROOT
+  # replaces at run time, plus bakedSources. `current` says whether the build
+  # is the tree's.
+  devState = ''
+    root=$(git rev-parse --show-toplevel) || exit 1
+    cache=$root/.direnv/dev
+    key=$(cd "$root" && {
+      git ls-files -z -- ':!sources'
+      git ls-files -z -- ${pkgs.lib.escapeShellArgs bakedSources}
+    } | xargs -0 sha256sum 2>/dev/null | sha256sum)
+    current() { [ -e "$cache/terminal" ] && [ "$(cat "$cache/key" 2>/dev/null)" = "$key" ]; }
+  '';
+  # Builds the terminal again when the build isn't the tree's, saying so as
+  # helper `name`.
+  devBuild = name: ''
+    if ! current; then
+      echo "${name}: building the terminal (a file outside sources/ changed, or no build yet)" >&2
+      mkdir -p "$cache"
+      nix build -L "$root" --out-link "$cache/terminal" || exit 1
+      printf '%s\n' "$key" >"$cache/key"
+    fi
+  '';
+  # Opens the build's window, with the live config of the working tree.
+  devRun = ''
+    PERMEANCE_ROOT="$root/sources" exec ${withoutDirenv} "$cache/terminal/bin/alacritty" "$@"
+  '';
+
   helpers = [
     {
       name = "dev";
-      doc = "alacritty with PERMEANCE_ROOT=./sources (live config from working tree)";
+      doc = "build, then run: alacritty with PERMEANCE_ROOT=./sources (live config)";
       inherit bakedSources;
-      # Evaluating the terminal takes ~8 s, and any edit to a tracked file
-      # invalidates nix's eval cache. So the build is kept as an out-link (a GC
-      # root) and redone only when what nix builds from has changed: everything
-      # outside sources/, which PERMEANCE_ROOT replaces at run time, plus
-      # bakedSources.
-      text = ''
-        root=$(git rev-parse --show-toplevel) || exit 1
-        cache=$root/.direnv/dev
-        key=$(cd "$root" && {
-          git ls-files -z -- ':!sources'
-          git ls-files -z -- ${pkgs.lib.escapeShellArgs bakedSources}
-        } | xargs -0 sha256sum 2>/dev/null | sha256sum)
-        if [ ! -e "$cache/terminal" ] || [ "$(cat "$cache/key" 2>/dev/null)" != "$key" ]; then
-          echo "dev: building the terminal (a file outside sources/ changed, or no build yet)" >&2
-          mkdir -p "$cache"
-          nix build -L "$root" --out-link "$cache/terminal" || exit 1
-          printf '%s\n' "$key" >"$cache/key"
-        fi
-        PERMEANCE_ROOT="$root/sources" exec ${withoutDirenv} "$cache/terminal/bin/alacritty" "$@"
-      '';
+      text = devState + devBuild "dev" + devRun;
+    }
+    {
+      name = "build";
+      doc = "build what dev runs, when a file outside sources/ changed";
+      text =
+        devState
+        + ''
+          current && echo "build: up to date" >&2
+        ''
+        + devBuild "build";
+    }
+    {
+      name = "run";
+      doc = "run dev's last build without building (warns when it is stale)";
+      text =
+        devState
+        + ''
+          if [ ! -e "$cache/terminal" ]; then
+            echo "run: no build yet: build (or dev) makes one" >&2
+            exit 1
+          fi
+          current || echo "run: this build predates a change outside sources/: build (or dev) updates it" >&2
+        ''
+        + devRun;
     }
     {
       name = "bdl";
