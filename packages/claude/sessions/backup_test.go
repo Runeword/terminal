@@ -20,6 +20,8 @@ const (
 	idD = "dddddddd-4444-4444-8444-dddddddddddd"
 	idE = "eeeeeeee-5555-4555-8555-eeeeeeeeeeee"
 	idF = "ffffffff-6666-4666-8666-ffffffffffff"
+	idG = "abababab-7777-4777-8777-abababababab"
+	idH = "cdcdcdcd-8888-4888-8888-cdcdcdcdcdcd"
 )
 
 // proc is a process of a fake /proc tree: what backup reads of it.
@@ -439,15 +441,16 @@ func TestSaved(t *testing.T) {
 		{ID: idD, Config: one, Cwd: m.c, Title: "plain"},
 		{ID: idC, Config: one, Cwd: m.b, Title: "no conversation in this profile"},
 		{ID: idE, Config: one, Cwd: gone, Title: "no directory"},
-		{ID: idE, Config: filepath.Join(m.home, ".claude"), Cwd: m.c, Title: "not an instance"},
+		{ID: idG, Config: filepath.Join(m.home, ".claude"), Cwd: m.c, Title: "not an instance"},
 		{ID: "not-an-id", Config: one, Cwd: m.c, Title: "bad id"},
-		{ID: idD, Config: one, Cwd: m.c, Title: "tab\tin title"},
+		{ID: idH, Config: one, Cwd: m.c, Title: "tab\tin title"},
+		{ID: idB, Config: one, Cwd: m.c, Title: "fine, saved twice"},
 	}
 	data := must(json.Marshal(backupFile{Version: 1, Time: now.Add(-time.Hour), Sessions: sessions}))
 	write(t, filepath.Join(dir, backupName(now.Add(-time.Hour))), string(data))
 	write(t, filepath.Join(dir, backupName(now.Add(-2*time.Hour))), `{"version":1,"sessions":[]}`)
 	var out, notes bytes.Buffer
-	if err := saved(&out, &notes, m.h, dir, now); err != nil {
+	if err := saved(&out, &notes, m.h, dir, nil, now); err != nil {
 		t.Fatal(err)
 	}
 	wantOut := idB + "\t1\t" + m.b + "\tgh,jira\ta.example b.example\tnix-lsp,figma-mcp\twork\tfine\t5m    ~/work/b  gh jira  fine\n" +
@@ -467,13 +470,138 @@ func TestSaved(t *testing.T) {
 	}
 }
 
-func TestSavedWithoutABackup(t *testing.T) {
+func TestNoBackupYet(t *testing.T) {
 	h := host{proc: t.TempDir(), home: t.TempDir()}
 	for _, dir := range []string{filepath.Join(h.home, "none"), h.home} {
 		var out, notes bytes.Buffer
-		if err := saved(&out, &notes, h, dir, time.Now()); err == nil || err.Error() != "no backup yet" {
+		if err := saved(&out, &notes, h, dir, nil, time.Now()); err == nil || err.Error() != "no backup yet" {
 			t.Errorf("saved(%s) = %v, want no backup yet", dir, err)
 		}
+		if err := listBackups(&out, &notes, h.home, dir, time.Now()); err == nil || err.Error() != "no backup yet" {
+			t.Errorf("listBackups(%s) = %v, want no backup yet", dir, err)
+		}
+	}
+}
+
+// backupAt writes a backup made at t, holding sessions, to dir, and returns
+// its name.
+func backupAt(t *testing.T, dir string, at time.Time, sessions ...savedSession) string {
+	t.Helper()
+	name := backupName(at)
+	write(t, filepath.Join(dir, name), string(must(json.Marshal(backupFile{Version: 1, Time: at, Sessions: sessions}))))
+	return name
+}
+
+// TestSavedFromSeveralBackups picks two backups of three: the sessions of the
+// newer come first, a session both saved comes once, as the newer saved it,
+// and the backup left out adds none.
+func TestSavedFromSeveralBackups(t *testing.T) {
+	home := t.TempDir()
+	one := filepath.Join(home, ".claude-1")
+	for _, id := range []string{idA, idB, idC, idD} {
+		conversation(t, one, home, id, "unused")
+	}
+	now := time.Date(2026, 10, 16, 22, 30, 0, 0, time.UTC)
+	dir := filepath.Join(home, "backups")
+	newer := backupAt(t, dir, now.Add(-time.Hour),
+		savedSession{ID: idB, Config: one, Cwd: home, Title: "b, as saved last", TmuxSession: "2"},
+		savedSession{ID: idA, Config: one, Cwd: home, Title: "a"})
+	backupAt(t, dir, now.Add(-2*time.Hour), savedSession{ID: idD, Config: one, Cwd: home, Title: "d"})
+	older := backupAt(t, dir, now.Add(-3*time.Hour),
+		savedSession{ID: idC, Config: one, Cwd: home, Title: "c"},
+		savedSession{ID: idB, Config: one, Cwd: home, Title: "b, as saved before", TmuxSession: "1"})
+	h := host{proc: filepath.Join(home, "proc"), uid: uint32(os.Getuid()), home: home, looks: 4, wait: func() {}}
+	addProc(t, h.proc, proc{pid: 90, ppid: 1, comm: "zsh", tty: 34816, cwd: home})
+	var out, notes bytes.Buffer
+	if err := saved(&out, &notes, h, dir, []string{older, newer, older}, now); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, line := range strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n") {
+		if f := strings.Split(line, "\t"); len(f) == 9 {
+			got = append(got, f[0]+" "+f[6]+" "+f[7])
+		}
+	}
+	if want := []string{idB + " 2 b, as saved last", idA + " - a", idC + " - c"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("rows =\n%q\nwant\n%q", got, want)
+	}
+	wantNotes := "claude-sessions: the backup of " + now.Add(-time.Hour).Local().Format("Mon 2 Jan 15:04") + ", 1h ago\n" +
+		"claude-sessions: the backup of " + now.Add(-3*time.Hour).Local().Format("Mon 2 Jan 15:04") + ", 3h ago\n"
+	if notes.String() != wantNotes {
+		t.Errorf("notes =\n%s\nwant\n%s", notes.String(), wantNotes)
+	}
+}
+
+// TestWhatIsNoBackup hands saved and showBackup a name that is no backup in
+// the directory: neither reads it, nor anything else.
+func TestWhatIsNoBackup(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "backups")
+	now := time.Date(2026, 10, 16, 22, 30, 0, 0, time.UTC)
+	there := backupAt(t, dir, now)
+	write(t, filepath.Join(dir, "notes.txt"), "x")
+	outside := backupAt(t, home, now.Add(-time.Hour))
+	h := host{proc: filepath.Join(home, "none"), home: home}
+	for _, name := range []string{"notes.txt", "../" + outside, filepath.Join(home, outside), backupName(now.Add(time.Hour)), ""} {
+		want := fmt.Sprintf("no backup %q", name)
+		var out, notes bytes.Buffer
+		if err := saved(&out, &notes, h, dir, []string{there, name}, now); err == nil || err.Error() != want || out.Len()+notes.Len() != 0 {
+			t.Errorf("saved(%q) = %v, out %q, notes %q; want %s", name, err, out.String(), notes.String(), want)
+		}
+		if err := showBackup(&out, home, dir, name, now); err == nil || err.Error() != want || out.Len() != 0 {
+			t.Errorf("showBackup(%q) = %v, out %q; want %s", name, err, out.String(), want)
+		}
+	}
+}
+
+func TestListBackups(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "backups")
+	one := filepath.Join(home, ".claude-1")
+	a, b := filepath.Join(home, "work", "a"), filepath.Join(home, "work", "b")
+	now := time.Date(2026, 10, 16, 22, 30, 0, 0, time.UTC)
+	newest := backupAt(t, dir, now.Add(-5*time.Minute),
+		savedSession{ID: idA, Config: one, Cwd: a}, savedSession{ID: idB, Config: one, Cwd: b}, savedSession{ID: idC, Config: one, Cwd: a})
+	unreadable := backupName(now.Add(-time.Hour))
+	write(t, filepath.Join(dir, unreadable), "{")
+	oldest := backupAt(t, dir, now.Add(-50*time.Hour), savedSession{ID: idA, Config: one, Cwd: "/srv/x\ty"})
+	write(t, filepath.Join(dir, "notes.txt"), "x")
+	var out, notes bytes.Buffer
+	if err := listBackups(&out, &notes, home, dir, now); err != nil {
+		t.Fatal(err)
+	}
+	when := func(d time.Duration) string { return now.Add(-d).Local().Format("Mon _2 Jan 15:04") }
+	wantOut := newest + "\t5m    " + when(5*time.Minute) + "  3 sessions  ~/work/a, ~/work/b\n" +
+		oldest + "\t2d    " + when(50*time.Hour) + "  1 session   /srv/x y\n"
+	if out.String() != wantOut {
+		t.Errorf("out =\n%q\nwant\n%q", out.String(), wantOut)
+	}
+	if want := "claude-sessions: left out a backup: ~/backups/" + unreadable + ": unexpected end of JSON input\n"; notes.String() != want {
+		t.Errorf("notes = %q, want %q", notes.String(), want)
+	}
+}
+
+func TestShowBackup(t *testing.T) {
+	home := t.TempDir()
+	one, two := filepath.Join(home, ".claude-1"), filepath.Join(home, ".claude-2")
+	a, b := filepath.Join(home, "work", "a"), filepath.Join(home, "work", "b")
+	now := time.Date(2026, 10, 16, 22, 30, 0, 0, time.UTC)
+	path := conversation(t, one, a, idA, "unused")
+	if err := os.Chtimes(path, now.Add(-3*time.Hour), now.Add(-3*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(home, "backups")
+	name := backupAt(t, dir, now.Add(-time.Hour),
+		savedSession{ID: idA, Config: one, Cwd: a, Title: "fix the build", Connections: []string{"gh"}},
+		savedSession{ID: idB, Config: two, Cwd: b, Title: "its conversation\x1b[2J is gone"})
+	var out bytes.Buffer
+	if err := showBackup(&out, home, dir, name, now); err != nil {
+		t.Fatal(err)
+	}
+	want := "3h    ~/work/a  gh         fix the build\n" +
+		"gone  ~/work/b  profile 2  its conversation [2J is gone\n"
+	if out.String() != want {
+		t.Errorf("out =\n%q\nwant\n%q", out.String(), want)
 	}
 }
 
@@ -488,7 +616,7 @@ func TestSavedWithoutProc(t *testing.T) {
 		Sessions: []savedSession{{ID: idA, Config: one, Cwd: home, Title: "hello"}},
 	}))))
 	var out, notes bytes.Buffer
-	if err := saved(&out, &notes, host{proc: filepath.Join(home, "none"), home: home}, dir, now); err != nil {
+	if err := saved(&out, &notes, host{proc: filepath.Join(home, "none"), home: home}, dir, nil, now); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.HasPrefix(out.String(), idA+"\t1\t"+home+"\t") || !strings.Contains(notes.String(), "a session still open would be started twice") {
@@ -612,7 +740,7 @@ func TestSavedLeavesOutWhatTheRegistrySaysIsOpen(t *testing.T) {
 		Sessions: []savedSession{{ID: idA, Config: one, Cwd: m.a, Title: "open"}, {ID: idB, Config: one, Cwd: m.b, Title: "closed"}},
 	}))))
 	var out, notes bytes.Buffer
-	if err := saved(&out, &notes, h, dir, now); err != nil {
+	if err := saved(&out, &notes, h, dir, nil, now); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.HasPrefix(out.String(), idB+"\t1\t"+m.b+"\t") || strings.Count(out.String(), "\n") != 1 ||
