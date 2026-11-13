@@ -15,8 +15,15 @@
 //	                                   they use
 //	claude-sessions backup             save the sessions open on this
 //	                                   machine, in every profile
-//	claude-sessions saved              one row per session of the last
-//	                                   backup that can be resumed, for
+//	claude-sessions backups [<backup>] one row per backup, newest first:
+//	                                   its file name, a tab, then when it
+//	                                   was made and its sessions; with a
+//	                                   backup, the sessions it holds, for
+//	                                   fzf
+//	claude-sessions saved [<backup>...]
+//	                                   one row per session of the backups
+//	                                   (else the last one) that can be
+//	                                   resumed, for
 //	                                   __claude_sessions_restore
 //	claude-sessions mark               claude's SessionStart hook: write the
 //	                                   session's id into the file its launch
@@ -95,7 +102,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: claude-sessions list | preview <id> | rm [-ask] <id>... | backup | saved | mark")
+	fmt.Fprintln(os.Stderr, "usage: claude-sessions list | preview <id> | rm [-ask] <id>... | backup | backups [<backup>] | saved [<backup>...] | mark")
 	os.Exit(2)
 }
 
@@ -130,18 +137,26 @@ func run(cmd string, args []string, cfg string, now time.Time) error {
 			usage()
 		}
 		return rm(os.Stdout, os.Stdin, cfg, flags.Args(), *ask, now)
-	case "backup", "saved":
-		if len(args) != 0 {
+	case "backup", "backups", "saved":
+		if cmd == "backup" && len(args) != 0 || cmd == "backups" && len(args) > 1 {
 			usage()
 		}
 		h, err := defaultHost()
 		if err != nil {
 			return err
 		}
-		if cmd == "backup" {
-			return backup(os.Stdout, os.Stderr, h, backupDir(h.home), now)
+		dir := backupDir(h.home)
+		switch {
+		case cmd == "backup":
+			return backup(os.Stdout, os.Stderr, h, dir, now)
+		case cmd == "saved":
+			err = saved(&out, os.Stderr, h, dir, args, now)
+		case len(args) == 1: // backups <backup>
+			err = showBackup(&out, h.home, dir, args[0], now)
+		default: // backups
+			err = listBackups(&out, os.Stderr, h.home, dir, now)
 		}
-		if err = saved(&out, os.Stderr, h, backupDir(h.home), now); err != nil {
+		if err != nil {
 			return err
 		}
 	case "mark":
