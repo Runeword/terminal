@@ -169,7 +169,7 @@ func TestSavedLeavesOutWhatALockNames(t *testing.T) {
 	h := host{proc: filepath.Join(home, "proc"), uid: uint32(os.Getuid()), home: home, looks: 4, wait: func() {}}
 	addProc(t, h.proc, proc{pid: 90, ppid: 1, comm: "zsh", tty: 34816, cwd: home})
 	var out, notes bytes.Buffer
-	if err := saved(&out, &notes, h, dir, now); err != nil {
+	if err := saved(&out, &notes, h, dir, nil, now); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.HasPrefix(out.String(), idB+"\t") || strings.Contains(out.String(), idA) {
