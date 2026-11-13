@@ -6,7 +6,7 @@ A Nix flake that builds a reproducible Alacritty terminal, bundled with a curate
 
 ## Common commands
 
-Enter the dev shell first (`nix develop` — direnv will do it automatically via `.envrc`). Its helpers (`dev`, `bdl`, `tools`, `smoke`, `watch`) are defined in `devshells/terminal.nix`; `h` prints the list.
+Enter the dev shell first (`nix develop` — direnv will do it automatically via `.envrc`). Its helpers (`dev`, which is `build` then `run`, `bdl`, `tools`, `smoke`, `watch`) are defined in `devshells/terminal.nix`; `h` prints the list.
 
 `lefthook run pre-commit` runs the git hooks locally. Not a dry run: the `auto-commit` job commits whatever is staged.
 
