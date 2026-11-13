@@ -41,7 +41,7 @@
     );
     expected = [ ];
   };
-  # dev and bdl open the window outside direnv's environment (devshells/
+  # dev, run and bdl open the window outside direnv's environment (devshells/
   # terminal.nix): one that inherits it loses the build's tools on its first cd
   # out of the repo. Lists the ones that are missing or don't.
   testTerminalHelpersLeaveDirenv = {
@@ -55,9 +55,38 @@
       in
       lib.filter (name: !leavesDirenv name) [
         "dev"
+        "run"
         "bdl"
       ];
     expected = [ ];
+  };
+  # dev builds the terminal, then opens it; build only builds and run only
+  # opens (devshells/terminal.nix).
+  testBuildAndRunDoOneThingEach = {
+    expr =
+      let
+        does =
+          name: infix:
+          lib.any (helper: helper.name == name && lib.hasInfix infix helper.text) devShellHelpers;
+      in
+      lib.genAttrs [ "dev" "build" "run" ] (name: {
+        builds = does name "nix build";
+        opens = does name "/bin/alacritty";
+      });
+    expected = {
+      dev = {
+        builds = true;
+        opens = true;
+      };
+      build = {
+        builds = true;
+        opens = false;
+      };
+      run = {
+        builds = false;
+        opens = true;
+      };
+    };
   };
   # flake.nix spells out the ref of every input it fetches over ssh: a
   # claude-sandbox session's git shim refuses the ls-remote nix would use to
