@@ -5,10 +5,11 @@
 __zoxide_remove() {
   local selected
   # The delimiter matches only the leading score, so fzf searches and prints the
-  # path alone, trailing blanks included
+  # path alone, trailing blanks included, and --no-sort keeps the rows in score
+  # order while a query filters them
   selected=$(
     zoxide query --list --score |
-      fzf --multi --delimiter='^ *[0-9.]+ ' --nth=2 --accept-nth=2 --info=inline:'' --reverse --no-separator --prompt='  ' --border none --cycle --height 70% --header-first --bind='ctrl-a:select-all' --header="zoxide remove"
+      fzf --multi --delimiter='^ *[0-9.]+ ' --nth=2 --accept-nth=2 --no-sort --info=inline:'' --reverse --no-separator --prompt='  ' --border none --cycle --height 70% --header-first --bind='ctrl-a:select-all' --header="zoxide remove"
   )
 
   [ "$selected" = "" ] && return 1
