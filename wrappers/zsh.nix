@@ -49,7 +49,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, na deletes every old home-manager and NixOS generation, collects the garbage and refreshes the boot menu, zr lists zoxide's directories after their scores, in score order while a query filters them, and removes the ones picked in fzf, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /x and /r commands, failing closed, a launch makes the profile and drops a session's stray settings without printing a line, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore picks backups and their sessions in one fzf, as ga does, and resumes each picked session as it was started, in its tmux session, which it makes again at the current window's size once it is gone, a launch drops what a session planted for the next one, in the project and in its profile, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl and gda/gdc/gdd, on a real repo through the real fzf, lay out each row as wide as fzf's list, search past its number and open what is picked in Neovim's own pickers, gpn has gh create a private repo named after the repo's root with the token in pass, makes it origin over SSH and pushes the branch to it, and creates none it could not push to, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, a cache home inherited from elsewhere still loads the tools' hooks and dircolors' colours,__open_recent offers nvim's recent files newest first, Tab fills in a suggestion showing at the end of the line and otherwise opens the completion menu, Alt+H has Claude Haiku explain the typed line, sent as text and never when it looks like a secret, signed in with the token in pass, and Alt+Shift+H hands the command to man, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, na deletes every old home-manager and NixOS generation, collects the garbage and refreshes the boot menu, zr lists zoxide's directories after their scores, in score order while a query filters them, and removes the ones picked in fzf, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /x and /r commands, failing closed, a launch makes the profile and drops a session's stray settings without printing a line, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore picks backups and their sessions in one fzf, as ga does, makes their profile ready once and resumes each picked session as it was started, in its tmux session, which it makes again at the current window's size once it is gone, a launch drops what a session planted for the next one, in the project and in its profile, plugins included, and writes the profile's settings in place, only when they differ, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl and gda/gdc/gdd, on a real repo through the real fzf, lay out each row as wide as fzf's list, search past its number and open what is picked in Neovim's own pickers, gpn has gh create a private repo named after the repo's root with the token in pass, makes it origin over SSH and pushes the branch to it, and creates none it could not push to, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, a cache home inherited from elsewhere still loads the tools' hooks and dircolors' colours,__open_recent offers nvim's recent files newest first, Tab fills in a suggestion showing at the end of the line and otherwise opens the completion menu, Alt+H has Claude Haiku explain the typed line, sent as text and never when it looks like a secret, signed in with the token in pass, and Alt+Shift+H hands the command to man, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -369,7 +369,7 @@ let
         # the project's settings.local.json loses its hooks.
         mkdir -p "$HOME/quiet/.claude"
         echo '{"permissions":{},"hooks":{}}' > "$HOME/quiet/.claude/settings.local.json"
-        quiet='{ __claude_instance=7; __claude_provision_config && __claude_scrub_planted; } > "$HOME/quiet.out" 2>/dev/null'
+        quiet='{ __claude_instance=7; __claude_prepare_profile && __claude_scrub_project; } > "$HOME/quiet.out" 2>/dev/null'
         if (cd "$HOME/quiet" && PATH=${pkgs.jq}/bin:$PATH ${self}/bin/zsh -i -c "$quiet" > /dev/null 2>&1) \
           && [ -d "$HOME/.claude-7/.uv-tools" ] && [ ! -s "$HOME/quiet.out" ] \
           && [ "$(${pkgs.jq}/bin/jq -c . "$HOME/quiet/.claude/settings.local.json")" = '{"permissions":{}}' ]; then
@@ -516,13 +516,16 @@ let
         # started it, from its directory, in a window of the tmux session it
         # was in, which it makes again at the current window's size once it is
         # gone, then closes the gaps in the session numbers; with no backup to
-        # restore it opens no picker. A stand-in claude-sessions lists two
+        # restore it opens no picker. The profile the three sessions share is
+        # made ready once, before any of them starts: a stand-in jq counts the
+        # merges of its sandbox overlay. A stand-in claude-sessions lists two
         # backups into the directory start is handed, and picked three
         # sessions for that directory: one with gh, jira, extra hosts and
         # figma-mcp in session work, a plain one in session gone, and one in
         # no session; a stand-in fzf records what it reads and the binds and
-        # preview it is handed, a stand-in tmux knows session work and a 120x40
-        # window and prints the windows and sessions it is asked for, and a
+        # preview it is handed, a stand-in tmux refuses to make session work
+        # again, knows a 120x40 window and prints the windows and sessions it
+        # is asked for, and a
         # stand-in renumbering says when it runs. The aliases load first, as in
         # .zshrc, since they expand inside the functions: cd there is __cd,
         # which takes no --.
@@ -535,7 +538,8 @@ let
         restore='. ${self}/.config/shell/aliases.sh; . ${self}/.config/shell/functions/cd.sh
           . ${self}/.config/shell/functions/git.bash; . ${self}/.config/shell/functions/claude.bash
           fzf() { cat > "$HOME/restore/listed"; printf "%s\n" "$@" > "$HOME/restore/fzf"; }
-          tmux() { case $1 in has-session) [ "$3" = "=work" ] ;; display-message) echo "120 40" ;; new-window) shift; printf "%s|" "$@"; echo ;; new-session) printf "%s|" "$@"; echo ;; esac; }
+          tmux() { case $1 in display-message) echo "120 40" ;; new-window) shift; printf "%s|" "$@"; echo ;; new-session) [ "$4" = work ] && return 1; printf "%s|" "$@"; echo ;; esac; }
+          jq() { [[ " $* " == *settings.*.json* ]] && echo x >> "$HOME/restore/merges"; command jq "$@"; }
           __tmux_renumber_sessions() { echo renumber; }
           __claude_sessions_save
           TMUX=x __claude_sessions_restore
@@ -547,13 +551,14 @@ let
           [[ $f == *"load:transform(claude-sessions restore load "?"$sd"?")"* ]] || echo "no load bind"
           [[ $f == *"claude-sessions restore show "?"$sd"?" {n}"* ]] || echo "no preview"
           echo "listed $(<"$HOME/restore/listed")"
+          echo "merges $(grep -c x "$HOME/restore/merges")"
           touch "$HOME/restore/none"; rm "$HOME/restore/fzf"
           TMUX=x __claude_sessions_restore 2>/dev/null
           [ -e "$HOME/restore/fzf" ] && echo "a picker with no backup"
-          ls "$HOME/restore/run"'
+          for d in $HOME/restore/run/claude-restore.*(N); do echo "left $d"; done'
         case "$(CLAUDE_SANDBOX=0 XDG_RUNTIME_DIR=$HOME/restore/run PATH=$HOME/restore/bin:${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$restore" | tr '\n' '#')" in
-          "backup#-d|-t|=work:|-c|$HOME/proj|CLAUDE_SANDBOX_ALLOW_GH=1 CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_SANDBOX_NET_ALLOW=x.example "*"/nix-lsp --plugin-dir "*"/figma-mcp "*" --resume a  --allow-dangerously-skip-permissions|#claude: resumed A in $HOME/proj#new-session|-d|-s|gone|-x|120|-y|40|-c|$HOME/proj2|CLAUDE_CODE_SYNTAX_HIGHLIGHT=false "*" claude  --allowedTools "*" --resume b  --allow-dangerously-skip-permissions|#claude: resumed B in $HOME/proj2#-d|-c|$HOME/proj3|CLAUDE_CODE_SYNTAX_HIGHLIGHT=false "*" claude  --allowedTools "*" --resume c  --allow-dangerously-skip-permissions|#claude: resumed C in $HOME/proj3#renumber#listed new#old#")
-            ok "the session backup's restore picks in one fzf run by claude-sessions restore on a state dir it removes, and resumes each picked session with its connections and plugins, in its directory and tmux session, which it makes again once it is gone, and opens no picker with no backup"
+          "backup#-d|-t|=work:|-c|$HOME/proj|CLAUDE_SANDBOX_ALLOW_GH=1 CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_SANDBOX_NET_ALLOW=x.example "*"/nix-lsp --plugin-dir "*"/figma-mcp "*" --resume a  --allow-dangerously-skip-permissions|#claude: resumed A in $HOME/proj#new-session|-d|-s|gone|-x|120|-y|40|-c|$HOME/proj2|CLAUDE_CODE_SYNTAX_HIGHLIGHT=false "*" claude  --allowedTools "*" --resume b  --allow-dangerously-skip-permissions|#claude: resumed B in $HOME/proj2#-d|-c|$HOME/proj3|CLAUDE_CODE_SYNTAX_HIGHLIGHT=false "*" claude  --allowedTools "*" --resume c  --allow-dangerously-skip-permissions|#claude: resumed C in $HOME/proj3#renumber#listed new#old#merges 1#")
+            ok "the session backup's restore picks in one fzf run by claude-sessions restore on a state dir it removes, makes the sessions' profile ready once, and resumes each picked session with its connections and plugins, in its directory and tmux session, which it makes again once it is gone, and opens no picker with no backup"
             ;;
           *) fail "the session backup's restore does not pick in one fzf run by claude-sessions restore, or does not resume the sessions picked as they were started" ;;
         esac
@@ -586,6 +591,40 @@ let
           ok "a launch removes the agents, CLAUDE.md and skills a session planted in its profile"
         else
           fail "a launch keeps instructions a session planted in its profile"
+        fi
+
+        # A launch writes the profile's settings.json, sources' with this OS's
+        # overlay, only when it says something else, and then in place: the
+        # sandbox pins that very file in every running session, and replacing
+        # it would drop the pin. Made read-only, the file is left alone, so the
+        # launch wrote nothing; a session's edit is undone in the same file;
+        # and a symlink a session left there is removed, not written through.
+        # The launch also drops the plugins a session can leave in the profile,
+        # which load at the next start: those in plugins/synced, and those
+        # installed, saying which.
+        inode() { ls -i "$1" | awk '{ print $1 }'; }
+        want=$(${pkgs.jq}/bin/jq -S -s '.[0] * .[1]' ${claude}/.claude/settings.json ${claude}/.claude/settings.$os.json)
+        first=$(inode "$p/settings.json") untouched=
+        chmod 444 "$p/settings.json"
+        (cd "$HOME/proj" && CLAUDE_SANDBOX=0 PATH=${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$launch" 2>/dev/null) && untouched=1
+        chmod 644 "$p/settings.json"
+        echo '{"hooks":{"Stop":[]}}' > "$p/settings.json"
+        (cd "$HOME/proj" && CLAUDE_SANDBOX=0 PATH=${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$launch" 2>/dev/null)
+        undone=$(inode "$p/settings.json")
+        echo kept > "$HOME/other.json"
+        rm "$p/settings.json" && ln -s "$HOME/other.json" "$p/settings.json"
+        mkdir -p "$p/plugins/synced/bucket/planted"
+        echo '{"version":2,"plugins":{"planted@market":[{}]}}' > "$p/plugins/installed_plugins.json"
+        said=$(cd "$HOME/proj" && CLAUDE_SANDBOX=0 PATH=${pkgs.jq}/bin:$PATH ${self}/bin/zsh -f -c "$launch" 2>&1 >/dev/null)
+        if [ "''${untouched:-}" = 1 ] && [ "$undone" = "$first" ] \
+          && [ -f "$p/settings.json" ] && [ ! -L "$p/settings.json" ] \
+          && [ "$(${pkgs.jq}/bin/jq -S . "$p/settings.json")" = "$want" ] && [ "$(cat "$HOME/other.json")" = kept ] \
+          && [ ! -e "$p/plugins/synced" ] \
+          && [ "$(${pkgs.jq}/bin/jq -c .plugins "$p/plugins/installed_plugins.json")" = '{}' ] \
+          && case "$said" in *"removed the plugins planted@market"*) true ;; *) false ;; esac; then
+          ok "a launch writes the profile's settings only when they differ, in place, replaces a link a session left there, and drops the plugins a session synced or installed in the profile"
+        else
+          fail "a launch replaces or rewrites the profile's settings when it need not, writes through a link a session left there, or keeps plugins a session left in the profile: $said"
         fi
 
         # A launch runs claude under flock, which locks a file of the launch's
