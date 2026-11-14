@@ -277,13 +277,16 @@ __claude_provision_config() {
       echo "claude: removed $planted from $dir/skills: a session can plant skills there for every later session" >&2
     fi
   fi
-  [ -f "$src/settings.json" ] && install -m644 "$src/settings.json" "$dir/settings.json"
+  # plugins/synced is the same for plugins: claude downloads the account's
+  # synced plugins into it at start, and a plugin there loads, on by default,
+  # hooks and MCP servers included.
+  rm -rf "${dir:?}/plugins/synced"
   __claude_provision_sandbox_overlay "$src" "$dir"
 }
 
-# Per-OS sandbox overlay, deep-merged (jq `*`) over the provisioned user
-# settings so the shared settings.json stays platform-neutral. The two
-# overlays point opposite ways:
+# The profile's settings.json: sources' settings.json with the per-OS sandbox
+# overlay deep-merged (jq `*`) over it, so the shared file stays
+# platform-neutral. The two overlays point opposite ways:
 # - settings.darwin.json turns Claude Code's built-in Seatbelt sandbox ON and
 #   is the boundary there: bwrap is Linux-only, and Seatbelt can allow the
 #   nix-daemon socket by path while Linux/seccomp cannot
@@ -300,20 +303,34 @@ __claude_provision_config() {
 # User scope is load-bearing: the shared settings.json also rides --settings
 # (CLI tier, above user), so a sandbox key there would leak across platforms
 # — the Linux "off" would override Darwin's user-tier "on".
+# Built from sources each time, never from the profile's copy, which a session
+# may have written. Claude Code reloads the file in every running session of
+# the profile when it changes, and the sandbox launcher pins it read-only in
+# each of them, on the file itself (claude-sandbox.bash). Replacing the file,
+# by a rename or an unlink and create as `install` does, drops that pin from
+# every running session. So the file is left alone when it already says this,
+# and otherwise written over in place, which a running session reads at once.
+# Anything there but a plain file of its own (a symlink, a directory, or a
+# hard link to another file) is removed first, so the write can't land
+# elsewhere.
 # Fails closed, like the sandbox gate: on macOS the overlay is the sandbox, so a
 # merge that fails (no jq, no overlay, bad JSON) refuses the launch.
 __claude_provision_sandbox_overlay() {
-  local src="$1" dir="$2" overlay merged
+  local src="$1" dir="$2" f="$2/settings.json" overlay merged
   case "$(uname -s)" in
     Darwin) overlay="$src/settings.darwin.json" ;;
     Linux) overlay="$src/settings.linux.json" ;;
-    *) return 0 ;;
+    *) overlay= ;;
   esac
-  if ! merged=$(jq -s '.[0] * .[1]' "$dir/settings.json" "$overlay"); then
-    echo "claude: could not merge $overlay into $dir/settings.json; refusing to launch without the sandbox settings" >&2
+  if ! merged=$(jq -s 'reduce .[] as $s ({}; . * $s)' "$src/settings.json" ${overlay:+"$overlay"}); then
+    echo "claude: could not merge $overlay over $src/settings.json; refusing to launch without the sandbox settings" >&2
     return 1
   fi
-  printf '%s\n' "$merged" >"$dir/settings.json"
+  if [ -e "$f" ] || [ -L "$f" ]; then
+    [ -n "$(find "$f" -prune -type f -links 1 2>/dev/null)" ] || rm -rf "${f:?}"
+  fi
+  [ -f "$f" ] && [ "$(<"$f")" = "$merged" ] && return 0
+  printf '%s\n' "$merged" >"$f"
 }
 
 # A session can write its profile and the directory it runs in, and the next
@@ -326,8 +343,11 @@ __claude_provision_sandbox_overlay() {
 # writes there itself: its "don't ask again" permission rules and the Show tips
 # toggle. MCP servers belong in a plugin under sources/.claude/plugins and
 # project hooks in .claude/settings.json, both pinned in the sandbox. A file jq
-# can't read refuses the launch.
-__claude_scrub_planted() {
+# can't read refuses the launch. The profile's part runs with
+# __claude_prepare_profile, the project's (__claude_scrub_project) at each
+# launch. Plugins installed in the profile go too, for the same reason: they
+# load at the next start, hooks and MCP servers included.
+__claude_scrub_profile() {
   local f names
   f="$HOME/$(__claude_profile)/.claude.json"
   if [ -e "$f" ]; then
@@ -340,6 +360,21 @@ __claude_scrub_planted() {
       echo "claude: removed the MCP servers $names from $f: they would start without approval" >&2
     fi
   fi
+  f="$HOME/$(__claude_profile)/plugins/installed_plugins.json"
+  if [ -e "$f" ]; then
+    names=$(jq -r '.plugins // {} | keys | join(", ")' "$f") || {
+      echo "claude: could not read $f; refusing to launch with the plugins it may name" >&2
+      return 1
+    }
+    if [ -n "$names" ]; then
+      __claude_rewrite_json "$f" '.plugins = {}' || return 1
+      echo "claude: removed the plugins $names from $f: they would load at the next start" >&2
+    fi
+  fi
+}
+
+__claude_scrub_project() {
+  local f names
   f="$PWD/.claude/settings.local.json"
   if [ -e "$f" ]; then
     names=$(jq -r '[(keys_unsorted[] | select(. != "permissions" and . != "spinnerTipsEnabled")), (.permissions // {} | keys_unsorted[] | select(. != "allow" and . != "deny" and . != "ask") | "permissions." + .)] | join(", ")' "$f") || {
@@ -366,6 +401,26 @@ __claude_rewrite_json() {
   return 1
 }
 
+# Make profile $(__claude_profile) ready for a launch: its config from
+# sources/.claude, and what a session can plant in it removed. Once for the
+# launches a caller makes together: a caller that declares __CLAUDE_PREPARED,
+# as __claude_sessions_restore does, has each profile made ready listed there,
+# and the launches it then makes skip those. Under a lock on a file of the
+# profile's in the runtime dir, which the sandbox does not share, so two
+# launches can't interleave their writes; without flock or a runtime dir,
+# unlocked.
+__claude_prepare_profile() {
+  local profile
+  profile=$(__claude_profile)
+  case " ${__CLAUDE_PREPARED:-} " in *" $profile "*) return 0 ;; esac
+  if [ -n "${XDG_RUNTIME_DIR:-}" ] && command -v flock >/dev/null 2>&1; then
+    (flock 9 && __claude_provision_config && __claude_scrub_profile) 9>"$XDG_RUNTIME_DIR/claude-prepare$profile.lock" || return 1
+  else
+    __claude_provision_config && __claude_scrub_profile || return 1
+  fi
+  [ -z "${__CLAUDE_PREPARED+x}" ] || __CLAUDE_PREPARED="$__CLAUDE_PREPARED $profile"
+}
+
 __claude_init() {
   __claude_instance=1
   if [ "$1" != "" ] && [ "$1" -eq "$1" ] 2>/dev/null; then
@@ -383,9 +438,9 @@ __claude_init() {
     [ -d "$plugins_dir/$p" ] && __claude_plugins="$__claude_plugins --plugin-dir $plugins_dir/$p"
   done
 
-  __claude_provision_config || return 1
+  __claude_prepare_profile || return 1
   __claude_build_cmd || return 1
-  __claude_scrub_planted
+  __claude_scrub_project
 }
 
 __claude_init_fzf() {
@@ -406,9 +461,9 @@ __claude_init_fzf() {
     [ "$p" != "" ] && printf ' --plugin-dir %s/%s' "$plugins_dir" "$p"
   done)
 
-  __claude_provision_config || return 1
+  __claude_prepare_profile || return 1
   __claude_build_cmd || return 1
-  __claude_scrub_planted
+  __claude_scrub_project
 }
 
 __claude_run() {
@@ -734,6 +789,12 @@ __claude_sessions_restore() {
   fi
   rm -rf "$sd"
   [ -n "$rows" ] || return 0
+  # Each profile the sessions run in is made ready once, before any of them
+  # starts, rather than once for each (__claude_prepare_profile).
+  local __CLAUDE_PREPARED='' __claude_instance
+  while IFS=$'\t' read -r id __claude_instance _; do
+    __claude_prepare_profile
+  done <<<"$rows"
   # A row: the session's id, profile, directory, connections, extra hosts of
   # its network filter, plugins and tmux session ("-" for none), then its
   # title.
@@ -751,9 +812,12 @@ __claude_sessions_restore() {
 # gone, as after a reboot, rather than put every session in the current one;
 # "-" stands for none, and the window goes into the current session. Sessions
 # are named by number, so one of that name may be another session by then,
-# which the window joins. A session made again takes the current window's
-# size: tmux would make it 80x24, and -x - takes the size of the pane this runs
-# in. A subshell keeps the directory and variables to it.
+# which the window joins. The session is made, and when tmux refuses that
+# because one of that name exists, the window goes into that one: checking
+# first would go wrong when another launch makes it in between. A session made
+# again takes the current window's size: tmux would make it 80x24, and -x -
+# takes the size of the pane this runs in. A subshell keeps the directory and
+# variables to it.
 __claude_sessions_reopen() {
   (
     builtin cd -- "$3" || exit 1
@@ -776,11 +840,10 @@ __claude_sessions_reopen() {
     __claude_init "$2" --resume "$1" || exit 1
     if [ "$7" = - ]; then
       tmux new-window -d -c "$3" "$__CLAUDE_CMD"
-    elif tmux has-session -t "=$7" 2>/dev/null; then
-      tmux new-window -d -t "=$7:" -c "$3" "$__CLAUDE_CMD"
     else
       size=$(tmux display-message -p '#{window_width} #{window_height}')
-      tmux new-session -d -s "$7" -x "${size% *}" -y "${size#* }" -c "$3" "$__CLAUDE_CMD"
+      tmux new-session -d -s "$7" -x "${size% *}" -y "${size#* }" -c "$3" "$__CLAUDE_CMD" 2>/dev/null ||
+        tmux new-window -d -t "=$7:" -c "$3" "$__CLAUDE_CMD"
     fi
   )
 }
