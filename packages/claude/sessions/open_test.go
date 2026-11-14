@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -153,7 +151,7 @@ func TestOpenSessionsReadTheLaunchFile(t *testing.T) {
 	}
 }
 
-func TestSavedLeavesOutWhatALockNames(t *testing.T) {
+func TestRestoreLeavesOutWhatALockNames(t *testing.T) {
 	home := t.TempDir()
 	one := filepath.Join(home, ".claude-1")
 	conversation(t, one, home, idA, "hello")
@@ -161,21 +159,13 @@ func TestSavedLeavesOutWhatALockNames(t *testing.T) {
 	launchFile(t, one, "x", idA, true)
 	dir := filepath.Join(home, "backups")
 	now := time.Now()
-	write(t, filepath.Join(dir, backupName(now)), string(must(json.Marshal(backupFile{
-		Version: 1, Time: now,
-		Sessions: []savedSession{{ID: idA, Config: one, Cwd: home, Title: "hello"}, {ID: idB, Config: one, Cwd: home, Title: "bye"}},
-	}))))
+	backupAt(t, dir, now, savedSession{ID: idA, Config: one, Cwd: home, Title: "hello"}, savedSession{ID: idB, Config: one, Cwd: home, Title: "bye"})
 	// No claude in /proc: the lock alone says session A is open.
-	h := host{proc: filepath.Join(home, "proc"), uid: uint32(os.Getuid()), home: home, looks: 4, wait: func() {}}
-	addProc(t, h.proc, proc{pid: 90, ppid: 1, comm: "zsh", tty: 34816, cwd: home})
-	var out, notes bytes.Buffer
-	if err := saved(&out, &notes, h, dir, nil, now); err != nil {
-		t.Fatal(err)
+	rows, notes := restoreAll(t, noClaude(t, home), dir, now)
+	if !strings.HasPrefix(rows, idB+"\t") || strings.Contains(rows, idA) {
+		t.Errorf("rows = %q, want session B only", rows)
 	}
-	if !strings.HasPrefix(out.String(), idB+"\t") || strings.Contains(out.String(), idA) {
-		t.Errorf("out = %q, want session B only", out.String())
-	}
-	if !strings.Contains(notes.String(), `left out "hello" (~): it is open`) {
-		t.Errorf("notes = %q, want session A left out as open", notes.String())
+	if !strings.Contains(notes, `left out "hello" (~): it is open`) {
+		t.Errorf("notes = %q, want session A left out as open", notes)
 	}
 }
