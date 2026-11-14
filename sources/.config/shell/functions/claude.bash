@@ -690,46 +690,53 @@ __claude_sessions_save() {
   claude-sessions backup
 }
 
-# Start sessions of the backups again, each in a tmux window of its own, in
-# two pickers that select as the git ones do (gdd, gdc, gda: _GIT_FZF_DEFAULT
-# in git.bash): the first lists the backups, newest first, each previewed as
-# the sessions it holds, and the second the sessions of those picked, each as
-# the newest of them saved it. In both, tab marks a row, ctrl-a every row, and
-# enter takes the marked rows, else the one under the cursor. claude-sessions
-# saved leaves out, saying why, a session still open and one whose
-# conversation or directory is gone. A tmux session made again can leave a gap
-# in the session numbers, which __tmux_renumber_sessions (tmux.sh) then
-# closes, as when a session closes.
+# Start sessions of the backups again, each in a tmux window of its own,
+# picked in one fzf that selects as ga's does (__git_pick_files in git.bash):
+# claude-sessions restore (packages/claude/sessions/restore.go) lists the
+# backups, newest first, each previewed as the sessions it holds, and Enter or
+# Right lists the sessions of the one under the cursor that can be resumed,
+# each previewed as its conversation, which Left or Esc leaves. Tab marks a
+# row and Ctrl-A every row (or clears them): a marked backup stands for all
+# its sessions, which its list opens with marked, and leaving that list marks
+# the backup as its sessions are. Enter in the sessions list resumes what is
+# marked, and Esc in the backups list cancels. A whole backup leaves out,
+# saying why, a session still open and one whose conversation or directory is
+# gone. The picker's state lives in the per-user runtime dir, as ga's does.
+# A tmux session made again can leave a gap in the session numbers, which
+# __tmux_renumber_sessions (tmux.sh) then closes, as when a session closes.
 __claude_sessions_restore() {
   __claude_sessions_on_path || return 0
   if [ -z "$TMUX" ]; then
     echo "claude: restoring opens a tmux window for each session; run it in tmux" >&2
     return 0
   fi
-  local list name rows id instance dir conns net plugins tsession title _
-  local -a picked=()
-  # A backup's row: its file name, which fzf prints, then what it shows, cut
-  # on the right when too long, so that its age and date stay in view.
-  list=$(claude-sessions backups) || return 0
-  [ -n "$list" ] || return 0
-  list=$(printf '%s\n' "$list" | fzf "${_GIT_FZF_DEFAULT[@]}" --no-keep-right \
-    --delimiter='\t' --with-nth=2 --accept-nth=1 \
-    --preview='claude-sessions backups {1}' \
-    --preview-window='right,60%,border-none,wrap' \
-    --header='tab: mark · ctrl-a: all · enter: their sessions') || return 0
-  while IFS= read -r name; do
-    picked+=("$name")
-  done <<<"$list"
-  rows=$(claude-sessions saved "${picked[@]}") || return 0
+  local sd sdq step rows id instance dir conns net plugins tsession title _
+  sd=$(mktemp -d "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/claude-restore.XXXXXX") || return 0
+  sdq=$(__shell_quote "$sd")
+  # key's args end with {+n}, which expands to one word per marked row. The
+  # ctrl-a bind keeps $FZF_SELECT_COUNT/$FZF_MATCH_COUNT single-quoted so fzf
+  # (not the shell) expands them.
+  step="claude-sessions restore key $sdq"
+  if claude-sessions restore start "$sd"; then
+    # shellcheck disable=SC2016
+    fzf "${_GIT_FZF_DEFAULT[@]}" --no-keep-right \
+      --bind "enter:transform($step enter {n} {+n})" \
+      --bind "right:transform($step right {n} {+n})" \
+      --bind "left:transform($step left {n} {+n})" \
+      --bind "esc:transform($step esc {n} {+n})" \
+      --bind "load:transform(claude-sessions restore load $sdq)" \
+      --bind "tab:select+down" \
+      --bind "btab:deselect+up" \
+      --bind 'ctrl-a:transform([ "${FZF_SELECT_COUNT:-0}" -eq "${FZF_MATCH_COUNT:-0}" ] && echo deselect-all || echo select-all)' \
+      --preview "claude-sessions restore show $sdq {n}" \
+      --preview-window='right,60%,border-none,wrap' <"$sd/backups" >/dev/null
+    rows=$(claude-sessions restore picked "$sd")
+  fi
+  rm -rf "$sd"
   [ -n "$rows" ] || return 0
-  rows=$(printf '%s\n' "$rows" | fzf "${_GIT_FZF_DEFAULT[@]}" \
-    --delimiter='\t' --with-nth=9 \
-    --preview="CLAUDE_CONFIG_DIR=\$HOME/.claude-{2} claude-sessions preview {1}" \
-    --preview-window='right,60%,border-none,wrap' \
-    --header='tab: mark · ctrl-a: all · enter: resume') || return 0
   # A row: the session's id, profile, directory, connections, extra hosts of
   # its network filter, plugins and tmux session ("-" for none), then its
-  # title and what fzf showed.
+  # title.
   while IFS=$'\t' read -r id instance dir conns net plugins tsession title _; do
     __claude_sessions_reopen "$id" "$instance" "$dir" "$conns" "$net" "$plugins" "$tsession" &&
       printf 'claude: resumed %s in %s\n' "$title" "$dir"
