@@ -324,6 +324,8 @@ __autosuggest_execute() {
 # zle -N __autosuggest_execute
 bindkey "${KEYS[SHIFT_ENTER]}" accept-line
 
+# Fills in the suggestion showing (or the line's custom one), the cursor at the
+# end of the line, followed by $1 if given: Esc adds a space after it, Tab not.
 __autosuggest_accept() {
   if [[ -n "${CUSTOM_SUGGESTIONS[$BUFFER]}" ]]; then
     BUFFER="${CUSTOM_SUGGESTIONS[$BUFFER]}"
@@ -331,7 +333,7 @@ __autosuggest_accept() {
   elif [[ -n "$POSTDISPLAY" ]]; then
     zle autosuggest-accept
   fi
-  BUFFER="$BUFFER "
+  BUFFER="$BUFFER$1"
   CURSOR=${#BUFFER}
   zle redisplay
 }
@@ -453,7 +455,7 @@ bindkey -s "${KEYS[SHIFT_SPACE]}" ' '
 # __ls_or_escape() { __on_empty_buffer 'echo ls; __ls'; }
 __ls_or_escape() {
   if [[ -n "$POSTDISPLAY" ]]; then
-    __autosuggest_accept
+    __autosuggest_accept ' '
     zle reset-prompt
     return
   fi
@@ -660,10 +662,11 @@ zle -N __ripgrep_or_menu_select
 bindkey "${KEYS[SHIFT_TAB]}" __ripgrep_or_menu_select
 
 # Tab on an empty command line: the file picker. With a suggestion showing and
-# the cursor at the end of the line, it fills the suggestion in, as Esc does.
-# Otherwise, and also while a suggestion is still being fetched, the completion
-# menu: Tab never runs the line. Completion supplies suggestions too, so one
-# shows almost always, and Shift+Tab is the key that always opens the menu.
+# the cursor at the end of the line, it fills the suggestion in, as Esc does,
+# but adds no space after it. Otherwise, and also while a suggestion is still
+# being fetched, the completion menu: Tab never runs the line. Completion
+# supplies suggestions too, so one shows almost always, and Shift+Tab is the
+# key that always opens the menu.
 __tab_handler() {
   if [[ -z "$BUFFER" && -z "$PREBUFFER" ]]; then
     __open_file
