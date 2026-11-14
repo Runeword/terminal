@@ -15,16 +15,11 @@
 //	                                   they use
 //	claude-sessions backup             save the sessions open on this
 //	                                   machine, in every profile
-//	claude-sessions backups [<backup>] one row per backup, newest first:
-//	                                   its file name, a tab, then when it
-//	                                   was made and its sessions; with a
-//	                                   backup, the sessions it holds, for
-//	                                   fzf
-//	claude-sessions saved [<backup>...]
-//	                                   one row per session of the backups
-//	                                   (else the last one) that can be
-//	                                   resumed, for
-//	                                   __claude_sessions_restore
+//	claude-sessions restore <step> <dir> [<arg>...]
+//	                                   a step of __claude_sessions_restore's
+//	                                   picker, whose state is in <dir>:
+//	                                   start, key, load, show or picked
+//	                                   (restore.go)
 //	claude-sessions mark               claude's SessionStart hook: write the
 //	                                   session's id into the file its launch
 //	                                   holds a lock on (open.go)
@@ -102,7 +97,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: claude-sessions list | preview <id> | rm [-ask] <id>... | backup | backups [<backup>] | saved [<backup>...] | mark")
+	fmt.Fprintln(os.Stderr, "usage: claude-sessions list | preview <id> | rm [-ask] <id>... | backup | restore start|key|load|show|picked <dir> [<arg>...] | mark")
 	os.Exit(2)
 }
 
@@ -137,28 +132,48 @@ func run(cmd string, args []string, cfg string, now time.Time) error {
 			usage()
 		}
 		return rm(os.Stdout, os.Stdin, cfg, flags.Args(), *ask, now)
-	case "backup", "backups", "saved":
-		if cmd == "backup" && len(args) != 0 || cmd == "backups" && len(args) > 1 {
+	case "backup":
+		if len(args) != 0 {
 			usage()
 		}
 		h, err := defaultHost()
 		if err != nil {
 			return err
 		}
-		dir := backupDir(h.home)
+		return backup(os.Stdout, os.Stderr, h, backupDir(h.home), now)
+	case "restore":
+		if len(args) < 2 {
+			usage()
+		}
+		h, err := defaultHost()
+		if err != nil {
+			return err
+		}
+		r := restorer{dir: args[1], getenv: os.Getenv}
+		step, rest := args[0], args[2:]
+		var actions string
 		switch {
-		case cmd == "backup":
-			return backup(os.Stdout, os.Stderr, h, dir, now)
-		case cmd == "saved":
-			err = saved(&out, os.Stderr, h, dir, args, now)
-		case len(args) == 1: // backups <backup>
-			err = showBackup(&out, h.home, dir, args[0], now)
-		default: // backups
-			err = listBackups(&out, os.Stderr, h.home, dir, now)
+		case step == "start" && len(rest) == 0:
+			err = r.start(os.Stderr, h, backupDir(h.home), now)
+		case step == "key" && len(rest) >= 2: // key KEY {n} {+n}
+			var sel []int
+			if sel, err = indices(rest[2:]); err == nil {
+				actions, err = r.key(rest[0], rest[1], sel)
+			}
+		case step == "load" && len(rest) == 0:
+			actions, err = r.load()
+		case step == "show" && len(rest) == 1: // show {n}
+			width, _ := strconv.Atoi(os.Getenv("FZF_PREVIEW_COLUMNS"))
+			err = r.show(&out, rest[0], width, now)
+		case step == "picked" && len(rest) == 0:
+			err = r.picked(&out, os.Stderr, h.home, backupDir(h.home), now)
+		default:
+			usage()
 		}
 		if err != nil {
 			return err
 		}
+		out.WriteString(actions)
 	case "mark":
 		if len(args) != 0 {
 			usage()
