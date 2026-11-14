@@ -10,10 +10,10 @@
         ]
       },
       "locked": {
-        "lastModified": 1791739864,
-        "narHash": "sha256-eLbBx4uK51U8Zfx08avqbtUz1sDJVDxydU7xmnWHH/w=",
+        "lastModified": 1794693896,
+        "narHash": "sha256-QCt1cLfnxR8TZ/ZrBvs6j+wDOo7ZnBmBkODyDVPT+z4=",
         "ref": "main",
-        "rev": "9e041b4034e1856629d4987bd9ace7cff9ba7ac5",
+        "rev": "8b3726b527d58bdbb194e8064d78192a0067f4eb",
         "shallow": true,
         "type": "git",
         "url": "ssh://git@github.com/Runeword/claude-sandbox"
