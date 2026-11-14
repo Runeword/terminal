@@ -10,6 +10,7 @@ let
     ".config/tmux/tmux.conf"
     ".config/tmux/scripts/toggle-pane.sh"
     ".config/tmux/scripts/new-window-shift.sh"
+    ".config/tmux/scripts/open-url.sh"
     # Bound in tmux.conf on a currently-commented M-b — bundled so the binding
     # resolves in bundled mode, not just under $PERMEANCE_ROOT.
     ".config/tmux/scripts/watch-build.sh"
@@ -42,7 +43,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # Each $(…) below runs its tmux server in a socket directory of its
         # own (fresh): kill-server returns before the server has exited, and a
@@ -367,6 +368,54 @@ let
           ok "next and previous session go by number, from 9 to 10, and closing a session lands on the one before it by number"
         else
           fail "from 9 of 10 sessions, M-Tab C-\` C-S-Enter M-BTab C-Space C-Enter C-S-\`, then closing 2, left '$cycle', expected '10 1 10 9 10 1 10 1 '"
+        fi
+
+        # C-Enter in copy mode opens the link under the cursor instead, and the
+        # pane stays in copy mode: a URL from any of its characters, the whole
+        # of one that wrapped onto the next line (the pane is 30 columns wide,
+        # the client's), without what prose puts around it, and an OSC 8 link,
+        # which is how Claude marks its Markdown links, from its text. A cursor
+        # on no link opens nothing, and word-separators, emptied for the read,
+        # is as it was. C-Enter is pressed through an attached client, as M-t
+        # is above. A stand-in xdg-open records what it is handed; it runs in
+        # the background, so the records are sorted.
+        links=$(
+          mkdir "$HOME/bin"
+          printf '%s\n' '#!${pkgs.bash}/bin/sh' 'printf "%s\n" "$1" >>"$HOME/opened"' >"$HOME/bin/xdg-open"
+          chmod +x "$HOME/bin/xdg-open"
+          PATH=$HOME/bin:${self}/bin:$PATH
+          fresh
+          tmux start-server \; set -g default-shell "$(command -v sh)" \; \
+            new-session -d -s 1 -x 30 -y 9 "printf '%s\n' 'no link here' 'go to https://a.example/p.' '(see <https://b.example/q>)' 'wiki https://c.example/a_(b)).' 'https://d.example/0123456789abcdef'; printf '\033]8;;https://e.example/z\033\\\\the docs\033]8;;\033\\\\\n'; sleep 60" \; \
+            set-hook -g client-attached 'wait-for -S attached'
+          ${pkgs.tmux}/bin/tmux -L outer -f /dev/null new-session -d -x 30 -y 10 'env -u TMUX tmux attach -t =1'
+          timeout 10 tmux wait-for attached
+          client=$(tmux list-clients -F '#{client_name}')
+          for _ in $(seq 50); do
+            case $(tmux capture-pane -p -t =1:) in *docs*) break ;; esac
+            sleep 0.1
+          done
+          ws=$(tmux show -gv word-separators)
+          tmux copy-mode -t =1:
+          for text in link example/p https://b 'a_(b' cdef docs; do
+            tmux send-keys -X -t =1: history-top \; send-keys -X -t =1: search-forward-text "$text"
+            tmux send-keys -K -c "$client" C-Enter
+          done
+          for _ in $(seq 50); do
+            [ "$(wc -l <"$HOME/opened")" -ge 5 ] && break
+            sleep 0.1
+          done 2>/dev/null
+          sort "$HOME/opened"
+          [ "$(tmux show -gv word-separators)" = "$ws" ] && echo separators
+          tmux display -p -t =1: '#{pane_in_mode}'
+          ${pkgs.tmux}/bin/tmux -L outer kill-server
+          tmux kill-server
+        ) || true
+        links=$(printf '%s\n' "$links" | tr '\n' ' ')
+        if [ "$links" = "https://a.example/p https://b.example/q https://c.example/a_(b) https://d.example/0123456789abcdef https://e.example/z separators 1 " ]; then
+          ok "C-Enter in copy mode opens the link under the cursor, a wrapped URL or an OSC 8 link's text included, and stays in copy mode"
+        else
+          fail "C-Enter in copy mode on no link, then on the URLs a to d and the OSC 8 link e, left '$links', expected 'https://a.example/p https://b.example/q https://c.example/a_(b) https://d.example/0123456789abcdef https://e.example/z separators 1 '"
         fi
 
         # Closing a session's last window moves its clients to the previous
