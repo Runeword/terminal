@@ -49,7 +49,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, na deletes every old home-manager and NixOS generation, collects the garbage and refreshes the boot menu, zr lists zoxide's directories after their scores, in score order while a query filters them, and removes the ones picked in fzf, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /x and /r commands, failing closed, a launch makes the profile and drops a session's stray settings without printing a line, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore picks backups and their sessions in one fzf, as ga does, makes their profile ready once and resumes each picked session as it was started, in its tmux session, which it makes again at the current window's size once it is gone, a launch drops what a session planted for the next one, in the project and in its profile, plugins included, and writes the profile's settings in place, only when they differ, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl and gda/gdc/gdd, on a real repo through the real fzf, lay out each row as wide as fzf's list, search past its number and open what is picked in Neovim's own pickers, gpn has gh create a private repo named after the repo's root with the token in pass, makes it origin over SSH and pushes the branch to it, and creates none it could not push to, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, a cache home inherited from elsewhere still loads the tools' hooks and dircolors' colours,__open_recent offers nvim's recent files newest first, Tab fills in a suggestion showing at the end of the line with no space after it, where Esc adds one, and otherwise opens the completion menu, Alt+H has Claude Haiku explain the typed line, sent as text and never when it looks like a secret, signed in with the token in pass, and Alt+Shift+H hands the command to man, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, na deletes every old home-manager and NixOS generation, collects the garbage and refreshes the boot menu, zr lists zoxide's directories after their scores, in score order while a query filters them, and removes the ones picked in fzf, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /x and /r commands, failing closed, a launch makes the profile and drops a session's stray settings without printing a line, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore picks backups and their sessions in one fzf, as ga does, makes their profile ready once and resumes each picked session as it was started, in its tmux session, which it makes again at the current window's size once it is gone, a launch drops what a session planted for the next one, in the project and in its profile, plugins included, and writes the profile's settings in place, only when they differ, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl and gda/gdc/gdd, on a real repo through the real fzf, lay out each row as wide as fzf's list, search past its number and open what is picked in Neovim's own pickers, gpn has gh create a private repo named after the repo's root with the token in pass, makes it origin over SSH and pushes the branch to it, and creates none it could not push to, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, a cache home inherited from elsewhere still loads the tools' hooks and dircolors' colours,__open_recent offers nvim's recent files newest first, Tab fills in a suggestion showing at the end of the line with no space after it, where Esc adds one, and otherwise opens the completion menu, Alt+H has Claude Haiku explain the typed line, sent as text and never when it looks like a secret, signed in with the token in pass, and Alt+Shift+H hands the command to man, ca has Claude answer a question in this pane, read as typed and sent on stdin to a claude with no tools, signed in with the token in pass, and sends nothing for an empty one, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -1088,6 +1088,41 @@ let
             fi ;;
           *) fail "Alt+H does not send the typed line as text with what its words are to a tool-less claude, does not show the answer under the line or sends a secret, or Alt+Shift+H is no longer run-help: $explained" ;;
         esac
+
+        # ca asks Claude a quick question and prints the answer in this pane:
+        # the question, read with vared, reaches claude on stdin as typed,
+        # never run or taken for an option, and claude runs as Alt+H's does,
+        # with no tools, nothing saved, only the user's settings and no
+        # CLAUDE_CONFIG_DIR, so with the host's own profile, signed in with
+        # pass's claude/oauth-token in its environment alone, which the shell
+        # never gets; an empty question sends nothing. Stand-ins: a claude that
+        # records what it got, pass, and a vared that types the question.
+        mkdir -p "$HOME/ask/bin"
+        printf '#!/bin/sh\necho "config=$CLAUDE_CONFIG_DIR token=$CLAUDE_CODE_OAUTH_TOKEN $*" > "$HOME/ask/args"\ncat > "$HOME/ask/stdin"\necho Use ss -tlnp.\n' > "$HOME/ask/bin/claude"
+        printf '#!/bin/sh\n[ "$*" = "show claude/oauth-token" ] && echo sk-ant-oat01-fake\n' > "$HOME/ask/bin/pass"
+        chmod +x "$HOME/ask/bin/claude" "$HOME/ask/bin/pass"
+        ask='path=($HOME/ask/bin $path); export CLAUDE_CONFIG_DIR=$HOME/.claude-1
+          . ${self}/.config/shell/functions/claude.bash
+          vared() { typeset -g "$argv[-1]=$typed"; }
+          typed= __claude_ask
+          __claude_ask
+          print -r -- "left=$CLAUDE_CONFIG_DIR,$CLAUDE_CODE_OAUTH_TOKEN"'
+        typed="-v what's on port \$(touch $HOME/asked) in \"a b\"?"
+        asked=$({ typed=$typed ${self}/bin/zsh -f -c "$ask" 2>/dev/null || :; cat "$HOME/ask/args" "$HOME/ask/stdin" 2>/dev/null || :; } | tr '\n' '#')
+        if ${leaderAliases}/bin/leader-aliases ${self}/.config/shell/leader.conf \
+          | awk -F "$sep" '$1 ~ /^ca +$/ && $5 == "__claude_ask" && $6 == "run" { found = 1 } END { exit !found }'; then
+          case "$asked" in
+            "Use ss -tlnp.#left=$HOME/.claude-1,#config= token=sk-ant-oat01-fake -p "*"--tools  --strict-mcp-config --no-session-persistence --setting-sources user "*"#$typed#")
+              if [ -e "$HOME/asked" ]; then
+                fail "ca ran the question it was to send"
+              else
+                ok "ca has Claude answer a question in this pane, read as typed and sent on stdin to a claude with no tools, nothing saved, the host's profile and the token in pass, which the shell never gets, and sends nothing for an empty one"
+              fi ;;
+            *) fail "ca does not send the question as typed, on stdin, to a tool-less claude signed in with the token in pass, keeps the token in the shell, or sends an empty question: $asked" ;;
+          esac
+        else
+          fail "the bundled leader.conf does not bind ca to __claude_ask"
+        fi
 
         # The search binds nothing to y either, so that y types into its query:
         # a stand-in fzf says whether it was handed a binding for y.
