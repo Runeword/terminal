@@ -124,10 +124,11 @@ func lockedID(path string) (id string, held bool, err error) {
 }
 
 // openByLock is the sessions a held lock names, in the profiles under home
-// that __claude starts. A file no lock is held on is what a launch left when
-// it ended: it goes once it is staleAfter old.
-func openByLock(home string, now time.Time) map[string]bool {
-	open := map[string]bool{}
+// that __claude starts, each with the profile it runs in. A file no lock is
+// held on is what a launch left when it ended: it goes once it is staleAfter
+// old.
+func openByLock(home string, now time.Time) map[string]string {
+	open := map[string]string{}
 	entries, _ := os.ReadDir(home)
 	for _, profile := range entries {
 		config := filepath.Join(home, profile.Name())
@@ -141,7 +142,7 @@ func openByLock(home string, now time.Time) map[string]bool {
 			switch {
 			case err != nil:
 			case held && id != "":
-				open[id] = true
+				open[id] = config
 			case !held:
 				if info, err := os.Stat(path); err == nil && now.Sub(info.ModTime()) > staleAfter {
 					_ = os.Remove(path)
