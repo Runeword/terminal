@@ -558,7 +558,8 @@ let
           # dimmed; then centred when the window list is where it would be
           # centred alone, in the client's 100 columns, whatever stands at its
           # left; then what the first line draws there, the session's label,
-          # in brackets. Else the columns of each, with a - in each column, or the
+          # in brackets, followed by not white unless it is white, as the
+          # current window's name. Else the columns of each, with a - in each column, or the
           # line itself.
           line() {
             ${pkgs.tmux}/bin/tmux -L outer -u capture-pane -e -p -S 0 -E 1 | awk -v p="$palette" -v w=100 '
@@ -638,7 +639,7 @@ let
                 sub(/ +$/, "", under)
                 sub(/ +$/, "", lit)
                 for (i = 1; i <= n1; i++) drawn = drawn c1[i]
-                print seen " " (under == bar ? "under" : bar "|" under) " " (thin ? "thin" : drawn) " " (lit == cur ? "lit" c0[index(lit, "-")] : cur "|" lit) " " (centred ? "centred" : "@" ws) " [" label "]"
+                print seen " " (under == bar ? "under" : bar "|" under) " " (thin ? "thin" : drawn) " " (lit == cur ? "lit" c0[index(lit, "-")] : cur "|" lit) " " (centred ? "centred" : "@" ws) " [" label (n > 2 && f0[rs[2]] != "#ffffff" ? " not white" : "") "]"
               }'
           }
           # drawn <want>: wait up to 5 s for the bar to be drawn as <want>.
