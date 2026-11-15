@@ -10,8 +10,7 @@ let
     ".config/tmux/tmux.conf"
     ".config/tmux/scripts/toggle-pane.sh"
     ".config/tmux/scripts/new-window-shift.sh"
-    # This repo's own plugin: tmux.conf runs its open-url.tmux.
-    ".config/tmux/plugins/open-url"
+    ".config/tmux/scripts/open-url.sh"
     # Bound in tmux.conf on a currently-commented M-b — bundled so the binding
     # resolves in bundled mode, not just under $PERMEANCE_ROOT.
     ".config/tmux/scripts/watch-build.sh"
@@ -44,7 +43,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter (the open-url plugin, whose @open-url-key changes the key), leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # Each $(…) below runs its tmux server in a socket directory of its
         # own (fresh): kill-server returns before the server has exited, and a
@@ -371,16 +370,15 @@ let
           fail "from 9 of 10 sessions, M-Tab C-\` C-S-Enter M-BTab C-Space C-Enter C-S-\`, then closing 2, left '$cycle', expected '10 1 10 9 10 1 10 1 '"
         fi
 
-        # C-Enter in copy mode, bound by the open-url plugin, opens the link
-        # under the cursor instead, and the pane stays in copy mode: a URL from
-        # any of its characters, the whole of one that wrapped onto the next
-        # line (the pane is 30 columns wide, the client's), without what prose
-        # puts around it, and an OSC 8 link, which is how Claude marks its
-        # Markdown links, from its text. A cursor on no link opens nothing, and
-        # word-separators, emptied for the read, is as it was. C-Enter is
-        # pressed through an attached client, as M-t is above. A stand-in
-        # xdg-open records what it is handed; it runs in the background, so
-        # the records are sorted.
+        # C-Enter in copy mode opens the link under the cursor instead, and the
+        # pane stays in copy mode: a URL from any of its characters, the whole
+        # of one that wrapped onto the next line (the pane is 30 columns wide,
+        # the client's), without what prose puts around it, and an OSC 8 link,
+        # which is how Claude marks its Markdown links, from its text. A cursor
+        # on no link opens nothing, and word-separators, emptied for the read,
+        # is as it was. C-Enter is pressed through an attached client, as M-t
+        # is above. A stand-in xdg-open records what it is handed; it runs in
+        # the background, so the records are sorted.
         links=$(
           mkdir "$HOME/bin"
           printf '%s\n' '#!${pkgs.bash}/bin/sh' 'printf "%s\n" "$1" >>"$HOME/opened"' >"$HOME/bin/xdg-open"
@@ -419,23 +417,6 @@ let
         else
           fail "C-Enter in copy mode on no link, then on the URLs a to d and the OSC 8 link e, left '$links', expected 'https://a.example/p https://b.example/q https://c.example/a_(b) https://d.example/0123456789abcdef https://e.example/z separators 1 '"
         fi
-
-        # The plugin binds the key @open-url-key names instead, when that is
-        # set before it runs.
-        rebound=$(
-          PATH=${self}/bin:$PATH
-          fresh
-          tmux start-server \; set -g @open-url-key M-o \; \
-            run-shell ${self}/.config/tmux/plugins/open-url/open-url.tmux \; \
-            list-keys -T copy-mode-vi \; kill-server 2>/dev/null |
-            while read -r _ _ _ key rest; do
-              if [ "$key" = M-o ]; then printf '%s\n' "$rest"; fi
-            done
-        )
-        case "$rebound" in
-          *run-shell*open-url.sh*) ok "the open-url plugin binds the key @open-url-key names" ;;
-          *) fail "with @open-url-key M-o, copy-mode-vi M-o is '$rebound', expected a run-shell of open-url.sh" ;;
-        esac
 
         # Closing a session's last window moves its clients to the previous
         # session, the one left of it in the status bar, instead of detaching.
