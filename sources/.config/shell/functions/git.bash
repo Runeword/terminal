@@ -698,7 +698,10 @@ __git_log() {
   # Enter and the mouse's clicks act on a match only (Enter on the marks too).
   # fzf counts every row, so the info line counts the files instead: matches
   # over TREE_FILES, the commit's files. fzf prints the picked rows' indices,
-  # which tree-quote turns back into paths. _GIT_FZF_BASE's start turns the
+  # one a line, and tree-quote turns the first back into its path from the
+  # repo root, the file Neovim's own gl starts on (see below). Neovim gets no
+  # file to open: gl shows the change alone, and q there quits Neovim, back
+  # to this shell, as a pager would. _GIT_FZF_BASE's start turns the
   # search off (alt-i) before search(!/$): turning it off after would cancel
   # that search. Of several commits, a commit's row is no pick either: the
   # search also requires !^● (see below).
@@ -721,8 +724,7 @@ __git_log() {
     --info-command='printf "%s/%s (%s)" "$FZF_MATCH_COUNT" "$TREE_FILES" "$FZF_SELECT_COUNT"'
   )
 
-  local repo_cdup files
-  repo_cdup="$(git rev-parse --show-cdup)"
+  local files
 
   # Several commits picked: their files in one tree, each commit's under a
   # row of its own, ● (in fzf's pointer colour) with its hash and subject, in
@@ -730,13 +732,14 @@ __git_log() {
   # carries its commit as a second field, before the path: the preview shows
   # a file's change in it, and a commit's row all of it (an empty path). fzf
   # numbers the rows from 0 across the commits and prints the numbers of the
-  # rows picked, one a line; tree-quote gets, for each commit, those of its
-  # own tree, numbered from its first, past the commit's row and the rows of
-  # the commits before it. The files open in Neovim's own gl on all of the
-  # commits (GL_COMMITS), from the first file's (GL_COMMIT).
+  # rows picked, one a line; tree-quote gets the first picked of the first
+  # commit with one, numbered from that commit's own first row, past the
+  # commit's row and the rows of the commits before it. Neovim's own gl opens
+  # on all of the commits (GL_COMMITS), on that file (GL_PATH) in its commit
+  # (GL_COMMIT).
   if [ "${#commits[@]}" -gt 1 ]; then
     local -a groups=()
-    local g h s n off picked w words='' first='' hashes=''
+    local g h s n off picked start hashes=''
     files=0
     while IFS=$'\x1f' read -r h s; do
       n=$(($(git-hunk-pick tree commit "$h" </dev/null | tr -cd '\000' | wc -c)))
@@ -762,28 +765,27 @@ __git_log() {
       h=${g%% *}
       n=${g#* }
       n=${n%% *}
-      w=$(printf '%s\n' "$picked" |
-        awk -v off="$off" -v n="$n" 'BEGIN { ORS = "\0" } $1 > off && $1 <= off + n { print $1 - off - 1 }' |
-        git-hunk-pick tree-quote commit "$h" "$repo_cdup")
-      if [ -n "$w" ]; then
-        [ -n "$first" ] || first=$h
-        words="${words:+$words }$w"
+      start=$(printf '%s\n' "$picked" |
+        awk -v off="$off" -v n="$n" 'BEGIN { ORS = "\0" } $1 > off && $1 <= off + n { print $1 - off - 1; exit }' |
+        git-hunk-pick tree-quote commit "$h")
+      if [ -n "$start" ]; then
+        echo "GL_OPEN=log GL_COMMIT=$h GL_COMMITS='$hashes' GL_PATH=$start $EDITOR"
+        return
       fi
       off=$((off + n + 1))
     done
-    [ "$words" != "" ] && echo "GL_OPEN=log GL_COMMIT=$first GL_COMMITS='$hashes' $EDITOR -- $words"
     return
   fi
 
   files=$(($(git-hunk-pick paths commit "$commit" </dev/null | tr -cd '\000' | wc -c)))
-  local args
-  args=$(git-hunk-pick tree commit "$commit" </dev/null |
-    TREE_FILES=$files fzf --read0 --print0 "${_GIT_FZF_DEFAULT[@]}" "${inline[@]}" "${tree_view[@]}" "${file_preview[@]}" |
-    git-hunk-pick tree-quote commit "$commit" "$repo_cdup")
-  # The files picked open in Neovim's own gl (its gl.nvim, which GL_OPEN
-  # names), on their commit (GL_COMMIT): its files' list, the first file's
-  # change in it shown
-  [ "$args" != "" ] && echo "GL_OPEN=log GL_COMMIT=$commit $EDITOR -- $args"
+  local picked start
+  picked=$(git-hunk-pick tree commit "$commit" </dev/null |
+    TREE_FILES=$files fzf --read0 "${_GIT_FZF_DEFAULT[@]}" "${inline[@]}" "${tree_view[@]}" "${file_preview[@]}")
+  # The file picked (of several, the first) opens in Neovim's own gl (its
+  # gl.nvim, which GL_OPEN names), on its commit (GL_COMMIT): its files'
+  # list, that file's change in it shown (GL_PATH)
+  start=$(printf '%s\0' "${picked%%$'\n'*}" | git-hunk-pick tree-quote commit "$commit")
+  [ "$start" != "" ] && echo "GL_OPEN=log GL_COMMIT=$commit GL_PATH=$start $EDITOR"
 }
 
 __git_install_lefthook() {
