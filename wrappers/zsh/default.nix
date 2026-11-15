@@ -50,50 +50,52 @@ pkgs.symlinkJoin (finalAttrs: {
   '';
 
   # One check per tests/<topic>.sh, a template: its row gives the topic's
-  # description and the store paths its @…@ placeholders stand for, exactly
-  # those, since replaceVars fails on a placeholder left unfilled and on a
-  # path the file doesn't use. The smoke check keeps the wrapper's name.
+  # description and, as replacements, the store paths its @…@ placeholders
+  # stand for: exactly those, since replaceVars fails on a placeholder left
+  # unfilled and on a path the file doesn't use. A check is named
+  # zsh-<topic>, but for the smoke one, whose row names it after the wrapper.
   passthru.tests =
     let
       zsh = finalAttrs.finalPackage;
       topics = {
         smoke = {
+          name = "zsh";
           description = "The wrapper execs the real zsh, and a login shell started through it is one";
-          paths = { inherit zsh; };
+          replacements = { inherit zsh; };
         };
         leader = {
           description = "The leader table renders, the picker reuses its rows and runs each kind of chord with bare redraws, on an empty or a typed line, ol writes the table back only valid and lined up, and Space and Enter keep their widgets in a bare zsh";
-          paths = { inherit zsh leaderAliases; };
+          replacements = { inherit zsh leaderAliases; };
         };
         gcloud = {
           description = "gc's secret › set reads its value silently and hands it to gcloud on stdin, and its project › set sets the project picked in fzf";
-          paths = { inherit zsh leaderAliases; };
+          replacements = { inherit zsh leaderAliases; };
         };
         utilities = {
           description = "yp prints and copies the current directory without a newline";
-          paths = { inherit zsh leaderAliases; };
+          replacements = { inherit zsh leaderAliases; };
         };
         nix = {
           description = "hgr and ngr list every generation but the current one, na deletes the old ones, collects the garbage and refreshes the boot menu, dr reloads direnv, and hs refreshes the home-manager flake's local inputs";
-          paths = {
+          replacements = {
             inherit zsh leaderAliases;
             inherit (pkgs) jq;
           };
         };
         zoxide = {
           description = "zr lists zoxide's directories after their scores, in score order while a query filters them, and removes the ones picked in fzf";
-          paths = {
+          replacements = {
             inherit zsh leaderAliases;
             inherit (pkgs) fzf zoxide;
           };
         };
         go = {
           description = "god names Go dev builds after their go.mod module, and godc clears them";
-          paths = { inherit zsh; };
+          replacements = { inherit zsh; };
         };
         claude = {
           description = "A claude launch provisions its profile, drops what a session planted and runs claude under a lock it names to it, and the connection and microVM pickers, the reviews, the session tools and ca launch what was asked";
-          paths = {
+          replacements = {
             inherit zsh leaderAliases claude;
             inherit (pkgs) jq;
             utilLinux = lib.getBin pkgs.util-linux;
@@ -101,25 +103,25 @@ pkgs.symlinkJoin (finalAttrs: {
         };
         git = {
           description = "The git pickers lay out, search and open their rows, on real repos through the real fzf where it matters, and gpn creates a private GitHub repo only where it can push to it";
-          paths = {
+          replacements = {
             inherit zsh leaderAliases hunkPick;
             inherit (pkgs) git fzf;
           };
         };
         fm = {
           description = "__open_file and __open_recent open what was picked, and Shift+Tab's search lists dotfiles but not .git, previews a file without its escapes and opens several picks as a quickfix list";
-          paths = {
+          replacements = {
             inherit zsh fmQuery;
             inherit (pkgs) ripgrep;
           };
         };
         variables = {
           description = "Every fzf picker leaves f and y to its query, steps j/k by 1 or 5 rows with the search off and switches J/K with it, and forgit's pickers open as the git pickers do";
-          paths = { inherit zsh; };
+          replacements = { inherit zsh; };
         };
         zshrc = {
           description = "The bundled .zshrc binds Shift+Space, Home/End, Shift+Tab, Tab and Alt+H, fires its empty-prompt shortcuts only at the prompt, puts the tools' completions on fpath, and starts with a cache home inherited from elsewhere";
-          paths = {
+          replacements = {
             inherit zsh;
             inherit (pkgs) direnv;
           };
@@ -135,11 +137,14 @@ pkgs.symlinkJoin (finalAttrs: {
       "wrappers/zsh: each tests/<topic>.sh needs a row in topics, and each row its file; without a row: ${toString (lib.subtractLists rows bodies)}; without a file: ${toString (lib.subtractLists bodies rows)}";
     lib.mapAttrs (
       topic:
-      { description, paths }:
+      {
+        name ? "zsh-${topic}",
+        description,
+        replacements,
+      }:
       permeance.tests.mkSmoke {
-        name = if topic == "smoke" then "zsh" else "zsh-${topic}";
-        inherit description;
-        script = ". ${pkgs.replaceVars (./tests + "/${topic}.sh") paths}";
+        inherit name description;
+        script = ". ${pkgs.replaceVars (./tests + "/${topic}.sh") replacements}";
       }
     ) topics
     // {
