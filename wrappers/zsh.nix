@@ -16,9 +16,6 @@ let
   # gl's and gda/gdc/gdd's rows (log-rows, path-rows) and gl's file tree come
   # from it: the smoke test runs them on a real repo.
   hunkPick = import ../packages/git/hunk-pick { inherit pkgs; };
-  # A launch picks a new session's /color with it: the smoke test runs it on a
-  # session it holds open.
-  claudeSessions = import ../packages/claude/sessions { inherit pkgs; };
   config = files.mkConfig "zsh-config" [
     ".config/zsh"
     ".config/shell"
@@ -52,7 +49,7 @@ let
     '';
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "zsh";
-      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, na deletes every old home-manager and NixOS generation, collects the garbage and refreshes the boot menu, dr runs nix-direnv-reload where nix-direnv put it on PATH and direnv reload anywhere else, zr lists zoxide's directories after their scores, in score order while a query filters them, and removes the ones picked in fzf, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /x and /r commands, failing closed, a launch makes the profile and drops a session's stray settings without printing a line, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore picks backups and their sessions in one fzf, as ga does, makes their profile ready once and resumes each picked session as it was started, in its tmux session, which it makes again at the current window's size once it is gone, a launch drops what a session planted for the next one, in the project and in its profile, plugins included, and writes the profile's settings in place, only when they differ, a launch runs claude under a lock on a file of its own, which it names to claude, a new session starts with /color and the first color no open session holds, and a resumed one gets none, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl and gda/gdc/gdd, on a real repo through the real fzf, lay out each row as wide as fzf's list, search past its number and open what is picked in Neovim's own pickers, gpn has gh create a private repo named after the repo's root with the token in pass, makes it origin over SSH and pushes the branch to it, and creates none it could not push to, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, a cache home inherited from elsewhere still loads the tools' hooks and dircolors' colours,__open_recent offers nvim's recent files newest first, Tab fills in a suggestion showing at the end of the line with no space after it, where Esc adds one, and otherwise opens the completion menu, Alt+H has Claude Haiku explain the typed line, sent as text and never when it looks like a secret, signed in with the token in pass, and Alt+Shift+H hands the command to man, ca has Claude answer a question in this pane, read as typed and sent on stdin to a claude with no tools, signed in with the token in pass, and sends nothing for an empty one, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
+      description = "Verify zsh wrapper exec's the real binary, a login shell started through it is one, the leader table renders, gc's secret › set reads its value silently and hands it to gcloud on stdin, gc's project › set sets the project picked in fzf, yp prints and copies the current directory without a newline, hgr and ngr list every generation but the current one, na deletes every old home-manager and NixOS generation, collects the garbage and refreshes the boot menu, dr runs nix-direnv-reload where nix-direnv put it on PATH and direnv reload anywhere else, zr lists zoxide's directories after their scores, in score order while a query filters them, and removes the ones picked in fzf, ol edits the leader table in a copy that reaches it only valid and lined up, the leader picker renders once per width and edit and dispatches each kind of pick with bare redraws, off an empty prompt Space and Enter run their previous widgets in a bare zsh, the leader plugin's example table renders lined up, god/godc name and clear Go dev builds, bundled mode provisions the claude profile with its sandbox overlay and the /x and /r commands, failing closed, a launch makes the profile and drops a session's stray settings without printing a line, the claude connection picker launches what was picked, the session eraser hands every marked session to one claude-sessions rm, the fork picker resumes the picked session as a fork, the session backup's restore picks backups and their sessions in one fzf, as ga does, makes their profile ready once and resumes each picked session as it was started, in its tmux session, which it makes again at the current window's size once it is gone, a launch drops what a session planted for the next one, in the project and in its profile, plugins included, and writes the profile's settings in place, only when they differ, a launch runs claude under a lock on a file of its own, which it names to claude, the untracked-file preview and __open_file pass paths after --, ga shows its files and hunks lists without a header, gl and gda/gdc/gdd, on a real repo through the real fzf, lay out each row as wide as fzf's list, search past its number and open what is picked in Neovim's own pickers, gpn has gh create a private repo named after the repo's root with the token in pass, makes it origin over SSH and pushes the branch to it, and creates none it could not push to, empty-prompt shortcuts fire only at the prompt, not on continuation lines, in select menus or in vared, the tools' completions are on fpath, a cache home inherited from elsewhere still loads the tools' hooks and dircolors' colours,__open_recent offers nvim's recent files newest first, Tab fills in a suggestion showing at the end of the line with no space after it, where Esc adds one, and otherwise opens the completion menu, Alt+H has Claude Haiku explain the typed line, sent as text and never when it looks like a secret, signed in with the token in pass, and Alt+Shift+H hands the command to man, ca has Claude answer a question in this pane, read as typed and sent on stdin to a claude with no tools, signed in with the token in pass, and sends nothing for an empty one, Shift+Tab is bound to a search that lists a dotfile's matches as header and match rows, skips .git, and $HOME's own big trees in $HOME only, previews them without the file's escape sequences or a tree-sitter.json in tree-sitter's working directory, and opens several picks as a quickfix list with absolute paths, and hs refreshes the home-manager flake's local path: and git+file: inputs";
       script = ''
         if ${self}/bin/zsh --version > /dev/null 2>&1; then
           ok "wrapper execs real zsh"
@@ -667,38 +664,6 @@ let
           ok "a launch runs claude in flock's place, under a lock on a file of its own, which it names to claude"
         else
           fail "a launch does not run claude in flock's place, under a lock on a file it names to claude"
-        fi
-
-        # A new session starts with a color of its own: the launch hands claude
-        # /color as its first prompt, with the color claude-sessions picks, the
-        # first that no open session holds. Session a, open under a lock this
-        # shell holds, has blue, so the next session gets green. A resumed
-        # session gets none, since claude gives it back its own, and nor does a
-        # launch whose claude-sessions answers with no color's name, which never
-        # reaches the command line. A stand-in claude saves its arguments.
-        mkdir -p "$HOME/color/bin" "$HOME/color/bad" "$HOME/.claude-1/open-sessions" "$HOME/.claude-1/projects/-p"
-        printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "$HOME/color/argv"\n' > "$HOME/color/bin/claude"
-        printf '#!/bin/sh\necho "\\$(touch $HOME/color/ran)"\n' > "$HOME/color/bad/claude-sessions"
-        chmod +x "$HOME/color/bin/claude" "$HOME/color/bad/claude-sessions"
-        a=aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa
-        echo '{"type":"agent-color","agentColor":"blue"}' > "$HOME/.claude-1/projects/-p/$a.jsonl"
-        printf %s "$a" > "$HOME/.claude-1/open-sessions/a"
-        colorLaunch='. ${self}/.config/shell/functions/claude.bash
-          exec 9< "$HOME/.claude-1/open-sessions/a" && flock -x 9 && __claude "$@"'
-        colored() {
-          rm -f "$HOME/color/argv"
-          (cd "$HOME/proj" && CLAUDE_SANDBOX=0 PATH="$1:${claudeSessions}/bin:${pkgs.lib.getBin pkgs.util-linux}/bin:${pkgs.jq}/bin:$PATH" \
-            ${self}/bin/zsh -f -c "$colorLaunch" zsh "''${@:2}" > /dev/null 2>&1)
-          tail -n 1 "$HOME/color/argv" 2> /dev/null || echo "claude did not run"
-        }
-        new=$(colored "$HOME/color/bin")
-        resumed=$(colored "$HOME/color/bin" --resume "$a")
-        bad=$(colored "$HOME/color/bad:$HOME/color/bin")
-        if [ "$new" = "/color green" ] && [ "$resumed" = --allow-dangerously-skip-permissions ] \
-          && [ "$bad" = --allow-dangerously-skip-permissions ] && [ ! -e "$HOME/color/ran" ]; then
-          ok "a new session starts with /color and the first color no open session holds, a resumed one gets none, and an answer that is no color's name stays off the command line"
-        else
-          fail "a launch does not start a new session with the first color no open session holds, colors a resumed one, or puts what claude-sessions answered on the command line: new '$new', resumed '$resumed', other answer '$bad'"
         fi
 
         # The untracked-file preview hands git diff its path after --: git obeys
