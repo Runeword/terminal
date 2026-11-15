@@ -76,7 +76,7 @@ with pkgs;
 
   # _______________________________ Nix
   # nix-prefetch-docker
-  # nix-search-tv
+  nix-search-tv # nixpkgs search for the np, npr and nps chords
   # nix-init
   # nix-update
   cachix
