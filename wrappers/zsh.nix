@@ -703,9 +703,10 @@ let
         # empty commit has no change. The search finds a commit by its
         # subject, past its number, and fzf hands on its hash; the file step
         # lists the commit's files as tree rows, and tree-quote turns the row
-        # picked back into its path, which opens in Neovim's own gl on its
-        # commit (GL_OPEN=log, GL_COMMIT). fzf is the real one, filtering for
-        # zebra among the commits and for f8 among the files.
+        # picked back into its path from the repo root, which Neovim's own gl
+        # starts on, on its commit (GL_OPEN=log, GL_COMMIT, GL_PATH), with no
+        # file for Neovim to open. fzf is the real one, filtering for zebra
+        # among the commits and for f8 among the files.
         mkdir -p "$HOME/gl" && (
           cd "$HOME/gl" || exit 1
           export GIT_CONFIG_NOSYSTEM=1 GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=a@x GIT_COMMITTER_NAME=a GIT_COMMITTER_EMAIL=a@x
@@ -724,47 +725,50 @@ let
           fzf() { case "$*" in *"--accept-nth={n}"*) f=tree q=f8 ;; *) f=log q=zebra ;; esac; tee "$HOME/gl-$f" | ${pkgs.fzf}/bin/fzf --filter=$q "$@"; }
           COLUMNS=60 EDITOR=ed __git_log'
         gl_head=$(cd "$HOME/gl" && ${pkgs.git}/bin/git rev-parse --short HEAD)
-        if [ "$(cd "$HOME/gl" && PATH=${hunkPick}/bin:${pkgs.git}/bin:$PATH TZ=UTC ${self}/bin/zsh -f -c "$gl")" = "GL_OPEN=log GL_COMMIT=$gl_head ed -- 'f8'" ] \
+        if [ "$(cd "$HOME/gl" && PATH=${hunkPick}/bin:${pkgs.git}/bin:$PATH TZ=UTC ${self}/bin/zsh -f -c "$gl")" = "GL_OPEN=log GL_COMMIT=$gl_head GL_PATH='f8' ed" ] \
           && [ "$(sed 's/\x1b\[[0-9;]*m//g' "$HOME/gl-log" | awk -F '\037' '{ print length($1 " " $6 $3 $4 $2) }' | sort -u)" = 57 ] \
           && awk -F '\037' -v red="$(printf '\33[1;38;2;168;77;95m-\33[0m ')" -v green="$(printf '\33[1;38;2;47;143;83m+\33[0m ')" '
             NR == 1 && $1 == " 1" && $2 == "a, 2 minutes ago" && $4 ~ /^ zebra +$/ && $6 == red { n++ }
             NR == 2 && $1 == " 2" && $4 ~ /^ Empty +$/ && $6 == "  " { n++ }
             NR == 10 && $1 == "10" && $2 == "a, 23-11-14 22:13" && $4 ~ /^ f1 +$/ && $6 == green { n++ }
             END { exit !(n == 3 && NR == 10) }' "$HOME/gl-log"; then
-          ok "gl, on a real repo through the real fzf, lists commits numbered from 1, right-aligned and unsearched, each row as wide as fzf's list, their change in its colour in place of the verb it stands for and their author and date flush right, the date how long ago a commit of the last hour was made and an older one's date and time, and opens the file picked in its commit's tree in Neovim's own gl, on that commit"
+          ok "gl, on a real repo through the real fzf, lists commits numbered from 1, right-aligned and unsearched, each row as wide as fzf's list, their change in its colour in place of the verb it stands for and their author and date flush right, the date how long ago a commit of the last hour was made and an older one's date and time, and starts Neovim's own gl on the file picked in its commit's tree, on that commit, without opening the file"
         else
-          fail "gl, on a real repo through the real fzf, lists commits without their right-aligned number from 1, searches it, makes a row other than as wide as fzf's list, shows a change other than in its colour in place of its verb, dates a commit other than by how long ago (last hour) or its date and time, or does not open the file picked in its commit's tree in Neovim's own gl, on that commit"
+          fail "gl, on a real repo through the real fzf, lists commits without their right-aligned number from 1, searches it, makes a row other than as wide as fzf's list, shows a change other than in its colour in place of its verb, dates a commit other than by how long ago (last hour) or its date and time, or does not start Neovim's own gl on the file picked in its commit's tree, on that commit, without opening the file"
         fi
 
         # Given a commit, as Neovim's gl (gl.nvim) runs it on the one picked
-        # here, gl lists that commit's files alone: the stand-in fzf picks a
-        # row of them only, and another commit from a list of commits.
+        # here, gl lists that commit's files alone: the stand-in fzf picks two
+        # rows of them only, and another commit from a list of commits.
+        # Neovim's gl starts on the first, by its path from the repo root
+        # (tree-quote has no ../ to put before it, wherever gl runs).
         glc='. ${self}/.config/shell/functions/git.bash
           git() { case $1 in log) echo commit ;; rev-parse) case $2 in --show-cdup) echo ../ ;; --verify) [ "$*" != "rev-parse --verify --quiet --short abc^{commit}" ] || echo abc ;; esac ;; esac; }
           git-hunk-pick() { case $1 in tree) printf "%s\0" "$*" ;; paths) printf "x\0" ;; tree-quote) printf "%s<%s" "$*" "$(tr "\0" ,)" ;; esac; }
-          fzf() { case "$*" in *"--accept-nth={n}"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\0" ;; *) echo def ;; esac; }
+          fzf() { case "$*" in *"--accept-nth={n}"*) [ "$(tr "\0" "\n")" = "tree commit abc" ] && printf "4\n6\n" ;; *) echo def ;; esac; }
           EDITOR=ed __git_log abc'
-        if [ "$(${self}/bin/zsh -f -c "$glc")" = "GL_OPEN=log GL_COMMIT=abc ed -- tree-quote commit abc ../<4," ]; then
-          ok "gl given a commit (Neovim's gl, on the one picked) lists that commit's files alone"
+        if [ "$(${self}/bin/zsh -f -c "$glc")" = "GL_OPEN=log GL_COMMIT=abc GL_PATH=tree-quote commit abc<4, ed" ]; then
+          ok "gl given a commit (Neovim's gl, on the one picked) lists that commit's files alone, and starts Neovim's gl on the first file picked, by its path from the repo root"
         else
-          fail "gl given a commit lists the commits first, or the files of another"
+          fail "gl given a commit lists the commits first, or the files of another, or starts Neovim's gl on a file other than the first picked, or by a path other than from the repo root"
         fi
 
         # Commits marked with Tab (--multi): their files in one list, each
         # commit's tree under a row of its own that no search matches (!^●),
-        # and tree-quote gets each commit's picks numbered from its own first
-        # row, past the rows before it (the stand-in picks the second and the
-        # fourth); the files open in Neovim's own gl on all of the commits
-        # (GL_COMMITS), from the first file's (GL_COMMIT).
+        # and tree-quote gets the first pick of the first commit with one,
+        # numbered from that commit's own first row, past the rows before it
+        # (the stand-in picks the second and the fourth): Neovim's own gl
+        # starts on all of the commits (GL_COMMITS), on that file (GL_PATH) in
+        # its commit (GL_COMMIT).
         glm='. ${self}/.config/shell/functions/git.bash
           git() { case $1 in log) [ "$2" != --no-walk ] || printf "abc\37A\ndef\37D\n" ;; rev-parse) echo ../ ;; esac; }
           git-hunk-pick() { case $1 in tree) printf "t\37%s\0" "$3" ;; paths) printf "x\0" ;; tree-quote) printf "%s<%s" "$3" "$(tr "\0" ,)" ;; esac; }
           fzf() { case "$*" in *"search(!/\$ !^●)"*) cat >/dev/null; printf "1\n3\n" ;; *--multi*) printf "abc\ndef\n" ;; esac; }
           EDITOR=ed __git_log'
-        if [ "$(${self}/bin/zsh -f -c "$glm")" = "GL_OPEN=log GL_COMMIT=abc GL_COMMITS='abc def' ed -- abc<0, def<0," ]; then
-          ok "gl lists the files of the commits marked with Tab in one list, a row over each commit's, and opens those picked in Neovim's own gl on all of the commits"
+        if [ "$(${self}/bin/zsh -f -c "$glm")" = "GL_OPEN=log GL_COMMIT=abc GL_COMMITS='abc def' GL_PATH=abc<0, ed" ]; then
+          ok "gl lists the files of the commits marked with Tab in one list, a row over each commit's, and starts Neovim's own gl on all of the commits, on the first file picked"
         else
-          fail "gl takes one commit only, or lists the files of several without a row over each that no search matches, or opens them other than in Neovim's own gl on all of the commits"
+          fail "gl takes one commit only, or lists the files of several without a row over each that no search matches, or starts Neovim's own gl other than on all of the commits, on the first file picked"
         fi
 
         # gda, gdc and gdd (__git_diff), on a real repo through the real
@@ -894,11 +898,11 @@ let
         # the commit the line names is one.)
         glw='. ${self}/.config/shell/functions/git.bash
           git() { [ "$1" != log ] || printf "\36abc subject\n"; }
-          git-hunk-pick() { case $1 in log-rows) echo abc ;; tree) echo row ;; tree-quote) cat ;; esac; }
+          git-hunk-pick() { case $1 in log-rows) echo abc ;; tree) echo row ;; tree-quote) tr -d "\0" ;; esac; }
           fzf() { case "$*" in *"--prompt=two% --no-bold --color=query:bold --no-clear --sync"*) head -n 1 ;; esac; }
           WIDGET=leader PS1=$(print "one\ntwo%%") EDITOR=ed __git_log'
         case "$(${self}/bin/zsh -f -c "$glw")" in
-          "GL_OPEN=log GL_COMMIT="*" ed -- row")
+          "GL_OPEN=log GL_COMMIT="*" GL_PATH=row ed")
             ok "gl run from the leader takes the prompt's line for its input, without blanking it as its steps start"
             ;;
           *) fail "gl run from the leader opens its input under the prompt's line, or blanks that line as its steps start" ;;
@@ -911,7 +915,7 @@ let
         # glm's, with an fzf that picks only when handed that binding.
         gljk='. ${self}/.config/shell/functions/git.bash
           git() { :; }
-          git-hunk-pick() { case $1 in log-rows) echo abc ;; tree) echo row ;; tree-quote) cat ;; esac; }
+          git-hunk-pick() { case $1 in log-rows) echo abc ;; tree) echo row ;; tree-quote) tr -d "\0" ;; esac; }
           fzf() { case "$*" in *"--bind J:preview-down+preview-down,K:preview-up+preview-up"*) head -n 1 ;; esac; }
           EDITOR=ed __git_log'
         gljkm='. ${self}/.config/shell/functions/git.bash
@@ -919,8 +923,8 @@ let
           git-hunk-pick() { case $1 in tree) printf "t\37%s\0" "$3" ;; paths) printf "x\0" ;; tree-quote) printf "%s<%s" "$3" "$(tr "\0" ,)" ;; esac; }
           fzf() { case "$*" in *"--bind J:preview-down+preview-down,K:preview-up+preview-up"*) ;; *) return ;; esac; case "$*" in *"search(!/\$ !^●)"*) cat >/dev/null; printf "1\n3\n" ;; *--multi*) printf "abc\ndef\n" ;; esac; }
           EDITOR=ed __git_log'
-        if [ "$(${self}/bin/zsh -f -c "$gljk")" = "GL_OPEN=log GL_COMMIT=abc ed -- row" ] \
-          && [ "$(${self}/bin/zsh -f -c "$gljkm")" = "GL_OPEN=log GL_COMMIT=abc GL_COMMITS='abc def' ed -- abc<0, def<0," ]; then
+        if [ "$(${self}/bin/zsh -f -c "$gljk")" = "GL_OPEN=log GL_COMMIT=abc GL_PATH=row ed" ] \
+          && [ "$(${self}/bin/zsh -f -c "$gljkm")" = "GL_OPEN=log GL_COMMIT=abc GL_COMMITS='abc def' GL_PATH=abc<0, ed" ]; then
           ok "with the search off, J/K scroll the preview of each of gl's steps down and up 2 lines: its commits', then their files', of one commit or of several"
         else
           fail "J/K do not scroll the preview of one of gl's steps: its commits', or their files', of one commit or of several"
