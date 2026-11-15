@@ -23,6 +23,89 @@ let
       target = ".config/tmux/plugins/resurrect";
     }
   ];
+  # For the smoke test's readline check: reads `bind -p` and prints each key
+  # readline binds by default as tmux names it, with the readline commands on
+  # it: <key><TAB><command>[, <command>…]. A sequence of several keys
+  # (\C-x\C-e) counts as its first key, the one a root binding would take. A
+  # sequence it can't name fails it, so a new kind of default can't slip by.
+  readlineKeys = pkgs.writeText "readline-keys.awk" ''
+    function bad(s) {
+      printf "readline key %s: no tmux name for it\n", s > "/dev/stderr"
+      failed = 1
+      return ""
+    }
+    # \C-<c>
+    function ctrl(c) {
+      if (c == "@") return "C-Space"
+      if (c == "i") return "Tab"
+      if (c == "m") return "Enter"
+      if (c == "?") return "BSpace"
+      return "C-" c
+    }
+    # A terminal key, \eO<x> or \e[<params><x>, with xterm's modifiers:
+    # \e[1;<m><x> and \e[<n>;<m>~, m - 1 summing 1 Shift, 2 Meta and 4 Ctrl.
+    function term(s,    p, x, n, m, name) {
+      p = substr(s, 4, length(s) - 4)
+      x = substr(s, length(s))
+      n = p
+      m = 1
+      if (index(p, ";")) {
+        n = substr(p, 1, index(p, ";") - 1)
+        m = substr(p, index(p, ";") + 1)
+      }
+      if (x == "~") {
+        if (n == 200) return "" # bracketed paste, not a key
+        if (n == 1 || n == 7) name = "Home"
+        else if (n == 2) name = "IC"
+        else if (n == 3) name = "DC"
+        else if (n == 4 || n == 8) name = "End"
+        else if (n == 5) name = "PPage"
+        else if (n == 6) name = "NPage"
+      } else if (n == "" || n == 1) {
+        if (x == "A") name = "Up"
+        else if (x == "B") name = "Down"
+        else if (x == "C") name = "Right"
+        else if (x == "D") name = "Left"
+        else if (x == "H") name = "Home"
+        else if (x == "F") name = "End"
+      }
+      if (name == "" || m !~ /^[1-8]$/) return bad(s)
+      m--
+      return (m >= 4 ? "C-" : "") (m % 4 >= 2 ? "M-" : "") (m % 2 ? "S-" : "") name
+    }
+    function key(s,    r) {
+      if (s ~ /^\\C-./) return ctrl(substr(s, 4, 1))
+      if (s !~ /^\\e./) return bad(s)
+      r = substr(s, 3)
+      if (r ~ /^[[O]./) return term(s)
+      if (r ~ /^\\C-.$/) {
+        r = ctrl(substr(r, 4))
+        return r ~ /^C-/ ? "C-M-" substr(r, 3) : "M-" r
+      }
+      if (r == "\\e") return "M-Escape"
+      if (r == "\\\\" || r == "\\\"") return "M-" substr(r, 2)
+      if (r == " ") return "M-Space"
+      if (length(r) == 1) return "M-" r
+      return bad(s)
+    }
+    /^"/ {
+      i = index($0, "\": ")
+      command = substr($0, i + 3)
+      if (command == "self-insert" || command == "do-lowercase-version") next
+      k = key(substr($0, 2, i - 2))
+      if (k == "") next
+      if (!(k in commands)) {
+        keys[++count] = k
+        commands[k] = command
+      } else if (index(", " commands[k] ", ", ", " command ", ") == 0) {
+        commands[k] = commands[k] ", " command
+      }
+    }
+    END {
+      for (j = 1; j <= count; j++) print keys[j] "\t" commands[keys[j]]
+      exit failed
+    }
+  '';
   self = pkgs.symlinkJoin {
     name = "tmux-with-config";
     paths = [
@@ -43,7 +126,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, takes none of readline's default keys but those it means to, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # Each $(…) below runs its tmux server in a socket directory of its
         # own (fresh): kill-server returns before the server has exited, and a
@@ -222,6 +305,59 @@ let
           *) fail "M-h|M-V are '$below'" ;;
         esac
 
+        # Readline's default keys (bash's, read with no inputrc) that a root
+        # binding takes: a program reading its input with readline (bash,
+        # python, psql…) can't get them inside tmux. readlineKeys names each
+        # as tmux does, and tmux, binding them in a table of their own, prints
+        # them as it prints the root table's. Taken on purpose, with what
+        # readline loses on each:
+        #   M-0…M-9  session <n>       digit-argument
+        #   M-Tab    next session      dynamic-complete-history
+        #   M-n      new session       non-incremental-forward-search-history
+        #   M-r      reload tmux.conf  revert-line
+        #   M-t      new window        transpose-words
+        # A key newly taken fails: move its binding, or add the key here with
+        # what readline loses. So does a key here that tmux no longer takes,
+        # so that the list stays the keys readline goes without.
+        taken_on_purpose="M-0 M-1 M-2 M-3 M-4 M-5 M-6 M-7 M-8 M-9 M-Tab M-n M-r M-t"
+        if readline=$(env -i TERM=tmux-256color INPUTRC=/dev/null ${pkgs.bashInteractive}/bin/bash --norc --noprofile -c 'bind -p' 2>/dev/null | awk -f ${readlineKeys}) && [ -n "$readline" ]; then
+          binds=()
+          while IFS=$'\t' read -r key commands; do
+            binds+=(bind -T readline "$key" display-message "$commands" ';')
+          done <<<"$readline"
+          if listed=$(fresh; ${self}/bin/tmux start-server \; "''${binds[@]}" list-keys -T readline \; list-keys -T root \; kill-server 2>&1); then
+            report=$(printf '%s\n' "$listed" | awk -v expected="$taken_on_purpose" '
+              function add(s) { report = report (report == "" ? "" : "; ") s }
+              $1 == "bind-key" {
+                i = $2 == "-r" ? 3 : 2
+                if ($(i + 1) == "readline") {
+                  c = $0
+                  sub(/.* display-message /, "", c)
+                  gsub(/^"|"$/, "", c)
+                  readline[$(i + 2)] = c
+                } else if ($(i + 1) == "root") root[$(i + 2)] = 1
+              }
+              END {
+                n = split(expected, e, " ")
+                for (j = 1; j <= n; j++) {
+                  want[e[j]] = 1
+                  if (!(e[j] in readline && e[j] in root)) add(e[j] " is not taken")
+                }
+                for (k in readline) if (k in root && !(k in want)) add(k " (" readline[k] ") is taken")
+                print report
+              }')
+            if [ -z "$report" ]; then
+              ok "readline keeps its default keys in tmux, but for $taken_on_purpose"
+            else
+              fail "readline keys taken by root bindings differ from taken_on_purpose: $report"
+            fi
+          else
+            fail "tmux can't bind readline's keys: $listed"
+          fi
+        else
+          fail "readline's default keys: bind -p printed none, or one readlineKeys can't name (above)"
+        fi
+
         # C-S-<n> with no window <n> moves the current window right after the
         # last one, rather than opening a new window at <n>. The binding is
         # tmux alone, so source its commands into a server: list-keys joins
@@ -338,10 +474,10 @@ let
 
         # Next and previous session go in the bar's order, by number, not by
         # name as text (1 10 2 …): from 9, M-Tab, C-`, C-S-Enter, M-BTab,
-        # C-Space, C-Enter and C-S-` (Alacritty sends Ctrl+` / Ctrl+~ as CSI-u
-        # C-` / C-S-`) go to 10 1 10 9 10 1 10. And a client whose session
-        # closes goes to the one before it by number: closing 2 lands on 1,
-        # where detach-on-destroy picks 10.
+        # C-Enter and C-S-` (Alacritty sends Ctrl+` / Ctrl+~ as CSI-u C-` /
+        # C-S-`) go to 10 1 10 9 10 9. And a client whose session closes goes
+        # to the one before it by number: closing 2 lands on 1, where
+        # detach-on-destroy picks 10.
         cycle=$(
           PATH=${self}/bin:$PATH
           fresh
@@ -350,7 +486,7 @@ let
           ${pkgs.tmux}/bin/tmux -L outer -f /dev/null new-session -d 'env -u TMUX tmux attach -t =9'
           timeout 10 tmux wait-for attached
           client=$(tmux list-clients -F '#{client_name}')
-          for key in M-Tab 'C-`' C-S-Enter M-BTab C-Space C-Enter 'C-S-`'; do
+          for key in M-Tab 'C-`' C-S-Enter M-BTab C-Enter 'C-S-`'; do
             tmux send-keys -K -c "$client" "$key"
             tmux list-clients -F '#S'
           done
@@ -364,10 +500,10 @@ let
           tmux kill-server
         ) || true
         cycle=$(printf '%s\n' "$cycle" | tr '\n' ' ')
-        if [ "$cycle" = "10 1 10 9 10 1 10 1 " ]; then
+        if [ "$cycle" = "10 1 10 9 10 9 1 " ]; then
           ok "next and previous session go by number, from 9 to 10, and closing a session lands on the one before it by number"
         else
-          fail "from 9 of 10 sessions, M-Tab C-\` C-S-Enter M-BTab C-Space C-Enter C-S-\`, then closing 2, left '$cycle', expected '10 1 10 9 10 1 10 1 '"
+          fail "from 9 of 10 sessions, M-Tab C-\` C-S-Enter M-BTab C-Enter C-S-\`, then closing 2, left '$cycle', expected '10 1 10 9 10 9 1 '"
         fi
 
         # C-Enter in copy mode opens the link under the cursor instead, and the
