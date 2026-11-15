@@ -86,6 +86,18 @@ __flake_referrers() {
   nix-store --query --referrers $(nix path-info . --json | jq -r '.[].path')
 }
 
+# Reloads the direnv environment. Under direnvrc's manual-reload mode, `direnv
+# reload` only loads a flake's cached devshell again, so where nix-direnv has
+# put its reload script on PATH (from .direnv/bin), that runs instead: it
+# rebuilds the cache, then has direnv reload. Anywhere else, direnv reload.
+__direnv_reload() {
+  if command -v nix-direnv-reload >/dev/null 2>&1; then
+    nix-direnv-reload
+  else
+    direnv reload
+  fi
+}
+
 # Updates the local inputs (path: and git+file:) of the home-manager flake,
 # then switches
 __home_manager_switch() {
