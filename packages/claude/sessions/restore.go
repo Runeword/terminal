@@ -195,7 +195,10 @@ func (r restorer) start(notes io.Writer, h host, dir string, now time.Time) erro
 // openSessionIDs is the sessions open now: those a held lock names or a
 // running claude has. It says on notes when it can't look for the claudes.
 func openSessionIDs(notes io.Writer, h host, now time.Time) map[string]bool {
-	open := openByLock(h.home, now)
+	open := map[string]bool{}
+	for id := range openByLock(h.home, now) {
+		open[id] = true
+	}
 	_, found, err := h.claudes()
 	if err != nil {
 		_, _ = fmt.Fprintf(notes, "claude-sessions: %v; a session still open would be started twice\n", err)
