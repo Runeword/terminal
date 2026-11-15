@@ -148,7 +148,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, takes none of zsh's default keys but those it means to, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, gives each session a color of its own, which a line atop every pane, a lone one too, is drawn in, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, takes none of zsh's default keys but those it means to, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, gives each session a color of its own, which a line under the session numbers is drawn in, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # Each $(…) below runs its tmux server in a socket directory of its
         # own (fresh): kill-server returns before the server has exited, and a
@@ -508,18 +508,18 @@ let
         # holds, and keeps it as the sessions renumber: closing 2 of 1 2 3
         # frees the second color for the next new session. A ninth session
         # gets none, until a closing session frees one, and M-r colors the
-        # sessions with none or with one @colors lacks. A lone pane gets a
-        # line on its top border, under the bar, with no text in it, drawn in
-        # the color of the session the client is on, and in the border's
-        # indigo for a session with none. A color shows as its place in
-        # @colors, - for none or for one not in @colors. The client draws
-        # UTF-8 (-u) and 24-bit color (-T RGB), as Alacritty takes them, and
-        # each ─ of the line shows as a -.
+        # sessions with none or with one @colors lacks. The bar's second line
+        # is a line under the session numbers, as long as they are (1 to 9
+        # are 25 columns, 1 to 8 are 22), in the color of the session the
+        # client is on, and in the bar's grey for one with none. A color
+        # shows as its place in @colors, - for none or for one not in
+        # @colors. The client draws UTF-8 (-u) and 24-bit color (-T RGB), as
+        # Alacritty takes them, and each ─ of the line shows as a -.
         colors=$(
           PATH=${self}/bin:$PATH
           fresh
           tmux new-session -d -s 1 sleep 60 \; set-hook -g client-attached 'wait-for -S attached'
-          ${pkgs.tmux}/bin/tmux -L outer -f /dev/null new-session -d -x 20 -y 5 'env -u TMUX tmux -u -T RGB attach -t =1'
+          ${pkgs.tmux}/bin/tmux -L outer -f /dev/null new-session -d -x 40 -y 5 'env -u TMUX tmux -u -T RGB attach -t =1'
           timeout 10 tmux wait-for attached
           client=$(tmux list-clients -F '#{client_name}')
           palette=$(tmux show -gv @colors)
@@ -544,7 +544,7 @@ let
           held
           for n in 4 5 6 7 8 9; do tmux new-session -d -s "$n" sleep 60; done
           held
-          # The client's second row, the line under the bar: the colors it is
+          # The bar's second line, as the client draws it: the colors it is
           # drawn in, then its text.
           line() {
             ${pkgs.tmux}/bin/tmux -L outer -u capture-pane -e -p -S 1 -E 1 | awk -v p="$palette" '
@@ -562,22 +562,24 @@ let
                 print " " $0
               }'
           }
-          # on <session> <want>: switch the client there, and wait up to 5 s
-          # for the line to be <want>.
-          on() {
-            tmux switch-client -c "$client" -t "=$1"
+          # drawn <want>: wait up to 5 s for the line to be <want>.
+          drawn() {
             for _ in $(seq 50); do
-              [ "$(line)" = "$2" ] && break
+              [ "$(line)" = "$1" ] && break
               sleep 0.1
             done
             line
           }
-          on 1 "1 --------------------"
-          on 2 "3 --------------------"
-          on 9 "- --------------------"
+          for at in "1 1" "2 3" "9 -"; do
+            tmux switch-client -c "$client" -t "=''${at% *}"
+            drawn "''${at#* } -------------------------"
+          done
+          # The client, on 9, stays on it as it is renumbered 8, and it takes
+          # the color 4 frees.
           tmux kill-session -t =4
           names "1 2 3 4 5 6 7 8 "
           held
+          drawn "4 ----------------------"
           tmux set -u -t =2: @color \; set -t =3: @color '#000000'
           tmux send-keys -K -c "$client" M-r
           held
@@ -585,11 +587,11 @@ let
           tmux kill-server
         ) || true
         colors=$(printf '%s\n' "$colors" | tr '\n' '|')
-        expected='1:1 2:3 3:2 |1:1 2:3 3:2 4:4 5:5 6:6 7:7 8:8 9:- |1 --------------------|3 --------------------|- --------------------|1:1 2:3 3:2 4:5 5:6 6:7 7:8 8:4 |1:1 2:2 3:3 4:5 5:6 6:7 7:8 8:4 |'
+        expected='1:1 2:3 3:2 |1:1 2:3 3:2 4:4 5:5 6:6 7:7 8:8 9:- |1 -------------------------|3 -------------------------|- -------------------------|1:1 2:3 3:2 4:5 5:6 6:7 7:8 8:4 |4 ----------------------|1:1 2:2 3:3 4:5 5:6 6:7 7:8 8:4 |'
         if [ "$colors" = "$expected" ]; then
-          ok "each session gets a color of its own, kept as the sessions renumber, past eight once one frees, and on M-r if it has none; a line atop every pane, a lone one too, is drawn in it"
+          ok "each session gets a color of its own, kept as the sessions renumber, past eight once one frees, and on M-r if it has none; a line under the session numbers, as long as they are, is drawn in the client's"
         else
-          fail "the colors of sessions 1 2 3 after closing 2 and opening 3, then of 9 sessions, the line under the bar of a client on 1, 2 and 9, the colors after closing 4, and after M-r with 2's unset and 3's not in @colors, are '$colors', expected '$expected'"
+          fail "the colors of sessions 1 2 3 after closing 2 and opening 3, then of 9 sessions, the bar's second line on a client on 1, 2 and 9, the colors after closing 4 and that line, and the colors after M-r with 2's unset and 3's not in @colors, are '$colors', expected '$expected'"
         fi
 
         # Next and previous session go in the bar's order, by number, not by
