@@ -107,7 +107,7 @@ func TestOpenByLock(t *testing.T) {
 	if err := syscall.Mkfifo(filepath.Join(one, openDir, "fifo"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := openByLock(home, now), map[string]bool{idA: true, idB: true}; !reflect.DeepEqual(got, want) {
+	if got, want := openByLock(home, now), map[string]string{idA: one, idB: two}; !reflect.DeepEqual(got, want) {
 		t.Errorf("openByLock = %v, want %v", got, want)
 	}
 	if _, err := os.Stat(ended); !errors.Is(err, os.ErrNotExist) {
