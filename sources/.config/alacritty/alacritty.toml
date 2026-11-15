@@ -25,6 +25,14 @@ bold_italic = { family = "MonaspiceRn Nerd Font", style = "Italic" }
 # italic      = { family = "MonaspiceRn Nerd Font", style = "Light Italic" }
 italic = { family = "CaskaydiaMono Nerd Font", style = "Light Italic" }
 normal = { family = "SauceCodePro Nerd Font", style = "Regular" }
+# offset.y's extra line spacing goes above the text, which sits at the bottom
+# of its row; lifting the text by as much puts it in the middle, still inside
+# the row. Underlines, which Alacritty places from the row's bottom whatever
+# the glyph offset, then clear the tails of g, p and y (Source Code Pro's go
+# 4.8 px down at 16 pt, and the underline starts 1 px below the baseline): the
+# tmux window list's underline is drawn in its session's color. Box drawing,
+# which Alacritty draws itself, ignores it. Keep the two y offsets equal.
+glyph_offset = { x = 0, y = 5 }
 
 [selection]
 save_to_clipboard = true
