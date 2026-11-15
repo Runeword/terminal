@@ -110,26 +110,36 @@
 
           devShells.default = devShell;
 
-          checks = (pkgs.lib.mapAttrs (_: drv: drv.passthru.tests.smoke) wrappers) // {
-            alacritty = terminal.passthru.tests.smoke;
-            unit-tests =
-              let
-                failures = pkgs.lib.runTests unitTests;
-              in
-              pkgs.runCommand "unit-tests"
-                {
-                  passthru.failures = failures;
-                }
-                (
-                  if failures == [ ] then
-                    "touch $out"
-                  else
-                    ''
-                      echo ${pkgs.lib.escapeShellArg (builtins.toJSON failures)} >&2
-                      exit 1
-                    ''
-                );
-          };
+          # Every wrapper test is a check: smoke under the wrapper's own name,
+          # any other as <wrapper>-<test> (zsh's topics, wrappers/zsh/default.nix).
+          checks =
+            pkgs.lib.concatMapAttrs (
+              wrapper: drv:
+              pkgs.lib.mapAttrs' (
+                test: check:
+                pkgs.lib.nameValuePair (if test == "smoke" then wrapper else "${wrapper}-${test}") check
+              ) drv.passthru.tests
+            ) wrappers
+            // {
+              alacritty = terminal.passthru.tests.smoke;
+              unit-tests =
+                let
+                  failures = pkgs.lib.runTests unitTests;
+                in
+                pkgs.runCommand "unit-tests"
+                  {
+                    passthru.failures = failures;
+                  }
+                  (
+                    if failures == [ ] then
+                      "touch $out"
+                    else
+                      ''
+                        echo ${pkgs.lib.escapeShellArg (builtins.toJSON failures)} >&2
+                        exit 1
+                      ''
+                  );
+            };
         }
       )
     // {
