@@ -488,6 +488,40 @@ __claude_vm() {
   __claude "$@"
 }
 
+# A quick question (leader ca), answered in this pane. vared reads it on a line
+# of its own, as text the shell never parses, so quotes, $ and ? reach claude
+# as typed, and on stdin, where a leading - is not taken for an option; an
+# empty question sends nothing. claude runs as Alt+H's does (.zshrc): on the
+# host, with no tools, nothing saved, the host's profile and only the user's
+# settings, so a repository's settings can't redirect the call, signed in with
+# pass's claude/oauth-token (a token from `claude setup-token`, or a Console API
+# key), which reaches this call's environment alone. Haiku at low effort, so
+# the answer comes in seconds.
+__claude_ask() {
+  local question="" cred name rules
+  vared -p 'claude › ' question || return 0
+  [ -n "$question" ] || return 0
+  cred=$(pass show claude/oauth-token) || return 1
+  cred=${cred%%$'\n'*}
+  case $cred in
+    sk-ant-oat?*) name=CLAUDE_CODE_OAUTH_TOKEN ;;
+    sk-ant-api?*) name=ANTHROPIC_API_KEY ;;
+    *)
+      echo "claude: the pass entry claude/oauth-token holds no token" >&2
+      return 1
+      ;;
+  esac
+  rules="You answer a question typed at a zsh prompt on $OSTYPE. Answer briefly, in plain text that reads well in a terminal: no Markdown, and each command on a line of its own."
+  (
+    unset CLAUDE_CONFIG_DIR
+    export "$name=$cred"
+    printf '%s\n' "$question" |
+      command claude -p --safe-mode --model haiku --effort low --tools '' \
+        --strict-mcp-config --no-session-persistence --setting-sources user \
+        --system-prompt "$rules"
+  )
+}
+
 # /review paid by the Max plan's monthly API credits, not its usage limits:
 # __claude_review [low|medium|high|xhigh|max] [revision]. The credits pay for the
 # Agent SDK, whose CLI is headless `claude -p`, and not for interactive Claude
