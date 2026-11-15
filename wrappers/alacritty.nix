@@ -32,6 +32,10 @@ let
     in
     "${merged}/share/zsh/site-functions";
 
+  # The tools' bin directories, ahead of the inherited PATH in every shell the
+  # terminal opens; the smoke test resolves commands against the same list.
+  pathPrefix = map (pkg: "${pkgs.lib.getBin pkg}/bin") tools;
+
   fonts = pkgs.lib.optionals (!pkgs.stdenv.hostPlatform.isDarwin) [
     pkgs.nerd-fonts.sauce-code-pro
     pkgs.nerd-fonts.monaspace
@@ -73,6 +77,25 @@ let
             else
               fail "zsh's compaudit rejects the completions directory, so compinit would ask"
             fi
+
+            # np, npr and nps (__nix_package, .config/shell/functions/nix.sh) pipe
+            # nix-search-tv's nixpkgs index into fzf, which previews each package
+            # with nix-search-tv again: without it on the terminal's PATH the picker
+            # opens empty. Its index is fetched from the network, so this only
+            # runs the binary.
+            terminalPath=${pkgs.lib.concatStringsSep ":" pathPrefix}
+            for cmd in nix-search-tv fzf; do
+              if PATH="$terminalPath" command -v "$cmd" > /dev/null; then
+                ok "on the terminal's PATH, for np, npr and nps: $cmd"
+              else
+                fail "not on the terminal's PATH, so np, npr and nps open an empty picker: $cmd"
+              fi
+            done
+            if PATH="$terminalPath" nix-search-tv --help > /dev/null 2>&1; then
+              ok "nix-search-tv runs from the terminal's PATH"
+            else
+              fail "nix-search-tv does not run from the terminal's PATH"
+            fi
           '';
         };
       }
@@ -88,7 +111,7 @@ let
             "TMUX"
             "TMUX_PANE"
           ];
-          pathPrefix = map (pkg: "${pkgs.lib.getBin pkg}/bin") tools;
+          inherit pathPrefix;
           staticEnv = {
             TERMINAL_ZSH_COMPLETIONS = "${zshCompletions}";
           }
