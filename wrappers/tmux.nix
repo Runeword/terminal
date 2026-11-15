@@ -148,7 +148,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, takes none of zsh's default keys but those it means to, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, gives each session a color of its own, which a line under the window list is drawn in, thick under the current window and dimmed elsewhere, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, takes none of zsh's default keys but those it means to, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, gives each session a color of its own, which a line under the window list is drawn in, thick under the current window and dimmed elsewhere, shows the current session's number at the left of the window list, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # Each $(…) below runs its tmux server in a socket directory of its
         # own (fresh): kill-server returns before the server has exited, and a
@@ -512,7 +512,9 @@ let
         # an attached client, as M-t is above). The bar's second line draws a
         # line under the window list, thick under the current window and thin
         # and dimmed elsewhere, in the color of the session the client is on,
-        # and in the bar's grey for one with none. A color shows as its place in @colors, - for none or for
+        # and in the bar's grey for one with none; the first line draws that
+        # session's number at the left of the list, in that color, and in
+        # white for one with none. A color shows as its place in @colors, - for none or for
         # one not in @colors. The client draws UTF-8 (-u) and 24-bit color
         # (-T RGB), as Alacritty takes them.
         colors=$(
@@ -552,8 +554,10 @@ let
           # heavy and the number of the window over its thick part, when that
           # part is under the current window's text, which the first line
           # draws in white, and nowhere else; then dim when its thin parts are
-          # dimmed and its thick part isn't. Else the columns of each, with a -
-          # in each column, or the line with a d over each dimmed column.
+          # dimmed and its thick part isn't; then the number the first line
+          # draws at the left of the window list, a colon and its color. Else
+          # the columns of each, with a - in each column, or the line with a d
+          # over each dimmed column.
           line() {
             ${pkgs.tmux}/bin/tmux -L outer -u capture-pane -e -p -S 0 -E 1 | awk -v p="$palette" '
               BEGIN { n = split(p, c, " "); for (i = 1; i <= n; i++) at[c[i]] = i }
@@ -604,8 +608,14 @@ let
                   white = white (c0[i] != " " && f0[i] == "#ffffff" ? "-" : " ")
                 }
                 bar = join(bar, 2)
-                # The session numbers start the bar, the current one white.
+                # The session numbers start the bar, the current one white;
+                # then comes the number at the left of the window list.
                 lead = match(bar, /^-+/) ? RLENGTH : 0
+                match(substr(bar, lead + 1), /-+/)
+                from = lead + RSTART
+                lead = from + RLENGTH - 1
+                for (i = from; i <= lead; i++) num = num c0[i]
+                nk = (f0[from] in at) ? at[f0[from]] : "-"
                 bar = sprintf("%" lead "s", "") substr(bar, lead + 1)
                 cur = join(sprintf("%" lead "s", "") substr(white, lead + 1), 1)
                 for (i = 1; i <= n1; i++) {
@@ -621,7 +631,7 @@ let
                 sub(/ +$/, "", under)
                 sub(/ +$/, "", thick)
                 sub(/ +$/, "", dims)
-                print seen " " (under == bar ? "under" : bar "|" under) " " (thick == cur ? "heavy" c0[index(thick, "-")] : cur "|" thick) " " (dimmed ? "dim" : dims)
+                print seen " " (under == bar ? "under" : bar "|" under) " " (thick == cur ? "heavy" c0[index(thick, "-")] : cur "|" thick) " " (dimmed ? "dim" : dims) " " num ":" nk
               }'
           }
           # drawn <want>: wait up to 5 s for the bar to be drawn as <want>.
@@ -634,18 +644,18 @@ let
           }
           for at in "1 1" "2 3" "9 -"; do
             tmux switch-client -c "$client" -t "=''${at% *}"
-            drawn "''${at#* } under heavy1 dim"
+            drawn "''${at#* } under heavy1 dim ''${at% *}:''${at#* }"
           done
           # The thick part follows the current window.
           tmux switch-client -c "$client" -t =1 \; select-window -t =1:2
-          drawn "1 under heavy2 dim"
+          drawn "1 under heavy2 dim 1:1"
           # The client, on 9, stays on it as it is renumbered 8, and it takes
           # the color 4 frees.
           tmux switch-client -c "$client" -t =9
           tmux kill-session -t =4
           names "1 2 3 4 5 6 7 8 "
           held
-          drawn "4 under heavy1 dim"
+          drawn "4 under heavy1 dim 8:4"
           tmux set -u -t =2: @color \; set -t =3: @color '#000000'
           tmux send-keys -K -c "$client" M-r
           held
@@ -653,9 +663,9 @@ let
           tmux kill-server
         ) || true
         colors=$(printf '%s\n' "$colors" | tr '\n' '|')
-        expected='1:1 2:3 3:2 |1:1 2:3 3:2 4:4 5:5 6:6 7:7 8:8 9:- |1 under heavy1 dim|3 under heavy1 dim|- under heavy1 dim|1 under heavy2 dim|1:1 2:3 3:2 4:5 5:6 6:7 7:8 8:4 |4 under heavy1 dim|1:1 2:2 3:3 4:5 5:6 6:7 7:8 8:4 |'
+        expected='1:1 2:3 3:2 |1:1 2:3 3:2 4:4 5:5 6:6 7:7 8:8 9:- |1 under heavy1 dim 1:1|3 under heavy1 dim 2:3|- under heavy1 dim 9:-|1 under heavy2 dim 1:1|1:1 2:3 3:2 4:5 5:6 6:7 7:8 8:4 |4 under heavy1 dim 8:4|1:1 2:2 3:3 4:5 5:6 6:7 7:8 8:4 |'
         if [ "$colors" = "$expected" ]; then
-          ok "each session gets a color of its own, kept as the sessions renumber, past eight once one frees, and on M-r if it has none; a line under the window list, thick under the current window and dimmed elsewhere, is drawn in the client's"
+          ok "each session gets a color of its own, kept as the sessions renumber, past eight once one frees, and on M-r if it has none; a line under the window list, thick under the current window and dimmed elsewhere, is drawn in the client's, and its number at the list's left"
         else
           fail "the colors of sessions 1 2 3 after closing 2 and opening 3, then of 9 sessions, the bar's second line on a client on 1, 2 and 9 and on 1's window 2, the colors after closing 4 and that line, and the colors after M-r with 2's unset and 3's not in @colors, are '$colors', expected '$expected'"
         fi
@@ -800,7 +810,8 @@ let
         # its argv[0] on Linux but after the file run on macOS. So it is a copy
         # of bash by that name, run as claude, which signals once it runs. -u:
         # the build has no UTF-8 locale, and tmux would print a non-ASCII mark
-        # as _.
+        # as _. status-left ends in the current session's number, which the
+        # bar draws at the left of the window list.
         idle=$(
           PATH=${self}/bin:$PATH
           fresh
@@ -819,10 +830,10 @@ let
           tmux kill-server
         ) || true
         idle=$(printf '%s\n' "$idle" | sed 's/#\[[^]]*\]//g' | tr '\n' ';' | tr -s ' ')
-        if [ "$idle" = " 2 b* | 2 b* |1* 2 ; 2 b | 2 b |1 2 ; 1 a ;" ]; then
+        if [ "$idle" = " 2 b* | 2 b* |1* 2 1 ; 2 b | 2 b |1 2 1 ; 1 a ;" ]; then
           ok "a window whose Claude waits for you gets a * after its name, and its session after its number"
         else
-          fail "window 2 of session 1, with an idle then a busy claude, and the bar's sessions, then window 1 with a ✳ title, are '$idle', expected ' 2 b* | 2 b* |1* 2 ; 2 b | 2 b |1 2 ; 1 a ;'"
+          fail "window 2 of session 1, with an idle then a busy claude, and the bar's sessions, then window 1 with a ✳ title, are '$idle', expected ' 2 b* | 2 b* |1* 2 1 ; 2 b | 2 b |1 2 1 ; 1 a ;'"
         fi
 
         # The stand-in titles its pane as the packaged claude does; check that
