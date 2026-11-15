@@ -100,4 +100,20 @@
     );
     expected = [ ];
   };
+  # Alacritty lifts the text by the extra line spacing it adds above it
+  # (font.glyph_offset.y = font.offset.y, sources/.config/alacritty): by less,
+  # an underline crosses the tails of g, p and y; by more, a tall glyph leaves
+  # its row. fromTOML reads the [font] table alone: the file's [hints] regex
+  # escapes a NUL, which a Nix string can't hold.
+  testAlacrittyLiftsTextByItsLineSpacing = {
+    expr =
+      let
+        tables = lib.splitString "\n[" (builtins.readFile ../sources/.config/alacritty/alacritty.toml);
+        font = builtins.fromTOML (
+          lib.removePrefix "font]\n" (lib.findFirst (lib.hasPrefix "font]\n") "" tables)
+        );
+      in
+      font.glyph_offset.y == font.offset.y && font.offset.y > 0;
+    expected = true;
+  };
 }
