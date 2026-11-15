@@ -342,8 +342,11 @@ let
         #   M-t      new window          transpose-words (Alt+Shift+T still runs it)
         #   M-w M-W  close               copy-region-as-kill
         # A key newly taken fails: move its binding, or add the key here with
-        # the widget it takes. So does a key here that tmux no longer takes,
-        # so that the list stays the keys zsh goes without.
+        # the widget it takes. So does a key here that is no longer taken, so
+        # that the list stays the keys zsh goes without, and that failure
+        # says which side let go of it, tmux or zsh. A key newly taken can be
+        # a new binding or, after a zsh upgrade, a new default, which the
+        # check can't tell apart: it keeps no copy of zsh's earlier defaults.
         taken_on_purpose="M-0 M-1 M-2 M-3 M-4 M-5 M-6 M-7 M-8 M-9 M-Enter M-N M-S M-Tab M-W M-n M-q M-t M-w"
         if zsh_keys=$(env -i ${pkgs.zsh}/bin/zsh -f -c 'bindkey -M emacs' | awk -f ${zshKeys}) && [ -n "$zsh_keys" ]; then
           binds=()
@@ -365,16 +368,20 @@ let
               END {
                 n = split(expected, e, " ")
                 for (j = 1; j <= n; j++) {
-                  want[e[j]] = 1
-                  if (!(e[j] in zsh && e[j] in root)) add(e[j] " is not taken")
+                  k = e[j]
+                  want[k] = 1
+                  if (k in root && k in zsh) continue
+                  if (k in zsh) add("tmux no longer binds " k)
+                  else if (k in root) add("zsh no longer binds " k " by default")
+                  else add("neither tmux nor zsh binds " k)
                 }
-                for (k in zsh) if (k in root && !(k in want)) add(k " (" zsh[k] ") is taken")
+                for (k in zsh) if (k in root && !(k in want)) add("tmux takes " k " from zsh (" zsh[k] ")")
                 print report
               }')
             if [ -z "$report" ]; then
-              ok "zsh keeps its default keys in tmux, but for $taken_on_purpose"
+              ok "tmux's root bindings take none of zsh's default keys but $taken_on_purpose"
             else
-              fail "zsh keys taken by root bindings differ from taken_on_purpose: $report"
+              fail "tmux's root bindings and taken_on_purpose disagree: $report"
             fi
           else
             fail "tmux can't bind zsh's keys: $listed"
