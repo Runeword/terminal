@@ -7,8 +7,9 @@ package main
 // resumed session gets its color back from. The color is the first of palette
 // that no open session holds, so the sessions open side by side tell apart,
 // else the first of those the fewest hold. The open sessions are those a held
-// lock names (openByLock): __claude starts every session under one, and the
-// locks answer at once, where looking for the claudes can take seconds.
+// lock names (openByLock): __claude starts every session but the microVM's
+// under one, and the locks answer at once, where looking for the claudes can
+// take seconds.
 
 import (
 	"bytes"
