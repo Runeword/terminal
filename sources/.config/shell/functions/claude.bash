@@ -118,14 +118,35 @@ __claude_vm_prefix() {
   printf '%s ' "$script"
 }
 
-# Build __CLAUDE_CMD from __claude_instance, __claude_plugins, __claude_args.
+# A new session's first prompt, as a word for __CLAUDE_CMD: Claude Code's
+# /color, which colors the session's prompt bar so the sessions open side by
+# side tell apart, with the first color no open session holds (claude-sessions
+# color, packages/claude/sessions/color.go). Claude Code records it in the
+# transcript, so a resumed session gets its own back; a launch with arguments
+# of claude's (--resume, a prompt, -p) gets none, since claude takes one
+# prompt, and nor does one claude-sessions can't answer, rather than be
+# refused over a color. Only a lowercase name reaches the command, which the
+# pane parses again. To Claude Code it is a prompt like any other: it shows at
+# the top of the session and in the prompt history.
+__claude_color() {
+  local color
+  [ -z "$__claude_args" ] || return 0
+  color=$(claude-sessions color 2>/dev/null) || return 0
+  case "$color" in
+    "" | *[!a-z]*) ;;
+    *) printf ' %s' "$(printf '%q' "/color $color")" ;;
+  esac
+}
+
+# Build __CLAUDE_CMD from __claude_instance, __claude_plugins, __claude_args,
+# and a new session's /color (__claude_color).
 # __CLAUDE_CMD is a string that tmux new-window or eval parses again, so
 # __claude_init keeps __claude_args shell-quoted, one word per argument: an
 # option's value (--resume <id>, --model <name>) stays a word of its own.
 # Fails (and propagates through __claude_init) when the sandbox gate refuses to
 # launch, so callers abort after the gate's message instead of silently running.
 __claude_build_cmd() {
-  local prefix flags="" secrets="" open="" open_dir flock_bin file
+  local prefix flags="" secrets="" open="" open_dir flock_bin file color
   prefix=$(__claude_sandbox_prefix) || return 1
   # __claude_run launches via `tmux new-window`, which spawns from the tmux
   # *server's* environment — so a prefix assignment on the caller
@@ -208,7 +229,10 @@ __claude_build_cmd() {
     command mkdir -p "$open_dir" && file=$(mktemp "$open_dir/XXXXXXXX"); then
     open="CLAUDE_SESSIONS_OPEN=$(printf '%q' "$file") $(printf '%q' "$flock_bin") -F $(printf '%q' "$file") "
   fi
-  __CLAUDE_CMD="${flags}${secrets}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/$(__claude_profile) ${open}${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5-5 $__claude_args --allow-dangerously-skip-permissions"
+  # Last, after a flag that takes no value: one that takes several
+  # (--allowedTools) would take the prompt for one of its own.
+  color=$(__claude_color)
+  __CLAUDE_CMD="${flags}${secrets}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/$(__claude_profile) ${open}${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5-5 $__claude_args --allow-dangerously-skip-permissions${color}"
 }
 
 # The profile a session runs with, under $HOME: .claude-N, or .claude-vm-N for
