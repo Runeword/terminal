@@ -23,9 +23,6 @@
 //	claude-sessions mark               claude's SessionStart hook: write the
 //	                                   session's id into the file its launch
 //	                                   holds a lock on (open.go)
-//	claude-sessions color              the color a new session starts with:
-//	                                   the first /color takes that no open
-//	                                   session holds (color.go)
 //
 // Transcripts live in $CLAUDE_CONFIG_DIR (else ~/.claude) at
 // projects/<project>/<id>.jsonl, <project> being the working directory with
@@ -100,7 +97,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: claude-sessions list | preview <id> | rm [-ask] <id>... | backup | restore start|key|load|show|picked <dir> [<arg>...] | mark | color")
+	fmt.Fprintln(os.Stderr, "usage: claude-sessions list | preview <id> | rm [-ask] <id>... | backup | restore start|key|load|show|picked <dir> [<arg>...] | mark")
 	os.Exit(2)
 }
 
@@ -186,16 +183,6 @@ func run(cmd string, args []string, cfg string, now time.Time) error {
 			return err
 		}
 		return mark(os.Stdin, os.Getenv(openVar), h.proc, os.Getppid())
-	case "color":
-		if len(args) != 0 {
-			usage()
-		}
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return err
-		}
-		out.WriteString(newColor(openByLock(home, now)))
-		out.WriteByte('\n')
 	default:
 		usage()
 	}
