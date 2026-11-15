@@ -23,30 +23,42 @@ let
       target = ".config/tmux/plugins/resurrect";
     }
   ];
-  # For the smoke test's readline check: reads `bind -p` and prints each key
-  # readline binds by default as tmux names it, with the readline commands on
-  # it: <key><TAB><command>[, <command>…]. A sequence of several keys
-  # (\C-x\C-e) counts as its first key, the one a root binding would take. A
-  # sequence it can't name fails it, so a new kind of default can't slip by.
-  readlineKeys = pkgs.writeText "readline-keys.awk" ''
+  # For the smoke test's zsh check: reads `bindkey -M emacs` and prints each
+  # key zsh's emacs keymap binds as tmux names it, with the widgets on it:
+  # <key><TAB><widget>[, <widget>…]. A sequence of several keys (^X^B) counts
+  # as its first key, the one a root binding would take. A key it can't name
+  # fails it, so a new kind of default can't slip by.
+  zshKeys = pkgs.writeText "zsh-keys.awk" ''
     function bad(s) {
-      printf "readline key %s: no tmux name for it\n", s > "/dev/stderr"
+      printf "zsh key %s: no tmux name for it\n", s > "/dev/stderr"
       failed = 1
       return ""
     }
-    # \C-<c>
+    # bindkey's quoting undone: \" \$ \\ and the like stand for the character.
+    function unquote(s,    out, i, c) {
+      out = ""
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (c == "\\") c = substr(s, ++i, 1)
+        out = out c
+      }
+      return out
+    }
+    # ^<c>
     function ctrl(c) {
       if (c == "@") return "C-Space"
-      if (c == "i") return "Tab"
-      if (c == "m") return "Enter"
+      if (c == "I") return "Tab"
+      if (c == "M") return "Enter"
+      if (c == "[") return "Escape"
       if (c == "?") return "BSpace"
-      return "C-" c
+      return "C-" tolower(c)
     }
-    # A terminal key, \eO<x> or \e[<params><x>, with xterm's modifiers:
-    # \e[1;<m><x> and \e[<n>;<m>~, m - 1 summing 1 Shift, 2 Meta and 4 Ctrl.
-    function term(s,    p, x, n, m, name) {
-      p = substr(s, 4, length(s) - 4)
-      x = substr(s, length(s))
+    # A terminal key after its ^[, O<x> or [<params><x>, with xterm's
+    # modifiers: [1;<m><x> and [<n>;<m>~, m - 1 summing 1 Shift, 2 Meta and
+    # 4 Ctrl.
+    function term(r,    p, x, n, m, name) {
+      p = substr(r, 2, length(r) - 2)
+      x = substr(r, length(r))
       n = p
       m = 1
       if (index(p, ";")) {
@@ -69,40 +81,50 @@ let
         else if (x == "H") name = "Home"
         else if (x == "F") name = "End"
       }
-      if (name == "" || m !~ /^[1-8]$/) return bad(s)
+      if (name == "" || m !~ /^[1-8]$/) return bad("^[" r)
       m--
       return (m >= 4 ? "C-" : "") (m % 4 >= 2 ? "M-" : "") (m % 2 ? "S-" : "") name
     }
     function key(s,    r) {
-      if (s ~ /^\\C-./) return ctrl(substr(s, 4, 1))
-      if (s !~ /^\\e./) return bad(s)
-      r = substr(s, 3)
-      if (r ~ /^[[O]./) return term(s)
-      if (r ~ /^\\C-.$/) {
-        r = ctrl(substr(r, 4))
-        return r ~ /^C-/ ? "C-M-" substr(r, 3) : "M-" r
+      if (s ~ /^\^\[./) {
+        r = substr(s, 3)
+        if (r ~ /^[[O]./) return term(r)
+        if (r ~ /^\^.$/) {
+          r = ctrl(substr(r, 2))
+          return r ~ /^C-/ ? "C-M-" substr(r, 3) : "M-" r
+        }
+        if (r == " ") return "M-Space"
+        if (length(r) == 1) return "M-" r
+        return bad(s)
       }
-      if (r == "\\e") return "M-Escape"
-      if (r == "\\\\" || r == "\\\"") return "M-" substr(r, 2)
-      if (r == " ") return "M-Space"
-      if (length(r) == 1) return "M-" r
+      if (s ~ /^\^./) return ctrl(substr(s, 2, 1))
       return bad(s)
     }
-    /^"/ {
-      i = index($0, "\": ")
-      command = substr($0, i + 3)
-      if (command == "self-insert" || command == "do-lowercase-version") next
-      k = key(substr($0, 2, i - 2))
+    {
+      if (!match($0, /^"([^"\\]|\\.)*"/)) {
+        bad($0)
+        next
+      }
+      s = substr($0, 2, RLENGTH - 2)
+      rest = substr($0, RLENGTH + 1)
+      # A range, "<from>"-"<to>" <widget>: the printable and 8-bit characters.
+      if (rest ~ /^-"/) {
+        if (rest !~ / self-insert$/) bad($0)
+        next
+      }
+      widget = substr(rest, 2)
+      if (widget == "self-insert") next
+      k = key(unquote(s))
       if (k == "") next
-      if (!(k in commands)) {
+      if (!(k in widgets)) {
         keys[++count] = k
-        commands[k] = command
-      } else if (index(", " commands[k] ", ", ", " command ", ") == 0) {
-        commands[k] = commands[k] ", " command
+        widgets[k] = widget
+      } else if (index(", " widgets[k] ", ", ", " widget ", ") == 0) {
+        widgets[k] = widgets[k] ", " widget
       }
     }
     END {
-      for (j = 1; j <= count; j++) print keys[j] "\t" commands[keys[j]]
+      for (j = 1; j <= count; j++) print keys[j] "\t" widgets[keys[j]]
       exit failed
     }
   '';
@@ -126,7 +148,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, takes none of readline's default keys but those it means to, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, takes none of zsh's default keys but those it means to, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows the current session's AI label after the session numbers and each window's one-word AI name in place of its program, both made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # Each $(…) below runs its tmux server in a socket directory of its
         # own (fresh): kill-server returns before the server has exited, and a
@@ -305,57 +327,60 @@ let
           *) fail "M-h|M-V are '$below'" ;;
         esac
 
-        # Readline's default keys (bash's, read with no inputrc) that a root
-        # binding takes: a program reading its input with readline (bash,
-        # python, psql…) can't get them inside tmux. readlineKeys names each
-        # as tmux does, and tmux, binding them in a table of their own, prints
-        # them as it prints the root table's. Taken on purpose, with what
-        # readline loses on each:
-        #   M-0…M-9  session <n>       digit-argument
-        #   M-Tab    next session      dynamic-complete-history
-        #   M-n      new session       non-incremental-forward-search-history
-        #   M-r      reload tmux.conf  revert-line
-        #   M-t      new window        transpose-words
+        # zsh's default keys (its emacs keymap as zsh -f has it, without
+        # .zshrc's own bindings) that a root binding takes: tmux gets them
+        # before the shell in the pane does. zshKeys names each as tmux does,
+        # and tmux, binding them in a table of their own, prints them as it
+        # prints the root table's. Taken on purpose, with the widget each
+        # takes from zsh:
+        #   M-0…M-9  session <n>         digit-argument
+        #   M-Enter  session picker      self-insert-unmeta (a newline)
+        #   M-Tab    next session        self-insert-unmeta (a tab)
+        #   M-n M-N  new session, label  history-search-forward
+        #   M-q      detach              push-line
+        #   M-S      resurrect save      spell-word (Alt+S still runs it)
+        #   M-t      new window          transpose-words (Alt+Shift+T still runs it)
+        #   M-w M-W  close               copy-region-as-kill
         # A key newly taken fails: move its binding, or add the key here with
-        # what readline loses. So does a key here that tmux no longer takes,
-        # so that the list stays the keys readline goes without.
-        taken_on_purpose="M-0 M-1 M-2 M-3 M-4 M-5 M-6 M-7 M-8 M-9 M-Tab M-n M-r M-t"
-        if readline=$(env -i TERM=tmux-256color INPUTRC=/dev/null ${pkgs.bashInteractive}/bin/bash --norc --noprofile -c 'bind -p' 2>/dev/null | awk -f ${readlineKeys}) && [ -n "$readline" ]; then
+        # the widget it takes. So does a key here that tmux no longer takes,
+        # so that the list stays the keys zsh goes without.
+        taken_on_purpose="M-0 M-1 M-2 M-3 M-4 M-5 M-6 M-7 M-8 M-9 M-Enter M-N M-S M-Tab M-W M-n M-q M-t M-w"
+        if zsh_keys=$(env -i ${pkgs.zsh}/bin/zsh -f -c 'bindkey -M emacs' | awk -f ${zshKeys}) && [ -n "$zsh_keys" ]; then
           binds=()
-          while IFS=$'\t' read -r key commands; do
-            binds+=(bind -T readline "$key" display-message "$commands" ';')
-          done <<<"$readline"
-          if listed=$(fresh; ${self}/bin/tmux start-server \; "''${binds[@]}" list-keys -T readline \; list-keys -T root \; kill-server 2>&1); then
+          while IFS=$'\t' read -r key widgets; do
+            binds+=(bind -T zsh "$key" display-message "$widgets" ';')
+          done <<<"$zsh_keys"
+          if listed=$(fresh; ${self}/bin/tmux start-server \; "''${binds[@]}" list-keys -T zsh \; list-keys -T root \; kill-server 2>&1); then
             report=$(printf '%s\n' "$listed" | awk -v expected="$taken_on_purpose" '
               function add(s) { report = report (report == "" ? "" : "; ") s }
               $1 == "bind-key" {
                 i = $2 == "-r" ? 3 : 2
-                if ($(i + 1) == "readline") {
-                  c = $0
-                  sub(/.* display-message /, "", c)
-                  gsub(/^"|"$/, "", c)
-                  readline[$(i + 2)] = c
+                if ($(i + 1) == "zsh") {
+                  w = $0
+                  sub(/.* display-message /, "", w)
+                  gsub(/^"|"$/, "", w)
+                  zsh[$(i + 2)] = w
                 } else if ($(i + 1) == "root") root[$(i + 2)] = 1
               }
               END {
                 n = split(expected, e, " ")
                 for (j = 1; j <= n; j++) {
                   want[e[j]] = 1
-                  if (!(e[j] in readline && e[j] in root)) add(e[j] " is not taken")
+                  if (!(e[j] in zsh && e[j] in root)) add(e[j] " is not taken")
                 }
-                for (k in readline) if (k in root && !(k in want)) add(k " (" readline[k] ") is taken")
+                for (k in zsh) if (k in root && !(k in want)) add(k " (" zsh[k] ") is taken")
                 print report
               }')
             if [ -z "$report" ]; then
-              ok "readline keeps its default keys in tmux, but for $taken_on_purpose"
+              ok "zsh keeps its default keys in tmux, but for $taken_on_purpose"
             else
-              fail "readline keys taken by root bindings differ from taken_on_purpose: $report"
+              fail "zsh keys taken by root bindings differ from taken_on_purpose: $report"
             fi
           else
-            fail "tmux can't bind readline's keys: $listed"
+            fail "tmux can't bind zsh's keys: $listed"
           fi
         else
-          fail "readline's default keys: bind -p printed none, or one readlineKeys can't name (above)"
+          fail "zsh's default keys: bindkey printed none, or one zshKeys can't name (above)"
         fi
 
         # C-S-<n> with no window <n> moves the current window right after the
