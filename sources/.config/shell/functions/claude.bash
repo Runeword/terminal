@@ -643,6 +643,23 @@ __claude_vm_review() (
     __claude_vm -p --allowedTools Bash --no-session-persistence --max-budget-usd 5 "/code-review $*"
 )
 
+# The review in a throwaway OpenShell sandbox (leader cor), by openshell-nix's
+# claude-review: it copies the repository you are in into the sandbox and runs
+# the claude command it is handed there, as typed. The defaults go first and
+# the arguments after them, so a --model or --effort typed in the alias
+# replaces its default, as Claude Code keeps a repeated flag's last value; the
+# alias puts the request after --, so one that starts with - is not taken for
+# a flag. --tools leaves Claude and its subagents Read, Grep, Glob and Agent:
+# no shell, no edits. CLAUDE_CODE_AMBER_ASTROLABE=1 tells Claude that no one
+# can answer its questions during the run, and --refresh runs the newest
+# openshell-nix rather than one Nix fetched in the last hour.
+__claude_openshell_review() {
+  nix run --refresh git+ssh://git@github.com/Runeword/openshell-nix#claude-review -- \
+    env CLAUDE_CODE_AMBER_ASTROLABE=1 claude -p \
+    --model claude-haiku-5-5 --effort low --max-budget-usd 20 \
+    --permission-mode dontAsk --tools Read,Grep,Glob,Agent "$@"
+}
+
 __claude_plugins() {
   __claude_init_fzf "$@" || return 0
   __claude_run
