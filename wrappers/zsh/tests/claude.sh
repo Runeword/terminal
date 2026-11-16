@@ -156,6 +156,21 @@ case "$(TMUX=x XDG_CACHE_HOME=$HOME/cache PATH=$HOME/vm/bin:@jq@/bin:$PATH @zsh@
   *) fail "the microVM review does not run /code-review on a clone with the Console key's entry and without the live tree" ;;
 esac
 
+# The review in an OpenShell sandbox (__claude_openshell_review) hands
+# openshell-nix's claude-review the claude command: its defaults, then the
+# arguments it was given, so a --model typed in the alias comes last and
+# wins, and the request after --. A stand-in nix prints each argument in
+# brackets, so the request shows as one.
+osreview='. @zsh@/.config/shell/functions/claude.bash
+  nix() { printf "[%s]" "$@"; }
+  __claude_openshell_review --model claude-opus-5-5 -- "-v look for bugs"'
+case "$(@zsh@/bin/zsh -f -c "$osreview")" in
+  "[run][--refresh][git+ssh://git@github.com/Runeword/openshell-nix#claude-review][--][env][CLAUDE_CODE_AMBER_ASTROLABE=1][claude][-p][--model][claude-haiku-5-5][--effort][low][--max-budget-usd][20][--permission-mode][dontAsk][--tools][Read,Grep,Glob,Agent][--model][claude-opus-5-5][--][-v look for bugs]")
+    ok "the OpenShell review hands claude-review its defaults, then the alias's flags, then the request after --"
+    ;;
+  *) fail "the OpenShell review does not hand claude-review its defaults, the alias's flags and the request after --" ;;
+esac
+
 # The session eraser (leader cx) hands every marked session to one
 # `claude-sessions rm -ask`, which asks about them all at once. A
 # stand-in fzf, given --multi, marks every row and presses enter: it
