@@ -148,7 +148,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, takes none of zsh's default keys but those it means to, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, gives each session a color of its own, which a thin line under the window list is drawn in, dimmed but under the current window, shows the current session's AI label at the left of the window list, which stays centred as if alone, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows each window's one-word AI name in place of its program, the names and the session's label made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, takes none of zsh's default keys but those it means to, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, gives each session a color of its own, which a thin line under the window list is drawn in, dimmed but under the current window and the spaces at its ends, shows the current session's AI label at the left of the window list, which stays centred as if alone, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows each window's one-word AI name in place of its program, the names and the session's label made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # Each $(…) below runs its tmux server in a socket directory of its
         # own (fresh): kill-server returns before the server has exited, and a
@@ -511,8 +511,9 @@ let
         # sessions with none or with one @colors lacks (M-r is pressed through
         # an attached client, as M-t is above). The bar's second line draws a
         # thin line under the window list, at full color under the current
-        # window and dimmed elsewhere, in the color of the session the client
-        # is on, and in the bar's grey for one with none; the first line draws
+        # window, the spaces at its ends included, and dimmed elsewhere, in the
+        # color of the session the client is on, and in the bar's grey for one
+        # with none; the first line draws
         # that session's AI label at the left of the list (session 1's is set
         # by hand; the others have none). The client is wide enough that the centred
         # group, label included, clears the nine session numbers. A color shows as its place in @colors, - for
@@ -554,8 +555,10 @@ let
           # nowhere else (the session numbers start the first line); then
           # thin when it is all ─; then lit and the number of the window over
           # its part at full color, when that part is under the current
-          # window's text, which the first line draws in white, and the rest is
-          # dimmed; then centred when the window list is where it would be
+          # window: under its text, which the first line draws in white, and
+          # under the space at each end of it that the line runs under, so the
+          # parts of two windows side by side meet; and the rest is dimmed;
+          # then centred when the window list is where it would be
           # centred alone, in the client's 100 columns, whatever stands at its
           # left; then what the first line draws there, the session's label,
           # in brackets, followed by not white unless it is white, as the
@@ -627,6 +630,17 @@ let
                 ws = match(bar, /-+/)
                 we = ws + RLENGTH - 1
                 centred = ws - 2 == int((w - (we - ws + 3)) / 2)
+                # The part of the line under the current window, from cs to
+                # ce: under its text (cur), and under the space at each end of
+                # it, but the space before the first window and after the
+                # last, where the line stops (ws, we).
+                cs = index(cur, "-")
+                ce = length(cur)
+                if (cs) {
+                  if (cs > ws) cs--
+                  if (ce < we) ce++
+                }
+                for (i = 1; cs && i <= ce; i++) part = part (i < cs ? " " : "-")
                 for (i = 1; i <= n1; i++) {
                   under = under (c1[i] == " " ? " " : "-")
                   lit = lit (c1[i] != " " && !d1[i] ? "-" : " ")
@@ -639,7 +653,7 @@ let
                 sub(/ +$/, "", under)
                 sub(/ +$/, "", lit)
                 for (i = 1; i <= n1; i++) drawn = drawn c1[i]
-                print seen " " (under == bar ? "under" : bar "|" under) " " (thin ? "thin" : drawn) " " (lit == cur ? "lit" c0[index(lit, "-")] : cur "|" lit) " " (centred ? "centred" : "@" ws) " [" label (n > 2 && f0[rs[2]] != "#ffffff" ? " not white" : "") "]"
+                print seen " " (under == bar ? "under" : bar "|" under) " " (thin ? "thin" : drawn) " " (lit == part ? "lit" c0[index(cur, "-")] : part "|" lit) " " (centred ? "centred" : "@" ws) " [" label (n > 2 && f0[rs[2]] != "#ffffff" ? " not white" : "") "]"
               }'
           }
           # drawn <want>: wait up to 5 s for the bar to be drawn as <want>.
@@ -677,7 +691,7 @@ let
         colors=$(printf '%s\n' "$colors" | tr '\n' '|')
         expected='1:1 2:3 3:2 |1:1 2:3 3:2 4:4 5:5 6:6 7:7 8:8 9:- |1 under thin lit1 centred [docs-work]|3 under thin lit1 centred []|- under thin lit1 centred []|1 under thin lit2 centred [docs-work]|1:1 2:3 3:2 4:5 5:6 6:7 7:8 8:4 |4 under thin lit1 centred []|1:1 2:2 3:3 4:5 5:6 6:7 7:8 8:4 |'
         if [ "$colors" = "$expected" ]; then
-          ok "each session gets a color of its own, kept as the sessions renumber, past eight once one frees, and on M-r if it has none; a thin line under the window list, dimmed but under the current window, is drawn in the client's, and its AI label at the list's left, which stays where it is centred alone"
+          ok "each session gets a color of its own, kept as the sessions renumber, past eight once one frees, and on M-r if it has none; a thin line under the window list, dimmed but under the current window and the spaces at its ends, is drawn in the client's, and its AI label at the list's left, which stays where it is centred alone"
         else
           fail "the colors of sessions 1 2 3 after closing 2 and opening 3, then of 9 sessions, the bar's second line on a client on 1, 2 and 9 and on 1's window 2, the colors after closing 4 and that line, and the colors after M-r with 2's unset and 3's not in @colors, are '$colors', expected '$expected'"
         fi
