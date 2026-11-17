@@ -128,6 +128,36 @@ let
       exit failed
     }
   '';
+  # Makes the frames of the breathing * (tmux.conf, @claude_breath): reads the
+  # palette, one #rrggbb per line with the bar's grey last, and prints the
+  # tmux.conf lines that set them: @breath<n> for the n-th color, @breath0 for
+  # the grey, and @claude_breath, which picks a session's by its @color. Each
+  # color has 24 frames, 100 ms each: the color, faded on a cosine to 40% and
+  # back. The smoke test checks tmux.conf's against it.
+  breathFrames = pkgs.writeText "tmux-breath.awk" ''
+    function hex(s,    v, i) {
+      v = 0
+      s = tolower(s)
+      for (i = 1; i <= length(s); i++) v = v * 16 + index("0123456789abcdef", substr(s, i, 1)) - 1
+      return v
+    }
+    BEGIN { pi = atan2(0, -1); n = 24; lo = 0.4 }
+    { c[NR] = $1 }
+    END {
+      for (j = 1; j <= NR; j++) {
+        r = hex(substr(c[j], 2, 2)); g = hex(substr(c[j], 4, 2)); b = hex(substr(c[j], 6, 2))
+        frames = ""
+        for (k = 0; k < n; k++) {
+          f = lo + (1 - lo) * (1 + cos(2 * pi * k / n)) / 2
+          frames = frames (k ? "," : "") sprintf("#[fg=#%02x%02x%02x]*", int(r * f + 0.5), int(g * f + 0.5), int(b * f + 0.5))
+        }
+        printf "set -g @breath%d '#{A:%s}'\n", j < NR ? j : 0, frames
+      }
+      chain = "#{E:@breath0}"
+      for (j = NR - 1; j >= 1; j--) chain = sprintf("#{?#{==:#{@color},%s},#{E:@breath%d},%s}", c[j], j, chain)
+      printf "set -g @claude_breath '%s'\n", chain
+    }
+  '';
   self = pkgs.symlinkJoin {
     name = "tmux-with-config";
     paths = [
@@ -148,7 +178,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, takes none of zsh's default keys but those it means to, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, gives each session a color of its own, which a thin line under the window list is drawn in, dimmed but under the current window and the spaces at its ends, shows the current session's AI label at the left of the window list, which stays centred as if alone, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows each window's one-word AI name in place of its program, the names and the session's label made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude waits for you, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, takes none of zsh's default keys but those it means to, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, gives each session a color of its own, which a thin line under the window list is drawn in, dimmed but under the current window and the spaces at its ends, shows the current session's AI label at the left of the window list, which stays centred as if alone, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows each window's one-word AI name in place of its program, the names and the session's label made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude is working, the marks of those you aren't on breathing in their session's color, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # Each $(…) below runs its tmux server in a socket directory of its
         # own (fresh): kill-server returns before the server has exited, and a
@@ -829,17 +859,22 @@ let
           *) fail "status-left / @wsession label / window formats / label hooks / M-N are '$label'" ;;
         esac
 
-        # A window whose Claude waits for you, its title "✳ <topic>" rather
-        # than a ◐/◑ spinner, gets a * after its name, and its session one
-        # after its number, though the window isn't the session's current
-        # one; another program's ✳ title doesn't count. The stand-in claude
+        # A window whose Claude is working, its title "◐ <topic>" or
+        # "◑ <topic>" (the two frames of its spinner) rather than
+        # "✳ <topic>", gets a * after its name, and its session one after its
+        # number, though the window isn't the session's current one; another
+        # program's ◐ title doesn't count. Only the current window's * is
+        # drawn as a plain one: the others breathe, in frames that only the
+        # status line draws (display expands them to nothing; the next test
+        # watches them on a client), so this reads the marks themselves,
+        # @claude_working and @claude_working_session. The stand-in claude
         # runs as the real one does on both systems: nixpkgs' claude runs the
         # file .claude-wrapped as claude, and tmux names a pane's program after
         # its argv[0] on Linux but after the file run on macOS. So it is a copy
         # of bash by that name, run as claude, which signals once it runs. -u:
         # the build has no UTF-8 locale, and tmux would print a non-ASCII mark
         # as _.
-        idle=$(
+        working=$(
           PATH=${self}/bin:$PATH
           fresh
           cp ${pkgs.bash}/bin/bash "$HOME/.claude-wrapped"
@@ -848,30 +883,131 @@ let
             new-window -d -t =1: -n b "exec -a claude $HOME/.claude-wrapped -c 'tmux wait-for -S up; sleep 60; :'" \; \
             new-session -d -s 2 sleep 60
           timeout 10 tmux wait-for up
-          tmux select-pane -t =1:1 -T '✳ Docs'
-          for title in '✳ Docs' '◐ Docs'; do
+          tmux -u select-pane -t =1:1 -T '◐ Docs'
+          for title in '◐ Docs' '◑ Docs' '✳ Docs'; do
             tmux -u select-pane -t =1:2 -T "$title" \; \
-              display -p -t =1:2 '#{E:window-status-current-format}|#{E:window-status-format}|#{E:status-left}'
+              display -p -t =1:2 '#{E:window-status-current-format}|#{E:@claude_working}|#{E:@claude_working_session}'
           done
           tmux -u display -p -t =1:1 '#{E:window-status-format}'
           tmux kill-server
         ) || true
-        idle=$(printf '%s\n' "$idle" | sed 's/#\[[^]]*\]//g' | tr '\n' ';' | tr -s ' ')
-        if [ "$idle" = " 2 b* | 2 b* |1* 2 ; 2 b | 2 b |1 2 ; 1 a ;" ]; then
-          ok "a window whose Claude waits for you gets a * after its name, and its session after its number"
+        working=$(printf '%s\n' "$working" | sed 's/#\[[^]]*\]//g' | tr '\n' ';' | tr -s ' ')
+        if [ "$working" = " 2 b* |*|*; 2 b* |*|*; 2 b ||; 1 a ;" ]; then
+          ok "a window whose Claude is working gets a * after its name, and its session after its number"
         else
-          fail "window 2 of session 1, with an idle then a busy claude, and the bar's sessions, then window 1 with a ✳ title, are '$idle', expected ' 2 b* | 2 b* |1* 2 ; 2 b | 2 b |1 2 ; 1 a ;'"
+          fail "window 2 of session 1 as the current window, its mark and its session's, with a claude working (◐, then ◑) then idle (✳), then window 1 with a ◐ title, are '$working', expected ' 2 b* |*|*; 2 b* |*|*; 2 b ||; 1 a ;'"
+        fi
+
+        # The * of a window or session you aren't on breathes in its
+        # session's color, and the current window's and the client's own
+        # session's stay still, in white. Working Claudes in session 1's
+        # current window 1 and its window 2, and in session 2, on a client on
+        # session 1 (as in the colors test above): the bar, sampled every
+        # 100 ms for 3 s, longer than a breath, shows each * in one column,
+        # session 1's and window 1's in white throughout, and session 2's and
+        # window 2's in more than two colors, all frames of their session's
+        # color (still, or breathes; else the columns and colors each took).
+        # Then the frames themselves: tmux.conf's are the ones breathFrames
+        # makes from @colors; else the lines to put there.
+        breath=$(
+          PATH=${self}/bin:$PATH
+          fresh
+          cp ${pkgs.bash}/bin/bash "$HOME/.claude-wrapped"
+          claude() { echo "exec -a claude $HOME/.claude-wrapped -c 'tmux wait-for -S $1; sleep 60; :'"; }
+          tmux start-server \; set -g default-shell "$(command -v sh)" \; \
+            new-session -d -s 1 -n a "$(claude a)" \; new-window -d -t =1: -n b "$(claude b)" \; \
+            new-session -d -s 2 -n c "$(claude c)" \; set-hook -g client-attached 'wait-for -S attached'
+          for up in a b c; do timeout 10 tmux wait-for "$up"; done
+          tmux -u select-pane -t =1:1 -T '◐ a' \; select-pane -t =1:2 -T '◐ b' \; select-pane -t =2:1 -T '◑ c'
+          ${pkgs.tmux}/bin/tmux -L outer -f /dev/null new-session -d -x 100 -y 5 'env -u TMUX tmux -u -T RGB attach -t =1'
+          timeout 10 tmux wait-for attached
+          { tmux show -t =1: -v @color; tmux show -t =2: -v @color; } | awk -f ${breathFrames} > "$HOME/frames"
+          sleep 0.5
+          # Each sample: the column and 24-bit foreground of each *, as
+          # <column>:<color>, in the bar's order.
+          for _ in $(seq 30); do
+            ${pkgs.tmux}/bin/tmux -L outer -u capture-pane -e -p -S 0 -E 0 | awk '{
+              s = $0; col = 0; fg = ""; out = ""
+              while (s != "") {
+                if (match(s, /^\033\[[0-9;:]*m/)) {
+                  n = RLENGTH
+                  q = substr(s, 3, n - 3)
+                  if (match(q, /38;2;[0-9]+;[0-9]+;[0-9]+/)) {
+                    split(substr(q, RSTART + 5, RLENGTH - 5), c, ";")
+                    fg = sprintf("#%02x%02x%02x", c[1], c[2], c[3])
+                  }
+                  if (q == "" || q == "0" || q ~ /(^|;)39(;|$)/) fg = ""
+                  s = substr(s, n + 1)
+                  continue
+                }
+                col++
+                if (substr(s, 1, 1) == "*") out = out " " col ":" fg
+                s = substr(s, 2)
+              }
+              print substr(out, 2)
+            }'
+            sleep 0.1
+          done | awk -v frames="$HOME/frames" '
+            # The frames of session 1 (want 1) and session 2 (want 2): the
+            # first two lines breathFrames printed.
+            BEGIN {
+              for (k = 1; k <= 2 && (getline l < frames) > 0; k++) {
+                sub(/^set -g @breath[0-9]+ .#\{A:/, "", l)
+                sub(/\}.$/, "", l)
+                m = split(l, f, ",")
+                for (i = 1; i <= m; i++) {
+                  gsub(/^#\[fg=|\]\*$/, "", f[i])
+                  frame[k, f[i]] = 1
+                }
+              }
+              want[1] = "white"; want[2] = 2; want[3] = "white"; want[4] = 1
+            }
+            {
+              if (NF > marks) marks = NF
+              for (i = 1; i <= NF; i++) {
+                split($i, a, ":")
+                if (index(" " cols[i] " ", " " a[1] " ") == 0) cols[i] = cols[i] " " a[1]
+                if (!((i, a[2]) in seen)) {
+                  seen[i, a[2]] = 1
+                  n[i]++
+                  colors[i] = colors[i] " " a[2]
+                  if (want[i] == "white" ? a[2] != "#ffffff" : !((want[i], a[2]) in frame)) off[i] = 1
+                }
+              }
+            }
+            END {
+              for (i = 1; i <= marks; i++) {
+                if (cols[i] ~ /^ [0-9]+$/ && !off[i] && want[i] == "white" && n[i] == 1) r = r " still"
+                else if (cols[i] ~ /^ [0-9]+$/ && !off[i] && want[i] != "white" && n[i] > 2) r = r " breathes"
+                else r = r " [" substr(cols[i], 2) "|" substr(colors[i], 2) "]"
+              }
+              print substr(r, 2)
+            }'
+          { tmux show -gv @colors | tr ' ' '\n'; echo '#7a7c9e'; } | awk -f ${breathFrames} > "$HOME/frames"
+          # Each line is set -g <name> '<value>': the value without its quotes.
+          while read -r _ _ name value; do
+            value=''${value#?}
+            [ "$(tmux show -gv "$name")" = "''${value%?}" ] || { echo; cat "$HOME/frames"; break; }
+          done < "$HOME/frames"
+          ${pkgs.tmux}/bin/tmux -L outer kill-server
+          tmux kill-server
+        ) || true
+        if [ "$breath" = "still breathes still breathes" ]; then
+          ok "the * of a window or session you aren't on breathes in its session's color; the current window's and your session's stay still, and none moves"
+        else
+          fail "the marks of session 1 (yours), session 2, window 1 (current) and window 2, sampled for 3 s, then the frames, are '$breath', expected 'still breathes still breathes' (when @colors changes, put the lines printed above in tmux.conf)"
         fi
 
         # The stand-in titles its pane as the packaged claude does; check that
-        # it still does. Its title code declares the ◐/◑ spinner and then the ✳
-        # that @claude_idle matches, as \u escapes in the bundle, and the file
-        # is .claude-wrapped, the name tmux sees on macOS. A failure means a
-        # claude-code update changed one of them: see what claude writes now.
+        # it still does. Its title code declares the ◐/◑ spinner that
+        # @claude_working matches and then the ✳ it shows once idle, as \u
+        # escapes in the bundle, and the file is .claude-wrapped, the name tmux
+        # sees on macOS. A failure means a claude-code update changed one of
+        # them: see what claude writes now.
         if grep -aqE '\["\\u25D0","\\u25D1"],[[:alnum:]_$]+="\\u2733"' ${pkgs.claude-code}/bin/.claude-wrapped; then
-          ok "the packaged claude, .claude-wrapped, still has the ◐/◑ title spinner and the ✳ the idle mark matches"
+          ok "the packaged claude, .claude-wrapped, still has the ◐/◑ title spinner the working mark matches, and the ✳ it shows once idle"
         else
-          fail "${pkgs.claude-code}/bin/.claude-wrapped is missing, or no longer declares the title spinner \\u25D0/\\u25D1 followed by \\u2733: see what claude titles its pane now, and update @claude_idle"
+          fail "${pkgs.claude-code}/bin/.claude-wrapped is missing, or no longer declares the title spinner \\u25D0/\\u25D1 followed by \\u2733: see what claude titles its pane now, and update @claude_working"
         fi
 
         # Programs inside tmux can neither set nor read the clipboard through it,
