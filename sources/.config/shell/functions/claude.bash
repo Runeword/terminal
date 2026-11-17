@@ -645,18 +645,28 @@ __claude_vm_review() (
 
 # The review in a throwaway OpenShell sandbox (leader cor), by openshell-nix's
 # claude-review: it copies the repository you are in into the sandbox and runs
-# the claude command it is handed there, as typed. The defaults go first and
-# the arguments after them, so a --model or --effort typed in the alias
-# replaces its default, as Claude Code keeps a repeated flag's last value; the
-# alias puts the request after --, so one that starts with - is not taken for
-# a flag. --tools leaves Claude and its subagents Read, Grep, Glob and Agent:
-# no shell, no edits. CLAUDE_CODE_AMBER_ASTROLABE=1 tells Claude that no one
-# can answer its questions during the run, and --refresh runs the newest
-# openshell-nix rather than one Nix fetched in the last hour.
+# the claude command it is handed there, as typed. Two pickers choose the
+# model, then the effort: the newest model of each family, as Claude Code
+# 2.1.318's model catalog names them (latest_per_family), and the five effort
+# levels its --help lists, all of which that catalog lets each of the four
+# take. Both lists start at the cheapest, so enter twice is the cheapest
+# review, and escape in either picker starts none. The picks go first and the
+# arguments after them, so a --model or --effort typed in the alias still
+# wins, as Claude Code keeps a repeated flag's last value; the alias puts the
+# request after --, so one that starts with - is not taken for a flag. --tools
+# leaves Claude and its subagents Read, Grep, Glob and Agent: no shell, no
+# edits. CLAUDE_CODE_AMBER_ASTROLABE=1 tells Claude that no one can answer its
+# questions during the run, and --refresh runs the newest openshell-nix rather
+# than one Nix fetched in the last hour.
 __claude_openshell_review() {
+  local model effort
+  model=$(printf '%s\n' claude-haiku-5-5 claude-sonnet-5-5 claude-opus-5-5 claude-fable-5-1 |
+    eval fzf "$__CLAUDE_FZF" "--header='model'") || return 0
+  effort=$(printf '%s\n' low medium high xhigh max |
+    eval fzf "$__CLAUDE_FZF" "--header='effort'") || return 0
   nix run --refresh git+ssh://git@github.com/Runeword/openshell-nix#claude-review -- \
     env CLAUDE_CODE_AMBER_ASTROLABE=1 claude -p \
-    --model claude-haiku-5-5 --effort low --max-budget-usd 20 \
+    --model "$model" --effort "$effort" --max-budget-usd 20 \
     --permission-mode dontAsk --tools Read,Grep,Glob,Agent "$@"
 }
 
