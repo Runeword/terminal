@@ -4,6 +4,7 @@
   permeance,
   nixpkgs,
   nix-index-database,
+  lefthook,
   claudeSandbox,
 }:
 let
@@ -26,6 +27,7 @@ let
       git
       nixpkgs
       nix-index-database
+      lefthook
       claudeSandbox
       ;
   };
