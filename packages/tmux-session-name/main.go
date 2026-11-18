@@ -1,7 +1,7 @@
 // Command tmux-session-name labels a tmux session with a few words on what its
 // windows are doing, which tmux.conf's status-left shows for the current
 // session, after the session numbers, and names each of its windows with one
-// word, which the window list shows. A local model, Qwen3.5 2B run by
+// to three words, which the window list shows. A local model, Qwen3.5 2B run by
 // llama.cpp, names them from each pane's program, folder, git branch and
 // title, never from what is on screen, and only when those change. Nothing
 // leaves the machine.
@@ -31,8 +31,8 @@
 // memory (about 2 GB) only for the few seconds it runs, one call at a time.
 // The call loads a prompt cache of its system message, which the first call
 // makes under the user's cache directory, and reads only the pane lines. A
-// GBNF grammar holds its answer to the label's or the name's shape, and
-// sanitize or word checks it again before tmux sees it.
+// GBNF grammar holds its answer to the shape labels and names share, and
+// sanitize checks it again before tmux sees it.
 package main
 
 import (
@@ -225,8 +225,8 @@ func labelSession(id string, force bool, st state, panes []pane, d deps) error {
 	return write(d, id, st, label, fp, at, "")
 }
 
-// nameWindows names each window of session id in one word, after what its
-// panes work on, when they changed since its name was made.
+// nameWindows names each window of session id after what its panes work on,
+// when they changed since its name was made.
 func nameWindows(id string, panes []pane, d deps) error {
 	out, err := d.tmux("list-windows", "-t", id, "-F", windowFormat)
 	if err != nil {
@@ -254,7 +254,7 @@ func nameWindow(w windowState, panes []pane, d deps) error {
 		return nil
 	}
 	if plain(panes) {
-		if name, ok := folderWord(panes); ok {
+		if name, ok := folderLabel(panes); ok {
 			return writeWindow(d, w, name, fp, w.at, "")
 		}
 	}
@@ -262,10 +262,9 @@ func nameWindow(w windowState, panes []pane, d deps) error {
 		return nil
 	}
 	at := d.now.Unix()
-	reply, err := d.ask(query{system: windowSystemPrompt, lines: windowLines(panes), grammar: wordGrammar, cache: "window"})
-	name := word(reply)
-	if err == nil && name == "" {
-		err = fmt.Errorf("no word in the answer %q", reply)
+	reply, err := d.ask(query{system: windowSystemPrompt, lines: windowLines(panes), grammar: labelGrammar, cache: "window"})
+	if err == nil && sanitize(reply) == "" {
+		err = fmt.Errorf("no name in the answer %q", reply)
 	}
 	if err != nil {
 		err = fmt.Errorf("model: %w", err)
@@ -274,8 +273,10 @@ func nameWindow(w windowState, panes []pane, d deps) error {
 		_ = writeWindow(d, w, w.label, w.fp, at, oneLine(err.Error()))
 		return fmt.Errorf("window %s: %w", w.id, err)
 	}
-	if saysNothing(name, panes) {
-		name, _ = folderWord(panes)
+	// When none of its words says anything, the folder says more.
+	name := meaningful(reply, panes)
+	if name == "" {
+		name, _ = folderLabel(panes)
 	}
 	return writeWindow(d, w, name, fp, at, "")
 }
