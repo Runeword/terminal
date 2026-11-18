@@ -643,6 +643,43 @@ __claude_vm_review() (
     __claude_vm -p --allowedTools Bash --no-session-persistence --max-budget-usd 5 "/code-review $*"
 )
 
+# The openshell-nix flake that the openshell chords run (leader co*): your
+# checkout in ~/openshell-nix where there is one, as its main branch has it,
+# or else GitHub's, as you last pushed it. Nix reads the checkout's main again
+# at each run, and with ?ref=main what is uncommitted there doesn't run; on
+# GitHub it looks for a newer commit at most once an hour, unless --refresh.
+# OPENSHELL_NIX names a checkout elsewhere, which must then be there, at an
+# absolute path that a flake URL takes as it is: letters, digits and ._/- only.
+__claude_openshell_flake() {
+  local dir=${OPENSHELL_NIX:-$HOME/openshell-nix}
+  if [ ! -e "$dir/.git" ]; then
+    if [ -n "${OPENSHELL_NIX:-}" ]; then
+      echo "claude: OPENSHELL_NIX is $OPENSHELL_NIX, which holds no git checkout" >&2
+      return 1
+    fi
+    echo git+ssh://git@github.com/Runeword/openshell-nix
+    return 0
+  fi
+  case "$dir" in
+    [!/]* | *[!A-Za-z0-9._/-]*)
+      echo "claude: $dir can't go in a flake URL as it is: it takes an absolute path of letters, digits and ._/- only" >&2
+      return 1
+      ;;
+  esac
+  echo "git+file://$dir?ref=main"
+}
+
+# What an openshell chord (its eval and eval-edit rows) puts on the prompt, so
+# that the line shows which openshell-nix runs: nix run of the app the first
+# argument names, default for the openshell CLI, then the second argument, the
+# rest of the line as it is. The URL is quoted: zsh would take its ? for a glob.
+#   __claude_openshell claude-task "-- '<task>'"
+__claude_openshell() {
+  local flake
+  flake=$(__claude_openshell_flake) || return 1
+  printf "nix run '%s#%s'%s \n" "$flake" "$1" "${2:+ $2}"
+}
+
 # The review in a throwaway OpenShell sandbox (leader cor), by openshell-nix's
 # claude-review: it copies the repository you are in into the sandbox and runs
 # the claude command it is handed there, as typed. Two pickers choose the
@@ -656,15 +693,18 @@ __claude_vm_review() (
 # request after --, so one that starts with - is not taken for a flag. --tools
 # leaves Claude and its subagents Read, Grep, Glob and Agent: no shell, no
 # edits. CLAUDE_CODE_AMBER_ASTROLABE=1 tells Claude that no one can answer its
-# questions during the run, and --refresh runs the newest openshell-nix rather
-# than one Nix fetched in the last hour.
+# questions during the run. It runs the openshell-nix __claude_openshell_flake
+# picks, and names it first; --refresh runs GitHub's newest rather than one
+# Nix fetched in the last hour.
 __claude_openshell_review() {
-  local model effort
+  local flake model effort
+  flake=$(__claude_openshell_flake) || return 1
+  echo "claude: openshell-nix from $flake" >&2
   model=$(printf '%s\n' claude-haiku-5-5 claude-sonnet-5-5 claude-opus-5-5 claude-fable-5-1 |
     eval fzf "$__CLAUDE_FZF" "--header='model'") || return 0
   effort=$(printf '%s\n' low medium high xhigh max |
     eval fzf "$__CLAUDE_FZF" "--header='effort'") || return 0
-  nix run --refresh git+ssh://git@github.com/Runeword/openshell-nix#claude-review -- \
+  nix run --refresh "${flake}#claude-review" -- \
     env CLAUDE_CODE_AMBER_ASTROLABE=1 claude -p \
     --model "$model" --effort "$effort" --max-budget-usd 20 \
     --permission-mode dontAsk --tools Read,Grep,Glob,Agent "$@"
