@@ -5,33 +5,33 @@ import (
 	"strings"
 )
 
-// maxWord caps a window's name: the window list holds one per window around
-// the middle of the status line. The prompt asks for 12 characters.
-const maxWord = 12
-
 // windowSystemPrompt is the model's system message for a window's name. Its
-// examples steer Qwen3.5 2B to the most specific noun of a title: without
-// them it answered ai, fix or debug. With them, 19 of 20 sample windows got a
-// fitting word, and the 20th got its shell's name, which saysNothing catches
-// (measured 2026-10-27).
+// examples steer Qwen3.5 2B to the most specific nouns of a title or a branch.
+// The program to leave out is the one each line starts with: told "not
+// programs such as zsh, nvim or claude", it left zsh out of a branch about it
+// (feat/zsh-prompt gave dotfiles-git). It still puts the program in some
+// answers (login-node), which meaningful takes out. All 29 sample windows it
+// was tuned on got a fitting name; of 20 others, 18 did, and 2 got their
+// folder's (measured 2026-11-18).
 const windowSystemPrompt = `You name tmux windows. Each input line is one pane of the window: program, folder, git branch ("-" for none), and the title the program set, if any.
 
-Answer with one lowercase English word, at most 12 characters, for what the window works on: the most specific thing the title or the branch is about, or else the project the folder names. Answer with a noun: not a verb such as fix, add or upgrade, and not a program such as zsh, nvim or claude. Answer with the word only.
+Answer with a name for what the window works on: 1 to 3 lowercase English words joined by hyphens, at most 16 characters. Name the most specific thing the title or the branch is about, or else the project the folder names. Use nouns, not verbs such as fix, add or upgrade. Leave out the program each line starts with: it names no work. Answer with the name only.
 
 Example input:
 claude terminal main "Tmux session AI naming"
-Example answer: naming
+Example answer: ai-naming
 
 Example input:
 nvim neovim lsp-fix
-Example answer: lsp
+Example answer: neovim-lsp
+
+Example input:
+zsh shop feat/checkout-form
+Example answer: checkout-form
 
 Example input:
 claude shop main "Upgrade Stripe webhook handler"
-Example answer: stripe`
-
-// wordGrammar is the GBNF grammar that holds the model's answer to one word.
-const wordGrammar = `root ::= [a-z0-9]+`
+Example answer: stripe-webhook`
 
 // defaultBranches name no task: a window on one says no more than its folder.
 var defaultBranches = []string{"main", "master"}
@@ -43,16 +43,12 @@ func words(s string) []string {
 	})
 }
 
-// word turns the model's answer into a window's name: the first word of its
-// first line, at most maxWord characters. Only [a-z0-9] is left, so no tmux
-// style or format can reach the status line.
-func word(s string) string {
-	line, _, _ := strings.Cut(strings.TrimSpace(s), "\n")
-	w := words(line)
-	if len(w) == 0 {
-		return ""
-	}
-	return w[0][:min(len(w[0]), maxWord)]
+// meaningful turns the model's answer into a window's name, as sanitize does,
+// without the words that say nothing.
+func meaningful(answer string, panes []pane) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(answer), "\n")
+	kept := slices.DeleteFunc(words(line), func(w string) bool { return saysNothing(w, panes) })
+	return sanitize(strings.Join(kept, "-"))
 }
 
 // plain reports whether the panes say nothing but their programs and folders:
@@ -67,11 +63,12 @@ func plain(panes []pane) bool {
 	return true
 }
 
-// folderWord names the panes after the folder they share when its name is one
-// word, "home" for ~, and with "" when it has none, such as /: the window list
-// then shows the program. ok is false when the panes are in different folders,
-// or the name has more words, for the model to pick from.
-func folderWord(panes []pane) (name string, ok bool) {
+// folderLabel names the panes after the folder they share when the whole of
+// its name makes a window's name (one word cut to maxLabel, or up to 3 that
+// fit), "home" for ~, and with "" when it has none, such as /: the window list
+// then shows the program. ok is false when the panes are in different
+// folders, or the name has more words, for the model to pick from.
+func folderLabel(panes []pane) (name string, ok bool) {
 	if len(panes) == 0 {
 		return "", false
 	}
@@ -83,25 +80,29 @@ func folderWord(panes []pane) (name string, ok bool) {
 	if panes[0].folder == "~" {
 		return "home", true
 	}
-	switch w := words(panes[0].folder); len(w) {
-	case 0:
-		return "", true
-	case 1:
-		return w[0][:min(len(w[0]), maxWord)], true
+	w := words(panes[0].folder)
+	name = sanitize(panes[0].folder)
+	if len(w) > 1 && name != strings.Join(w, "-") {
+		return "", false
 	}
-	return "", false
+	return name, true
 }
 
-// saysNothing reports whether the model's word names only a shell, a program
-// running in the window or a default branch, and no title mentions it: the
-// window list shows the program anyway, and a default branch names no task.
+// saysNothing reports whether a word of the model's answer names only a
+// shell, a program running in the window or a default branch, and no title or
+// other branch mentions it: the window list shows the program anyway, and a
+// default branch names no task.
 func saysNothing(w string, panes []pane) bool {
 	nothing := isShell(w) || slices.Contains(defaultBranches, w)
 	for _, p := range panes {
 		if slices.Contains(words(p.title), w) {
 			return false
 		}
-		nothing = nothing || w == word(p.program)
+		if !slices.Contains(defaultBranches, p.branch) && slices.Contains(words(p.branch), w) {
+			return false
+		}
+		// All its words: claude runs as .claude-wrapped on macOS.
+		nothing = nothing || slices.Contains(words(p.program), w)
 	}
 	return nothing
 }
