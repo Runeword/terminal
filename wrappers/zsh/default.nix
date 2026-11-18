@@ -94,7 +94,7 @@ pkgs.symlinkJoin (finalAttrs: {
           replacements = { inherit zsh; };
         };
         claude = {
-          description = "A claude launch provisions its profile, drops what a session planted and runs claude under a lock it names to it, and the connection and microVM pickers, the reviews, the session tools and ca launch what was asked";
+          description = "A claude launch provisions its profile, drops what a session planted and runs claude under a lock it names to it, and the connection and microVM pickers, the reviews, the openshell chords, the session tools and ca launch what was asked";
           replacements = {
             inherit zsh leaderAliases claude;
             inherit (pkgs) jq;
