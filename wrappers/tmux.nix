@@ -11,6 +11,7 @@ let
     ".config/tmux/scripts/toggle-pane.sh"
     ".config/tmux/scripts/new-window-shift.sh"
     ".config/tmux/scripts/open-url.sh"
+    ".config/tmux/scripts/copy-dedent.sh"
     # Bound in tmux.conf on a currently-commented M-b — bundled so the binding
     # resolves in bundled mode, not just under $PERMEANCE_ROOT.
     ".config/tmux/scripts/watch-build.sh"
@@ -178,7 +179,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "tmux";
-      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, yanks via copy-selection, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, takes none of zsh's default keys but those it means to, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, gives each session a color of its own, which a thin line under the window list is drawn in, dimmed but under the current window and the spaces at its ends, shows the current session's AI label at the left of the window list, which stays centred as if alone, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows each window's one-word AI name in place of its program, the names and the session's label made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude is working, the marks of those you aren't on breathing in their session's color, and tells tmux that Alacritty takes synchronized updates";
+      description = "Verify tmux config loads without errors, uses the zsh wrapper, enables resurrect pane-content capture, turns passthrough off, copies through copy-dedent.sh, one paste buffer per copy without the indentation its lines share on screen, opens the link under the copy-mode cursor on Ctrl+Enter, leaves Alt+H to the shell and opens the pane below on Alt+Shift+V, takes none of zsh's default keys but those it means to, reorders windows by dragging their status-bar name, renders sessions sorted-by-number so they can be dragged to reorder too, picks the nearer name when a click on the bar falls between two, keeps M-t's window after the current one in a full session by pushing the session's last window into a new session next to it, moves a window to another session without leaving a gap in the window numbers of the one it left, closes the session numbers up to 1..N even from a session 0, gives each session a color of its own, which a thin line under the window list is drawn in, dimmed but under the current window and the spaces at its ends, shows the current session's AI label at the left of the window list, which stays centred as if alone, goes to the next and previous session by number and lands a client whose session closes on the one before it by number, shows each window's AI name of one to three words in place of its program, the names and the session's label made on session and window switches, the label also set with M-N, marks the windows and sessions whose Claude is working, the marks of those you aren't on breathing in their session's color, and tells tmux that Alacritty takes synchronized updates";
       script = ''
         # Each $(…) below runs its tmux server in a socket directory of its
         # own (fresh): kill-server returns before the server has exited, and a
@@ -241,11 +242,78 @@ let
             done
         }
 
-        yank=$(binding copy-mode-vi y)
-        case "$yank" in
-          *copy-selection*) ok "copy-mode-vi y yanks via copy-selection" ;;
-          *) fail "copy-mode-vi y is '$yank', expected copy-selection" ;;
+        # Every copy goes through scripts/copy-dedent.sh. y, Y, Enter and a
+        # mouse drag pass -CP, so the script's copy is the only paste buffer and
+        # clipboard write, and the selection's corners; the copies left on
+        # tmux's defaults reach it through copy-command.
+        for key in y Y Enter MouseDragEnd1Pane; do
+          copy=$(binding copy-mode-vi "$key")
+          case "$copy" in
+            *copy-pipe*-CP*copy-dedent.sh*selection_start_x*) ok "copy-mode-vi $key copies through copy-dedent.sh alone, with the selection's corners" ;;
+            *) fail "copy-mode-vi $key is '$copy', expected a copy-pipe -CP through copy-dedent.sh with the selection's corners" ;;
+          esac
+        done
+        cc=$(fresh; ${self}/bin/tmux start-server \; show -sv copy-command \; kill-server 2>/dev/null)
+        case "$cc" in
+          *copy-dedent.sh*) ok "copy-command goes through copy-dedent.sh" ;;
+          *) fail "copy-command is '$cc', expected copy-dedent.sh" ;;
         esac
+
+        # The script on lines a two-column margin indents: whole lines, a
+        # selection that starts past the margin, forwards and backwards, a
+        # rectangle, which leaves the margin out already, a copy without
+        # corners, as copy-command makes, and one that starts mid-line.
+        dedents=$(
+          PATH=${self}/bin:$PATH
+          fresh
+          tmux new-session -d sleep 60
+          for c in '  a\n    b|0,0,6,1,0' 'a\n    b|2,0,6,1,0' 'a\n    b|6,1,2,0,0' 'a\n  b|2,0,6,1,1' '  a\n    b|' 'bar baz\nnext|4,0,3,1,0'; do
+            printf '%b' "''${c%%|*}" | sh ${self}/.config/tmux/scripts/copy-dedent.sh "''${c#*|}"
+            tmux show-buffer
+            printf '/'
+          done
+          tmux kill-server
+        ) || true
+        if [ "$dedents" = "$(printf 'a\n  b/a\n  b/a\n  b/a\n  b/a\n  b/bar baz\nnext/')" ]; then
+          ok "copy-dedent.sh drops the indentation the copied lines share on screen and keeps the rest"
+        else
+          fail "copy-dedent.sh made '$dedents' of the six cases"
+        fi
+
+        # y in copy mode, pressed through an attached client as C-Enter is
+        # below, on a selection that starts past a two-column margin, where
+        # back-to-indentation leaves the cursor: the copy is one paste buffer,
+        # without the margin.
+        yanked=$(
+          PATH=${self}/bin:$PATH
+          fresh
+          tmux start-server \; set -g default-shell "$(command -v sh)" \; \
+            new-session -d -s 1 -x 30 -y 5 "printf '%s\n' '  w=/tmp/x' '  cp a b'; sleep 60" \; \
+            set-hook -g client-attached 'wait-for -S attached'
+          ${pkgs.tmux}/bin/tmux -L outer -f /dev/null new-session -d -x 30 -y 6 'env -u TMUX tmux attach -t =1'
+          timeout 10 tmux wait-for attached
+          client=$(tmux list-clients -F '#{client_name}')
+          for _ in $(seq 50); do
+            case $(tmux capture-pane -p -t =1:) in *'cp a b'*) break ;; esac
+            sleep 0.1
+          done
+          tmux copy-mode -t =1: \; send-keys -X -t =1: history-top \; send-keys -X -t =1: back-to-indentation \; \
+            send-keys -X -t =1: begin-selection \; send-keys -X -t =1: cursor-down \; send-keys -X -t =1: end-of-line
+          tmux send-keys -K -c "$client" y
+          for _ in $(seq 50); do
+            [ -n "$(tmux list-buffers)" ] && break
+            sleep 0.1
+          done
+          printf '%s/' "$(tmux list-buffers | wc -l)"
+          tmux show-buffer
+          ${pkgs.tmux}/bin/tmux -L outer kill-server
+          tmux kill-server
+        ) || true
+        if [ "$yanked" = "$(printf '1/w=/tmp/x\ncp a b')" ]; then
+          ok "y on a selection that starts past a two-column margin leaves one paste buffer, without the margin"
+        else
+          fail "y on a selection past a two-column margin left '$yanked', expected '1/' then 'w=/tmp/x' and 'cp a b' on two lines"
+        fi
 
         # A name dragged along the bar moves to where the pointer is, and on
         # by columns of travel once the pointer strays below the bar. tmux 3.8
@@ -850,9 +918,9 @@ let
         # The current session's AI label (packages/tmux-session-name) shows
         # after its number at the left of the window list (@wsession, which
         # status-left ends in; the color test above draws it there), and each
-        # window's one-word AI name in place of its program: switching
-        # sessions or windows runs the labeller, and M-N pins a typed label or
-        # asks the model again.
+        # window's AI name of one to three words in place of its program:
+        # switching sessions or windows runs the labeller, and M-N pins a typed
+        # label or asks the model again.
         label=$(fresh; ${self}/bin/tmux start-server \; show -gv status-left \; show -gv @wsession \; show -gv window-status-current-format \; show -gv window-status-format \; show-hooks -g \; kill-server 2>/dev/null)$(binding root M-N)
         case "$label" in
           *"session_name},10}"*"#{E:@wsession}"*"#{@label}"*"#I #{?@wlabel,#{@wlabel},#W}"*"#I #{?@wlabel,#{@wlabel},#W}"*"client-session-changed[0] run-shell"*tmux-session-name*"session-window-changed[0] run-shell"*tmux-session-name*"@label_pin"*"tmux-session-name -force"*) ok "the bar shows the session's AI label and the windows' AI names, refreshed on switches; M-N sets the label" ;;
