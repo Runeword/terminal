@@ -184,6 +184,36 @@ else
   fail "the OpenShell review starts after escape in its effort picker"
 fi
 
+# The openshell chords (leader co*, eval rows) put a nix run line on the
+# prompt: from the checkout in ~/openshell-nix, at its main branch, where
+# there is one, or else from GitHub; and nothing, with a message, when
+# OPENSHELL_NIX names no checkout, so the chord runs nothing.
+mkdir -p "$TMPDIR/oshome/openshell-nix/.git" "$TMPDIR/nohome"
+oschord='. @zsh@/.config/shell/functions/claude.bash
+  __claude_openshell claude-sandbox "-- --name <name> --upload ."'
+case "$(HOME=$TMPDIR/oshome @zsh@/bin/zsh -f -c "$oschord")" in
+  "nix run 'git+file://$TMPDIR/oshome/openshell-nix?ref=main#claude-sandbox' -- --name <name> --upload . ")
+    ok "an openshell chord runs the checkout in ~/openshell-nix, at its main branch"
+    ;;
+  *) fail "an openshell chord does not run the checkout in ~/openshell-nix at its main branch" ;;
+esac
+case "$(HOME=$TMPDIR/nohome @zsh@/bin/zsh -f -c "$oschord")" in
+  "nix run 'git+ssh://git@github.com/Runeword/openshell-nix#claude-sandbox' -- --name <name> --upload . ")
+    ok "without a checkout in ~/openshell-nix, an openshell chord runs GitHub's"
+    ;;
+  *) fail "without a checkout in ~/openshell-nix, an openshell chord does not run GitHub's" ;;
+esac
+if osnone=$(HOME=$TMPDIR/oshome OPENSHELL_NIX=$TMPDIR/nowhere @zsh@/bin/zsh -f -c "$oschord" 2>&1); then
+  fail "an openshell chord prints a line to run when OPENSHELL_NIX names no checkout"
+else
+  case "$osnone" in
+    "claude: OPENSHELL_NIX is $TMPDIR/nowhere, which holds no git checkout")
+      ok "an openshell chord prints nothing to run, and says why, when OPENSHELL_NIX names no checkout"
+      ;;
+    *) fail "an openshell chord does not say that OPENSHELL_NIX names no checkout: $osnone" ;;
+  esac
+fi
+
 # The session eraser (leader cx) hands every marked session to one
 # `claude-sessions rm -ask`, which asks about them all at once. A
 # stand-in fzf, given --multi, marks every row and presses enter: it
