@@ -5,6 +5,9 @@
   git,
   nixpkgs,
   nix-index-database,
+  # github:Runeword/lefthook, whose toolchain puts this repository's formatters
+  # on claude's PATH for claude-format.
+  lefthook,
   # github:Runeword/claude-sandbox's packages for this system.
   claudeSandbox,
 }:
@@ -63,6 +66,20 @@ let
   # interactive shell. The allowlist check still runs first on the same argv.
   gitShim = claudeSandbox.git-shim.override { realGit = "${git}/bin/git"; };
   playwrightMcpPkg = import ../packages/playwright-mcp.nix { inherit pkgs; };
+  # claude-format (sources/.claude/hooks/format.sh) runs the formatters a
+  # repository's lefthook config defines, through lefthook. Here those are the
+  # format hooks the dev shell installs, whose tools and lefthook go on claude's
+  # PATH, so the hook finds them in a session started outside the dev shell too.
+  # Only the format hooks: the whole toolchain also carries auto-commit, which
+  # commits.
+  lefthookLib = lefthook.lib.${pkgs.stdenv.hostPlatform.system};
+  lefthookHooks = import ../devshells/lefthook-hooks.nix;
+  formatToolchain = lefthookLib.toolchain {
+    hooks = pkgs.lib.filterAttrs (name: _: pkgs.lib.hasPrefix "format-" name) lefthookHooks;
+  };
+  # This repository's lefthook config, as the dev shell renders it, for the smoke
+  # test's run of claude-format.
+  repoLefthookConfig = (lefthookLib.mkShell { hooks = lefthookHooks; }).lefthookConfig;
   # The Playwright MCP's browser_run_code_unsafe runs any JavaScript in the
   # server's own process, which on macOS is outside Claude Code's sandbox. Denied
   # by glob for any server that offers it, and by full name for the plugin
@@ -94,6 +111,9 @@ let
     pkgs.marksman
     pkgs.vscode-langservers-extracted
     pkgs.shellcheck
+    # claude-format reads its input and lefthook's config with jq: listed so the
+    # hook doesn't depend on the caller's PATH.
+    pkgs.jq
     # firebase CLI on claude's PATH so sessions can run `firebase …`. Already in
     # packages/commons.nix for the interactive shell (usually inherited here too),
     # but listed explicitly so availability doesn't depend on the caller's PATH.
@@ -130,6 +150,7 @@ let
     pkgs.python312
     playwrightMcpPkg
   ]
+  ++ formatToolchain
   # Deps for claude's built-in `/sandbox` on Linux (Seatbelt is built in on macOS).
   # Recent claude-code turns that sandbox ON by default when these sit on PATH; it
   # can't nest inside the bubblewrap jail (claude-sandbox.bash passes
@@ -221,7 +242,7 @@ let
     };
     passthru.tests.smoke = permeance.tests.mkSmoke {
       name = "claude";
-      description = "Verify claude binary executes, settings.json, plugin hook and plugin MCP commands resolve, keep CLAUDE.local.md files out of context and keep the bypass-mode warning accepted, git-allowlist-hook blocks when it can't run, claude starts with the read-only Explore agent and its own build's guard, which blocks writes, the status line renders, comma looks packages up offline, the Playwright MCP starts in its scratch home with its testing and devtools tools, claude denies its unsafe tool and no plugin attaches it to an outside browser or widens its reach, the Go and Lua language servers keep their caches where the sandbox can write and the shell one skips the checks .shellcheckrc disables, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
+      description = "Verify claude binary executes, settings.json, plugin hook and plugin MCP commands resolve, keep CLAUDE.local.md files out of context and keep the bypass-mode warning accepted, git-allowlist-hook blocks when it can't run, claude starts with the read-only Explore agent and its own build's guard, which blocks writes, the status line renders, claude-format runs a repository's own lefthook formatters, only those, and the built-in ones elsewhere, comma looks packages up offline, the Playwright MCP starts in its scratch home with its testing and devtools tools, claude denies its unsafe tool and no plugin attaches it to an outside browser or widens its reach, the Go and Lua language servers keep their caches where the sandbox can write and the shell one skips the checks .shellcheckrc disables, the sandbox launcher pins the host-executed config and exports the jira token behind a network filter, and the macOS launcher hands over the jira token and firebase key";
       script = ''
         # claude-code does not expose a config-loading probe that works in a
         # sandbox without auth/network. This only verifies the wrapper's binary
@@ -423,6 +444,162 @@ let
         else
           fail "status line rendered: $line"
         fi
+
+        # claude-format, the PostToolUse hook on Edit and Write, run the way
+        # Claude Code runs it: the edit as JSON on stdin, in the session's
+        # repository, with claude's PATH ahead of the caller's. A repository's
+        # own formatters, the pre-commit jobs of its lefthook config that set
+        # stage_fixed, run instead of the built-in ones, and only those.
+        fmt=$(mktemp -d)
+        fmtEdit() {
+          ${pkgs.jq}/bin/jq -n --arg f "$2" '{tool_name: "Edit", tool_input: {file_path: $f}}' \
+            | (cd "$1" && CLAUDE_PROJECT_DIR="$1" PATH="$claudePath:$PATH" \
+              CLAUDE_GIT_ALLOWLIST_CONFIG=${self}/.claude/git-allowlist.toml claude-format) \
+              2> "$fmt/stderr"
+        }
+        fmtRepo() {
+          mkdir -p "$1" && ${pkgs.git}/bin/git -C "$1" init -q
+        }
+        # fmtIs <what> <file> <the content it must have>
+        fmtIs() {
+          if [ "$(cat "$2")" = "$3" ]; then
+            ok "claude-format: $1"
+          else
+            fail "claude-format: $1: got $(cat "$2"), stderr $(cat "$fmt/stderr")"
+          fi
+        }
+        fmtEditOk() {
+          fmtEdit "$@" || fail "claude-format: editing $2 failed: $(cat "$fmt/stderr")"
+        }
+        go='package x\nfunc  f(){}\n'
+        gofmted='package x\n\nfunc f() {}'
+
+        # This repository's own config, with every formatter from claude's PATH.
+        repo="$fmt/repo"
+        fmtRepo "$repo"
+        cp ${repoLefthookConfig} "$repo/lefthook.yml"
+        printf 'package a\n\nfunc f() {\n\n\tprintln()\n}\n' > "$repo/a.go"
+        printf 'a:   1\n' > "$repo/b.yml"
+        printf 'if true; then\necho x\nfi\n' > "$repo/c.bash"
+        mkdir -p "$repo/sub" && printf '{a=1;}\n' > "$repo/sub/d.nix"
+        printf 'a  =  1\n' > "$repo/e.toml"
+        printf '#  title\n' > "$repo/f.md"
+        for f in a.go b.yml c.bash sub/d.nix e.toml f.md; do
+          fmtEditOk "$repo" "$repo/$f"
+        done
+        fmtIs "formats Go with gofumpt, as this repository's config does" "$repo/a.go" "$(printf 'package a\n\nfunc f() {\n\tprintln()\n}')"
+        fmtIs "formats YAML with yamlfmt" "$repo/b.yml" "a: 1"
+        fmtIs "formats .bash with shfmt" "$repo/c.bash" "$(printf 'if true; then\n  echo x\nfi')"
+        fmtIs "formats Nix in a subdirectory with nixfmt" "$repo/sub/d.nix" "{ a = 1; }"
+        fmtIs "formats TOML with taplo" "$repo/e.toml" "a = 1"
+        fmtIs "leaves a file no formatter takes alone" "$repo/f.md" "#  title"
+
+        # Only the formatters: no other job runs, nothing is staged, a partially
+        # staged file keeps its unstaged changes while they run, and a file type
+        # the config doesn't format doesn't get the built-in formatter either.
+        repo="$fmt/only"
+        fmtRepo "$repo"
+        cat > "$repo/lefthook.yml" << 'EOF'
+        pre-commit:
+          jobs:
+            - name: guard
+              run: touch ran-guard
+            - group:
+                piped: true
+                jobs:
+                  - name: upper
+                    glob: "*.txt"
+                    run: cat other.txt > seen && tr a-z A-Z < {staged_files} > .up && mv .up {staged_files}
+                    stage_fixed: true
+                  - name: lint
+                    glob: "*.txt"
+                    run: touch ran-lint
+            - name: finalize
+              run: touch ran-finalize
+        EOF
+        printf 'hello\n' > "$repo/note.txt"
+        printf 'one\n' > "$repo/other.txt"
+        ${pkgs.git}/bin/git -C "$repo" add other.txt
+        printf 'two\n' >> "$repo/other.txt"
+        printf '%b' "$go" > "$repo/x.go"
+        fmtEditOk "$repo" "$repo/note.txt"
+        fmtEditOk "$repo" "$repo/x.go"
+        fmtIs "runs the repository's formatter" "$repo/note.txt" HELLO
+        fmtIs "leaves a partially staged file's unstaged changes in place" "$repo/seen" "$(printf 'one\ntwo')"
+        fmtIs "leaves a file type the repository doesn't format alone" "$repo/x.go" "$(printf '%b' "$go")"
+        ran=
+        for job in guard lint finalize; do
+          if [ -e "$repo/ran-$job" ]; then
+            ran="$ran $job"
+          fi
+        done
+        if [ -n "$ran" ]; then
+          fail "claude-format: ran a job that isn't a formatter:$ran"
+        else
+          ok "claude-format: runs no job but the formatters"
+        fi
+        staged=$(${pkgs.git}/bin/git -C "$repo" diff --cached --name-only)
+        if [ "$staged" = other.txt ]; then
+          ok "claude-format: stages nothing"
+        else
+          fail "claude-format: staged $staged"
+        fi
+
+        # Formatters listed under the older commands key run too.
+        repo="$fmt/commands"
+        fmtRepo "$repo"
+        printf 'pre-commit:\n  commands:\n    upper:\n      glob: "*.txt"\n      run: tr a-z A-Z < {staged_files} > .up && mv .up {staged_files}\n      stage_fixed: true\n' > "$repo/lefthook.yml"
+        printf 'hello\n' > "$repo/note.txt"
+        fmtEditOk "$repo" "$repo/note.txt"
+        fmtIs "runs a formatter listed under commands" "$repo/note.txt" HELLO
+
+        # A formatter that fails says why.
+        repo="$fmt/fails"
+        fmtRepo "$repo"
+        printf 'pre-commit:\n  jobs:\n    - name: boom\n      glob: "*.bad"\n      run: echo "boom on {staged_files}" >&2; exit 3\n      stage_fixed: true\n' > "$repo/lefthook.yml"
+        : > "$repo/c.bad"
+        if fmtEdit "$repo" "$repo/c.bad"; then
+          fail "claude-format: a failing formatter went unreported"
+        elif grep -q 'boom on c.bad' "$fmt/stderr"; then
+          ok "claude-format: reports a failing formatter's output"
+        else
+          fail "claude-format: a failing formatter's output is lost: $(cat "$fmt/stderr")"
+        fi
+
+        # A formatter lefthook can't pick out, having no name, leaves the file as
+        # it is.
+        repo="$fmt/unnamed"
+        fmtRepo "$repo"
+        printf 'pre-commit:\n  jobs:\n    - glob: "*.go"\n      run: touch ran-fmt\n      stage_fixed: true\n' > "$repo/lefthook.yml"
+        printf '%b' "$go" > "$repo/x.go"
+        fmtEditOk "$repo" "$repo/x.go"
+        fmtIs "leaves a file only an unnamed formatter takes alone" "$repo/x.go" "$(printf '%b' "$go")"
+
+        # The built-in formatters: in a repository whose config has no formatter
+        # (and its linter doesn't run), outside any repository, and in a
+        # repository other than the session's, whose config could be one the
+        # session wrote.
+        repo="$fmt/lint"
+        fmtRepo "$repo"
+        printf 'pre-commit:\n  jobs:\n    - name: lint\n      glob: "*.go"\n      run: touch ran-lint\n' > "$repo/lefthook.yml"
+        printf '%b' "$go" > "$repo/x.go"
+        fmtEditOk "$repo" "$repo/x.go"
+        fmtIs "formats Go with gofmt where the config has no formatter" "$repo/x.go" "$(printf '%b' "$gofmted")"
+        if [ -e "$repo/ran-lint" ]; then
+          fail "claude-format: ran a linter"
+        else
+          ok "claude-format: runs no linter"
+        fi
+        mkdir -p "$fmt/plain"
+        printf '%b' "$go" > "$fmt/plain/x.go"
+        fmtEditOk "$fmt/plain" "$fmt/plain/x.go"
+        fmtIs "formats Go with gofmt outside a repository" "$fmt/plain/x.go" "$(printf '%b' "$gofmted")"
+        printf 'hello\n' > "$fmt/commands/other.txt"
+        printf '%b' "$go" > "$fmt/commands/y.go"
+        fmtEditOk "$fmt/only" "$fmt/commands/other.txt"
+        fmtEditOk "$fmt/only" "$fmt/commands/y.go"
+        fmtIs "doesn't run the config of a repository other than the session's" "$fmt/commands/other.txt" hello
+        fmtIs "formats Go with gofmt in a repository other than the session's" "$fmt/commands/y.go" "$(printf '%b' "$gofmted")"
 
         # The lookup nix-run.md relies on: comma on claude's PATH finds the
         # package that ships a command in its bundled index, with no network.
