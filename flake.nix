@@ -37,7 +37,7 @@
         pkgs: configPath:
         import ./wrappers {
           inherit pkgs configPath;
-          inherit (inputs) nixpkgs nix-index-database;
+          inherit (inputs) nixpkgs nix-index-database lefthook;
           permeance = mkPermeance pkgs;
           claudeSandbox = mkClaudeSandbox pkgs;
         };
