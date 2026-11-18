@@ -10,9 +10,11 @@ import (
 	"unicode"
 )
 
-// maxLabel caps a label's length: the status line holds it between the session
-// numbers and the window list, and a short name is quicker to read. The prompt asks for 16, and models
-// sometimes overshoot by a word ("nixos-kernel-upgrade"), which this keeps.
+// maxLabel caps a label's length, and a window's name's: the status line holds
+// the label between the session numbers and the window list, and the list one
+// name per window, and a short name is quicker to read. Both prompts ask for
+// 16, and models sometimes overshoot by a word ("nixos-kernel-upgrade"), which
+// this keeps.
 const maxLabel = 20
 
 // maxPromptPanes bounds the pane lines sent to the model.
@@ -161,8 +163,9 @@ func idleLabel(panes []pane) (string, bool) {
 	return label, label != ""
 }
 
-// labelGrammar is the GBNF grammar llama.cpp holds the answer to: 1 to 3 words
-// of [a-z0-9] joined by hyphens, so a small model can't wander off the format.
+// labelGrammar is the GBNF grammar llama.cpp holds a label or a window's name
+// to: 1 to 3 words of [a-z0-9] joined by hyphens, so a small model can't
+// wander off the format.
 const labelGrammar = `root ::= [a-z0-9]+ ("-" [a-z0-9]+)? ("-" [a-z0-9]+)?`
 
 // prompt is the model's input: one line per pane.
@@ -200,10 +203,10 @@ func answer(out string) string {
 	return strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(out), "[end of text]"))
 }
 
-// sanitize turns text into a label: the first line, lowercased, its runs of
-// anything but a-z and 0-9 turned into one hyphen, at most 3 words and
-// maxLabel characters, cut at a hyphen. Only [a-z0-9-] is left, so no tmux
-// style (#[...]) or format (#{...}) can reach the status line.
+// sanitize turns text into a label or a window's name: the first line,
+// lowercased, its runs of anything but a-z and 0-9 turned into one hyphen, at
+// most 3 words and maxLabel characters, cut at a hyphen. Only [a-z0-9-] is
+// left, so no tmux style (#[...]) or format (#{...}) can reach the status line.
 func sanitize(s string) string {
 	line, _, _ := strings.Cut(strings.TrimSpace(s), "\n")
 	label := ""
