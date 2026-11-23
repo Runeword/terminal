@@ -2,9 +2,8 @@
   pkgs,
   configPath,
   permeance,
-  nixpkgs,
-  nix-index-database,
-  lefthook,
+  # github:Runeword/claude's wrapper builder.
+  mkClaude,
   claudeSandbox,
 }:
 let
@@ -22,12 +21,9 @@ let
   claude = import ./claude.nix {
     inherit
       pkgs
-      files
       permeance
       git
-      nixpkgs
-      nix-index-database
-      lefthook
+      mkClaude
       claudeSandbox
       ;
   };
