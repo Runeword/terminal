@@ -3,93 +3,85 @@
 # in ../default.nix before the check runs this file.
 # SC2016 is off: the single-quoted code is for the zsh under test to expand.
 #
-# claude.bash: what a launch does to the profile and the project, the
-# connection and microVM pickers, the reviews, the session tools, and ca.
+# claude.bash: what each chord hands claude-launch (the claude package's
+# launch, which prepares the profile and confines claude, and tests that
+# itself), the window it opens, which stays open when claude-launch refuses,
+# the reviews, the session tools, and ca.
 
 # leader-aliases separates a row's fields with a no-break space.
 sep=$(printf '\302\240')
+launch=@claude@/bin/claude-launch
 
-# A claude profile comes from the claude wrapper's config
-# (github:Runeword/claude's sources/.claude), bundled with the claude this
-# shell ships, with this OS's sandbox overlay merged in and its commands
-# linked. CLAUDE_SOURCES_ROOT names a live copy instead, which
-# CLAUDE_SOURCES_ROOT_IGNORE sets aside, as the wrapper's launcher does;
-# the terminal's own tree is never read, even one with a .claude, as it
-# held before the config moved. An overlay that does not merge refuses the
-# launch.
-os=$(uname -s | tr '[:upper:]' '[:lower:]')
-provision='. @zsh@/.config/shell/functions/claude.bash; __claude_instance=$instance; __claude_provision_config'
-bundled_sandbox=$(@jq@/bin/jq -c .sandbox "@claude@/.claude/settings.$os.json")
-if instance=1 PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$provision" &&
-  [ "$(@jq@/bin/jq -c .sandbox "$HOME/.claude-1/settings.json")" = "$bundled_sandbox" ] &&
-  [ -f "$HOME/.claude-1/commands/x.md" ] &&
-  [ -f "$HOME/.claude-1/commands/r.md" ]; then
-  ok "bundled mode provisions the claude profile with the $os sandbox overlay and the /x and /r commands"
-else
-  fail "bundled mode does not provision the claude profile with its sandbox overlay and the /x and /r commands"
-fi
-mkdir -p "$TMPDIR/live/.claude/rules"
-echo '{"live":true}' >"$TMPDIR/live/.claude/settings.json"
-echo '{"sandbox":{"enabled":"live"}}' >"$TMPDIR/live/.claude/settings.$os.json"
-if instance=2 CLAUDE_SOURCES_ROOT=$TMPDIR/live PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$provision" &&
-  [ "$(@jq@/bin/jq -c . "$HOME/.claude-2/settings.json")" = '{"live":true,"sandbox":{"enabled":"live"}}' ] &&
-  [ "$(readlink "$HOME/.claude-2/rules")" = "$TMPDIR/live/.claude/rules" ]; then
-  ok "CLAUDE_SOURCES_ROOT provisions the claude profile from the live tree it names"
-else
-  fail "CLAUDE_SOURCES_ROOT does not provision the claude profile from the live tree it names"
-fi
-if instance=3 CLAUDE_SOURCES_ROOT=$TMPDIR/live CLAUDE_SOURCES_ROOT_IGNORE=1 PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$provision" &&
-  [ "$(@jq@/bin/jq -c .sandbox "$HOME/.claude-3/settings.json")" = "$bundled_sandbox" ]; then
-  ok "CLAUDE_SOURCES_ROOT_IGNORE provisions the claude profile from the bundled config"
-else
-  fail "CLAUDE_SOURCES_ROOT_IGNORE does not set the live tree aside"
-fi
-# PERMEANCE_STRICT=0: the launcher's strict check would refuse these
-# trees, which have no .config, before zsh ran.
-mkdir -p "$TMPDIR/old/.claude"
-echo '{"old":true}' >"$TMPDIR/old/.claude/settings.json"
-if instance=4 PERMEANCE_ROOT=$TMPDIR/old PERMEANCE_STRICT=0 PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$provision" &&
-  [ "$(@jq@/bin/jq -c '.old // false' "$HOME/.claude-4/settings.json")" = false ] &&
-  [ "$(@jq@/bin/jq -c .sandbox "$HOME/.claude-4/settings.json")" = "$bundled_sandbox" ]; then
-  ok "the terminal's live tree, .claude and all, plays no part in the claude profile"
-else
-  fail "the claude profile is provisioned from the terminal's live tree"
-fi
-# The message pins the refusal on the merge. The claude wrapper's launcher
-# refuses the same tree, which lacks the git allowlist it reads: both take
-# the live tree from the same variable.
-mkdir -p "$TMPDIR/tree/.claude"
-echo '{}' >"$TMPDIR/tree/.claude/settings.json"
-echo 'not json' >"$TMPDIR/tree/.claude/settings.$os.json"
-if refusal=$(instance=1 PATH=@jq@/bin:$PATH CLAUDE_SOURCES_ROOT=$TMPDIR/tree @zsh@/bin/zsh -f -c "$provision" 2>&1); then
-  fail "a sandbox overlay that does not merge still provisions the claude profile"
-else
-  case "$refusal" in
-    *"could not merge"*) ok "a sandbox overlay that does not merge refuses the launch" ;;
-    *) fail "the claude profile was refused before the overlay merge: $refusal" ;;
-  esac
-fi
-if CLAUDE_SOURCES_ROOT=$TMPDIR/tree @claude@/bin/claude --version >/dev/null 2>&1; then
-  fail "the claude wrapper's launcher does not read CLAUDE_SOURCES_ROOT, which claude.bash provisions the profile from"
-else
-  ok "the claude wrapper's launcher reads its live tree from CLAUDE_SOURCES_ROOT, as claude.bash does"
-fi
+# A stand-in claude-launch, first on PATH where a test runs a launch: it
+# saves the argv and environment it was handed to $HOME/stub/out, and fails
+# with its refusal when an argument says fail.
+mkdir -p "$HOME/stub/bin"
+cat >"$HOME/stub/bin/claude-launch" <<'EOF'
+#!/bin/sh
+mkdir -p "$HOME/stub/out"
+printf '%s\n' "$@" >"$HOME/stub/out/argv"
+env >"$HOME/stub/out/env"
+for a; do
+  if [ "$a" = fail ]; then
+    echo "claude: refused" >&2
+    exit 3
+  fi
+done
+EOF
+chmod +x "$HOME/stub/bin/claude-launch"
+# launched SCRIPT [NAME=VALUE...]: runs SCRIPT in zsh, outside tmux, so a
+# launch is eval'd here, with the stand-in claude-launch and the claude
+# package's claude-plugins on PATH.
+launched() {
+  local script=$1
+  shift
+  rm -rf "$HOME/stub/out"
+  env -u TMUX PATH="$HOME/stub/bin:@claude@/bin:$PATH" "$@" @zsh@/bin/zsh -f -c "$script"
+}
+# handed NAME=VALUE...: the stand-in claude-launch's environment had each.
+handed() {
+  local kv
+  for kv; do
+    grep -qxF -- "$kv" "$HOME/stub/out/env" || return 1
+  done
+}
 
-# A plain launch loads every default plugin claude.bash names from the
-# claude wrapper's config, memory-gate among them: __claude_init skips a
-# plugin the config lacks without a word, so a plugin the claude flake
-# renamed or dropped would go missing here.
+# A plain launch (leader c) hands claude-launch the profile, ~/.claude-<n>,
+# and claude's arguments as typed, and no plugin list, so claude-launch
+# loads its default ones; the command names claude-launch by full path, as
+# a tmux pane, which has the tmux server's PATH, needs it.
 plain='. @zsh@/.config/shell/functions/claude.bash
   __claude_run() { printf "%s\n" "$__CLAUDE_CMD"; }
-  print -r -- ${#__CLAUDE_DEFAULT_PLUGINS[@]}
-  __claude'
-plain=$(CLAUDE_SANDBOX=0 PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$plain" 2>/dev/null)
-defaults=${plain%%$'\n'*} plain=${plain#*$'\n'}
-if [ "$(printf '%s\n' "$plain" | grep -o -- '--plugin-dir [^ ]*' | grep -c '/paths/claude/\.claude/plugins/')" = "$defaults" ] &&
-  case "$plain" in *"--plugin-dir @zsh@/paths/claude/.claude/plugins/memory-gate "*) true ;; *) false ;; esac then
-  ok "a launch loads all $defaults default plugins, memory-gate among them, from the claude wrapper's config"
+  __claude 2 --resume "a b"'
+if [ "$(PATH=@claude@/bin:$PATH @zsh@/bin/zsh -f -c "$plain")" = "CLAUDE_CONFIG_DIR=\$HOME/.claude-2 $launch --resume a\\ b " ]; then
+  ok "a plain launch hands claude-launch, by full path, the profile and claude's arguments as typed, and leaves the plugins to its defaults"
 else
-  fail "a launch misses a default plugin that the claude wrapper's config lacks: $plain"
+  fail "a plain launch hands claude-launch: $(PATH=@claude@/bin:$PATH @zsh@/bin/zsh -f -c "$plain")"
+fi
+missing='. @zsh@/.config/shell/functions/claude.bash
+  __claude_run() { echo ran; }
+  __claude'
+case "$(@zsh@/bin/zsh -f -c "$missing" 2>&1)" in
+  *ran*) fail "a launch ran without claude-launch on PATH" ;;
+  *"claude-launch not found on PATH"*) ok "without claude-launch on PATH, a launch says so and runs nothing" ;;
+  *) fail "without claude-launch on PATH, a launch does not say why it runs nothing" ;;
+esac
+
+# A launch runs in a pane, whose environment is the tmux server's, not this
+# shell's: so the command carries a credential opt-in, the network filter's
+# extra hosts, CLAUDE_SANDBOX=0 and a live config tree, as this shell has
+# them, the credentials first, where claude-sessions' backup reads them.
+carried='. @zsh@/.config/shell/functions/claude.bash
+  CLAUDE_SANDBOX_ALLOW_GH=1 CLAUDE_SANDBOX_NET_ALLOW="a.example *.b.example" CLAUDE_SANDBOX=0 CLAUDE_SOURCES_ROOT=/live __claude
+  print -r -- "$__CLAUDE_CMD" >"$HOME/stub/cmd"'
+launched "$carried"
+if handed CLAUDE_SANDBOX_ALLOW_GH=1 "CLAUDE_SANDBOX_NET_ALLOW=a.example *.b.example" CLAUDE_SANDBOX=0 \
+  CLAUDE_SOURCES_ROOT=/live "CLAUDE_CONFIG_DIR=$HOME/.claude-1" &&
+  ! grep -q '^CLAUDE_PLUGINS=' "$HOME/stub/out/env" &&
+  case $(cat "$HOME/stub/cmd") in "CLAUDE_SANDBOX_ALLOW_GH=1 CLAUDE_SANDBOX_NET_ALLOW="*) true ;; *) false ;; esac then
+  ok "a launch carries its credential, extra hosts, CLAUDE_SANDBOX=0 and live tree to claude-launch, the credential first"
+else
+  fail "a launch does not carry what this shell set to claude-launch: $(cat "$HOME/stub/cmd")"
 fi
 
 # bash-language-server runs shellcheck on stdin from the project root,
@@ -103,89 +95,78 @@ else
   fail "the claude wrapper's shell-lsp skips '$excluded', .shellcheckrc disables '$disabled'"
 fi
 
-# A launch makes the profile and drops a session's stray local
-# settings without printing a line. In a full start, aliases.sh (read
-# before the function files) has mkdir and mv add --verbose, and zsh
-# expands an alias in a function as it reads it, so claude.bash runs
-# them through command: a fresh profile has its directories made, and
-# the project's settings.local.json loses its hooks.
-mkdir -p "$HOME/quiet/.claude"
-echo '{"permissions":{},"hooks":{}}' >"$HOME/quiet/.claude/settings.local.json"
-quiet='{ __claude_instance=7; __claude_prepare_profile && __claude_scrub_project; } > "$HOME/quiet.out" 2>/dev/null'
-if (cd "$HOME/quiet" && PATH=@jq@/bin:$PATH @zsh@/bin/zsh -i -c "$quiet" >/dev/null 2>&1) &&
-  [ -d "$HOME/.claude-7/.uv-tools" ] && [ ! -s "$HOME/quiet.out" ] &&
-  [ "$(@jq@/bin/jq -c . "$HOME/quiet/.claude/settings.local.json")" = '{"permissions":{}}' ]; then
-  ok "a launch makes the claude profile's directories and drops a session's stray local settings without printing a line"
-else
-  fail "a launch prints mkdir's or mv's --verbose lines as it makes the claude profile's directories or drops a session's stray local settings: $(cat "$HOME/quiet.out")"
-fi
-
 # The connection picker (leader cc) launches a plain session plus what
-# was picked: a credential as the launcher's opt-in flag, an MCP plugin
-# on top of the default ones. A stand-in fzf picks jira, figma-mcp and
-# google-workspace-mcp, whose token store needs the launcher's opt-in.
+# was picked: a credential as its opt-in, an MCP plugin on top of the
+# default ones, which claude-plugins names. A stand-in fzf picks jira,
+# figma-mcp and google-workspace-mcp.
 connect='. @zsh@/.config/shell/functions/claude.bash
   fzf() { printf "jira\nfigma-mcp\ngoogle-workspace-mcp\n"; }
-  __claude_run() { printf "%s\n" "$__CLAUDE_CMD"; }
   __claude_connect'
-case "$(CLAUDE_SANDBOX=0 PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$connect")" in
-  "CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_SANDBOX_ALLOW_GOOGLE_WORKSPACE=1 "*/nix-lsp\ *--plugin-dir\ */figma-mcp\ *--plugin-dir\ */google-workspace-mcp\ *)
-    ok "the connection picker launches jira, figma-mcp and google-workspace-mcp on top of the default plugins"
-    ;;
-  *) fail "the connection picker does not launch what was picked" ;;
-esac
+launched "$connect"
+if handed CLAUDE_SANDBOX_ALLOW_JIRA=1 \
+  "CLAUDE_PLUGINS=$(@claude@/bin/claude-plugins --default | tr '\n' ' ')figma-mcp google-workspace-mcp" &&
+  ! grep -q '^CLAUDE_SANDBOX_ALLOW_GH=1' "$HOME/stub/out/env"; then
+  ok "the connection picker launches jira, figma-mcp and google-workspace-mcp on top of the default plugins"
+else
+  fail "the connection picker does not launch what was picked: $(grep '^CLAUDE_' "$HOME/stub/out/env" | tr '\n' ' ')"
+fi
+# The plugin picker (leader cpl) loads exactly what was picked.
+picked='. @zsh@/.config/shell/functions/claude.bash
+  fzf() { printf "nix-mcp\nmemory-gate\n"; }
+  __claude_plugins'
+launched "$picked"
+if handed "CLAUDE_PLUGINS=nix-mcp memory-gate"; then
+  ok "the plugin picker loads exactly the plugins picked"
+else
+  fail "the plugin picker does not load exactly what was picked"
+fi
 
-# The microVM chord (leader cv) launches the same session through
-# claude-vm instead of claude-sandbox, after its --check-cwd gate, and
-# CLAUDE_SANDBOX=0 does not unwrap it. It runs with a profile of its
-# own, ~/.claude-vm-N, provisioned like any other, since claude-vm
-# refuses one holding a login. Its connection picker (leader cvc)
-# launches gh, jira and firebase sessions through claude-vm as well,
-# their flags carried as for claude-sandbox: claude-vm keeps their
-# credentials on the host. figma-mcp, whose key the VM would hold, or
-# no claude-vm on PATH, refuses the launch in the calling shell, before
-# a pane opens. A stand-in claude-vm passes the gate.
-mkdir -p "$HOME/vm/bin"
-printf '#!/bin/sh\n[ "$1" = --check-cwd ]\n' >"$HOME/vm/bin/claude-vm"
-chmod +x "$HOME/vm/bin/claude-vm"
+# The microVM chord (leader cv) launches the same session in claude-vm, with
+# a profile of its own, ~/.claude-vm-N, since claude-vm refuses one holding a
+# login; CLAUDE_SANDBOX=0 does not unwrap it, which claude-launch sees to. Its
+# connection picker (leader cvc) carries gh, jira and firebase as well:
+# claude-vm keeps their credentials on the host.
 vm='. @zsh@/.config/shell/functions/claude.bash
-  __claude_run() { printf "%s\n" "$__CLAUDE_CMD"; }
   __claude_vm'
-case "$(CLAUDE_SANDBOX=0 PATH=$HOME/vm/bin:@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$vm")" in
-  "CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-vm-1 $HOME/vm/bin/claude-vm claude "*)
-    if [ -f "$HOME/.claude-vm-1/settings.json" ]; then
-      ok "the microVM chord launches claude through claude-vm, with a provisioned profile of its own"
-    else
-      fail "the microVM chord's profile was not provisioned"
-    fi
-    ;;
-  *) fail "the microVM chord does not launch claude through claude-vm with its own profile" ;;
-esac
+launched "$vm"
+if handed CLAUDE_LAUNCH_VM=1 "CLAUDE_CONFIG_DIR=$HOME/.claude-vm-1"; then
+  ok "the microVM chord launches in claude-vm, with a profile of its own"
+else
+  fail "the microVM chord does not launch in claude-vm with its own profile"
+fi
 vmconnect='. @zsh@/.config/shell/functions/claude.bash
   fzf() { printf "gh\njira\nfirebase\n"; }
-  __claude_run() { printf "%s\n" "$__CLAUDE_CMD"; }
   __claude_vm_connect'
-case "$(PATH=$HOME/vm/bin:@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$vmconnect")" in
-  "CLAUDE_SANDBOX_ALLOW_GH=1 CLAUDE_SANDBOX_ALLOW_FIREBASE=1 CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/.claude-vm-1 $HOME/vm/bin/claude-vm claude "*)
-    ok "the microVM connection picker launches gh, jira and firebase through claude-vm, their flags carried"
-    ;;
-  *) fail "the microVM connection picker does not launch gh, jira and firebase through claude-vm" ;;
-esac
-vmfigma='. @zsh@/.config/shell/functions/claude.bash
-  fzf() { printf "figma-mcp\n"; }
-  __claude_run() { printf "%s\n" "$__CLAUDE_CMD"; }
-  __claude_vm_connect'
-refusal=$(PATH=$HOME/vm/bin:@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$vmfigma" 2>&1)
-case "$refusal" in
-  *"claude-vm claude"*) fail "the microVM connection picker launched figma-mcp, whose key the VM would hold" ;;
-  *"does not carry figma-mcp"*) ok "the microVM connection picker refuses figma-mcp, whose key the VM would hold" ;;
-  *) fail "the microVM connection picker does not say why it refuses figma-mcp: $refusal" ;;
-esac
-refusal=$(PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$vm" 2>&1)
-case "$refusal" in
-  *"claude-vm not found on PATH"*) ok "the microVM chord refuses to launch without claude-vm" ;;
-  *) fail "the microVM chord does not refuse without claude-vm: $refusal" ;;
-esac
+launched "$vmconnect"
+if handed CLAUDE_LAUNCH_VM=1 CLAUDE_SANDBOX_ALLOW_GH=1 CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_SANDBOX_ALLOW_FIREBASE=1; then
+  ok "the microVM connection picker launches gh, jira and firebase in claude-vm, their flags carried"
+else
+  fail "the microVM connection picker does not launch gh, jira and firebase in claude-vm"
+fi
+
+# A window claude-launch fails in stays open until a key is pressed, so its
+# refusal can be read; one it ran in closes as any other. The window sets
+# that on its own pane before claude-launch runs, so a detached window, as
+# the restore makes, gets it too, and this shell's own pane stays as it is.
+# A real tmux server, and the stand-in claude-launch, which fails when
+# asked to.
+export TMUX_TMPDIR=$TMPDIR/tmux
+mkdir -p "$TMUX_TMPDIR"
+@tmux@/bin/tmux -L claude -f /dev/null new-session -d -s s -x 80 -y 24 'sleep 120'
+socket=$(@tmux@/bin/tmux -L claude display-message -p '#{socket_path}')
+windows='. @zsh@/.config/shell/functions/claude.bash
+  __claude fail
+  __claude
+  __claude_sessions_reopen fail 1 "$HOME" - - - -'
+TMUX="$socket,0,0" PATH="$HOME/stub/bin:@tmux@/bin:$PATH" @zsh@/bin/zsh -f -c "$windows" 2>"$TMPDIR/windows.err"
+sleep 1
+panes=$(@tmux@/bin/tmux -L claude list-panes -a -F '#{pane_dead}:#{pane_dead_status}:#{remain-on-exit}' | sort | tr '\n' ' ')
+@tmux@/bin/tmux -L claude kill-server
+if [ "$panes" = "0::off 1:3:failed-key 1:3:failed-key " ]; then
+  ok "a window claude-launch fails in stays open for its refusal, detached or not, and one it ran in closes"
+else
+  fail "the windows claude-launch ran in are '$panes': $(cat "$TMPDIR/windows.err")"
+fi
 
 # The review paid by the API credits (__claude_review) runs claude in
 # this pane, since a tmux window would start without the key, hands it
@@ -197,7 +178,7 @@ review='. @zsh@/.config/shell/functions/claude.bash
   pass() { echo sk-test; }
   __claude_run() { printf "%s|%s|%s\n" "$TMUX" "$ANTHROPIC_API_KEY" "$__CLAUDE_CMD"; }
   __claude_review'
-case "$(TMUX=x CLAUDE_SANDBOX=0 PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$review")" in
+case "$(TMUX=x CLAUDE_SANDBOX=0 PATH=@claude@/bin:@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$review")" in
   "|sk-test|"*" -p --bare --tools Read --setting-sources user --strict-mcp-config --add-dir "*)
     ok "the review runs claude in this pane, with its key in the environment and Read as its only tool"
     ;;
@@ -208,15 +189,14 @@ esac
 # arguments and Bash, in this pane, through claude-vm with the Console
 # key's pass entry, on a clone under the cache rather than the
 # repository, and with the bundles rather than the live trees, the
-# terminal's and claude's. A stand-in git makes the clone; the stand-in
-# claude-vm above passes the gate.
+# terminal's and claude's. A stand-in git makes the clone.
 vmreview='. @zsh@/.config/shell/functions/claude.bash
   git() { case $1 in rev-parse) pwd ;; clone) mkdir -p "${@[-1]}" ;; esac; }
   __claude_run() { printf "%s|%s|%s|%s|%s|%s|%s\n" "$TMUX" "$CLAUDE_VM_CREDENTIAL_PASS" "${PERMEANCE_ROOT-unset}" "${CLAUDE_SOURCES_ROOT-unset}" "$PERMEANCE_TREE" "$PWD" "$__CLAUDE_CMD"; }
   export PERMEANCE_ROOT=/live CLAUDE_SOURCES_ROOT=/live-claude
   __claude_vm_review low src/'
-case "$(TMUX=x XDG_CACHE_HOME=$HOME/cache PATH=$HOME/vm/bin:@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$vmreview")" in
-  "|claude/anthropic-api-key|unset|unset|/nix/store/"*"|$HOME/cache/claude-review."*"/claude-vm claude "*" -p --allowedTools Bash --no-session-persistence --max-budget-usd 5 /code-review\ low\ src/  --allow-dangerously-skip-permissions")
+case "$(TMUX=x XDG_CACHE_HOME=$HOME/cache PATH=@claude@/bin:@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$vmreview")" in
+  "|claude/anthropic-api-key|unset|unset|/nix/store/"*"|$HOME/cache/claude-review."*"|CLAUDE_CONFIG_DIR=\$HOME/.claude-vm-1 CLAUDE_LAUNCH_VM=1 $launch -p --allowedTools Bash --no-session-persistence --max-budget-usd 5 /code-review\ low\ src/ ")
     ok "the microVM review runs /code-review with Bash on a clone, in this pane, with the Console key's entry and without the live tree"
     ;;
   *) fail "the microVM review does not run /code-review on a clone with the Console key's entry and without the live tree" ;;
@@ -304,8 +284,8 @@ fork='. @zsh@/.config/shell/functions/claude.bash
   fzf() { echo a; }
   __claude_run() { printf "%s\n" "$__CLAUDE_CMD"; }
   __claude_sessions_fork'
-case "$(CLAUDE_SANDBOX=0 PATH=$HOME/sessions/bin:@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$fork")" in
-  *" --resume a --fork-session  --allow-dangerously-skip-permissions") ok "the fork picker resumes the picked session as a fork" ;;
+case "$(CLAUDE_SANDBOX=0 PATH=$HOME/sessions/bin:@claude@/bin:@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$fork")" in
+  *"$launch --resume a --fork-session ") ok "the fork picker resumes the picked session as a fork" ;;
   *) fail "the fork picker does not fork the picked session" ;;
 esac
 
@@ -317,9 +297,7 @@ esac
 # started it, from its directory, in a window of the tmux session it
 # was in, which it makes again at the current window's size once it is
 # gone, then closes the gaps in the session numbers; with no backup to
-# restore it opens no picker. The profile the three sessions share is
-# made ready once, before any of them starts: a stand-in jq counts the
-# merges of its sandbox overlay. A stand-in claude-sessions lists two
+# restore it opens no picker. A stand-in claude-sessions lists two
 # backups into the directory start is handed, and picked three
 # sessions for that directory: one with gh, jira, extra hosts and
 # figma-mcp in session work, a plain one in session gone, and one in
@@ -340,7 +318,6 @@ restore='. @zsh@/.config/shell/aliases.sh; . @zsh@/.config/shell/functions/cd.sh
   . @zsh@/.config/shell/functions/git.bash; . @zsh@/.config/shell/functions/claude.bash
   fzf() { cat > "$HOME/restore/listed"; printf "%s\n" "$@" > "$HOME/restore/fzf"; }
   tmux() { case $1 in display-message) echo "120 40" ;; new-window) shift; printf "%s|" "$@"; echo ;; new-session) [ "$4" = work ] && return 1; printf "%s|" "$@"; echo ;; esac; }
-  jq() { [[ " $* " == *settings.*.json* ]] && echo x >> "$HOME/restore/merges"; command jq "$@"; }
   __tmux_renumber_sessions() { echo renumber; }
   __claude_sessions_save
   TMUX=x __claude_sessions_restore
@@ -352,102 +329,16 @@ restore='. @zsh@/.config/shell/aliases.sh; . @zsh@/.config/shell/functions/cd.sh
   [[ $f == *"load:transform(claude-sessions restore load "?"$sd"?")"* ]] || echo "no load bind"
   [[ $f == *"claude-sessions restore show "?"$sd"?" {n}"* ]] || echo "no preview"
   echo "listed $(<"$HOME/restore/listed")"
-  echo "merges $(grep -c x "$HOME/restore/merges")"
   touch "$HOME/restore/none"; rm "$HOME/restore/fzf"
   TMUX=x __claude_sessions_restore 2>/dev/null
   [ -e "$HOME/restore/fzf" ] && echo "a picker with no backup"
   for d in $HOME/restore/run/claude-restore.*(N); do echo "left $d"; done'
-case "$(CLAUDE_SANDBOX=0 XDG_RUNTIME_DIR=$HOME/restore/run PATH=$HOME/restore/bin:@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$restore" | tr '\n' '#')" in
-  "backup#-d|-t|=work:|-c|$HOME/proj|CLAUDE_SANDBOX_ALLOW_GH=1 CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_SANDBOX_NET_ALLOW=x.example "*"/nix-lsp --plugin-dir "*"/figma-mcp "*" --resume a  --allow-dangerously-skip-permissions|#claude: resumed A in $HOME/proj#new-session|-d|-s|gone|-x|120|-y|40|-c|$HOME/proj2|CLAUDE_CODE_SYNTAX_HIGHLIGHT=false "*" claude  --allowedTools "*" --resume b  --allow-dangerously-skip-permissions|#claude: resumed B in $HOME/proj2#-d|-c|$HOME/proj3|CLAUDE_CODE_SYNTAX_HIGHLIGHT=false "*" claude  --allowedTools "*" --resume c  --allow-dangerously-skip-permissions|#claude: resumed C in $HOME/proj3#renumber#listed new#old#merges 1#")
-    ok "the session backup's restore picks in one fzf run by claude-sessions restore on a state dir it removes, makes the sessions' profile ready once, and resumes each picked session with its connections and plugins, in its directory and tmux session, which it makes again once it is gone, and opens no picker with no backup"
+case "$(CLAUDE_SANDBOX=0 XDG_RUNTIME_DIR=$HOME/restore/run PATH=$HOME/restore/bin:@claude@/bin:@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$restore" | tr '\n' '#')" in
+  "backup#-d|-t|=work:|-c|$HOME/proj|CLAUDE_SANDBOX_ALLOW_GH=1 CLAUDE_SANDBOX_ALLOW_JIRA=1 CLAUDE_SANDBOX_NET_ALLOW=x.example CLAUDE_SANDBOX=0 CLAUDE_CONFIG_DIR=\$HOME/.claude-1 CLAUDE_PLUGINS=nix-lsp\\ figma-mcp "*" $launch --resume a |#claude: resumed A in $HOME/proj#new-session|-d|-s|gone|-x|120|-y|40|-c|$HOME/proj2|CLAUDE_SANDBOX=0 CLAUDE_CONFIG_DIR=\$HOME/.claude-1 CLAUDE_PLUGINS='' "*" $launch --resume b |#claude: resumed B in $HOME/proj2#-d|-c|$HOME/proj3|CLAUDE_SANDBOX=0 CLAUDE_CONFIG_DIR=\$HOME/.claude-1 CLAUDE_PLUGINS='' "*" $launch --resume c |#claude: resumed C in $HOME/proj3#renumber#listed new#old#")
+    ok "the session backup's restore picks in one fzf run by claude-sessions restore on a state dir it removes, and resumes each picked session with its connections and plugins, in its directory and tmux session, which it makes again once it is gone, and opens no picker with no backup"
     ;;
   *) fail "the session backup's restore does not pick in one fzf run by claude-sessions restore, or does not resume the sessions picked as they were started" ;;
 esac
-
-# A launch drops what a session can leave for the next one to run: MCP
-# servers in the profile's .claude.json, and the local settings claude
-# does not write itself (hooks here), keeping its permission rules.
-mkdir -p "$HOME/proj/.claude"
-echo '{"mcpServers":{"a":{}},"projects":{"/p":{"mcpServers":{"b":{}}}}}' >"$HOME/.claude-1/.claude.json"
-echo '{"hooks":{},"permissions":{"allow":["Bash(ls)"],"defaultMode":"bypassPermissions"}}' >"$HOME/proj/.claude/settings.local.json"
-launch='. @zsh@/.config/shell/functions/claude.bash
-  __claude_run() { :; }
-  __claude'
-(cd "$HOME/proj" && CLAUDE_SANDBOX=0 PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$launch" 2>/dev/null)
-if [ "$(@jq@/bin/jq -c '[.mcpServers, .projects."/p".mcpServers]' "$HOME/.claude-1/.claude.json")" = '[{},{}]' ] &&
-  [ "$(@jq@/bin/jq -c . "$HOME/proj/.claude/settings.local.json")" = '{"permissions":{"allow":["Bash(ls)"]}}' ]; then
-  ok "a launch drops the MCP servers and local settings a session planted, keeping claude's permission rules"
-else
-  fail "a launch keeps what a session planted for the next one"
-fi
-
-# The same launch removes the user-level instructions a session can
-# plant in its profile, which load into every later session: what the
-# claude config does not provide, and skills/ whole (claude downloads
-# its synced ones again at start).
-p=$HOME/.claude-1
-mkdir -p "$p/agents" "$p/skills/x" && : >"$p/agents/a.md" && : >"$p/CLAUDE.md" && : >"$p/skills/x/SKILL.md"
-(cd "$HOME/proj" && CLAUDE_SANDBOX=0 PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$launch" 2>/dev/null)
-if [ ! -e "$p/agents" ] && [ ! -e "$p/CLAUDE.md" ] && [ ! -e "$p/skills" ] && [ -L "$p/rules" ]; then
-  ok "a launch removes the agents, CLAUDE.md and skills a session planted in its profile"
-else
-  fail "a launch keeps instructions a session planted in its profile"
-fi
-
-# A launch writes the profile's settings.json, the claude config's with
-# this OS's overlay, only when it says something else, and then in
-# place: the sandbox pins that very file in every running session, and
-# replacing it would drop the pin. Made read-only, the file is left
-# alone, so the launch wrote nothing; a session's edit is undone in the
-# same file; and a symlink a session left there is removed, not written
-# through. The launch also drops the plugins a session can leave in the
-# profile, which load at the next start: those in plugins/synced, and
-# those installed, saying which.
-# shellcheck disable=SC2012 # it reads an inode number, not a file name
-inode() { ls -i "$1" | awk '{ print $1 }'; }
-want=$(@jq@/bin/jq -S -s '.[0] * .[1]' @claude@/.claude/settings.json "@claude@/.claude/settings.$os.json")
-first=$(inode "$p/settings.json") untouched=
-chmod 444 "$p/settings.json"
-(cd "$HOME/proj" && CLAUDE_SANDBOX=0 PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$launch" 2>/dev/null) && untouched=1
-chmod 644 "$p/settings.json"
-echo '{"hooks":{"Stop":[]}}' >"$p/settings.json"
-(cd "$HOME/proj" && CLAUDE_SANDBOX=0 PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$launch" 2>/dev/null)
-undone=$(inode "$p/settings.json")
-echo kept >"$HOME/other.json"
-rm "$p/settings.json" && ln -s "$HOME/other.json" "$p/settings.json"
-mkdir -p "$p/plugins/synced/bucket/planted"
-echo '{"version":2,"plugins":{"planted@market":[{}]}}' >"$p/plugins/installed_plugins.json"
-said=$(cd "$HOME/proj" && CLAUDE_SANDBOX=0 PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$launch" 2>&1 >/dev/null)
-if [ "${untouched:-}" = 1 ] && [ "$undone" = "$first" ] &&
-  [ -f "$p/settings.json" ] && [ ! -L "$p/settings.json" ] &&
-  [ "$(@jq@/bin/jq -S . "$p/settings.json")" = "$want" ] && [ "$(cat "$HOME/other.json")" = kept ] &&
-  [ ! -e "$p/plugins/synced" ] &&
-  [ "$(@jq@/bin/jq -c .plugins "$p/plugins/installed_plugins.json")" = '{}' ] &&
-  case "$said" in *"removed the plugins planted@market"*) true ;; *) false ;; esac then
-  ok "a launch writes the profile's settings only when they differ, in place, replaces a link a session left there, and drops the plugins a session synced or installed in the profile"
-else
-  fail "a launch replaces or rewrites the profile's settings when it need not, writes through a link a session left there, or keeps plugins a session left in the profile: $said"
-fi
-
-# A launch runs claude under flock, which locks a file of the launch's
-# own for as long as claude runs, and names the file to claude, whose
-# SessionStart hook writes the session's id into it (claude-sessions
-# mark): a stand-in claude finds the file it was named, in the profile,
-# locked. flock execs into claude rather than wait as its parent, which
-# tmux would name the window after: the stand-in claude runs as the very
-# process a stand-in flock recorded.
-mkdir -p "$HOME/lock/bin"
-printf '#!/bin/sh\necho $$ > "$HOME/lock/pid"\nexec @utilLinux@/bin/flock "$@"\n' >"$HOME/lock/bin/flock"
-printf '#!/bin/sh\ncase $CLAUDE_SESSIONS_OPEN in "$HOME"/.claude-1/open-sessions/?*) ;; *) exit ;; esac\n[ "$(cat "$HOME/lock/pid")" = $$ ] && printf "exec "\nflock -n "$CLAUDE_SESSIONS_OPEN" true || echo held\n' \
-  >"$HOME/lock/bin/claude"
-chmod +x "$HOME/lock/bin/claude" "$HOME/lock/bin/flock"
-locked='. @zsh@/.config/shell/functions/claude.bash
-  __claude'
-if [ "$(cd "$HOME/proj" && CLAUDE_SANDBOX=0 PATH=$HOME/lock/bin:@utilLinux@/bin:@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$locked" 2>/dev/null)" = "exec held" ]; then
-  ok "a launch runs claude in flock's place, under a lock on a file of its own, which it names to claude"
-else
-  fail "a launch does not run claude in flock's place, under a lock on a file it names to claude"
-fi
 
 # ca asks Claude a quick question and prints the answer in this pane:
 # the question, read with vared, reaches claude on stdin as typed,
