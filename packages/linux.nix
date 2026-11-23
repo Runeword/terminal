@@ -12,9 +12,6 @@ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (
     libinput # input device handling
     # ventoy-full # USB boot utility
     dmidecode
-    # claude-sandbox.bash launcher (.config/shell/functions/claude.bash gates on
-    # `command -v bwrap` in the interactive shell, not on claude's inner PATH)
-    bubblewrap
     cloneit
     xarchiver
     git-graph
