@@ -58,7 +58,6 @@
         pkgs: wrappers:
         import ./packages {
           inherit pkgs;
-          claudeSandbox = mkClaudeSandbox pkgs;
           claudePackages = inputs.claude.packages.${pkgs.stdenv.hostPlatform.system};
         }
         ++ builtins.attrValues wrappers;
