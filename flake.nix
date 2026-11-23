@@ -18,8 +18,20 @@
 
   inputs.claude-sandbox.url = "git+ssh://git@github.com/Runeword/claude-sandbox?ref=main&shallow=1";
   inputs.claude-sandbox.inputs.nixpkgs.follows = "nixpkgs";
-  inputs.claude-sandbox.inputs.lefthook.follows = "lefthook";
 
+  # The claude wrapper (wrappers/claude.nix builds it with this terminal's git).
+  # Public, so no token; every input it shares with this flake follows this
+  # one's, so claude's tools and launchers are the terminal's builds.
+  inputs.claude.url = "github:Runeword/claude";
+  inputs.claude.inputs.nixpkgs.follows = "nixpkgs";
+  inputs.claude.inputs.lefthook.follows = "lefthook";
+  inputs.claude.inputs.permeance.follows = "permeance";
+  inputs.claude.inputs.claude-sandbox.follows = "claude-sandbox";
+  inputs.claude.inputs.nix-index-database.follows = "nix-index-database";
+
+  # comma's prebuilt index, on claude's PATH. Only the claude flake uses it:
+  # an input here, which that flake's follows, so this repository's input
+  # updates keep the index fresh.
   inputs.nix-index-database.url = "github:nix-community/nix-index-database";
   inputs.nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -37,7 +49,7 @@
         pkgs: configPath:
         import ./wrappers {
           inherit pkgs configPath;
-          inherit (inputs) nixpkgs nix-index-database lefthook;
+          inherit (inputs.claude.lib) mkClaude;
           permeance = mkPermeance pkgs;
           claudeSandbox = mkClaudeSandbox pkgs;
         };
@@ -47,6 +59,7 @@
         import ./packages {
           inherit pkgs;
           claudeSandbox = mkClaudeSandbox pkgs;
+          claudePackages = inputs.claude.packages.${pkgs.stdenv.hostPlatform.system};
         }
         ++ builtins.attrValues wrappers;
 
@@ -93,7 +106,6 @@
         in
         {
           packages.default = terminal;
-          packages.playwright-mcp = import ./packages/playwright-mcp.nix { inherit pkgs; };
           packages.tools = pkgs.buildEnv {
             name = "tools";
             paths = tools;
