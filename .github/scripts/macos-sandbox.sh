@@ -3,20 +3,20 @@
 # which nothing else here can: Claude Code's built-in sandbox there is
 # sandbox-runtime (srt) applying Seatbelt to Bash commands, Seatbelt can't run
 # inside a Nix build, and there is no Mac at hand. So this drives srt itself,
-# with sources/.claude/settings.darwin.json turned into srt settings the way
-# Claude Code applies them: Read deny rules become filesystem.denyRead,
-# sandbox.network, sandbox.filesystem and enableWeakerNetworkIsolation the same
-# keys, and the cwd plus the configstore claude-macos.bash passes with
-# --add-dir filesystem.allowWrite.
-# claude-macos.bash itself, from the claude-sandbox revision flake.lock pins,
-# runs under Apple's /bin/bash 3.2 and BSD tools, with stand-ins for pass and
-# claude.
+# with claude's settings.darwin.json (github:Runeword/claude's sources/.claude,
+# at the revision flake.lock pins) turned into srt settings the way Claude Code
+# applies them: Read deny rules become filesystem.denyRead, sandbox.network,
+# sandbox.filesystem and enableWeakerNetworkIsolation the same keys, and the
+# cwd plus the configstore claude-macos.bash passes with --add-dir
+# filesystem.allowWrite. claude-macos.bash itself, from the claude-sandbox
+# revision flake.lock pins, runs under Apple's /bin/bash 3.2 and BSD tools,
+# with stand-ins for pass and claude.
 #
 # Everything happens under a throwaway $HOME, so nothing lands in a real one.
 # The tools come from the nixpkgs pinned in flake.lock (read with the runner's
 # jq), not from the flake, so permeance is never fetched; claude-sandbox,
-# private too, comes through the token ci.yml hands git. Run by ci.yml on its
-# macOS machine, after the flake check.
+# private too, comes through the token ci.yml hands git, and claude, public,
+# needs none. Run by ci.yml on its macOS machine, after the flake check.
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/../.." && pwd -P)
@@ -31,6 +31,8 @@ sandbox_src=$(nix flake prefetch --json "$sandbox" | jq -r .storePath)
 # prefetch alone: nothing below needs it, least of all the commands run under
 # Seatbelt.
 unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+claude=$(jq -r '.nodes[.nodes.root.inputs.claude].locked | "github:\(.owner)/\(.repo)/\(.rev)"' "$repo/flake.lock")
+darwin="$(nix flake prefetch --json "$claude" | jq -r .storePath)/sources/.claude/settings.darwin.json"
 for p in sandbox-runtime ripgrep go; do
   PATH="$(nix build --no-link --print-out-paths "$nixpkgs#$p" | head -1)/bin:$PATH"
 done
@@ -113,7 +115,7 @@ jq --arg store "$store" '{
       + (if $store == "" then [] else [$store] end)),
     denyWrite: []
   }
-}' "$repo/sources/.claude/settings.darwin.json" >"$w/srt.json"
+}' "$darwin" >"$w/srt.json"
 
 # check WHAT allow|deny COMMAND: runs COMMAND under Seatbelt with those settings.
 check() {
@@ -132,7 +134,7 @@ check() {
 # of them readable.
 jq -r '.permissions.deny[] | select(startswith("Read(")) | ltrimstr("Read(") | rtrimstr(")")
   | sub("^~"; env.HOME) | sub("/\\*\\*$"; "/probe")' \
-  "$repo/sources/.claude/settings.darwin.json" >"$w/probes"
+  "$darwin" >"$w/probes"
 while IFS= read -r f; do
   mkdir -p "$(dirname "$f")"
   echo secret >"$f"
