@@ -9,7 +9,7 @@
   #     and lands at $out/.config/git/config).
   #   - an attrset { source, target } for entries where source and target
   #     differ - e.g. an absolute source (tmux-resurrect from nixpkgs) or a
-  #     renamed target (claude hooks installed under bin/).
+  #     renamed target (a script installed under bin/).
   #
   # In both forms:
   #   source - path relative to rootPath, OR an absolute path string for
