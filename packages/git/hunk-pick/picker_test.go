@@ -378,9 +378,9 @@ func TestFinalizedCommand(t *testing.T) {
 	git(t, "add", "f.txt")
 	git(t, "commit", "-qm", "base")
 
-	// pickSecond drills into f.txt, marks its second hunk and accepts, as the
-	// bindings would, and returns the printed command.
-	pickSecond := func(t *testing.T, op string) string {
+	// pickHunk drills into f.txt, marks its hunk at the 0-based index alone and
+	// accepts, as the bindings would, and returns the printed command.
+	pickHunk := func(t *testing.T, op string, hunk int) string {
 		t.Helper()
 		count := "0"
 		p := picker{dir: t.TempDir(), getenv: func(k string) string {
@@ -396,7 +396,7 @@ func TestFinalizedCommand(t *testing.T) {
 			t.Fatal(err)
 		}
 		count = "1"
-		if got, err := p.key(pickOps[op], "enter", "", "", []int{1}); err != nil || got != "accept" {
+		if got, err := p.key(pickOps[op], "enter", "", "", []int{hunk}); err != nil || got != "accept" {
 			t.Fatalf("enter in the hunks list = %q, %v", got, err)
 		}
 		cmd, err := p.finalize(pickOps[op], "git -C .")
@@ -404,6 +404,10 @@ func TestFinalizedCommand(t *testing.T) {
 			t.Fatal(err)
 		}
 		return cmd
+	}
+	pickSecond := func(t *testing.T, op string) string {
+		t.Helper()
+		return pickHunk(t, op, 1)
 	}
 	run := func(t *testing.T, cmd string) error {
 		out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
@@ -436,6 +440,48 @@ func TestFinalizedCommand(t *testing.T) {
 			}
 		})
 	}
+
+	// A hunk picked after one left out that adds lines: git apply finds a
+	// zero-context hunk by its line number, which git diff counted with the left
+	// out hunk applied, and one that only adds lines goes in there as is. f.txt's
+	// hunks: A, B and C added after 1, X after 5, and 8 removed.
+	t.Run("a hunk after one left out that adds lines", func(t *testing.T) {
+		const (
+			shifted = "1\nA\nB\nC\n2\n3\n4\n5\nX\n6\n7\n9\n"
+			noX     = "1\nA\nB\nC\n2\n3\n4\n5\n6\n7\n9\n"
+			with8   = "1\nA\nB\nC\n2\n3\n4\n5\nX\n6\n7\n8\n9\n"
+		)
+		tests := []struct {
+			op       string
+			hunk     int    // the 0-based hunk picked alone
+			index    string // the index content before the pick
+			worktree string // f.txt after the command
+			staged   string // the index's f.txt after the command
+		}{
+			{"stage", 1, base, shifted, "1\n2\n3\n4\n5\nX\n6\n7\n8\n9\n"},
+			{"stage", 2, base, shifted, "1\n2\n3\n4\n5\n6\n7\n9\n"},
+			{"unstage", 1, shifted, shifted, noX},
+			{"unstage", 2, shifted, shifted, with8},
+			{"discard", 1, base, noX, base},
+			{"discard", 2, base, with8, base},
+		}
+		for _, tt := range tests {
+			t.Run(tt.op+" hunk "+strconv.Itoa(tt.hunk+1), func(t *testing.T) {
+				writeF(t, tt.index)
+				git(t, "add", "f.txt")
+				writeF(t, shifted)
+				if err := run(t, pickHunk(t, tt.op, tt.hunk)); err != nil {
+					t.Fatalf("command failed: %v", err)
+				}
+				if got, _ := os.ReadFile("f.txt"); string(got) != tt.worktree {
+					t.Errorf("f.txt = %q, want %q", got, tt.worktree)
+				}
+				if got := git(t, "show", ":f.txt"); got != tt.staged {
+					t.Errorf("index f.txt = %q, want %q", got, tt.staged)
+				}
+			})
+		}
+	})
 
 	t.Run("refuses a changed file", func(t *testing.T) {
 		writeF(t, base)
