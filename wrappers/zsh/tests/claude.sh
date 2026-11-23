@@ -9,33 +9,98 @@
 # leader-aliases separates a row's fields with a no-break space.
 sep=$(printf '\302\240')
 
-# Bundled mode: this bundle has no .claude, so a claude profile comes from
-# the claude wrapper's, with this OS's sandbox overlay merged in and its
-# commands linked; an overlay that does not merge refuses the launch instead.
+# A claude profile comes from the claude wrapper's config
+# (github:Runeword/claude's sources/.claude), bundled with the claude this
+# shell ships, with this OS's sandbox overlay merged in and its commands
+# linked. CLAUDE_SOURCES_ROOT names a live copy instead, which
+# CLAUDE_SOURCES_ROOT_IGNORE sets aside, as the wrapper's launcher does;
+# the terminal's own tree is never read, even one with a .claude, as it
+# held before the config moved. An overlay that does not merge refuses the
+# launch.
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
-provision='. @zsh@/.config/shell/functions/claude.bash; __claude_instance=1; __claude_provision_config'
-if PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$provision" &&
-  [ "$(@jq@/bin/jq -c .sandbox "$HOME/.claude-1/settings.json")" \
-    = "$(@jq@/bin/jq -c .sandbox "@claude@/.claude/settings.$os.json")" ] &&
+provision='. @zsh@/.config/shell/functions/claude.bash; __claude_instance=$instance; __claude_provision_config'
+bundled_sandbox=$(@jq@/bin/jq -c .sandbox "@claude@/.claude/settings.$os.json")
+if instance=1 PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$provision" &&
+  [ "$(@jq@/bin/jq -c .sandbox "$HOME/.claude-1/settings.json")" = "$bundled_sandbox" ] &&
   [ -f "$HOME/.claude-1/commands/x.md" ] &&
   [ -f "$HOME/.claude-1/commands/r.md" ]; then
   ok "bundled mode provisions the claude profile with the $os sandbox overlay and the /x and /r commands"
 else
   fail "bundled mode does not provision the claude profile with its sandbox overlay and the /x and /r commands"
 fi
-# PERMEANCE_STRICT=0: the launcher's strict check would refuse this tree,
-# which has no .config, before zsh ran; the message pins the refusal on
-# the merge.
+mkdir -p "$TMPDIR/live/.claude/rules"
+echo '{"live":true}' >"$TMPDIR/live/.claude/settings.json"
+echo '{"sandbox":{"enabled":"live"}}' >"$TMPDIR/live/.claude/settings.$os.json"
+if instance=2 CLAUDE_SOURCES_ROOT=$TMPDIR/live PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$provision" &&
+  [ "$(@jq@/bin/jq -c . "$HOME/.claude-2/settings.json")" = '{"live":true,"sandbox":{"enabled":"live"}}' ] &&
+  [ "$(readlink "$HOME/.claude-2/rules")" = "$TMPDIR/live/.claude/rules" ]; then
+  ok "CLAUDE_SOURCES_ROOT provisions the claude profile from the live tree it names"
+else
+  fail "CLAUDE_SOURCES_ROOT does not provision the claude profile from the live tree it names"
+fi
+if instance=3 CLAUDE_SOURCES_ROOT=$TMPDIR/live CLAUDE_SOURCES_ROOT_IGNORE=1 PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$provision" &&
+  [ "$(@jq@/bin/jq -c .sandbox "$HOME/.claude-3/settings.json")" = "$bundled_sandbox" ]; then
+  ok "CLAUDE_SOURCES_ROOT_IGNORE provisions the claude profile from the bundled config"
+else
+  fail "CLAUDE_SOURCES_ROOT_IGNORE does not set the live tree aside"
+fi
+# PERMEANCE_STRICT=0: the launcher's strict check would refuse these
+# trees, which have no .config, before zsh ran.
+mkdir -p "$TMPDIR/old/.claude"
+echo '{"old":true}' >"$TMPDIR/old/.claude/settings.json"
+if instance=4 PERMEANCE_ROOT=$TMPDIR/old PERMEANCE_STRICT=0 PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$provision" &&
+  [ "$(@jq@/bin/jq -c '.old // false' "$HOME/.claude-4/settings.json")" = false ] &&
+  [ "$(@jq@/bin/jq -c .sandbox "$HOME/.claude-4/settings.json")" = "$bundled_sandbox" ]; then
+  ok "the terminal's live tree, .claude and all, plays no part in the claude profile"
+else
+  fail "the claude profile is provisioned from the terminal's live tree"
+fi
+# The message pins the refusal on the merge. The claude wrapper's launcher
+# refuses the same tree, which lacks the git allowlist it reads: both take
+# the live tree from the same variable.
 mkdir -p "$TMPDIR/tree/.claude"
 echo '{}' >"$TMPDIR/tree/.claude/settings.json"
 echo 'not json' >"$TMPDIR/tree/.claude/settings.$os.json"
-if refusal=$(PATH=@jq@/bin:$PATH PERMEANCE_ROOT=$TMPDIR/tree PERMEANCE_STRICT=0 @zsh@/bin/zsh -f -c "$provision" 2>&1); then
+if refusal=$(instance=1 PATH=@jq@/bin:$PATH CLAUDE_SOURCES_ROOT=$TMPDIR/tree @zsh@/bin/zsh -f -c "$provision" 2>&1); then
   fail "a sandbox overlay that does not merge still provisions the claude profile"
 else
   case "$refusal" in
     *"could not merge"*) ok "a sandbox overlay that does not merge refuses the launch" ;;
     *) fail "the claude profile was refused before the overlay merge: $refusal" ;;
   esac
+fi
+if CLAUDE_SOURCES_ROOT=$TMPDIR/tree @claude@/bin/claude --version >/dev/null 2>&1; then
+  fail "the claude wrapper's launcher does not read CLAUDE_SOURCES_ROOT, which claude.bash provisions the profile from"
+else
+  ok "the claude wrapper's launcher reads its live tree from CLAUDE_SOURCES_ROOT, as claude.bash does"
+fi
+
+# A plain launch loads every default plugin claude.bash names from the
+# claude wrapper's config, memory-gate among them: __claude_init skips a
+# plugin the config lacks without a word, so a plugin the claude flake
+# renamed or dropped would go missing here.
+plain='. @zsh@/.config/shell/functions/claude.bash
+  __claude_run() { printf "%s\n" "$__CLAUDE_CMD"; }
+  print -r -- ${#__CLAUDE_DEFAULT_PLUGINS[@]}
+  __claude'
+plain=$(CLAUDE_SANDBOX=0 PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$plain" 2>/dev/null)
+defaults=${plain%%$'\n'*} plain=${plain#*$'\n'}
+if [ "$(printf '%s\n' "$plain" | grep -o -- '--plugin-dir [^ ]*' | grep -c '/paths/claude/\.claude/plugins/')" = "$defaults" ] &&
+  case "$plain" in *"--plugin-dir @zsh@/paths/claude/.claude/plugins/memory-gate "*) true ;; *) false ;; esac then
+  ok "a launch loads all $defaults default plugins, memory-gate among them, from the claude wrapper's config"
+else
+  fail "a launch misses a default plugin that the claude wrapper's config lacks: $plain"
+fi
+
+# bash-language-server runs shellcheck on stdin from the project root,
+# where it never finds .config/shell/.shellcheckrc, so the claude
+# wrapper's shell-lsp plugin passes the checks that file disables itself.
+disabled=$(sed -n 's/^disable=//p' @zsh@/.config/shell/.shellcheckrc | sort | paste -sd, -)
+excluded=$(@jq@/bin/jq -r '.shell.env.SHELLCHECK_OPTS // "" | ltrimstr("--exclude=") | split(",") | sort | join(",")' @claude@/.claude/plugins/shell-lsp/.lsp.json)
+if [ -n "$disabled" ] && [ "$excluded" = "$disabled" ]; then
+  ok "the claude wrapper's shell-lsp skips the checks .shellcheckrc disables: $excluded"
+else
+  fail "the claude wrapper's shell-lsp skips '$excluded', .shellcheckrc disables '$disabled'"
 fi
 
 # A launch makes the profile and drops a session's stray local
@@ -142,15 +207,16 @@ esac
 # The review in the microVM (__claude_vm_review) hands /code-review its
 # arguments and Bash, in this pane, through claude-vm with the Console
 # key's pass entry, on a clone under the cache rather than the
-# repository, and with the bundle rather than the live tree. A stand-in
-# git makes the clone; the stand-in claude-vm above passes the gate.
+# repository, and with the bundles rather than the live trees, the
+# terminal's and claude's. A stand-in git makes the clone; the stand-in
+# claude-vm above passes the gate.
 vmreview='. @zsh@/.config/shell/functions/claude.bash
   git() { case $1 in rev-parse) pwd ;; clone) mkdir -p "${@[-1]}" ;; esac; }
-  __claude_run() { printf "%s|%s|%s|%s|%s|%s\n" "$TMUX" "$CLAUDE_VM_CREDENTIAL_PASS" "${PERMEANCE_ROOT-unset}" "$PERMEANCE_TREE" "$PWD" "$__CLAUDE_CMD"; }
-  export PERMEANCE_ROOT=/live
+  __claude_run() { printf "%s|%s|%s|%s|%s|%s|%s\n" "$TMUX" "$CLAUDE_VM_CREDENTIAL_PASS" "${PERMEANCE_ROOT-unset}" "${CLAUDE_SOURCES_ROOT-unset}" "$PERMEANCE_TREE" "$PWD" "$__CLAUDE_CMD"; }
+  export PERMEANCE_ROOT=/live CLAUDE_SOURCES_ROOT=/live-claude
   __claude_vm_review low src/'
 case "$(TMUX=x XDG_CACHE_HOME=$HOME/cache PATH=$HOME/vm/bin:@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$vmreview")" in
-  "|claude/anthropic-api-key|unset|/nix/store/"*"|$HOME/cache/claude-review."*"/claude-vm claude "*" -p --allowedTools Bash --no-session-persistence --max-budget-usd 5 /code-review\ low\ src/  --allow-dangerously-skip-permissions")
+  "|claude/anthropic-api-key|unset|unset|/nix/store/"*"|$HOME/cache/claude-review."*"/claude-vm claude "*" -p --allowedTools Bash --no-session-persistence --max-budget-usd 5 /code-review\ low\ src/  --allow-dangerously-skip-permissions")
     ok "the microVM review runs /code-review with Bash on a clone, in this pane, with the Console key's entry and without the live tree"
     ;;
   *) fail "the microVM review does not run /code-review on a clone with the Console key's entry and without the live tree" ;;
@@ -316,8 +382,8 @@ else
 fi
 
 # The same launch removes the user-level instructions a session can
-# plant in its profile, which load into every later session: what
-# sources/.claude does not provide, and skills/ whole (claude downloads
+# plant in its profile, which load into every later session: what the
+# claude config does not provide, and skills/ whole (claude downloads
 # its synced ones again at start).
 p=$HOME/.claude-1
 mkdir -p "$p/agents" "$p/skills/x" && : >"$p/agents/a.md" && : >"$p/CLAUDE.md" && : >"$p/skills/x/SKILL.md"
@@ -328,15 +394,15 @@ else
   fail "a launch keeps instructions a session planted in its profile"
 fi
 
-# A launch writes the profile's settings.json, sources' with this OS's
-# overlay, only when it says something else, and then in place: the
-# sandbox pins that very file in every running session, and replacing
-# it would drop the pin. Made read-only, the file is left alone, so the
-# launch wrote nothing; a session's edit is undone in the same file;
-# and a symlink a session left there is removed, not written through.
-# The launch also drops the plugins a session can leave in the profile,
-# which load at the next start: those in plugins/synced, and those
-# installed, saying which.
+# A launch writes the profile's settings.json, the claude config's with
+# this OS's overlay, only when it says something else, and then in
+# place: the sandbox pins that very file in every running session, and
+# replacing it would drop the pin. Made read-only, the file is left
+# alone, so the launch wrote nothing; a session's edit is undone in the
+# same file; and a symlink a session left there is removed, not written
+# through. The launch also drops the plugins a session can leave in the
+# profile, which load at the next start: those in plugins/synced, and
+# those installed, saying which.
 # shellcheck disable=SC2012 # it reads an inode number, not a file name
 inode() { ls -i "$1" | awk '{ print $1 }'; }
 want=$(@jq@/bin/jq -S -s '.[0] * .[1]' @claude@/.claude/settings.json "@claude@/.claude/settings.$os.json")
