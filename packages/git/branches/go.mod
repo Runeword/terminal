@@ -3,7 +3,7 @@ module git-branches
 go 1.25.0
 
 require (
-	github.com/junegunn/fzf v0.74.4
+	github.com/junegunn/fzf v0.74.5
 	golang.org/x/sync v0.20.0
 )
 
