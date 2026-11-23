@@ -7,9 +7,23 @@ __CLAUDE_FZF="--reverse --no-separator --keep-right --border none --cycle --heig
 # so loading it unconditionally taxed every session. Pick it from __claude_plugins
 # (the fzf plugin picker) when you need nixpkgs/option search.
 # memory-gate holds Claude's memory changes until its work is done
-# (packages/claude/memory-gate/main.go). The plugin picker (cpl) loads it only
-# when it is picked.
+# (github:Runeword/claude's packages/memory-gate/main.go). The plugin picker
+# (cpl) loads it only when it is picked.
 __CLAUDE_DEFAULT_PLUGINS=(nix-lsp typescript-lsp go-lsp shell-lsp lua-lsp memory-gate)
+
+# The claude wrapper's config tree (github:Runeword/claude's sources/), whose
+# .claude each profile is provisioned from and the plugins load from: the live
+# one CLAUDE_SOURCES_ROOT names, the root the wrapper's own launcher reads, or
+# else the copy bundled with the claude this shell ships, in the store, where no
+# session can edit it. A CLAUDE_SOURCES_ROOT_IGNORE of anything but 0 or empty
+# keeps the launcher to that copy, and so keeps this too.
+__claude_tree() {
+  if [ -n "${CLAUDE_SOURCES_ROOT:-}" ] && [ "${CLAUDE_SOURCES_ROOT_IGNORE:-0}" = 0 ]; then
+    printf '%s' "$CLAUDE_SOURCES_ROOT"
+  else
+    printf '%s' "$NIX_OUT_SHELL/paths/claude"
+  fi
+}
 
 # Prefix that runs claude inside the bubblewrap boundary: claude-sandbox, from
 # github:Runeword/claude-sandbox (on PATH through the tools env). Whole-process
@@ -190,19 +204,19 @@ __claude_build_cmd() {
       ;;
   esac
   # Which session claude has open, for claude-sessions' backup and restore
-  # (packages/claude/sessions/open.go): flock locks a file of this launch's
-  # own, in the profile's open-sessions/, for as long as claude runs, and
-  # claude's SessionStart hook (claude-sessions mark) writes into it the id of
-  # each session claude starts, resumes or clears into. A held lock that names
-  # a session says for sure it is open; watching for a process that names it
-  # could miss it, and the restore then started an open session again. -F
-  # execs into the launcher rather than wait as its parent, which tmux would
-  # name the window after, and tmux-session-name label the session after. The
-  # lock passes on to claude and what it starts, which the sandbox's PID
-  # namespace ends with claude; the launcher's cleanup watcher holds it up to
-  # 15 s longer. flock is resolved here, as the launcher is, for the pane's
-  # PATH. Without it, or in the microVM, whose sessions the restore doesn't
-  # start, claude runs as before.
+  # (github:Runeword/claude's packages/sessions/open.go): flock locks a file
+  # of this launch's own, in the profile's open-sessions/, for as long as
+  # claude runs, and claude's SessionStart hook (claude-sessions mark) writes
+  # into it the id of each session claude starts, resumes or clears into. A
+  # held lock that names a session says for sure it is open; watching for a
+  # process that names it could miss it, and the restore then started an open
+  # session again. -F execs into the launcher rather than wait as its parent,
+  # which tmux would name the window after, and tmux-session-name label the
+  # session after. The lock passes on to claude and what it starts, which the
+  # sandbox's PID namespace ends with claude; the launcher's cleanup watcher
+  # holds it up to 15 s longer. flock is resolved here, as the launcher is,
+  # for the pane's PATH. Without it, or in the microVM, whose sessions the
+  # restore doesn't start, claude runs as before.
   open_dir="$HOME/$(__claude_profile)/open-sessions"
   if [ "${__CLAUDE_LAUNCHER:-}" != claude-vm ] && flock_bin=$(command -v flock) &&
     command mkdir -p "$open_dir" && file=$(mktemp "$open_dir/XXXXXXXX"); then
@@ -223,34 +237,33 @@ __claude_profile() {
   fi
 }
 
-# Make sources/ own each profile's user-level config: path-scoped rules and bundled
-# settings load via the `user` setting source (which the claude wrapper must enable),
-# while per-profile state (auth, sessions) stays separate. rules/ is a symlink;
-# settings.json is a refreshed copy so Claude's writes can't pollute sources/ or a read-only store.
-# The config is the live tree's .claude (dev); in bundled mode $PERMEANCE_TREE is
-# zsh's own bundle, which has none, so it is the claude wrapper's, as for the plugins
-# in __claude_init. Fails when neither exists, like the overlay below: a profile left
+# Make the claude config (__claude_tree's .claude) own each profile's user-level
+# config: path-scoped rules and bundled settings load via the `user` setting
+# source (which the claude wrapper must enable), while per-profile state (auth,
+# sessions) stays separate. rules/ is a symlink; settings.json is a refreshed copy
+# so Claude's writes can't pollute the config tree or a read-only store. Fails
+# when the tree has no .claude, like the overlay below: a profile left
 # unprovisioned would launch without its sandbox settings.
 __claude_provision_config() {
-  local src="$PERMEANCE_TREE/.claude"
-  [ -d "$src" ] || src="$NIX_OUT_SHELL/paths/claude/.claude"
+  local src
+  src="$(__claude_tree)/.claude"
   if [ ! -d "$src" ]; then
-    echo "claude: neither PERMEANCE_TREE nor the bundled claude has a .claude config; refusing to launch without its settings" >&2
+    echo "claude: $src is missing, so there is no claude config to provision the profile from; refusing to launch without its settings" >&2
     return 1
   fi
   local dir name planted
   dir="$HOME/$(__claude_profile)"
   # claude-shell-guard (CLAUDE_CODE_SHELL_PREFIX) lets nothing Claude Code
   # starts, MCP servers included, create entries directly in the profile, so the
-  # caches the plugins keep there (sources/.claude/plugins/*/.mcp.json) are
+  # caches the plugins keep there (the config's plugins/*/.mcp.json) are
   # made here. Through command, as mv below: aliases.sh's mkdir and mv add
   # --verbose, and the shell expands an alias in a function as it reads it.
   command mkdir -p "$dir" "$dir/.npm-cache" "$dir/.uv-cache" "$dir/.uv-tools"
   # The profile's user-level instructions load into every session, in every
   # project: CLAUDE.md, rules/, agents/, commands/ and skills/. A session can
   # write its profile, so what one leaves there would steer every later one, a
-  # credential or unsandboxed session included. sources/.claude owns them: each
-  # is a symlink to its copy there, and one that sources/.claude lacks is
+  # credential or unsandboxed session included. The claude config owns them:
+  # each is a symlink to its copy there, and one that the config lacks is
   # removed. `ln -sfn` onto a *real directory* does not replace it — it creates
   # the link inside it (rules/rules -> …) and exits 0 — so a real one is removed
   # first.
@@ -262,10 +275,10 @@ __claude_provision_config() {
       ln -sfn "$src/$name" "$dir/$name"
     elif [ -e "$dir/$name" ] || [ -L "$dir/$name" ]; then
       rm -rf "${dir:?}/${name:?}"
-      echo "claude: removed $dir/$name: sources/.claude has none, and a session can plant one for every later session" >&2
+      echo "claude: removed $dir/$name: the claude config has none, and a session can plant one for every later session" >&2
     fi
   done
-  # skills/ cannot be a link into sources/: claude downloads the claude.ai
+  # skills/ cannot be a link into the config: claude downloads the claude.ai
   # account's skills into skills/synced at every start. That download is also
   # why removing all of skills/ is safe; only what else was there is reported.
   if [ -e "$dir/skills" ] || [ -L "$dir/skills" ]; then
@@ -284,8 +297,8 @@ __claude_provision_config() {
   __claude_provision_sandbox_overlay "$src" "$dir"
 }
 
-# The profile's settings.json: sources' settings.json with the per-OS sandbox
-# overlay deep-merged (jq `*`) over it, so the shared file stays
+# The profile's settings.json: the config's settings.json with the per-OS
+# sandbox overlay deep-merged (jq `*`) over it, so the shared file stays
 # platform-neutral. The two overlays point opposite ways:
 # - settings.darwin.json turns Claude Code's built-in Seatbelt sandbox ON and
 #   is the boundary there: bwrap is Linux-only, and Seatbelt can allow the
@@ -303,7 +316,7 @@ __claude_provision_config() {
 # User scope is load-bearing: the shared settings.json also rides --settings
 # (CLI tier, above user), so a sandbox key there would leak across platforms
 # — the Linux "off" would override Darwin's user-tier "on".
-# Built from sources each time, never from the profile's copy, which a session
+# Built from the config each time, never from the profile's copy, which a session
 # may have written. Claude Code reloads the file in every running session of
 # the profile when it changes, and the sandbox launcher pins it read-only in
 # each of them, on the file itself (claude-sandbox.bash). Replacing the file,
@@ -341,9 +354,9 @@ __claude_provision_sandbox_overlay() {
 # or run on macOS, where hooks and MCP servers are outside Seatbelt. So each
 # launch empties those server lists and cuts the local settings to what claude
 # writes there itself: its "don't ask again" permission rules and the Show tips
-# toggle. MCP servers belong in a plugin under sources/.claude/plugins and
-# project hooks in .claude/settings.json, both pinned in the sandbox. A file jq
-# can't read refuses the launch. The profile's part runs with
+# toggle. MCP servers belong in a plugin of the claude config (its bundled copy
+# is in the store) and project hooks in .claude/settings.json, pinned in the
+# sandbox. A file jq can't read refuses the launch. The profile's part runs with
 # __claude_prepare_profile, the project's (__claude_scrub_project) at each
 # launch. Plugins installed in the profile go too, for the same reason: they
 # load at the next start, hooks and MCP servers included.
@@ -401,8 +414,8 @@ __claude_rewrite_json() {
   return 1
 }
 
-# Make profile $(__claude_profile) ready for a launch: its config from
-# sources/.claude, and what a session can plant in it removed. Once for the
+# Make profile $(__claude_profile) ready for a launch: its config from the
+# claude config, and what a session can plant in it removed. Once for the
 # launches a caller makes together: a caller that declares __CLAUDE_PREPARED,
 # as __claude_sessions_restore does, has each profile made ready listed there,
 # and the launches it then makes skip those. Under a lock on a file of the
@@ -430,9 +443,10 @@ __claude_init() {
   __claude_args=""
   [ "$#" -gt 0 ] && __claude_args=$(printf '%q ' "$@")
 
-  local plugins_dir="$NIX_OUT_SHELL/paths/claude/.claude/plugins"
-  # Live tree (dev) → plugin .mcp.json edits apply without a rebuild; baked copy otherwise.
-  [ -d "$PERMEANCE_TREE/.claude/plugins" ] && plugins_dir="$PERMEANCE_TREE/.claude/plugins"
+  # The live tree's when CLAUDE_SOURCES_ROOT names one, so plugin .mcp.json edits
+  # apply without a rebuild; the bundled copy otherwise (__claude_tree).
+  local plugins_dir
+  plugins_dir="$(__claude_tree)/.claude/plugins"
   __claude_plugins=""
   for p in "${__CLAUDE_DEFAULT_PLUGINS[@]}"; do
     [ -d "$plugins_dir/$p" ] && __claude_plugins="$__claude_plugins --plugin-dir $plugins_dir/$p"
@@ -452,9 +466,10 @@ __claude_init_fzf() {
   __claude_args=""
   [ "$#" -gt 0 ] && __claude_args=$(printf '%q ' "$@")
 
-  local plugins_dir="$NIX_OUT_SHELL/paths/claude/.claude/plugins"
-  # Live tree (dev) → plugin .mcp.json edits apply without a rebuild; baked copy otherwise.
-  [ -d "$PERMEANCE_TREE/.claude/plugins" ] && plugins_dir="$PERMEANCE_TREE/.claude/plugins"
+  # The live tree's when CLAUDE_SOURCES_ROOT names one, so plugin .mcp.json edits
+  # apply without a rebuild; the bundled copy otherwise (__claude_tree).
+  local plugins_dir
+  plugins_dir="$(__claude_tree)/.claude/plugins"
   local selected
   selected=$(find -L "$plugins_dir" -mindepth 1 -maxdepth 1 -exec basename {} \; 2>/dev/null | eval fzf --multi "$__CLAUDE_FZF") || return 1
   __claude_plugins=$(echo "$selected" | while IFS= read -r p; do
@@ -597,7 +612,8 @@ __claude_review() (
 #   runs on the clone here.
 # - PERMEANCE_TREE is the bundle and PERMEANCE_ROOT unset, so the live tree,
 #   which claude-vm would share read-write, stays out, and so does any other
-#   credential (the CLAUDE_SANDBOX_ALLOW_* opt-ins).
+#   credential (the CLAUDE_SANDBOX_ALLOW_* opt-ins). CLAUDE_SOURCES_ROOT is
+#   unset too, so claude's config is its bundle as well (__claude_tree).
 # - --fix, --comment and ultra are refused: the clone is thrown away, the VM has
 #   no GitHub token, and ultra needs your claude.ai login. A PR number fails the
 #   same way, in /code-review.
@@ -636,7 +652,7 @@ __claude_vm_review() (
     git -C "$review_clone" apply --index --whitespace=nowarn "$review_dir/changes.diff" || exit 1
   fi
   builtin cd "$review_clone" || exit 1
-  unset PERMEANCE_ROOT
+  unset PERMEANCE_ROOT CLAUDE_SOURCES_ROOT
   TMUX='' CLAUDE_VM_CREDENTIAL_PASS=claude/anthropic-api-key CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
     PERMEANCE_TREE=$NIX_OUT_SHELL \
     CLAUDE_SANDBOX_ALLOW_FIREBASE=0 CLAUDE_SANDBOX_ALLOW_JIRA=0 CLAUDE_SANDBOX_ALLOW_GH=0 \
@@ -724,9 +740,10 @@ __claude_plugins() {
 # filter too, so the hosts it calls go in CLAUDE_SANDBOX_NET_ALLOW. Takes what
 # __claude takes: the instance, then claude's arguments.
 __claude_connect() {
-  local plugins_dir="$NIX_OUT_SHELL/paths/claude/.claude/plugins"
-  # Live tree (dev) → plugin .mcp.json edits apply without a rebuild; baked copy otherwise.
-  [ -d "$PERMEANCE_TREE/.claude/plugins" ] && plugins_dir="$PERMEANCE_TREE/.claude/plugins"
+  # The live tree's when CLAUDE_SOURCES_ROOT names one, so plugin .mcp.json edits
+  # apply without a rebuild; the bundled copy otherwise (__claude_tree).
+  local plugins_dir
+  plugins_dir="$(__claude_tree)/.claude/plugins"
   local selected c
   selected=$(
     {
@@ -773,8 +790,9 @@ __claude_debug() {
   eval "$__CLAUDE_CMD"
 }
 
-# claude-sessions (packages/claude/sessions) reads the transcripts for the
-# session pickers and backs the open sessions up; the terminal ships it.
+# claude-sessions (github:Runeword/claude's packages/sessions) reads the
+# transcripts for the session pickers and backs the open sessions up; the
+# terminal ships it.
 __claude_sessions_on_path() {
   command -v claude-sessions >/dev/null && return 0
   echo "claude-sessions is not on PATH: rebuild, then open a new terminal" >&2
@@ -848,18 +866,19 @@ __claude_sessions_save() {
 
 # Start sessions of the backups again, each in a tmux window of its own,
 # picked in one fzf that selects as ga's does (__git_pick_files in git.bash):
-# claude-sessions restore (packages/claude/sessions/restore.go) lists the
-# backups, newest first, each previewed as the sessions it holds, and Enter or
-# Right lists the sessions of the one under the cursor that can be resumed,
-# each previewed as its conversation, which Left or Esc leaves. Tab marks a
-# row and Ctrl-A every row (or clears them): a marked backup stands for all
-# its sessions, which its list opens with marked, and leaving that list marks
-# the backup as its sessions are. Enter in the sessions list resumes what is
-# marked, and Esc in the backups list cancels. A whole backup leaves out,
-# saying why, a session still open and one whose conversation or directory is
-# gone. The picker's state lives in the per-user runtime dir, as ga's does.
-# A tmux session made again can leave a gap in the session numbers, which
-# __tmux_renumber_sessions (tmux.sh) then closes, as when a session closes.
+# claude-sessions restore (github:Runeword/claude's
+# packages/sessions/restore.go) lists the backups, newest first, each
+# previewed as the sessions it holds, and Enter or Right lists the sessions of
+# the one under the cursor that can be resumed, each previewed as its
+# conversation, which Left or Esc leaves. Tab marks a row and Ctrl-A every row
+# (or clears them): a marked backup stands for all its sessions, which its
+# list opens with marked, and leaving that list marks the backup as its
+# sessions are. Enter in the sessions list resumes what is marked, and Esc in
+# the backups list cancels. A whole backup leaves out, saying why, a session
+# still open and one whose conversation or directory is gone. The picker's
+# state lives in the per-user runtime dir, as ga's does. A tmux session made
+# again can leave a gap in the session numbers, which __tmux_renumber_sessions
+# (tmux.sh) then closes, as when a session closes.
 __claude_sessions_restore() {
   __claude_sessions_on_path || return 0
   if [ -z "$TMUX" ]; then
