@@ -1,5 +1,0 @@
-{
-  "name": "memory-gate",
-  "description": "Holds Claude's memory changes until its work is done, then asks about each one",
-  "version": "1.0.0"
-}
