@@ -1,19 +1,65 @@
 {
   "nodes": {
-    "claude-sandbox": {
+    "ast-grep-skill": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1769044697,
+        "narHash": "sha256-LgGFtPieyKtoru22AhHW8hvkJ8kCHO2Cr8rBOWGuxvY=",
+        "owner": "ast-grep",
+        "repo": "agent-skill",
+        "rev": "577f4d4507678f2c8cee150fae25e6ce309f70b1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ast-grep",
+        "repo": "agent-skill",
+        "type": "github"
+      }
+    },
+    "claude": {
       "inputs": {
+        "ast-grep-skill": "ast-grep-skill",
+        "claude-sandbox": [
+          "claude-sandbox"
+        ],
         "lefthook": [
           "lefthook"
         ],
+        "nix-index-database": [
+          "nix-index-database"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "permeance": [
+          "permeance"
+        ]
+      },
+      "locked": {
+        "lastModified": 1795462636,
+        "narHash": "sha256-A7x8xxT9kfg49k90WQtTS0BDVpY4Iw2YZDAdFx91rVs=",
+        "owner": "Runeword",
+        "repo": "claude",
+        "rev": "efe3da3cd5dd962c03d212eac9004edd32919cd5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Runeword",
+        "repo": "claude",
+        "type": "github"
+      }
+    },
+    "claude-sandbox": {
+      "inputs": {
         "nixpkgs": [
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1794693896,
-        "narHash": "sha256-QCt1cLfnxR8TZ/ZrBvs6j+wDOo7ZnBmBkODyDVPT+z4=",
+        "lastModified": 1795460758,
+        "narHash": "sha256-rCi6+9LF+ndi7ujIQw+oG1Comnor/wfx8ljbW2ZmdPI=",
         "ref": "main",
-        "rev": "8b3726b527d58bdbb194e8064d78192a0067f4eb",
+        "rev": "ac850582d95ddfb548e29a6fc5e63f25fa7346c4",
         "shallow": true,
         "type": "git",
         "url": "ssh://git@github.com/Runeword/claude-sandbox"
@@ -123,6 +169,7 @@
     },
     "root": {
       "inputs": {
+        "claude": "claude",
         "claude-sandbox": "claude-sandbox",
         "flake-utils": "flake-utils",
         "lefthook": "lefthook",
