@@ -3,11 +3,11 @@
     "ast-grep-skill": {
       "flake": false,
       "locked": {
-        "lastModified": 1769044697,
-        "narHash": "sha256-LgGFtPieyKtoru22AhHW8hvkJ8kCHO2Cr8rBOWGuxvY=",
+        "lastModified": 1793760842,
+        "narHash": "sha256-HFZVX/UYsct8EMtkczBGJNr9RjjDz77zY6SHS1WlKkc=",
         "owner": "ast-grep",
         "repo": "agent-skill",
-        "rev": "577f4d4507678f2c8cee150fae25e6ce309f70b1",
+        "rev": "0613dc7f82bbfb3b557380b54726b92f73358460",
         "type": "github"
       },
       "original": {
@@ -36,11 +36,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1795462636,
-        "narHash": "sha256-A7x8xxT9kfg49k90WQtTS0BDVpY4Iw2YZDAdFx91rVs=",
+        "lastModified": 1795472219,
+        "narHash": "sha256-z3VGyslLW7+YD34gEmJ8NlQ0fdsd2ebl6BNZsl2meAw=",
         "owner": "Runeword",
         "repo": "claude",
-        "rev": "efe3da3cd5dd962c03d212eac9004edd32919cd5",
+        "rev": "f3c13fd4fff15eaf953b7b5534810484012dcc8d",
         "type": "github"
       },
       "original": {
