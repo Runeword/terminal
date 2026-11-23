@@ -94,7 +94,7 @@ pkgs.symlinkJoin (finalAttrs: {
           replacements = { inherit zsh; };
         };
         claude = {
-          description = "A claude launch provisions its profile, drops what a session planted and runs claude under a lock it names to it, and the connection and microVM pickers, the reviews, the openshell chords, the session tools and ca launch what was asked";
+          description = "A claude launch provisions its profile from the claude wrapper's config, bundled or the live tree CLAUDE_SOURCES_ROOT names, as the wrapper's own launcher reads it, never the terminal's tree, loads every default plugin from it, drops what a session planted and runs claude under a lock it names to it, the wrapper's shell-lsp skips what .shellcheckrc disables, and the connection and microVM pickers, the reviews, the openshell chords, the session tools and ca launch what was asked";
           replacements = {
             inherit zsh leaderAliases claude;
             inherit (pkgs) jq;
