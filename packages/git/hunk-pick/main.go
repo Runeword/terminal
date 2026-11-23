@@ -11,11 +11,13 @@
 // tree and tree-quote (tree.go) do the same for the log picker's file step,
 // which shows a commit's files as a tree.
 //
-// Only whole, unmodified hunks are ever emitted, so the reconstructed patch is
-// always valid: each hunk's b-side line numbers are absolute, so any subset
-// still applies cleanly. Files with no hunks (binary patches, mode-only or
-// pure-rename changes) and combined ("@@@") merge diffs carry nothing
-// selectable and are skipped.
+// Only whole hunks are ever emitted, each one's lines as git diff wrote them,
+// so the reconstructed patch is valid. Its line numbers are git diff's only in
+// the preview's patch: the one the picker's command applies (assemble --sum)
+// moves each hunk's numbers past the hunks left out before it, which git apply
+// would not account for (see rebase). Files with no hunks (binary patches,
+// mode-only or pure-rename changes) and combined ("@@@") merge diffs carry
+// nothing selectable and are skipped.
 //
 // Usage:
 //
@@ -27,9 +29,11 @@
 //	git-hunk-pick tree KIND REV                         # a revision's paths as tree rows (tree.go)
 //	git-hunk-pick tree-quote KIND REV [PREFIX]  <picked # the picked rows' paths as shell words
 //
-// With --sum, assemble refuses (exit 1, no output) unless the patch it would
-// print has that digest (patchSum): the picker's command passes the digest of
-// the hunks as they were picked, so it never applies hunks that changed since.
+// With --sum, assemble refuses (exit 1, no output) unless the hunks it would
+// print have that digest (patchSum, of them as git diff wrote them): the
+// picker's command passes the digest of the hunks as they were picked, so it
+// never applies hunks that changed since. That command pipes the patch to git
+// apply, so with --sum each hunk also gets the line numbers rebase gives it.
 package main
 
 import (
@@ -40,7 +44,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sort"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -186,37 +190,109 @@ func flatten(files []fileDiff) []hunkRef {
 
 // assemble writes a patch containing exactly the hunks named by the 1-based
 // indices, de-duplicated and re-sorted into diff order (which git apply
-// requires), each file's header emitted once before its first kept hunk.
+// requires), each file's header emitted once before its first kept hunk, and
+// each hunk as git diff wrote it.
 func assemble(w io.Writer, files []fileDiff, indices []int) error {
-	refs := flatten(files)
+	return emit(w, files, indices, false)
+}
 
-	seen := make(map[int]bool, len(indices))
-	ordered := make([]int, 0, len(indices))
+// rebase writes assemble's patch for git apply, with each hunk's line numbers
+// made to hold for the hunks picked. Without context, git apply finds a hunk
+// by its start line, in the file as the hunks before it have left it: the new
+// start applying forward (stage, a stash's tree), the old one in reverse
+// (unstage, discard, a stash leaving the worktree); and it puts a hunk that
+// only adds lines at that line as is. git diff counted every hunk before it, so
+// each one left out shifts it by the lines that one adds (net of those it
+// removes): forward, where they were never applied, the new start loses them;
+// in reverse, where they stay, the old start gains them. Each start is read in
+// its own direction only, but for a 0, the top of the file, which only a
+// file's first hunk can have (git keeps hunks an unchanged line apart): so the
+// one patch applies both ways, as git-stash-hunks applies it. A hunk with no
+// hunk left out before it stays as git wrote it.
+func rebase(w io.Writer, files []fileDiff, indices []int) error {
+	return emit(w, files, indices, true)
+}
+
+// emit writes the hunks at the 1-based indices as assemble does; rebased, with
+// the line numbers rebase gives them.
+func emit(w io.Writer, files []fileDiff, indices []int, rebased bool) error {
+	refs := flatten(files)
+	keep := make([]bool, len(refs))
 	for _, n := range indices {
 		if n < 1 || n > len(refs) {
 			return fmt.Errorf("hunk index %d out of range (have %d)", n, len(refs))
 		}
-		if !seen[n] {
-			seen[n] = true
-			ordered = append(ordered, n)
-		}
+		keep[n-1] = true
 	}
-	sort.Ints(ordered)
 
-	lastFile := -1
-	for _, n := range ordered {
-		r := refs[n-1]
-		if r.file != lastFile {
+	file, wrote, shift := -1, false, 0
+	for i, r := range refs {
+		if r.file != file {
+			file, wrote, shift = r.file, false, 0
+		}
+		hunk := files[r.file].hunks[r.hunk]
+		var s span
+		var end int
+		if rebased {
+			var ok bool
+			if s, end, ok = spanOf(hunk); !ok {
+				return fmt.Errorf("unreadable hunk header %q", hunkLabel(hunk))
+			}
+		}
+		if !keep[i] {
+			shift += s.d - s.b // (0 unless rebased)
+			continue
+		}
+		if !wrote {
 			if _, err := fmt.Fprint(w, files[r.file].header); err != nil {
 				return err
 			}
-			lastFile = r.file
+			wrote = true
 		}
-		if _, err := fmt.Fprint(w, files[r.file].hunks[r.hunk]); err != nil {
+		if shift != 0 {
+			hunk = withSpan(hunk, end, span{s.a + shift, s.b, s.c - shift, s.d})
+		}
+		if _, err := fmt.Fprint(w, hunk); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// span is a hunk's line ranges as its "@@ -a,b +c,d @@" line has them: from
+// line a, b lines, to line c, d lines (a count left out is 1; with a count of
+// 0, the start is the line the hunk comes after).
+type span struct{ a, b, c, d int }
+
+var spanLine = regexp.MustCompile(`^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
+
+// spanOf reads a hunk's span, and where on its first line the ranges end.
+func spanOf(hunk string) (span, int, bool) {
+	m := spanLine.FindStringSubmatch(hunk)
+	if m == nil {
+		return span{}, 0, false
+	}
+	num := func(v string) int {
+		if v == "" {
+			return 1
+		}
+		n, _ := strconv.Atoi(v)
+		return n
+	}
+	return span{num(m[1]), num(m[2]), num(m[3]), num(m[4])}, len(m[0]), true
+}
+
+// withSpan is the hunk with s for the ranges its first line ends at end, the
+// rest of that line (git's function context) and the lines below kept, and a
+// count of 1 left out as git leaves it out.
+func withSpan(hunk string, end int, s span) string {
+	rng := func(start, count int) string {
+		if count == 1 {
+			return strconv.Itoa(start)
+		}
+		return strconv.Itoa(start) + "," + strconv.Itoa(count)
+	}
+	return "@@ -" + rng(s.a, s.b) + " +" + rng(s.c, s.d) + " @@" + hunk[end:]
 }
 
 // patchSum is the digest assemble --sum checks: the first 12 hex digits of the
@@ -226,8 +302,9 @@ func patchSum(patch []byte) string {
 	return hex.EncodeToString(s[:6])
 }
 
-// pick is assemble --sum: it writes the patch of the hunks at indices only if
-// the patch has digest sum (any patch when sum is empty), and else nothing.
+// pick is assemble --sum: it writes the patch of the hunks at indices, for git
+// apply (see rebase), only if they have digest sum, and else nothing; with no
+// sum (the preview's), any hunks, as git diff wrote them.
 func pick(w io.Writer, files []fileDiff, indices []int, sum string) error {
 	var b bytes.Buffer
 	err := assemble(&b, files, indices)
@@ -243,6 +320,12 @@ func pick(w io.Writer, files []fileDiff, indices []int, sum string) error {
 	}
 	if err != nil {
 		return err
+	}
+	if sum != "" {
+		b.Reset()
+		if err := rebase(&b, files, indices); err != nil {
+			return err
+		}
 	}
 	_, err = w.Write(b.Bytes())
 	return err
