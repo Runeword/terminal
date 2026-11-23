@@ -1,15 +1,10 @@
 {
   pkgs,
-  claudeSandbox,
   # github:Runeword/claude's packages for this system.
   claudePackages,
 }:
 import ./commons.nix { inherit pkgs; }
 ++ import ./custom.nix { inherit pkgs; }
-# github:Runeword/claude-sandbox: on Linux the launcher claude.bash starts
-# claude through and the helpers it runs by bare name, on macOS the credential
-# launcher. On the host PATH, where claude.bash and the launcher look for them.
-++ [ claudeSandbox.default ]
 # github:Runeword/claude's claude-sessions, which lists, previews and erases
 # Claude Code sessions (Claude Code can't delete one), and backs up the open
 # ones. Backs the session pickers behind the cs and cx leader aliases, and the
