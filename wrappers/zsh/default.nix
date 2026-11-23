@@ -31,9 +31,6 @@ pkgs.symlinkJoin (finalAttrs: {
     config
   ];
   postBuild = ''
-    mkdir -p $out/paths
-    ln -s ${claude} $out/paths/claude
-
     ${permeance.installLauncher {
       binName = "zsh";
       compiled = true;
@@ -94,11 +91,10 @@ pkgs.symlinkJoin (finalAttrs: {
           replacements = { inherit zsh; };
         };
         claude = {
-          description = "A claude launch provisions its profile from the claude wrapper's config, bundled or the live tree CLAUDE_SOURCES_ROOT names, as the wrapper's own launcher reads it, never the terminal's tree, loads every default plugin from it, drops what a session planted and runs claude under a lock it names to it, the wrapper's shell-lsp skips what .shellcheckrc disables, and the connection and microVM pickers, the reviews, the openshell chords, the session tools and ca launch what was asked";
+          description = "Each claude chord hands claude-launch, by full path, the profile, claude's arguments as typed and what this shell set (a credential first, extra hosts, CLAUDE_SANDBOX=0, a live tree), the pickers add their plugins on top of the defaults or alone, a window claude-launch fails in stays open, detached or not, while one it ran in closes, the claude wrapper's shell-lsp skips what .shellcheckrc disables, and the reviews, the openshell chords, the session tools and ca launch what was asked";
           replacements = {
             inherit zsh leaderAliases claude;
-            inherit (pkgs) jq;
-            utilLinux = lib.getBin pkgs.util-linux;
+            inherit (pkgs) jq tmux;
           };
         };
         git = {
