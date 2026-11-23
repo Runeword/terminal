@@ -5,10 +5,13 @@
 # sources/, `#` starting a comment. Read at every launch and pinned itself,
 # like everything it names, so it is edited from a plain terminal.
 #
-# Claude's own config: settings*.json (hooks, permissions), hooks/, the plugin
-# .mcp.json manifests, rules/, and git-allowlist.toml, which the git-shim
-# re-reads on every call — writable, it would let a session widen its own
-# allowlist mid-run.
+# This list's own directory, pinned whole so that nothing can be planted beside
+# it. Claude's config (settings*.json, hooks/, plugins/, rules/ and the
+# git-allowlist.toml the git shim re-reads on every call) no longer lives here:
+# it comes from github:Runeword/claude, bundled in the store, which no session
+# can write. A live copy that CLAUDE_SOURCES_ROOT names is outside this tree,
+# so no entry here pins it: it is read-only to a session started elsewhere, and
+# writable to one started in that checkout.
 .claude
 # The shell startup chain: .zshrc plus its glob-sourced plugins, .bashrc, the
 # three files both rc files source by name, and functions/, sourced by glob —
