@@ -5,7 +5,7 @@
     pname = "git-branches";
     version = "0.1.0";
     src = ./git/branches;
-    vendorHash = "sha256-zaOS1yyiwq0Jir+A7/UTDVP0ObX1SttUj+Ut93Hfun4=";
+    vendorHash = "sha256-YWErl62Yel103dkol4M6ELFtZgm/iAxrGL/j+Fn63QY=";
     # TestStashApplyCmd runs the printed command in a real repo.
     nativeCheckInputs = [ pkgs.git ];
   })
