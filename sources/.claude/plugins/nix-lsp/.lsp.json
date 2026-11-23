@@ -1,8 +1,0 @@
-{
-  "nix": {
-    "command": "nil",
-    "extensionToLanguage": {
-      ".nix": "nix"
-    }
-  }
-}
