@@ -2,227 +2,63 @@
 # shellcheck disable=SC2153
 
 __CLAUDE_FZF="--reverse --no-separator --keep-right --border none --cycle --height 70% --info=inline:'' --header-first --prompt='  ' --wrap-sign='' --scheme=path"
-# nix-mcp is opt-in, not a default: the mcp-nixos server costs ~1.7s to import on
-# every launch (its own server init, not uvx overhead; no faster version exists),
-# so loading it unconditionally taxed every session. Pick it from __claude_plugins
-# (the fzf plugin picker) when you need nixpkgs/option search.
-# memory-gate holds Claude's memory changes until its work is done
-# (github:Runeword/claude's packages/memory-gate/main.go). The plugin picker
-# (cpl) loads it only when it is picked.
-__CLAUDE_DEFAULT_PLUGINS=(nix-lsp typescript-lsp go-lsp shell-lsp lua-lsp memory-gate)
 
-# The claude wrapper's config tree (github:Runeword/claude's sources/), whose
-# .claude each profile is provisioned from and the plugins load from: the live
-# one CLAUDE_SOURCES_ROOT names, the root the wrapper's own launcher reads, or
-# else the copy bundled with the claude this shell ships, in the store, where no
-# session can edit it. A CLAUDE_SOURCES_ROOT_IGNORE of anything but 0 or empty
-# keeps the launcher to that copy, and so keeps this too.
-__claude_tree() {
-  if [ -n "${CLAUDE_SOURCES_ROOT:-}" ] && [ "${CLAUDE_SOURCES_ROOT_IGNORE:-0}" = 0 ]; then
-    printf '%s' "$CLAUDE_SOURCES_ROOT"
-  else
-    printf '%s' "$NIX_OUT_SHELL/paths/claude"
-  fi
-}
+# The terminal's part of a claude launch: which profile (the instance), which
+# plugins and credentials, and which window. The launch itself is claude-launch,
+# from the claude package (github:Runeword/claude's launcher/claude-launch.bash),
+# in the window it opens: it prepares the profile, drops what a session planted
+# there and in the project, loads the plugins and their secrets, takes the
+# open-session lock claude-sessions reads, and runs claude under claude-sandbox
+# (Linux), claude-macos (a macOS session holding a credential) or claude-vm,
+# failing closed. Every argument is claude's; how to start it goes in its
+# environment, which a `tmux new-window` pane takes from the tmux server, not
+# from this shell, so __claude_build_cmd spells each part out in the command.
 
-# Prefix that runs claude inside the bubblewrap boundary: claude-sandbox, from
-# github:Runeword/claude-sandbox (on PATH through the tools env). Whole-process
-# filesystem isolation, which Claude Code's own /sandbox can't provide here
-# because its seccomp filter blocks AF_UNIX and kills the nix-daemon socket.
-# Set CLAUDE_SANDBOX=0 to launch unwrapped.
-# macOS gets no bwrap prefix: bwrap is Linux-only, and Claude Code's own /sandbox
-# applies there instead — Seatbelt supports sandbox.allowUnixSockets for the
-# nix-daemon socket, which Linux/seccomp cannot (see __claude_provision_sandbox_overlay).
-# Only a session that opts into a credential gets a launcher there (see
-# __claude_macos_prefix).
-# On Linux the gate fails closed: a missing bwrap or launcher script aborts with a
-# message rather than silently starting an unsandboxed claude. bwrap resolves
-# against the *interactive* shell's PATH, so packages/linux.nix ships bubblewrap in
-# the tools env; CLAUDE_SANDBOX=0 is the explicit escape hatch, not a fallback.
-# A session __claude_vm starts takes the microVM launcher instead (see
-# __claude_vm_prefix), and no escape hatch: that chord asked for the VM.
-__claude_sandbox_prefix() {
-  if [ "${__CLAUDE_LAUNCHER:-}" = claude-vm ]; then
-    __claude_vm_prefix
-    return
-  fi
-  [ "${CLAUDE_SANDBOX:-1}" = "0" ] && return 0
-  if [ "$(uname -s)" = "Darwin" ]; then
-    __claude_macos_prefix
-    return
-  fi
-  local script
-  if ! command -v bwrap >/dev/null 2>&1; then
-    echo "claude: bwrap not found on PATH; refusing to launch unsandboxed (CLAUDE_SANDBOX=0 to override)" >&2
-    return 1
-  fi
-  # The launcher applies a seccomp filter (from claude-seccomp-bpf) that stops the
-  # namespace injecting characters into this terminal (TIOCSTI, CVE-2017-5226), and
-  # fails closed without it. Pre-check it here, in the calling shell, so a missing
-  # binary is reported where it can be read — the launcher's own refusal would land
-  # in the `tmux new-window` pane, which clears the moment it dies. Same rationale
-  # as the bwrap pre-check above and the --check-cwd gate below.
-  if ! command -v claude-seccomp-bpf >/dev/null 2>&1; then
-    echo "claude: claude-seccomp-bpf not found on PATH; it emits the TIOCSTI seccomp filter the sandbox needs and the launcher fails closed without it. Refusing to launch — rebuild the terminal to pick it up, or CLAUDE_SANDBOX=0 to override." >&2
-    return 1
-  fi
-  # gh/jira/firebase sessions run behind claude-egress-proxy's network filter, and
-  # the launcher refuses them without it: pre-checked here for the same reason.
-  if { [ "${CLAUDE_SANDBOX_ALLOW_GH:-0}" = "1" ] || [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ] || [ "${CLAUDE_SANDBOX_ALLOW_JIRA:-0}" = "1" ]; } &&
-    ! command -v claude-egress-proxy >/dev/null 2>&1; then
-    echo "claude: claude-egress-proxy not found on PATH; gh/jira/firebase sessions run behind its network filter, and the launcher refuses them without it. Rebuild the terminal to pick it up, or launch without the credential." >&2
-    return 1
-  fi
-  # Resolved here and handed on as a full path: the command runs in a
-  # `tmux new-window` pane, which gets the tmux server's PATH, not this one.
-  if ! script=$(command -v claude-sandbox); then
-    echo "claude: claude-sandbox not found on PATH; refusing to launch unsandboxed. Rebuild the terminal to pick it up, or CLAUDE_SANDBOX=0 to override." >&2
-    return 1
-  fi
-  # The launcher refuses a cwd that would bind $HOME, an XDG root, or a tree the
-  # desktop session executes from. Run the launcher's own gate rather than a copy
-  # of it: __claude_run launches via `tmux new-window`, and the launcher's message
-  # would land in a pane that clears on death, so the check has to run in the
-  # calling shell to be read at all. --check-cwd applies exactly that gate and
-  # exits without launching anything.
-  "$script" --check-cwd || return 1
-  printf '%s ' "$script"
-}
-
-# macOS has no bwrap launcher, but the per-session credential opt-ins
-# (CLAUDE_SANDBOX_ALLOW_FIREBASE, CLAUDE_SANDBOX_ALLOW_JIRA) still need one:
-# claude-macos (github:Runeword/claude-sandbox) reads the credential from pass
-# on the host and hands it to claude. Only a session that opts in goes through
-# it; every other launch runs claude directly, as before. Like the Linux gate, a
-# missing launcher refuses the launch rather than starting without what was
-# asked for.
-__claude_macos_prefix() {
-  [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ] || [ "${CLAUDE_SANDBOX_ALLOW_JIRA:-0}" = "1" ] || return 0
-  local script
-  if ! script=$(command -v claude-macos); then
-    echo "claude: claude-macos not found on PATH; refusing to launch without the credentials CLAUDE_SANDBOX_ALLOW_* asked for. Rebuild the terminal to pick it up." >&2
-    return 1
-  fi
-  printf '%s ' "$script"
-}
-
-# The microVM launcher, claude-vm (github:Runeword/claude-microvm): claude in a
-# cloud-hypervisor guest with its own kernel, no network card, and the egress
-# allowlist for every session, not only the credential ones. Fails closed like
-# the sandbox gate, its checks run here in the calling shell for the same
-# reason: no claude-vm, no launch. A gh, jira or firebase session goes through
-# it too, its flag carried as for claude-sandbox: claude-vm reads the
-# credential from pass and keeps it on the host, behind its egress proxy, and
-# the VM holds a placeholder. Not figma-mcp, whose key this file puts in
-# claude's environment for the VM to hold, nor google-workspace-mcp, whose
-# token store it does not share: both are refused here, before a pane opens.
-__claude_vm_prefix() {
-  local script
-  case "$__claude_plugins" in
-    *figma-mcp* | *google-workspace-mcp*)
-      echo "claude: the microVM does not carry figma-mcp or google-workspace-mcp yet; start them with cc. Refusing to launch." >&2
-      return 1
-      ;;
-  esac
-  if ! script=$(command -v claude-vm); then
-    echo "claude: claude-vm not found on PATH; refusing to launch. Rebuild the terminal to pick it up." >&2
-    return 1
-  fi
-  "$script" --check-cwd || return 1
-  printf '%s ' "$script"
-}
-
-# Build __CLAUDE_CMD from __claude_instance, __claude_plugins, __claude_args.
-# __CLAUDE_CMD is a string that tmux new-window or eval parses again, so
-# __claude_init keeps __claude_args shell-quoted, one word per argument: an
-# option's value (--resume <id>, --model <name>) stays a word of its own.
-# Fails (and propagates through __claude_init) when the sandbox gate refuses to
-# launch, so callers abort after the gate's message instead of silently running.
+# Build __CLAUDE_CMD, the launch for this shell to eval, and __CLAUDE_PANE_CMD,
+# the same for a new tmux window, from __claude_instance, __claude_args and what
+# the caller set:
+# - CLAUDE_SANDBOX_ALLOW_GH, _FIREBASE, _JIRA and CLAUDE_SANDBOX_NET_ALLOW: a
+#   credential for this session (claude's own, from a claude/ entry in pass,
+#   which the sandbox launchers read on the host), and its network filter's
+#   extra hosts. They open the command, before anything else: claude-sessions'
+#   backup reads them there (its connectionsOf, packages/sessions/backup.go).
+# - CLAUDE_SANDBOX=0, CLAUDE_SOURCES_ROOT and CLAUDE_SOURCES_ROOT_IGNORE, as
+#   this shell has them.
+# - __CLAUDE_PLUGINS, a local of the caller's: the plugins to load, exactly;
+#   unset, claude-launch's default ones.
+# - __CLAUDE_LAUNCHER=claude-vm, a local of __claude_vm's: the microVM.
+# __claude_args stays shell-quoted, one word per argument, so an option's value
+# (--resume <id>, --model <name>) stays a word of its own. claude-launch is
+# resolved here, to a full path: the pane gets the tmux server's PATH.
+# What refuses a launch (the sandbox's cwd gate, a profile claude-launch didn't
+# make, a plugin the config doesn't have) is said in the pane, which tmux would
+# close at once: __CLAUDE_PANE_CMD keeps it open until a key is pressed when
+# claude-launch fails (remain-on-exit failed-key). The pane sets that on itself
+# before anything runs, so a window made detached gets it too, and the shell
+# that evals __CLAUDE_CMD keeps its own pane as it is.
 __claude_build_cmd() {
-  local prefix flags="" secrets="" open="" open_dir flock_bin file
-  prefix=$(__claude_sandbox_prefix) || return 1
-  # __claude_run launches via `tmux new-window`, which spawns from the tmux
-  # *server's* environment — so a prefix assignment on the caller
-  # (CLAUDE_SANDBOX_ALLOW_GH=1 __claude) is dropped before the sandbox
-  # script reads it. Carry it in the command string, like the vars below.
-  # CLAUDE_SANDBOX needs no such handling: its gate runs in the calling shell.
-  # Every sandbox variable the launcher reads has to be listed here. ALLOW_GH was
-  # not, so the documented per-session opt-in did nothing on the normal launch
-  # path and the only thing that appeared to work was CLAUDE_SANDBOX=0.
-  # GitHub: CLAUDE_SANDBOX_ALLOW_GH=1 makes the launcher read claude's own token
-  # from `pass` (entry claude/gh-token, not the GH_TOKEN entry your `gh` alias
-  # reads) and export it as GH_TOKEN, with your own `gh auth login` left masked
-  # (see CLAUDE_SANDBOX_ALLOW_GH in claude-sandbox.bash; Linux only). Only the
-  # flag is carried here; the pass read happens in the launcher.
-  [ "${CLAUDE_SANDBOX_ALLOW_GH:-0}" = "1" ] && flags="${flags}CLAUDE_SANDBOX_ALLOW_GH=1 "
-  # Firebase: scoped service-account auth. CLAUDE_SANDBOX_ALLOW_FIREBASE=1 makes the
-  # launcher mount a least-privilege SA key from `pass` (entry
-  # claude/firebase-sa-key) as ADC, with your personal `firebase login` token left
-  # masked (see CLAUDE_SANDBOX_ALLOW_FIREBASE in claude-sandbox.bash, or
-  # claude-macos.bash on macOS). Only the flag is carried here; the pass read and
-  # the bind happen in the launcher.
-  [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = "1" ] && flags="${flags}CLAUDE_SANDBOX_ALLOW_FIREBASE=1 "
-  # Jira: CLAUDE_SANDBOX_ALLOW_JIRA=1 makes the launcher read claude's own API
-  # token from `pass` (entry claude/jira-token, not the JIRA_API_TOKEN entry your
-  # `jira` alias reads) and export it as JIRA_API_TOKEN, with jira-cli pointed at
-  # the session's own config, .jira/claude.yml (see CLAUDE_SANDBOX_ALLOW_JIRA in
-  # claude-sandbox.bash, or claude-macos.bash on macOS). Only the flag is carried
-  # here; the pass read happens in the launcher.
-  [ "${CLAUDE_SANDBOX_ALLOW_JIRA:-0}" = "1" ] && flags="${flags}CLAUDE_SANDBOX_ALLOW_JIRA=1 "
-  # Extra hosts for a gh/jira/firebase session's network filter (see
-  # CLAUDE_SANDBOX_NET_ALLOW in claude-sandbox.bash). Quoted: it holds spaces,
-  # and `*` must not glob.
-  [ -n "${CLAUDE_SANDBOX_NET_ALLOW:-}" ] && flags="${flags}CLAUDE_SANDBOX_NET_ALLOW=$(printf '%q' "$CLAUDE_SANDBOX_NET_ALLOW") "
-  # Some MCP plugins need a secret in claude's env, pulled from pass — the same
-  # entries their interactive counterparts use — but only when that plugin is
-  # selected, so ordinary launches don't fire a gpg prompt. Each $(…) stays
-  # unevaluated here and runs at launch time (like the CONFIG_DIR var below);
-  # bwrap inherits the result, so the MCP server spawned inside the sandbox sees
-  # the value through the ${VAR:-} placeholder in its .mcp.json. Appended, not
-  # assigned, so selecting more than one such plugin injects each one's secret.
-  # A separate `case` per plugin keeps them independent (both can be selected).
-  case "$__claude_plugins" in
-    *figma-mcp*)
-      # figma-developer-mcp reads FIGMA_API_KEY; same FIGMA_TOKEN entry the `figma`
-      # REST wrapper uses. $(pass …) is intentionally literal — runs at launch.
-      # shellcheck disable=SC2016
-      secrets="${secrets}"'FIGMA_API_KEY=$(pass show "${FIGMA_TOKEN_PASS:-FIGMA_TOKEN}" 2>/dev/null) '
-      ;;
-  esac
-  case "$__claude_plugins" in
-    *google-workspace-mcp*)
-      # workspace-mcp reads GOOGLE_OAUTH_CLIENT_ID/SECRET; feed both from pass so no
-      # long-lived client secret sits in the ambient env or a client_secret.json on
-      # disk. $(pass …) is intentionally literal — runs at launch.
-      # shellcheck disable=SC2016
-      secrets="${secrets}"'GOOGLE_OAUTH_CLIENT_ID=$(pass show "${GOOGLE_OAUTH_CLIENT_ID_PASS:-GOOGLE_OAUTH_CLIENT_ID}" 2>/dev/null) '
-      # shellcheck disable=SC2016
-      secrets="${secrets}"'GOOGLE_OAUTH_CLIENT_SECRET=$(pass show "${GOOGLE_OAUTH_CLIENT_SECRET_PASS:-GOOGLE_OAUTH_CLIENT_SECRET}" 2>/dev/null) '
-      # Its OAuth token store, ~/.google_workspace_mcp, is masked in a session
-      # that doesn't set this (see claude-sandbox.bash).
-      flags="${flags}CLAUDE_SANDBOX_ALLOW_GOOGLE_WORKSPACE=1 "
-      ;;
-  esac
-  # Which session claude has open, for claude-sessions' backup and restore
-  # (github:Runeword/claude's packages/sessions/open.go): flock locks a file
-  # of this launch's own, in the profile's open-sessions/, for as long as
-  # claude runs, and claude's SessionStart hook (claude-sessions mark) writes
-  # into it the id of each session claude starts, resumes or clears into. A
-  # held lock that names a session says for sure it is open; watching for a
-  # process that names it could miss it, and the restore then started an open
-  # session again. -F execs into the launcher rather than wait as its parent,
-  # which tmux would name the window after, and tmux-session-name label the
-  # session after. The lock passes on to claude and what it starts, which the
-  # sandbox's PID namespace ends with claude; the launcher's cleanup watcher
-  # holds it up to 15 s longer. flock is resolved here, as the launcher is,
-  # for the pane's PATH. Without it, or in the microVM, whose sessions the
-  # restore doesn't start, claude runs as before.
-  open_dir="$HOME/$(__claude_profile)/open-sessions"
-  if [ "${__CLAUDE_LAUNCHER:-}" != claude-vm ] && flock_bin=$(command -v flock) &&
-    command mkdir -p "$open_dir" && file=$(mktemp "$open_dir/XXXXXXXX"); then
-    open="CLAUDE_SESSIONS_OPEN=$(printf '%q' "$file") $(printf '%q' "$flock_bin") -F $(printf '%q' "$file") "
+  local launch words="" keep="" tmux_bin sh_bin
+  if ! launch=$(command -v claude-launch); then
+    echo "claude: claude-launch not found on PATH; rebuild the terminal to pick it up" >&2
+    return 1
   fi
-  __CLAUDE_CMD="${flags}${secrets}CLAUDE_CODE_SYNTAX_HIGHLIGHT=false CLAUDE_CONFIG_DIR=\$HOME/$(__claude_profile) ${open}${prefix}claude $__claude_plugins --allowedTools WebSearch,WebFetch --effort max --model claude-opus-5-5 $__claude_args --allow-dangerously-skip-permissions"
+  [ "${CLAUDE_SANDBOX_ALLOW_GH:-0}" = 1 ] && words="${words}CLAUDE_SANDBOX_ALLOW_GH=1 "
+  [ "${CLAUDE_SANDBOX_ALLOW_FIREBASE:-0}" = 1 ] && words="${words}CLAUDE_SANDBOX_ALLOW_FIREBASE=1 "
+  [ "${CLAUDE_SANDBOX_ALLOW_JIRA:-0}" = 1 ] && words="${words}CLAUDE_SANDBOX_ALLOW_JIRA=1 "
+  # Quoted: it holds spaces, and `*` must not glob.
+  [ -n "${CLAUDE_SANDBOX_NET_ALLOW:-}" ] && words="${words}CLAUDE_SANDBOX_NET_ALLOW=$(printf '%q' "$CLAUDE_SANDBOX_NET_ALLOW") "
+  [ "${CLAUDE_SANDBOX:-1}" = 0 ] && words="${words}CLAUDE_SANDBOX=0 "
+  [ -n "${CLAUDE_SOURCES_ROOT:-}" ] && words="${words}CLAUDE_SOURCES_ROOT=$(printf '%q' "$CLAUDE_SOURCES_ROOT") "
+  [ -n "${CLAUDE_SOURCES_ROOT_IGNORE:-}" ] && words="${words}CLAUDE_SOURCES_ROOT_IGNORE=$(printf '%q' "$CLAUDE_SOURCES_ROOT_IGNORE") "
+  words="${words}CLAUDE_CONFIG_DIR=\$HOME/$(__claude_profile) "
+  [ -n "${__CLAUDE_PLUGINS+x}" ] && words="${words}CLAUDE_PLUGINS=$(printf '%q' "$__CLAUDE_PLUGINS") "
+  [ "${__CLAUDE_LAUNCHER:-}" = claude-vm ] && words="${words}CLAUDE_LAUNCH_VM=1 "
+  launch="$(printf '%q' "$launch") $__claude_args"
+  __CLAUDE_CMD="$words$launch"
+  if tmux_bin=$(command -v tmux) && sh_bin=$(command -v sh); then
+    keep="$(printf '%q' "$sh_bin") -c $(printf '%q' "$(printf '%q' "$tmux_bin") set-option -p -t \"\$TMUX_PANE\" remain-on-exit failed-key 2>/dev/null; exec \"\$@\"") sh "
+  fi
+  __CLAUDE_PANE_CMD="$words$keep$launch"
 }
 
 # The profile a session runs with, under $HOME: .claude-N, or .claude-vm-N for
@@ -237,203 +73,8 @@ __claude_profile() {
   fi
 }
 
-# Make the claude config (__claude_tree's .claude) own each profile's user-level
-# config: path-scoped rules and bundled settings load via the `user` setting
-# source (which the claude wrapper must enable), while per-profile state (auth,
-# sessions) stays separate. rules/ is a symlink; settings.json is a refreshed copy
-# so Claude's writes can't pollute the config tree or a read-only store. Fails
-# when the tree has no .claude, like the overlay below: a profile left
-# unprovisioned would launch without its sandbox settings.
-__claude_provision_config() {
-  local src
-  src="$(__claude_tree)/.claude"
-  if [ ! -d "$src" ]; then
-    echo "claude: $src is missing, so there is no claude config to provision the profile from; refusing to launch without its settings" >&2
-    return 1
-  fi
-  local dir name planted
-  dir="$HOME/$(__claude_profile)"
-  # claude-shell-guard (CLAUDE_CODE_SHELL_PREFIX) lets nothing Claude Code
-  # starts, MCP servers included, create entries directly in the profile, so the
-  # caches the plugins keep there (the config's plugins/*/.mcp.json) are
-  # made here. Through command, as mv below: aliases.sh's mkdir and mv add
-  # --verbose, and the shell expands an alias in a function as it reads it.
-  command mkdir -p "$dir" "$dir/.npm-cache" "$dir/.uv-cache" "$dir/.uv-tools"
-  # The profile's user-level instructions load into every session, in every
-  # project: CLAUDE.md, rules/, agents/, commands/ and skills/. A session can
-  # write its profile, so what one leaves there would steer every later one, a
-  # credential or unsandboxed session included. The claude config owns them:
-  # each is a symlink to its copy there, and one that the config lacks is
-  # removed. `ln -sfn` onto a *real directory* does not replace it — it creates
-  # the link inside it (rules/rules -> …) and exits 0 — so a real one is removed
-  # first.
-  for name in rules agents commands CLAUDE.md; do
-    if [ -e "$src/$name" ]; then
-      if [ -e "$dir/$name" ] && [ ! -L "$dir/$name" ]; then
-        rm -rf "${dir:?}/${name:?}"
-      fi
-      ln -sfn "$src/$name" "$dir/$name"
-    elif [ -e "$dir/$name" ] || [ -L "$dir/$name" ]; then
-      rm -rf "${dir:?}/${name:?}"
-      echo "claude: removed $dir/$name: the claude config has none, and a session can plant one for every later session" >&2
-    fi
-  done
-  # skills/ cannot be a link into the config: claude downloads the claude.ai
-  # account's skills into skills/synced at every start. That download is also
-  # why removing all of skills/ is safe; only what else was there is reported.
-  if [ -e "$dir/skills" ] || [ -L "$dir/skills" ]; then
-    planted=$(find "$dir/skills" -mindepth 1 -maxdepth 1 ! -name synced 2>/dev/null | sed 's|.*/||' | tr '\n' ' ')
-    planted=${planted% }
-    [ -L "$dir/skills" ] && planted="a link to $(readlink "$dir/skills")"
-    rm -rf "${dir:?}/skills"
-    if [ -n "$planted" ]; then
-      echo "claude: removed $planted from $dir/skills: a session can plant skills there for every later session" >&2
-    fi
-  fi
-  # plugins/synced is the same for plugins: claude downloads the account's
-  # synced plugins into it at start, and a plugin there loads, on by default,
-  # hooks and MCP servers included.
-  rm -rf "${dir:?}/plugins/synced"
-  __claude_provision_sandbox_overlay "$src" "$dir"
-}
-
-# The profile's settings.json: the config's settings.json with the per-OS
-# sandbox overlay deep-merged (jq `*`) over it, so the shared file stays
-# platform-neutral. The two overlays point opposite ways:
-# - settings.darwin.json turns Claude Code's built-in Seatbelt sandbox ON and
-#   is the boundary there: bwrap is Linux-only, and Seatbelt can allow the
-#   nix-daemon socket by path while Linux/seccomp cannot
-#   (anthropics/claude-code#44180). It also carries what the macOS credential
-#   opt-ins rely on (see claude-macos): Read deny rules that keep
-#   the `firebase login` and gcloud credentials out of every session, and
-#   `jira` run outside Seatbelt.
-# - settings.linux.json turns the built-in sandbox OFF: recent claude-code
-#   enables it by default when bubblewrap+socat are on PATH, but it cannot
-#   start inside the claude-sandbox.bash jail (nested userns is blocked by
-#   --disable-userns), so sandboxed Bash commands and !`…` slash-command
-#   snippets fail or prompt for a per-command bypass. The jail already
-#   isolates the whole process tree.
-# User scope is load-bearing: the shared settings.json also rides --settings
-# (CLI tier, above user), so a sandbox key there would leak across platforms
-# — the Linux "off" would override Darwin's user-tier "on".
-# Built from the config each time, never from the profile's copy, which a session
-# may have written. Claude Code reloads the file in every running session of
-# the profile when it changes, and the sandbox launcher pins it read-only in
-# each of them, on the file itself (claude-sandbox.bash). Replacing the file,
-# by a rename or an unlink and create as `install` does, drops that pin from
-# every running session. So the file is left alone when it already says this,
-# and otherwise written over in place, which a running session reads at once.
-# Anything there but a plain file of its own (a symlink, a directory, or a
-# hard link to another file) is removed first, so the write can't land
-# elsewhere.
-# Fails closed, like the sandbox gate: on macOS the overlay is the sandbox, so a
-# merge that fails (no jq, no overlay, bad JSON) refuses the launch.
-__claude_provision_sandbox_overlay() {
-  local src="$1" dir="$2" f="$2/settings.json" overlay merged
-  case "$(uname -s)" in
-    Darwin) overlay="$src/settings.darwin.json" ;;
-    Linux) overlay="$src/settings.linux.json" ;;
-    *) overlay= ;;
-  esac
-  if ! merged=$(jq -s 'reduce .[] as $s ({}; . * $s)' "$src/settings.json" ${overlay:+"$overlay"}); then
-    echo "claude: could not merge $overlay over $src/settings.json; refusing to launch without the sandbox settings" >&2
-    return 1
-  fi
-  if [ -e "$f" ] || [ -L "$f" ]; then
-    [ -n "$(find "$f" -prune -type f -links 1 2>/dev/null)" ] || rm -rf "${f:?}"
-  fi
-  [ -f "$f" ] && [ "$(<"$f")" = "$merged" ] && return 0
-  printf '%s\n' "$merged" >"$f"
-}
-
-# A session can write its profile and the directory it runs in, and the next
-# session loads what it left there without asking: MCP servers in the profile's
-# .claude.json (user and local scope) start with no approval prompt, and
-# .claude/settings.local.json can carry hooks, apiKeyHelper, env or plugins. The
-# next session may hold a credential the first never had (cc), run unsandboxed,
-# or run on macOS, where hooks and MCP servers are outside Seatbelt. So each
-# launch empties those server lists and cuts the local settings to what claude
-# writes there itself: its "don't ask again" permission rules and the Show tips
-# toggle. MCP servers belong in a plugin of the claude config (its bundled copy
-# is in the store) and project hooks in .claude/settings.json, pinned in the
-# sandbox. A file jq can't read refuses the launch. The profile's part runs with
-# __claude_prepare_profile, the project's (__claude_scrub_project) at each
-# launch. Plugins installed in the profile go too, for the same reason: they
-# load at the next start, hooks and MCP servers included.
-__claude_scrub_profile() {
-  local f names
-  f="$HOME/$(__claude_profile)/.claude.json"
-  if [ -e "$f" ]; then
-    names=$(jq -r '[.mcpServers // {}, (.projects // {} | .[].mcpServers // {})] | map(keys[]) | unique | join(", ")' "$f") || {
-      echo "claude: could not read $f; refusing to launch with the MCP servers it may name" >&2
-      return 1
-    }
-    if [ -n "$names" ]; then
-      __claude_rewrite_json "$f" 'if .mcpServers then .mcpServers = {} else . end | if .projects then .projects[] |= (if .mcpServers then .mcpServers = {} else . end) else . end' || return 1
-      echo "claude: removed the MCP servers $names from $f: they would start without approval" >&2
-    fi
-  fi
-  f="$HOME/$(__claude_profile)/plugins/installed_plugins.json"
-  if [ -e "$f" ]; then
-    names=$(jq -r '.plugins // {} | keys | join(", ")' "$f") || {
-      echo "claude: could not read $f; refusing to launch with the plugins it may name" >&2
-      return 1
-    }
-    if [ -n "$names" ]; then
-      __claude_rewrite_json "$f" '.plugins = {}' || return 1
-      echo "claude: removed the plugins $names from $f: they would load at the next start" >&2
-    fi
-  fi
-}
-
-__claude_scrub_project() {
-  local f names
-  f="$PWD/.claude/settings.local.json"
-  if [ -e "$f" ]; then
-    names=$(jq -r '[(keys_unsorted[] | select(. != "permissions" and . != "spinnerTipsEnabled")), (.permissions // {} | keys_unsorted[] | select(. != "allow" and . != "deny" and . != "ask") | "permissions." + .)] | join(", ")' "$f") || {
-      echo "claude: could not read $f; refusing to launch with the settings it may hold" >&2
-      return 1
-    }
-    if [ -n "$names" ]; then
-      __claude_rewrite_json "$f" 'with_entries(select(.key == "permissions" or .key == "spinnerTipsEnabled")) | if .permissions then .permissions |= with_entries(select(.key == "allow" or .key == "deny" or .key == "ask")) else . end' || return 1
-      echo "claude: dropped $names from $f: claude writes only its permission rules there" >&2
-    fi
-  fi
-}
-
-# Rewrite the JSON file $1 through the jq filter $2, atomically, and quietly:
-# mv through command, past aliases.sh's mv --verbose.
-__claude_rewrite_json() {
-  local tmp
-  tmp=$(mktemp "$1.XXXXXX") || return 1
-  if jq "$2" "$1" >"$tmp" && command mv -f "$tmp" "$1"; then
-    return 0
-  fi
-  rm -f "$tmp"
-  echo "claude: could not rewrite $1; refusing to launch" >&2
-  return 1
-}
-
-# Make profile $(__claude_profile) ready for a launch: its config from the
-# claude config, and what a session can plant in it removed. Once for the
-# launches a caller makes together: a caller that declares __CLAUDE_PREPARED,
-# as __claude_sessions_restore does, has each profile made ready listed there,
-# and the launches it then makes skip those. Under a lock on a file of the
-# profile's in the runtime dir, which the sandbox does not share, so two
-# launches can't interleave their writes; without flock or a runtime dir,
-# unlocked.
-__claude_prepare_profile() {
-  local profile
-  profile=$(__claude_profile)
-  case " ${__CLAUDE_PREPARED:-} " in *" $profile "*) return 0 ;; esac
-  if [ -n "${XDG_RUNTIME_DIR:-}" ] && command -v flock >/dev/null 2>&1; then
-    (flock 9 && __claude_provision_config && __claude_scrub_profile) 9>"$XDG_RUNTIME_DIR/claude-prepare$profile.lock" || return 1
-  else
-    __claude_provision_config && __claude_scrub_profile || return 1
-  fi
-  [ -z "${__CLAUDE_PREPARED+x}" ] || __CLAUDE_PREPARED="$__CLAUDE_PREPARED $profile"
-}
-
+# Read the instance, a leading number (1 unless given), and claude's arguments,
+# then build the launch.
 __claude_init() {
   __claude_instance=1
   if [ "$1" != "" ] && [ "$1" -eq "$1" ] 2>/dev/null; then
@@ -442,48 +83,21 @@ __claude_init() {
   fi
   __claude_args=""
   [ "$#" -gt 0 ] && __claude_args=$(printf '%q ' "$@")
-
-  # The live tree's when CLAUDE_SOURCES_ROOT names one, so plugin .mcp.json edits
-  # apply without a rebuild; the bundled copy otherwise (__claude_tree).
-  local plugins_dir
-  plugins_dir="$(__claude_tree)/.claude/plugins"
-  __claude_plugins=""
-  for p in "${__CLAUDE_DEFAULT_PLUGINS[@]}"; do
-    [ -d "$plugins_dir/$p" ] && __claude_plugins="$__claude_plugins --plugin-dir $plugins_dir/$p"
-  done
-
-  __claude_prepare_profile || return 1
-  __claude_build_cmd || return 1
-  __claude_scrub_project
+  __claude_build_cmd
 }
 
+# The plugin picker (leader cpl): a launch with exactly the plugins picked,
+# among those claude-plugins lists.
 __claude_init_fzf() {
-  __claude_instance=1
-  if [ "$1" != "" ] && [ "$1" -eq "$1" ] 2>/dev/null; then
-    __claude_instance="$1"
-    shift
-  fi
-  __claude_args=""
-  [ "$#" -gt 0 ] && __claude_args=$(printf '%q ' "$@")
-
-  # The live tree's when CLAUDE_SOURCES_ROOT names one, so plugin .mcp.json edits
-  # apply without a rebuild; the bundled copy otherwise (__claude_tree).
-  local plugins_dir
-  plugins_dir="$(__claude_tree)/.claude/plugins"
-  local selected
-  selected=$(find -L "$plugins_dir" -mindepth 1 -maxdepth 1 -exec basename {} \; 2>/dev/null | eval fzf --multi "$__CLAUDE_FZF") || return 1
-  __claude_plugins=$(echo "$selected" | while IFS= read -r p; do
-    [ "$p" != "" ] && printf ' --plugin-dir %s/%s' "$plugins_dir" "$p"
-  done)
-
-  __claude_prepare_profile || return 1
-  __claude_build_cmd || return 1
-  __claude_scrub_project
+  local selected __CLAUDE_PLUGINS
+  selected=$(claude-plugins | eval fzf --multi "$__CLAUDE_FZF") || return 1
+  __CLAUDE_PLUGINS=$(printf '%s' "$selected" | tr '\n' ' ')
+  __claude_init "$@"
 }
 
 __claude_run() {
   if [ "$TMUX" != "" ]; then
-    tmux new-window -a -c "#{pane_current_path}" "$__CLAUDE_CMD"
+    tmux new-window -a -c "#{pane_current_path}" "$__CLAUDE_PANE_CMD"
   else
     eval "$__CLAUDE_CMD"
   fi
@@ -496,8 +110,8 @@ __claude() {
 
 # __claude in the microVM (leader cv): the same session, profile and plugins,
 # started through claude-vm instead of claude-sandbox. A local, which
-# __claude_sandbox_prefix sees the way __claude sees __claude_connect's picks,
-# so the next plain launch gets claude-sandbox again.
+# __claude_build_cmd sees the way __claude sees __claude_connect's picks, so the
+# next plain launch gets claude-sandbox again.
 __claude_vm() {
   local __CLAUDE_LAUNCHER=claude-vm
   __claude "$@"
@@ -613,7 +227,7 @@ __claude_review() (
 # - PERMEANCE_TREE is the bundle and PERMEANCE_ROOT unset, so the live tree,
 #   which claude-vm would share read-write, stays out, and so does any other
 #   credential (the CLAUDE_SANDBOX_ALLOW_* opt-ins). CLAUDE_SOURCES_ROOT is
-#   unset too, so claude's config is its bundle as well (__claude_tree).
+#   unset too, so claude's config is its bundle as well.
 # - --fix, --comment and ultra are refused: the clone is thrown away, the VM has
 #   no GitHub token, and ultra needs your claude.ai login. A PR number fails the
 #   same way, in /code-review.
@@ -740,16 +354,11 @@ __claude_plugins() {
 # filter too, so the hosts it calls go in CLAUDE_SANDBOX_NET_ALLOW. Takes what
 # __claude takes: the instance, then claude's arguments.
 __claude_connect() {
-  # The live tree's when CLAUDE_SOURCES_ROOT names one, so plugin .mcp.json edits
-  # apply without a rebuild; the bundled copy otherwise (__claude_tree).
-  local plugins_dir
-  plugins_dir="$(__claude_tree)/.claude/plugins"
-  local selected c
+  local selected c picked=""
   selected=$(
     {
       printf '%s\n' firebase jira gh
-      find -L "$plugins_dir" -mindepth 2 -maxdepth 2 -name .mcp.json 2>/dev/null |
-        sed 's|/\.mcp\.json$||; s|.*/||' | sort
+      claude-plugins --mcp
     } | eval fzf --multi "$__CLAUDE_FZF"
   ) || return 0
   # Locals: __claude reads them (a function sees its caller's locals), and the
@@ -757,15 +366,16 @@ __claude_connect() {
   # session gets exactly what was picked: a credential sets the launcher's
   # opt-in flag, an MCP plugin joins the default plugins.
   local CLAUDE_SANDBOX_ALLOW_FIREBASE=0 CLAUDE_SANDBOX_ALLOW_JIRA=0 CLAUDE_SANDBOX_ALLOW_GH=0
-  local -a __CLAUDE_DEFAULT_PLUGINS=("${__CLAUDE_DEFAULT_PLUGINS[@]}")
   while IFS= read -r c; do
     case "$c" in
       firebase) CLAUDE_SANDBOX_ALLOW_FIREBASE=1 ;;
       jira) CLAUDE_SANDBOX_ALLOW_JIRA=1 ;;
       gh) CLAUDE_SANDBOX_ALLOW_GH=1 ;;
-      ?*) __CLAUDE_DEFAULT_PLUGINS+=("$c") ;;
+      ?*) picked="$picked $c" ;;
     esac
   done <<<"$selected"
+  local __CLAUDE_PLUGINS
+  __CLAUDE_PLUGINS="$(claude-plugins --default | tr '\n' ' ')${picked# }"
   __claude "$@"
 }
 
@@ -909,12 +519,6 @@ __claude_sessions_restore() {
   fi
   rm -rf "$sd"
   [ -n "$rows" ] || return 0
-  # Each profile the sessions run in is made ready once, before any of them
-  # starts, rather than once for each (__claude_prepare_profile).
-  local __CLAUDE_PREPARED='' __claude_instance
-  while IFS=$'\t' read -r id __claude_instance _; do
-    __claude_prepare_profile
-  done <<<"$rows"
   # A row: the session's id, profile, directory, connections, extra hosts of
   # its network filter, plugins and tmux session ("-" for none), then its
   # title.
@@ -947,23 +551,15 @@ __claude_sessions_reopen() {
     case ",$4," in *,firebase,*) CLAUDE_SANDBOX_ALLOW_FIREBASE=1 ;; esac
     CLAUDE_SANDBOX_NET_ALLOW=$5
     [ "$5" = - ] && CLAUDE_SANDBOX_NET_ALLOW=
-    __CLAUDE_DEFAULT_PLUGINS=()
-    local rest=$6
-    [ "$rest" = - ] && rest=
-    while [ -n "$rest" ]; do
-      __CLAUDE_DEFAULT_PLUGINS+=("${rest%%,*}")
-      case "$rest" in
-        *,*) rest=${rest#*,} ;;
-        *) rest= ;;
-      esac
-    done
+    local __CLAUDE_PLUGINS=${6//,/ }
+    [ "$6" = - ] && __CLAUDE_PLUGINS=
     __claude_init "$2" --resume "$1" || exit 1
     if [ "$7" = - ]; then
-      tmux new-window -d -c "$3" "$__CLAUDE_CMD"
+      tmux new-window -d -c "$3" "$__CLAUDE_PANE_CMD"
     else
       size=$(tmux display-message -p '#{window_width} #{window_height}')
-      tmux new-session -d -s "$7" -x "${size% *}" -y "${size#* }" -c "$3" "$__CLAUDE_CMD" 2>/dev/null ||
-        tmux new-window -d -t "=$7:" -c "$3" "$__CLAUDE_CMD"
+      tmux new-session -d -s "$7" -x "${size% *}" -y "${size#* }" -c "$3" "$__CLAUDE_PANE_CMD" 2>/dev/null ||
+        tmux new-window -d -t "=$7:" -c "$3" "$__CLAUDE_PANE_CMD"
     fi
   )
 }
