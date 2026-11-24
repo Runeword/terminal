@@ -98,7 +98,7 @@ pkgs.symlinkJoin (finalAttrs: {
           };
         };
         git = {
-          description = "The git pickers lay out, search and open their rows, on real repos through the real fzf where it matters, and gpn creates a private GitHub repo only where it can push to it";
+          description = "The git pickers lay out, search and open their rows, on real repos through the real fzf where it matters, gpn creates a private GitHub repo only where it can push to it, and gg opens a repo's GitHub page only where GitHub has the repo";
           replacements = {
             inherit zsh leaderAliases hunkPick;
             inherit (pkgs) git fzf;
