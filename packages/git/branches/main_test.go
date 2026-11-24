@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -63,6 +65,160 @@ func TestWorktreeChoice(t *testing.T) {
 				t.Errorf("line  = %q\nwant  = %q", line, tt.wantLine)
 			}
 		})
+	}
+}
+
+// TestSwitchRows: gbs marks the branch checked out here, and once a branch is
+// checked out in another worktree, names each branch's worktree in a column
+// that lines the branches up after it.
+func TestSwitchRows(t *testing.T) {
+	tests := []struct {
+		name string
+		info branchInfo
+		want []string
+	}{
+		{
+			name: "no branch checked out elsewhere: no worktree column",
+			info: branchInfo{
+				here:      "main",
+				branches:  []string{"docs", "main", "origin/feat"},
+				worktrees: map[string]string{"main": "/p/r"},
+				remote:    map[string]bool{"origin/feat": true},
+			},
+			want: []string{
+				"  docs\tdocs\t\t",
+				"* main\tmain\t\t/p/r",
+				"  origin/feat\torigin/feat\tr\t",
+			},
+		},
+		{
+			name: "the worktree column lines the branches up",
+			info: branchInfo{
+				here:      "main",
+				branches:  []string{"feat/x", "fix", "main", "origin/only"},
+				worktrees: map[string]string{"main": "/p/r", "feat/x": "/p/r_10"},
+				remote:    map[string]bool{"origin/only": true},
+			},
+			want: []string{
+				"  r_10  feat/x\tfeat/x\t\t/p/r_10",
+				"        fix\tfix\t\t",
+				"* r     main\tmain\t\t/p/r",
+				"        origin/only\torigin/only\tr\t",
+			},
+		},
+		{
+			name: "detached: no row marked, the worktrees still named",
+			info: branchInfo{
+				branches:  []string{"docs", "main"},
+				worktrees: map[string]string{"main": "/p/r"},
+			},
+			want: []string{
+				"     docs\tdocs\t\t",
+				"  r  main\tmain\t\t/p/r",
+			},
+		},
+		{
+			name: "a tab in a worktree's directory shows as a space and stays in its path",
+			info: branchInfo{
+				here:      "main",
+				branches:  []string{"feat", "main"},
+				worktrees: map[string]string{"main": "/p/r", "feat": "/p/a\tb"},
+			},
+			want: []string{
+				"  a b  feat\tfeat\t\t/p/a\tb",
+				"* r    main\tmain\t\t/p/r",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := switchRows(&tt.info); !slices.Equal(got, tt.want) {
+				t.Errorf("got  %q\nwant %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestSwitchPick runs gbs's rows through fzf with gbs's options, a --filter
+// query standing in for the user's search: it matches what the rows show, the
+// worktrees' names included, and not the fields hidden after it, and the row
+// it picks comes back whole, to make the command: a cd into the worktree its
+// branch is checked out in, else a git switch, --track for a remote-only one.
+func TestSwitchPick(t *testing.T) {
+	t.Setenv("FZF_DEFAULT_OPTS_FILE", "")
+	t.Setenv("FZF_DEFAULT_OPTS", "")
+	rows := switchRows(&branchInfo{
+		here:      "main",
+		branches:  []string{"feat", "fix", "main", "origin/only"},
+		worktrees: map[string]string{"main": "/p/r", "feat": "/p/r_1\tx"},
+		remote:    map[string]bool{"origin/only": true},
+	})
+	tests := []struct{ query, want string }{
+		{"r_1", "builtin cd '/p/r_1\tx' "},
+		{"main", "builtin cd '/p/r' "},
+		{"fix", "git switch --end-of-options 'fix' "},
+		{"only", "git switch --track --end-of-options 'origin/only' "},
+		{"p/r", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			got, err := runFzf(rows, append(switchArgs("main", "cat"), "--exact", "--filter="+tt.query)...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(got, "\n") {
+				t.Fatalf("%q matches more than one row: %q", tt.query, got)
+			}
+			if cmd := switchCmd(got); cmd != tt.want {
+				t.Errorf("picked %q: got %q, want %q", got, cmd, tt.want)
+			}
+		})
+	}
+}
+
+// TestFetchBranchesHere runs git in a repo whose branch feat is checked out in
+// a linked worktree, from that worktree: fetchBranches takes feat for the
+// branch checked out here, and each branch's worktree from git, as gbs's rows
+// show them.
+func TestFetchBranchesHere(t *testing.T) {
+	// Resolved, as git records the worktrees (macOS's temp dir is a symlink).
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", dir)
+	t.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+	t.Setenv("GIT_CONFIG_SYSTEM", "/dev/null")
+	for _, v := range []string{"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"} {
+		t.Setenv(v, "t")
+	}
+	git := func(args ...string) {
+		t.Helper()
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+	repo, linked := filepath.Join(dir, "r"), filepath.Join(dir, "r_1")
+	git("init", "-q", "-b", "main", repo)
+	git("-C", repo, "commit", "-q", "--allow-empty", "-m", "first")
+	git("-C", repo, "branch", "idle")
+	git("-C", repo, "worktree", "add", "-q", "-b", "feat", linked)
+	t.Chdir(linked)
+
+	info, err := fetchBranches(false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.here != "feat" {
+		t.Errorf("here = %q, want feat", info.here)
+	}
+	want := []string{
+		"* r_1  feat\tfeat\t\t" + linked,
+		"       idle\tidle\t\t",
+		"  r    main\tmain\t\t" + repo,
+	}
+	if got := switchRows(info); !slices.Equal(got, want) {
+		t.Errorf("got  %q\nwant %q", got, want)
 	}
 }
 
