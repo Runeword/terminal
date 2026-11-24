@@ -57,44 +57,78 @@ __git_clone() {
   builtin cd "$base_dir/$(basename "$repo_url" .git)" || return # Change into the cloned directory
 }
 
+# Normalize a git remote URL ($1), of any form, to its web page,
+# https://host/owner/repo. Covers:
+#   git@host:owner/repo[.git]                  (scp-like SSH)
+#   ssh://[git@]host[:port]/owner/repo[.git]   (SSH protocol, with optional port)
+#   git://host/owner/repo[.git]                (git protocol)
+#   http(s)://host/owner/repo[.git]            (HTTPS/HTTP)
+# The previous single regex hardcoded `github.com` in the output and only
+# matched the scp-like SSH form, so HTTPS clones or any non-GitHub remote
+# produced a wrong URL. A user[:token]@ before the host is dropped: the URL
+# goes to the browser, and into its history.
+__git_web_url() {
+  printf '%s\n' "$1" | sed -E \
+    -e 's#^git@([^:]+):#https://\1/#' \
+    -e 's#^ssh://(git@)?([^/:]+)(:[0-9]+)?/#https://\2/#' \
+    -e 's#^git://([^/]+)/#https://\1/#' \
+    -e 's#^http://#https://#' \
+    -e 's#^https://[^/]*@#https://#' \
+    -e 's#\.git$##'
+}
+
+# Open URL $1 in the browser, in the background.
+__git_browse() {
+  if command -v xdg-open >/dev/null 2>&1; then
+    (nohup xdg-open "$1" >/dev/null 2>&1 &)
+  elif command -v open >/dev/null 2>&1; then
+    open -a "$BROWSER" "$1"
+  else
+    return 1
+  fi
+}
+
+# gu and guc: the current branch on origin's web page, its tree or its $1
+# (commits).
 __git_open_url() {
   __git_require_repo || return 1
 
   local REMOTE_URL
   REMOTE_URL=$(git remote get-url origin) || return 1
 
-  # Normalize any git remote URL form to https://host/owner/repo. Covers:
-  #   git@host:owner/repo[.git]                  (scp-like SSH)
-  #   ssh://[git@]host[:port]/owner/repo[.git]   (SSH protocol, with optional port)
-  #   git://host/owner/repo[.git]                (git protocol)
-  #   http(s)://host/owner/repo[.git]            (HTTPS/HTTP)
-  # The previous single regex hardcoded `github.com` in the output and only
-  # matched the scp-like SSH form, so HTTPS clones or any non-GitHub remote
-  # produced a wrong URL. A user[:token]@ before the host is dropped: the URL
-  # goes to the browser, and into its history.
   local REPO_URL
-  REPO_URL=$(printf '%s\n' "$REMOTE_URL" | sed -E \
-    -e 's#^git@([^:]+):#https://\1/#' \
-    -e 's#^ssh://(git@)?([^/:]+)(:[0-9]+)?/#https://\2/#' \
-    -e 's#^git://([^/]+)/#https://\1/#' \
-    -e 's#^http://#https://#' \
-    -e 's#^https://[^/]*@#https://#' \
-    -e 's#\.git$##')
+  REPO_URL=$(__git_web_url "$REMOTE_URL")
 
   # Branch name when attached, or full sha when detached (GitHub treats the
   # literal string "HEAD" in URLs as a branch name and 404s).
   local BRANCH
   BRANCH=$(git symbolic-ref -q --short HEAD || git rev-parse HEAD)
 
-  local FINAL_URL="${REPO_URL}/${1:-tree}/${BRANCH}"
+  __git_browse "${REPO_URL}/${1:-tree}/${BRANCH}"
+}
 
-  if command -v xdg-open >/dev/null 2>&1; then
-    (nohup xdg-open "$FINAL_URL" >/dev/null 2>&1 &)
-  elif command -v open >/dev/null 2>&1; then
-    open -a "$BROWSER" "$FINAL_URL"
-  else
-    return 1
-  fi
+# gg: origin's home page on GitHub, opened only if GitHub has the repo. git
+# ls-remote asks GitHub through origin, with the credentials a fetch uses, so
+# a private repo counts, and an empty one; a repo never created, deleted or
+# out of reach opens nothing, and git says why. Its prompts are off: over
+# https, GitHub asks for a password for a repo it won't show, and git would
+# wait on the prompt.
+__git_open_github() {
+  __git_require_repo || return 1
+
+  local remote url
+  remote=$(git remote get-url origin) || return 1
+  url=$(__git_web_url "$remote")
+  case $url in
+    https://github.com/?*/?*) ;;
+    *)
+      echo "origin is not on GitHub: $remote" >&2
+      return 1
+      ;;
+  esac
+
+  GIT_TERMINAL_PROMPT=0 git ls-remote origin HEAD >/dev/null || return 1
+  __git_browse "$url"
 }
 
 # Creates a private GitHub repo from the current one and pushes the current
