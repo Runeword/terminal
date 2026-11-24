@@ -36,11 +36,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1795473942,
-        "narHash": "sha256-Jblhrvp+C0cI5LyCctEssyxKmmWemjZonOCRe9CLfVA=",
+        "lastModified": 1795524276,
+        "narHash": "sha256-We6svpv9KQa7ewl5d86HaWDl+mUQwtT8rBt9/a71maI=",
         "owner": "Runeword",
         "repo": "claude",
-        "rev": "9d8f69b02ac3059f877dfcc3f5d8263383c65a65",
+        "rev": "47b621ce6d3f2f6c2e5addbec6fb2fb5fec48c86",
         "type": "github"
       },
       "original": {
