@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	fzf "github.com/junegunn/fzf/src"
 	"golang.org/x/sync/errgroup"
@@ -188,6 +189,7 @@ func worktreeChoice(wt worktree) (line string, ok bool) {
 type branchInfo struct {
 	current   string // attached: short branch name; detached: short commit sha
 	detached  bool
+	here      string // the local branch checked out in this worktree, "" if detached
 	branches  []string
 	worktrees map[string]string // branch → worktree path
 	remote    map[string]bool   // branch → true iff it came from refs/remotes
@@ -222,9 +224,10 @@ func detectHead() (string, bool, error) {
 // (longest match wins, so a remote literally named `origin/mirror` is handled
 // before falling back to `origin`). Branches that survive from refs/remotes are
 // recorded in the returned `remote` set — `git switch` needs different flags
-// for those than for locals.
+// for those than for locals. `here` is the local branch checked out in this
+// worktree: the one for-each-ref's %(HEAD) stars, as git branch does.
 func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
-	var current, pager string
+	var current, pager, here string
 	var detached bool
 	var refRaw, remotes []string
 
@@ -236,8 +239,9 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 	})
 	g.Go(func() error {
 		var err error
+		// The worktree's path comes last, so that a tab in it stays in it.
 		refRaw, err = gitLines("for-each-ref",
-			"--format=%(refname)%09%(worktreepath)%09%(symref)",
+			"--format=%(HEAD)%09%(refname)%09%(symref)%09%(worktreepath)",
 			"refs/heads", "refs/remotes")
 		return err
 	})
@@ -265,15 +269,11 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 	var remoteList []remoteBranch
 
 	for _, line := range refRaw {
-		parts := strings.SplitN(line, "\t", 3)
-		ref := parts[0]
-		var worktreePath, symref string
-		if len(parts) >= 2 {
-			worktreePath = parts[1]
+		parts := strings.SplitN(line, "\t", 4)
+		if len(parts) < 4 {
+			continue
 		}
-		if len(parts) >= 3 {
-			symref = parts[2]
-		}
+		head, ref, symref, worktreePath := parts[0], parts[1], parts[2], parts[3]
 		if ref == "" || symref != "" {
 			continue
 		}
@@ -284,6 +284,9 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 			locals = append(locals, name)
 			if worktreePath != "" {
 				worktrees[name] = worktreePath
+			}
+			if head == "*" {
+				here = name
 			}
 		case strings.HasPrefix(ref, "refs/remotes/"):
 			short := strings.TrimPrefix(ref, "refs/remotes/")
@@ -324,6 +327,7 @@ func fetchBranches(excludeCurrent, dedupRemote bool) (*branchInfo, error) {
 	return &branchInfo{
 		current:   current,
 		detached:  detached,
+		here:      here,
 		branches:  all,
 		worktrees: worktrees,
 		remote:    remoteSet,
@@ -412,32 +416,8 @@ func switchBranch() error {
 		return err
 	}
 
-	// Fields 3 (worktree path) and 4 (remote marker) are hidden from fzf via
-	// --with-nth; they exist only to be parsed back out of the selection.
-	// Column 1 still shows the full `origin/foo`, so remote-only branches stay
-	// visually distinct in the list.
-	var lines []string
-	for _, b := range info.branches {
-		marker := ""
-		if info.remote[b] {
-			marker = "r"
-		}
-		if wt, ok := info.worktrees[b]; ok {
-			lines = append(lines, fmt.Sprintf("%s\t→ %s\t%s\t%s", b, filepath.Base(wt), wt, marker))
-		} else {
-			lines = append(lines, fmt.Sprintf("%s\t\t\t%s", b, marker))
-		}
-	}
-
-	args := []string{
-		"--delimiter=\t",
-		"--with-nth=1,2",
-		fmt.Sprintf("--preview=echo {}; git diff --color=always --end-of-options %s..{1} | %s", shellQuote(info.current), info.pager),
-		previewWindow,
-	}
-	args = append(args, os.Args[2:]...)
-
-	selected, err := runFzf(lines, args...)
+	args := append(switchArgs(info.current, info.pager), os.Args[2:]...)
+	selected, err := runFzf(switchRows(info), args...)
 	if err != nil {
 		return err
 	}
@@ -445,29 +425,87 @@ func switchBranch() error {
 		return nil
 	}
 
-	parts := strings.SplitN(selected, "\t", 4)
-	branch := strings.TrimSpace(parts[0])
-	worktreePath := ""
-	if len(parts) >= 3 {
-		worktreePath = strings.TrimSpace(parts[2])
-	}
-	isRemote := len(parts) >= 4 && strings.TrimSpace(parts[3]) == "r"
+	fmt.Print(switchCmd(selected))
+	return nil
+}
 
+// switchRows renders info's branches as gbs's rows, each tab-delimited:
+//
+//	shown \t branch \t remote \t path
+//
+// Only shown is displayed (switchArgs): "* " on the branch checked out in this
+// worktree, as git branch marks it, then, if a branch is checked out in another
+// worktree, the directory name of each branch's worktree, padded so that the
+// branches line up after it. With none elsewhere, that column would only name
+// this worktree, on the row the "*" marks, so it is left out. The hidden fields
+// are parsed back out of the pick (switchCmd): branch, as git switch takes it;
+// remote, "r" on a remote-tracking branch; and path, empty for a branch checked
+// out in no worktree, last so that a tab in it can't shift the others (a tab in
+// the directory name shown becomes a space).
+func switchRows(info *branchInfo) []string {
+	names := make(map[string]string, len(info.worktrees))
+	width, elsewhere := 0, false
+	for _, b := range info.branches {
+		if wt, ok := info.worktrees[b]; ok {
+			names[b] = strings.ReplaceAll(filepath.Base(wt), "\t", " ")
+			width = max(width, utf8.RuneCountInString(names[b]))
+			elsewhere = elsewhere || b != info.here
+		}
+	}
+
+	rows := make([]string, 0, len(info.branches))
+	for _, b := range info.branches {
+		mark := "  "
+		if b == info.here {
+			mark = "* "
+		}
+		shown := mark + b
+		if elsewhere {
+			shown = fmt.Sprintf("%s%-*s  %s", mark, width, names[b], b)
+		}
+		remote := ""
+		if info.remote[b] {
+			remote = "r"
+		}
+		rows = append(rows, strings.Join([]string{shown, b, remote, info.worktrees[b]}, "\t"))
+	}
+	return rows
+}
+
+// switchArgs are the fzf options gbs puts before the caller's: fzf splits
+// switchRows' rows at tabs and shows, and so searches, the first field alone.
+// The preview echoes it and the path of the branch's worktree, then the diff
+// from current to the branch.
+func switchArgs(current, pager string) []string {
+	return []string{
+		"--delimiter=\t",
+		"--with-nth={1}",
+		fmt.Sprintf("--preview=echo {1} {4..}; git diff --color=always --end-of-options %s..{2} | %s", shellQuote(current), pager),
+		previewWindow,
+	}
+}
+
+// switchCmd is the command gbs prints for row, the one picked of switchRows':
+// a cd into the worktree the branch is checked out in, or else a git switch,
+// here, to the branch.
+func switchCmd(row string) string {
+	parts := strings.SplitN(row, "\t", 4)
+	if len(parts) < 4 || parts[1] == "" {
+		return ""
+	}
+	branch, remote, path := parts[1], parts[2] == "r", parts[3]
 	switch {
-	case worktreePath != "":
-		fmt.Printf("builtin cd %s ", shellQuote(worktreePath))
-	case isRemote:
+	case path != "":
+		return "builtin cd " + shellQuote(path) + " "
+	case remote:
 		// `git switch origin/foo` is refused ("a branch is expected, got
 		// remote branch"), and the --guess DWIM only fires for the bare short
 		// name. --track creates the local branch, deriving its name from the
 		// remote-tracking ref, and sets upstream — unambiguous even when the
 		// same name exists on several remotes.
-		fmt.Printf("git switch --track --end-of-options %s ", shellQuote(branch))
-	default:
-		fmt.Printf("git switch --end-of-options %s ", shellQuote(branch))
+		return "git switch --track --end-of-options " + shellQuote(branch) + " "
 	}
-
-	return nil
+	return "git switch --end-of-options " + shellQuote(branch) + " "
 }
 
 // mergeBranch picks a branch and outputs a git merge command.
