@@ -4,7 +4,7 @@
 # SC2016 is off: the single-quoted code is for the zsh under test to expand.
 #
 # git.bash: the git pickers (ga, gl, gda/gdc/gdd, grs), on real repos where
-# it matters, and gpn.
+# it matters, gpn, and gg, gu and guc.
 
 # leader-aliases separates a row's fields with a no-break space.
 sep=$(printf '\302\240')
@@ -235,6 +235,59 @@ if [ "$(gpn_err proj)" = "Remote origin already exists: git@github.com:a/proj.gi
   ok "gpn creates no repo with an origin already, no commit or a detached HEAD"
 else
   fail "gpn creates a repo it cannot push to: with an origin already, no commit or a detached HEAD"
+fi
+
+# gg (__git_open_github), on real repos: it opens origin's page on GitHub
+# once git ls-remote finds the repo there, empty as it is here, and opens
+# nothing, saying why, for a repo GitHub doesn't have, an origin
+# elsewhere or none; gu and guc (__git_open_url) open the branch's tree
+# and commits on that page. A stand-in ssh serves GitHub's repos from a
+# directory, so ls-remote talks to the real git-upload-pack, and a
+# stand-in xdg-open records what it is handed. It runs in the background,
+# so the refusals go first, then the openers' records are waited for and
+# sorted.
+mkdir -p "$HOME/gg/github/a" "$HOME/gg/bin" && (
+  cd "$HOME/gg" || exit 1
+  git() { @git@/bin/git "$@"; }
+  git init -q --bare github/a/proj.git
+  git init -q -b main proj && git -C proj remote add origin git@github.com:a/proj.git
+  git init -q gone && git -C gone remote add origin git@github.com:a/gone.git
+  git init -q elsewhere && git -C elsewhere remote add origin git@gitlab.com:a/proj.git
+  git init -q none
+)
+printf '%s\n' '#!/bin/sh' 'cd "$HOME/gg/github" && exec sh -c "$2"' >"$HOME/gg/bin/ssh"
+printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$1" >>"$HOME/gg/opened"' >"$HOME/gg/bin/xdg-open"
+chmod +x "$HOME/gg/bin/ssh" "$HOME/gg/bin/xdg-open"
+gg_in() {
+  (cd "$HOME/gg/$1" && PATH=$HOME/gg/bin:@git@/bin:$PATH GIT_SSH_COMMAND=ssh GIT_SSH_VARIANT=simple \
+    @zsh@/bin/zsh -f -c ". @zsh@/.config/shell/functions/git.bash; $2")
+}
+gg_refused=yes
+for repo in gone elsewhere none; do
+  gg_in "$repo" __git_open_github 2>"$HOME/gg/$repo.err" && gg_refused=no
+done
+gg_in proj __git_open_github && gg_in proj __git_open_url && gg_in proj '__git_open_url commits'
+for _ in $(seq 50); do
+  [ "$(wc -l <"$HOME/gg/opened")" -ge 3 ] && break
+  sleep 0.1
+done 2>/dev/null
+if @leaderAliases@/bin/leader-aliases @zsh@/.config/shell/leader.conf |
+  awk -F "$sep" '$1 ~ /^gg +$/ && $5 == "__git_open_github" && $6 == "run" { found = 1 } END { exit !found }' &&
+  [ "$(sort "$HOME/gg/opened" 2>/dev/null)" = "https://github.com/a/proj
+https://github.com/a/proj/commits/main
+https://github.com/a/proj/tree/main" ]; then
+  ok "gg opens origin's page on GitHub once git ls-remote finds the repo there, and gu and guc the branch's tree and commits on it"
+else
+  fail "gg does not open origin's page on GitHub where git ls-remote finds the repo, or gu or guc not the branch's tree or commits on it"
+fi
+if [ "$gg_refused" = yes ] &&
+  grep -q 'Could not read from remote repository' "$HOME/gg/gone.err" &&
+  [ "$(cat "$HOME/gg/elsewhere.err")" = "origin is not on GitHub: git@gitlab.com:a/proj.git" ] &&
+  grep -q "No such remote 'origin'" "$HOME/gg/none.err" &&
+  ! grep -q -v '^https://github.com/a/proj' "$HOME/gg/opened"; then
+  ok "gg opens nothing, and says why, for a repo GitHub doesn't have, an origin elsewhere or none"
+else
+  fail "gg opens a page, or says nothing, for a repo GitHub doesn't have, an origin elsewhere or none"
 fi
 
 # Run from the leader (a zle widget), both of gl's steps are typed on
