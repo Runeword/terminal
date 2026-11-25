@@ -615,14 +615,18 @@ let
         # at the left of the list, the number following the session as it is
         # renumbered (the labels of 1 and 9 are set by hand; the others have
         # none). The client is wide enough that the centred group, number and
-        # label included, clears the nine session numbers. A color shows as
+        # label included, clears the nine session numbers. 1's windows, beside
+        # the widest label, are named a and b: named after their program, they
+        # are sleep on Linux but coreut on macOS, which names a program after
+        # the file run (nixpkgs' sleep is a link to coreutils), and that one
+        # column more joins the label to the session numbers. A color shows as
         # its place in @colors, - for none or for one not in @colors. The
         # client draws UTF-8 (-u) and 24-bit color (-T RGB), as Alacritty
         # takes them.
         colors=$(
           PATH=${self}/bin:$PATH
           fresh
-          tmux new-session -d -s 1 sleep 60 \; new-window -d -t =1: sleep 60 \; \
+          tmux new-session -d -s 1 -n a sleep 60 \; new-window -d -t =1: -n b sleep 60 \; \
             set -t =1: @label docs-work \; set-hook -g client-attached 'wait-for -S attached'
           ${pkgs.tmux}/bin/tmux -L outer -f /dev/null new-session -d -x 100 -y 5 'env -u TMUX tmux -u -T RGB attach -t =1'
           timeout 10 tmux wait-for attached
