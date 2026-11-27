@@ -73,10 +73,10 @@ pkgs.symlinkJoin (finalAttrs: {
           replacements = { inherit zsh leaderAliases; };
         };
         nix = {
-          description = "hgr and ngr list every generation but the current one, na deletes the old ones, collects the garbage and refreshes the boot menu, dr reloads direnv, and hs refreshes the home-manager flake's local inputs";
+          description = "hgr and ngr list every generation but the current one, na deletes the old ones, collects the garbage and refreshes the boot menu, dr reloads direnv, hs refreshes the home-manager flake's local inputs, and fc runs a flake, the repository's or a URL's, at the commit picked";
           replacements = {
             inherit zsh leaderAliases;
-            inherit (pkgs) jq;
+            inherit (pkgs) jq git;
           };
         };
         zoxide = {
