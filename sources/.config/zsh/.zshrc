@@ -142,6 +142,45 @@ add-zsh-hook precmd __add_newline
 
 # Load compinit on the first precmd so completion is ready before any tab press
 add-zsh-hook precmd __load_compinit_once
+
+# In a tmux pane, the pane's title is its prompt: the folder and the git branch
+# as the starship prompt draws them (.config/starship/starship.toml: the
+# folder's last three parts, ~ for home, then the branch, HEAD once detached),
+# set before each prompt and on each cd. tmux shows it in a stacked window's
+# title bars. It is read without a process, since it runs at every prompt: the
+# branch from the repo's HEAD file, found from the folder up (.git is the
+# repo's, or for a worktree or a submodule a file that names it). The prompt's
+# git status counts and cloud profiles are left out, as each would take one.
+# The title goes to the terminal itself ($TTY): a cd's own output can go
+# elsewhere, and the chpwd hooks it sets off write there too, as __cd's pushd
+# and PageUp/PageDown's send theirs to /dev/null.
+__title_prompt() {
+  [[ -n $TMUX ]] || return 0
+  local dir=$PWD git= head= branch= title
+  while :; do
+    if [[ -d $dir/.git ]]; then
+      git=$dir/.git
+      break
+    elif [[ -f $dir/.git ]]; then
+      { read -r git <"$dir/.git" } 2>/dev/null
+      git=${git#gitdir: }
+      [[ $git == /* ]] || git=$dir/$git
+      break
+    fi
+    [[ $dir == / ]] && break
+    dir=${dir:h}
+  done
+  [[ -n $git ]] && { read -r head <"$git/HEAD" } 2>/dev/null
+  if [[ $head == 'ref: refs/heads/'* ]]; then
+    branch=${head#ref: refs/heads/}
+  elif [[ -n $head ]]; then
+    branch=HEAD
+  fi
+  title=${(%):-%3~}${branch:+ $branch}
+  print -rn -- $'\e]2;'"${title//[[:cntrl:]]/?}"$'\a' 2>/dev/null >"${TTY:-/dev/stdout}"
+}
+add-zsh-hook precmd __title_prompt
+add-zsh-hook chpwd __title_prompt
 typeset -F __TH2="$SECONDS"
 _profile "hooks+newline: %.0fms\n" $(( (__TH2 - __TH1) * 1000 ))
 
@@ -597,6 +636,17 @@ __starship_init() { starship init zsh | sed "s/^PROMPT2=\"\(.*\)\"\$/PROMPT2='\1
 # Load critical plugins immediately (needed for prompt/env)
 typeset -F __T5="$SECONDS"
 __init_cache starship __starship_init && source "$REPLY"
+# A pane one line high, a folded pane of a stacked tmux window, draws no
+# prompt: the title bar above it shows the prompt's folder and branch
+# (__title_prompt), and the line under the title stays empty. zle expands the
+# prompt again as the pane is resized, and starship runs only once the pane is
+# higher again. A height zsh doesn't know (LINES unset, or 0) counts as
+# higher. Only with promptsubst, which the starship init sets: without it, the
+# prompt would show these words as they are.
+if [[ -o promptsubst ]]; then
+  PROMPT='${${${LINES:-x}:#1}:+'$PROMPT'}'
+  RPROMPT='${${${LINES:-x}:#1}:+'$RPROMPT'}'
+fi
 typeset -F __T6="$SECONDS"
 _profile "starship: %.0fms\n" $(( (__T6 - __T5) * 1000 ))
 
