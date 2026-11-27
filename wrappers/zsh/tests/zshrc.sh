@@ -4,8 +4,9 @@
 # SC2016 is off: the single-quoted code is for the zsh under test to expand.
 #
 # The bundled .zshrc: its keys (Shift+Space, Home/End, Shift+Tab, Tab,
-# Alt+H), the empty-prompt shortcuts, fpath, and a start with a cache home
-# inherited from elsewhere.
+# Alt+H), the empty-prompt shortcuts, fpath, a start with a cache home
+# inherited from elsewhere, a tmux pane's title, and no prompt in a pane one
+# line high.
 
 # Shift+Space types a space, as Space does (zsh -i also prints .zshrc's
 # timing line, hence the case).
@@ -115,3 +116,52 @@ if [ "${xdgc%% *}" = 1 ] && [ "${xdgc#* }" -gt 0 ] && ! grep -q "no such file" "
 else
   fail "with a cache home inherited from elsewhere, the start loses the tools' hooks or dircolors' colours: $xdgc $(cat "$HOME/xdgc/err")"
 fi
+
+# In a tmux pane the title is the prompt: the folder as starship shows it
+# (its last three parts, ~ for home), then the git branch, HEAD once
+# detached, read from the repo's HEAD file, a worktree's too; the folder
+# alone outside a repo, and no title outside tmux. It is set before each
+# prompt and on each cd, and goes to the terminal itself, $TTY, here a
+# file: a cd through __cd, or PageUp's __prevd, sends its own output to
+# /dev/null. cat -v shows the title's ESC and BEL.
+mkdir -p "$HOME/t/r/.git/worktrees/wt" "$HOME/t/r/a/b/c" "$HOME/t/wt" "$HOME/t/plain"
+printf 'ref: refs/heads/feature\n' >"$HOME/t/r/.git/HEAD"
+printf 'ref: refs/heads/other\n' >"$HOME/t/r/.git/worktrees/wt/HEAD"
+printf 'gitdir: %s\n' "$HOME/t/r/.git/worktrees/wt" >"$HOME/t/wt/.git"
+titles='TTY=~/tty
+  title() { print -r -- "$(<$TTY)"; : >$TTY; }
+  : >$TTY
+  for d in ~/t/r ~/t/r/a/b/c ~/t/wt ~/t/plain ~; do cd $d >/dev/null; title; done
+  __prevd; title
+  print -r -- 0123456789abcdef0123456789abcdef01234567 >~/t/r/.git/HEAD
+  cd ~/t/r >/dev/null; title
+  TMUX= __title_prompt; title
+  print -r -- hooks ${precmd_functions[(r)__title_prompt]} ${chpwd_functions[(r)__title_prompt]}'
+titled=$(cd "$HOME" && TMUX=/tmp/tmux-test,1,0 @zsh@/bin/zsh -i -c "$titles" 2>/dev/null | cat -v)
+case "$titled" in
+  *"$(printf '%s\n' '^[]2;~/t/r feature^G' '^[]2;a/b/c feature^G' '^[]2;~/t/wt other^G' '^[]2;~/t/plain^G' '^[]2;~^G' '^[]2;~/t/plain^G' '^[]2;~/t/r HEAD^G' '' 'hooks __title_prompt __title_prompt')") ok "in a tmux pane the title is the prompt, the folder and the git branch, set before each prompt and on each cd" ;;
+  *) fail "the titles of a tmux pane's prompt, in a repo, 3 folders down, in a worktree, outside a repo, at home, after PageUp, on a detached HEAD and outside tmux, then the hooks they are on, are not the folder and branch the prompt shows: $titled" ;;
+esac
+
+# A pane one line high, a folded pane of a stacked tmux window, draws no
+# prompt, left or right, under its title bar, and a higher one draws it
+# again, as does one whose height zsh doesn't know (LINES unset): zle
+# expands the prompts as it draws them, here (%%) does. A stand-in
+# starship's init sets them as starship's does, each a command
+# substitution, with promptsubst on.
+mkdir -p "$HOME/fold/bin"
+cat >"$HOME/fold/bin/starship" <<'EOF'
+#!/bin/sh
+cat <<'INIT'
+setopt promptsubst
+PROMPT='$(print -rn -- left)'
+RPROMPT='$(print -rn -- right)'
+INIT
+EOF
+chmod +x "$HOME/fold/bin/starship"
+folds='for LINES in 1 24; do print -r -- "[${(%%)PROMPT}|${(%%)RPROMPT}]"; done
+  unset LINES; print -r -- "[${(%%)PROMPT}|${(%%)RPROMPT}]"'
+case "$(PATH=$HOME/fold/bin:$PATH @zsh@/bin/zsh -i -c "$folds" 2>/dev/null)" in
+  *"$(printf '%s\n' '[|]' '[left|right]' '[left|right]')") ok "a pane one line high draws no prompt under its title, and a higher one draws it again" ;;
+  *) fail "a pane one line high draws a prompt under its title, or a higher one draws none" ;;
+esac
