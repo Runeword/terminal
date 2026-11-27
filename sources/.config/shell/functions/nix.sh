@@ -86,6 +86,130 @@ __flake_referrers() {
   nix-store --query --referrers $(nix path-info . --json | jq -r '.[].path')
 }
 
+# Runs a flake at a commit picked in fzf (leader fc):
+#   __flake_run_commit [FLAKE [ARG...]]
+# lists FLAKE's commits, newest first, each previewed as its change, then nix
+# runs FLAKE at the commit picked, handing ARG... to its app. FLAKE is what
+# nix run takes, . by default, the repository you are in:
+# - a path or a git+file: URL: the commits of what that repository has checked
+#   out, or of the ref= its URL names, read from it, pushed or not. Its flake
+#   is the nearest flake.nix up from the path, as nix run finds it.
+# - a github:, gitlab: or sourcehut: URL, or a git+https:, git+http: or
+#   git+ssh: one: the newest 500 commits of its default branch, or of the ref
+#   it names, from a clone without file contents (the preview fetches what it
+#   shows), made in the runtime dir and removed once one is picked.
+# The URL's other parameters and its #fragment are kept. The chord hands it
+# the typed line (#LINE): Space then fc picks among the commits of the
+# repository you are in, and a flake typed first, then Alt+Space and fc, among
+# that flake's. Quote a URL holding ? or #, which zsh would take for a glob.
+# What runs is the flake's app at that commit, which can be another program
+# than it is today.
+__flake_run_commit() {
+  local flake="${1:-.}" base frag="" query="" rest p kept="" ref="" host="" \
+    kind="" owner="" name="" remote="" src="" top here sub="" repo tip=HEAD \
+    tmp="" rev pinned
+  [ "$#" -gt 0 ] && shift
+  base=${flake%%'#'*}
+  [ "$base" = "$flake" ] || frag=${flake#*'#'}
+  case "$base" in
+    *'?'*)
+      query=${base#*'?'}
+      base=${base%%'?'*}
+      ;;
+  esac
+  # The URL's parameters but rev, which the commit picked replaces, and ref,
+  # which names what to list.
+  rest=$query
+  while [ -n "$rest" ]; do
+    p=${rest%%'&'*}
+    if [ "$p" = "$rest" ]; then rest=""; else rest=${rest#*'&'}; fi
+    case "$p" in
+      rev=*) ;;
+      ref=*) ref=${p#ref=} ;;
+      host=*) host=${p#host=} kept="$kept&$p" ;;
+      ?*) kept="$kept&$p" ;;
+    esac
+  done
+  case "$base" in
+    github:* | gitlab:* | sourcehut:*)
+      kind=${base%%:*}
+      owner=${base#*:}
+      name=${owner#*/}
+      owner=${owner%%/*}
+      case "$name" in
+        */*)
+          ref=${name#*/}
+          name=${name%%/*}
+          ;;
+      esac
+      case "$kind" in
+        github) remote=https://${host:-github.com}/$owner/$name ;;
+        gitlab) remote=https://${host:-gitlab.com}/$owner/$name ;;
+        sourcehut) remote=https://${host:-git.sr.ht}/$owner/$name ;;
+      esac
+      ;;
+    git+https://* | git+http://* | git+ssh://*)
+      kind=git
+      remote=${base#git+}
+      ;;
+    git+file://*) src=${base#git+file://} ;;
+    path:*) src=${base#path:} ;;
+    /* | . | ./* | .. | ../*) src=$base ;;
+    *)
+      echo "flake: can't list the commits of $flake: give a path, a github:, gitlab: or sourcehut: URL, or a git+ one" >&2
+      return 1
+      ;;
+  esac
+  if [ -n "$src" ]; then
+    top=$(git -C "$src" rev-parse --show-toplevel) || return 1
+    here=$(builtin cd -- "$src" && pwd -P) || return 1
+    while [ "$here" != "$top" ] && [ ! -e "$here/flake.nix" ] && [ -n "$here" ]; do
+      here=${here%/*}
+    done
+    case "$here/" in "$top"/?*) sub=${here#"$top"/} ;; esac
+    case "$top/$sub" in
+      *[!A-Za-z0-9._/-]*)
+        echo "flake: $top/$sub can't go in a flake URL as it is: it takes a path of letters, digits and ._/- only" >&2
+        return 1
+        ;;
+    esac
+    repo=$top
+    tip=${ref:-HEAD}
+  else
+    tmp=$(mktemp -d "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/flake-commits.XXXXXX") || return 1
+    repo=$tmp/repo
+    if ! GIT_TERMINAL_PROMPT=0 git clone --quiet --bare --filter=blob:none --depth=500 \
+      ${ref:+"--branch=$ref"} -- "$remote" "$repo"; then
+      command rm -rf -- "$tmp"
+      return 1
+    fi
+  fi
+  # The repository reaches the preview through fzf's environment, never
+  # spliced into its command, as in __update_flake_inputs.
+  # shellcheck disable=SC2016 # the preview's shell expands it
+  rev=$(git -C "$repo" log --format='%H%x09%h %ad %s' --date=short "$tip" -- |
+    FLAKE_REPO=$repo fzf --reverse --no-separator --border none --cycle --height 70% \
+      --info=inline:'' --header-first --prompt='  ' --header='enter: nix run' \
+      --delimiter='\t' --with-nth=2.. --accept-nth=1 \
+      --preview='git -C "$FLAKE_REPO" show --stat --patch --color=always {1}' \
+      --preview-window='down,60%,border-top,wrap')
+  [ -z "$tmp" ] || command rm -rf -- "$tmp"
+  [ -n "$rev" ] || return 0
+  case "$kind" in
+    github | gitlab | sourcehut) pinned=$kind:$owner/$name/$rev ;;
+    git) pinned=git+$remote kept="$kept${ref:+&ref=$ref}&rev=$rev" ;;
+    *) pinned=git+file://$top kept="$kept${ref:+&ref=$ref}${sub:+&dir=$sub}&rev=$rev" ;;
+  esac
+  [ -z "$kept" ] || pinned="$pinned?${kept#&}"
+  [ -z "$frag" ] || pinned="$pinned#$frag"
+  printf "nix run '%s'\n" "$pinned" >&2
+  if [ "$#" -gt 0 ]; then
+    nix run "$pinned" -- "$@"
+  else
+    nix run "$pinned"
+  fi
+}
+
 # Reloads the direnv environment. Under direnvrc's manual-reload mode, `direnv
 # reload` only loads a flake's cached devshell again, so where nix-direnv has
 # put its reload script on PATH (from .direnv/bin), that runs instead: it
