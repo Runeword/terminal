@@ -3,7 +3,7 @@
 # in ../default.nix before the check runs this file.
 # SC2016 is off: the single-quoted code is for the zsh under test to expand.
 #
-# hgr, ngr, na, dr and hs (nix.sh).
+# hgr, ngr, na, dr, hs and fc (nix.sh).
 
 # leader-aliases separates a row's fields with a no-break space.
 sep=$(printf '\302\240')
@@ -96,4 +96,92 @@ if [ "$(PATH=@jq@/bin:$PATH @zsh@/bin/zsh -f -c "$hmswitch")" = "$(printf 'f\nt'
   ok "hs refreshes the home-manager flake's local path: and git+file: inputs, not remote ones"
 else
   fail "hs does not refresh exactly the home-manager flake's local inputs"
+fi
+
+# fc (__flake_run_commit) runs a flake at the commit picked in fzf, with
+# what follows the flake handed to its app. In a repository, its commits
+# are read from it, and nix run gets a git+file: URL at the commit picked,
+# its flake found as nix run finds it, up from the directory, under dir=
+# when it is below the top. A URL's commits come from a clone, made in the
+# runtime dir and removed once one is picked or none is, and nix run gets
+# the URL at that commit, its other parameters and #fragment kept. Escape
+# in the picker runs nothing, nor does a flake whose commits can't be
+# listed. A real git and repository, with a flake at its top and one in
+# sub/; stand-ins: fzf picks the older of its two commits, or leaves with
+# escape's status when FCESC is set, nix prints what it was handed, and
+# git clone records what it was asked and clones that repository instead.
+fcrepo=$(cd "$TMPDIR" && pwd -P)/fcrepo
+mkdir -p "$fcrepo/sub/deep" "$fcrepo/deep/er" "$TMPDIR/fcrun" "$TMPDIR/fcnone"
+fcgit() { @git@/bin/git -C "$fcrepo" -c user.name=t -c user.email=t@example.com "$@"; }
+fcgit init -q -b main
+echo '{ }' >"$fcrepo/flake.nix"
+echo '{ }' >"$fcrepo/sub/flake.nix"
+touch "$fcrepo/deep/er/.keep" "$fcrepo/sub/deep/.keep"
+fcgit add -A
+fcgit commit -q -m older
+fcgit commit -q --allow-empty -m newer
+older=$(fcgit rev-parse HEAD~1)
+fc='. @zsh@/.config/shell/functions/nix.sh
+  fzf() { [ -n "$FCESC" ] && return 130; grep older | cut -f1; }
+  nix() { printf "[%s]" "$@"; }
+  git() { if [ "$1" = clone ]; then print -r -- "$*" >"$TMPDIR/fcclone"; command git clone -q --bare "$FCREPO" "${@[-1]}"; else command git "$@"; fi; }
+  __flake_run_commit "$@"'
+# fcrun DIR [ARG...]: runs $fc in zsh from DIR, ARG... for
+# __flake_run_commit, with the real git on PATH; its stderr goes to
+# $TMPDIR/fc.err.
+fcrun() {
+  (
+    cd "$1" || exit 1
+    shift
+    env FCREPO="$fcrepo" FCESC="${FCESC-}" XDG_RUNTIME_DIR="$TMPDIR/fcrun" PATH="@git@/bin:$PATH" \
+      @zsh@/bin/zsh -f -c "$fc" zsh "$@" 2>"$TMPDIR/fc.err"
+  )
+}
+if fcout=$(fcrun "$fcrepo/deep/er") &&
+  [ "$fcout" = "[run][git+file://$fcrepo?rev=$older]" ] &&
+  [ "$(cat "$TMPDIR/fc.err")" = "nix run 'git+file://$fcrepo?rev=$older'" ]; then
+  ok "fc in a repository runs its flake, found up from the directory, at the commit picked, and says what it runs"
+else
+  fail "fc in a repository does not run its flake at the commit picked: $fcout $(cat "$TMPDIR/fc.err")"
+fi
+if fcout=$(fcrun "$fcrepo" ./sub/deep --flag "a b") &&
+  [ "$fcout" = "[run][git+file://$fcrepo?dir=sub&rev=$older][--][--flag][a b]" ]; then
+  ok "fc on a path below the top runs the flake there, under dir=, and hands its app what follows"
+else
+  fail "fc on a path below the top does not run the flake there with its arguments: $fcout $(cat "$TMPDIR/fc.err")"
+fi
+if fcout=$(fcrun "$TMPDIR/fcnone" 'github:owner/name/dev?dir=sub#app' --flag) &&
+  [ "$fcout" = "[run][github:owner/name/$older?dir=sub#app][--][--flag]" ] &&
+  case $(cat "$TMPDIR/fcclone") in *" --branch=dev -- https://github.com/owner/name $TMPDIR/fcrun/flake-commits."*) true ;; *) false ;; esac &&
+  [ -z "$(ls -A "$TMPDIR/fcrun")" ]; then
+  ok "fc on a github: URL lists its ref's commits from a clone it removes, then runs the URL at the commit picked, its dir= and #fragment kept"
+else
+  fail "fc on a github: URL does not run it at the commit picked: $fcout $(cat "$TMPDIR/fcclone" "$TMPDIR/fc.err")"
+fi
+if fcout=$(fcrun "$TMPDIR/fcnone" 'git+ssh://git@example.com/o/r?ref=main&shallow=1') &&
+  [ "$fcout" = "[run][git+ssh://git@example.com/o/r?shallow=1&ref=main&rev=$older]" ] &&
+  case $(cat "$TMPDIR/fcclone") in *" --branch=main -- ssh://git@example.com/o/r $TMPDIR/fcrun/"*) true ;; *) false ;; esac then
+  ok "fc on a git+ssh: URL clones its ref over ssh and runs the URL at the commit picked, its parameters kept"
+else
+  fail "fc on a git+ssh: URL does not run it at the commit picked: $fcout $(cat "$TMPDIR/fcclone" "$TMPDIR/fc.err")"
+fi
+if fcout=$(FCESC=1 fcrun "$TMPDIR/fcnone" github:owner/name) && [ -z "$fcout" ] &&
+  [ -z "$(ls -A "$TMPDIR/fcrun")" ]; then
+  ok "escape in fc's picker runs nothing and removes the clone"
+else
+  fail "fc runs something after escape in its picker, or leaves its clone: $fcout $(ls -A "$TMPDIR/fcrun")"
+fi
+if fcout=$(fcrun "$TMPDIR/fcnone" nixpkgs); then
+  fail "fc runs a flake whose commits it can't list: $fcout"
+elif [ -z "$fcout" ] &&
+  [ "$(cat "$TMPDIR/fc.err")" = "flake: can't list the commits of nixpkgs: give a path, a github:, gitlab: or sourcehut: URL, or a git+ one" ]; then
+  ok "fc runs nothing, and says why, for a flake whose commits it can't list"
+else
+  fail "fc does not say why it can't list a flake's commits: $(cat "$TMPDIR/fc.err")"
+fi
+if @leaderAliases@/bin/leader-aliases @zsh@/.config/shell/leader.conf |
+  awk -F "$sep" '$1 ~ /^fc +$/ && $5 == "__flake_run_commit #LINE" && $6 == "run" { found = 1 } END { exit !found }'; then
+  ok "the bundled leader.conf runs __flake_run_commit on the typed line with fc"
+else
+  fail "the bundled leader.conf does not run __flake_run_commit on the typed line with fc"
 fi
